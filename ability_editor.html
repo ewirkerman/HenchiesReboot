@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Henchies 2 - Ability & Effect Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
+
+  <!-- Toast Container Top Center -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
+        HENCHIES 2
+      </span>
+      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold">
+        Ability & Effect Studio
+      </span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex items-center gap-3 text-xs font-semibold">
+      <a href="game.html" class="text-slate-400 hover:text-slate-200">Game Table</a>
+      <a href="deckbuilder.html" class="text-slate-400 hover:text-slate-200">Deckbuilder</a>
+      <a href="card_editor.html" class="text-slate-400 hover:text-slate-200">Card Studio</a>
+      <a href="ability_editor.html" class="text-amber-400 border-b-2 border-amber-400 pb-0.5">Ability Studio</a>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
+
+    <!-- LEFT: ABILITY CATALOG & STATUS CREATOR -->
+    <div class="w-full md:w-80 flex flex-col gap-4">
+      
+      <!-- Abilities Catalog -->
+      <div class="glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl border border-slate-800">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+          <h2 class="text-sm font-black text-amber-400 uppercase tracking-wider">
+            📦 Abilities Catalog
+          </h2>
+          <button id="create-new-ability-btn" class="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black px-2.5 py-1 rounded shadow">
+            + New
+          </button>
+        </div>
+
+        <input type="text" id="ability-search-input" placeholder="🔍 Search abilities..." class="bg-slate-900 border border-slate-700 p-2 rounded text-xs text-amber-300 w-full focus:outline-none focus:border-amber-500" />
+
+        <div id="abilities-catalog-list" class="flex flex-col gap-2 overflow-y-auto max-h-[300px]">
+          <div class="text-xs text-slate-500 italic text-center p-3">Loading custom abilities...</div>
+        </div>
+      </div>
+
+      <!-- STATUS MANAGER MODULE -->
+      <div class="glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl border border-slate-800">
+        <h2 class="text-sm font-black text-cyan-400 uppercase tracking-wider border-b border-slate-800 pb-2">
+          ✨ Custom Status Manager
+        </h2>
+        <p class="text-[10px] text-slate-400">Define custom statuses (e.g. Burn, Freeze, Shield, Stun) to apply via abilities.</p>
+        
+        <div class="flex gap-2">
+          <input type="text" id="status-name-input" placeholder="Status Name (e.g. Burn)" class="bg-slate-900 border border-slate-700 p-2 rounded text-xs text-white flex-1 focus:outline-none focus:border-cyan-500" />
+          <button id="add-status-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs px-3 rounded">
+            Add
+          </button>
+        </div>
+
+        <div id="status-list-container" class="flex flex-wrap gap-1.5 p-2 bg-slate-950 rounded border border-slate-800 min-h-[40px]">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: CONTEXT-SENSITIVE ABILITY EDITOR FORM -->
+    <div class="flex-1 glass-panel rounded-2xl p-5 flex flex-col gap-4 shadow-2xl border border-slate-800">
+      <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider border-b border-slate-800 pb-2" id="form-heading">
+        ⚡ Design / Edit Ability
+      </h2>
+
+      <form id="ability-form" class="flex flex-col gap-3 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Ability Name</label>
+            <input type="text" id="ab-name" required value="Vampiric Counter" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Trigger Event</label>
+            <select id="ab-trigger" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-full">
+              <option value="ON_PLAY">ON_PLAY</option>
+              <option value="ON_ATTACK">ON_ATTACK</option>
+              <option value="ON_DAMAGED" selected>ON_DAMAGED</option>
+              <option value="ON_DEATH">ON_DEATH</option>
+              <option value="TURN_IS_STARTING">TURN_IS_STARTING</option>
+              <option value="TURN_STARTS">TURN_STARTS</option>
+              <option value="TURN_IS_ENDING">TURN_IS_ENDING</option>
+              <option value="TURN_ENDS">TURN_ENDS</option>
+              <option value="MANUAL">MANUAL</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Duration</label>
+            <select id="ab-duration" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
+              <option value="instant" selected>Instant</option>
+              <option value="brief">Brief (Ends current turn)</option>
+              <option value="temporary">Temporary (Ends when inflictor's opponent ends turn)</option>
+              <option value="indefinite">Indefinite</option>
+              <option value="permanent">Permanent</option>
+            </select>
+          </div>
+          <div>
+            <label class="font-bold text-amber-400 block mb-1">Effect Action Type</label>
+            <select id="ab-effect-type" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-400 font-bold w-full">
+              <option value="DEAL_DAMAGE" selected>DEAL_DAMAGE (Subtracts current HP)</option>
+              <option value="HEAL">HEAL</option>
+              <option value="APPLY_STATUS">APPLY_STATUS</option>
+              <option value="MODIFY_STAT">MODIFY_STAT</option>
+              <option value="DRAW_CARD">DRAW_CARD</option>
+              <option value="DISCARD_CARD">DISCARD_CARD</option>
+              <option value="SUMMON">SUMMON</option>
+              <option value="CUSTOM_SCRIPT">CUSTOM_SCRIPT</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- DYNAMIC CONTEXT-SENSITIVE PARAMETER FIELDS -->
+        
+        <!-- 1. MAGNITUDE FIELD (Damage, Heal, Modify Stat) -->
+        <div id="field-magnitude" class="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center gap-3">
+          <div>
+            <label class="font-bold text-amber-400 block mb-0.5">Effect Magnitude (Amount)</label>
+            <span class="text-[10px] text-slate-400">Numeric amount of damage, healing, or stat modification.</span>
+          </div>
+          <input type="number" id="ab-magnitude" min="1" value="2" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-black text-base w-24 text-center" />
+        </div>
+
+        <!-- 2. TARGET SELECTION FIELD (Damage, Heal, Apply Status, Modify Stat) -->
+        <div id="field-target" class="bg-slate-900 p-3 rounded-xl border border-slate-800">
+          <label class="font-bold text-slate-300 block mb-1">Target Scope</label>
+          <select id="ab-target-scope" class="bg-slate-950 border border-slate-700 p-2 rounded text-white w-full font-bold">
+            <option value="TARGET_ENTITY">Target Entity (Single Unit or Hero)</option>
+            <option value="ENEMY_HERO">Enemy Hero / Avatar</option>
+            <option value="FRIENDLY_HERO">Friendly Hero / Avatar</option>
+            <option value="ALL_ENEMY_UNITS">All Enemy Units</option>
+            <option value="ALL_FRIENDLY_UNITS">All Friendly Units</option>
+          </select>
+        </div>
+
+        <!-- 3. STATUS TYPE FIELD (Only for APPLY_STATUS) -->
+        <div id="field-status" class="bg-slate-900 p-3 rounded-xl border border-slate-800 hidden">
+          <label class="font-bold text-cyan-400 block mb-1">Select Status to Apply</label>
+          <select id="ab-status-select" class="bg-slate-950 border border-slate-700 p-2 rounded text-cyan-300 font-bold w-full">
+            <!-- Populated dynamically from Status Manager -->
+          </select>
+        </div>
+
+        <!-- 4. CARD COUNT FIELD (Draw / Discard) -->
+        <div id="field-count" class="bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center gap-3 hidden">
+          <div>
+            <label class="font-bold text-amber-400 block mb-0.5">Card Count</label>
+            <span class="text-[10px] text-slate-400">Number of cards to draw or discard.</span>
+          </div>
+          <input type="number" id="ab-count" min="1" value="1" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-black text-base w-24 text-center" />
+        </div>
+
+        <!-- 5. SUMMON CARD FIELD (Only for SUMMON) -->
+        <div id="field-summon" class="bg-slate-900 p-3 rounded-xl border border-slate-800 hidden">
+          <label class="font-bold text-slate-300 block mb-1">Summon Target Card ID</label>
+          <input type="text" id="ab-summon-card-id" value="target_dummy" class="bg-slate-950 border border-slate-700 p-2 rounded text-white w-full" />
+        </div>
+
+        <!-- 6. CUSTOM SCRIPT FIELD (Only for CUSTOM_SCRIPT) -->
+        <div id="field-script" class="hidden">
+          <label class="font-bold text-amber-400 block mb-1">
+            📜 Custom Script (Executed via new Function)
+          </label>
+          <p class="text-[10px] text-slate-400 mb-1">Must return a string detailing what it did for history log injection.</p>
+          <textarea id="ab-script" rows="5" class="bg-slate-900 font-mono text-cyan-300 border border-slate-700 p-2 rounded w-full focus:outline-none focus:border-amber-500">const p = state.players[state.activePlayerId];
+p.tents = Math.min(p.maxTents, p.tents + 2);
+return p.name + " triggered Vampiric Counter, gaining 2 Tents!";</textarea>
+        </div>
+
+        <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-3 rounded-xl shadow-xl transition mt-2">
+          ⚡ Save Ability to Firestore Catalog
+        </button>
+      </form>
+    </div>
+
+  </main>
+
+  <script type="module">
+    import { Ability } from './src/engine.js';
+    import { showToast } from './src/ui.js';
+    import { saveAbilityToCatalog, fetchCustomAbilities } from './src/firebase.js';
+
+    let allAbilities = [];
+    let customStatuses = ['Stun', 'Burn', 'Freeze', 'Shield', 'Poison'];
+    let currentEditingId = null;
+
+    init();
+
+    async function init() {
+      const savedStatuses = localStorage.getItem('henchies_statuses');
+      if (savedStatuses) {
+        try { customStatuses = JSON.parse(savedStatuses); } catch (e) {}
+      }
+
+      document.getElementById('add-status-btn').addEventListener('click', addCustomStatus);
+      document.getElementById('ab-effect-type').addEventListener('change', updateContextFields);
+      document.getElementById('ability-search-input').addEventListener('input', renderCatalogList);
+      document.getElementById('create-new-ability-btn').addEventListener('click', resetForm);
+
+      allAbilities = await fetchCustomAbilities();
+      renderCatalogList();
+      renderStatusList();
+      updateContextFields();
+    }
+
+    function addCustomStatus() {
+      const input = document.getElementById('status-name-input');
+      const val = input.value.trim();
+      if (!val) return;
+
+      if (!customStatuses.includes(val)) {
+        customStatuses.push(val);
+        localStorage.setItem('henchies_statuses', JSON.stringify(customStatuses));
+        renderStatusList();
+        showToast(`Created status '${val}'!`, 'success');
+      }
+      input.value = '';
+    }
+
+    function renderStatusList() {
+      const container = document.getElementById('status-list-container');
+      const select = document.getElementById('ab-status-select');
+
+      container.innerHTML = customStatuses.map(s => `
+        <span class="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] px-2 py-0.5 rounded font-extrabold">${s}</span>
+      `).join('');
+
+      select.innerHTML = customStatuses.map(s => `
+        <option value="${s}">${s}</option>
+      `).join('');
+    }
+
+    function updateContextFields() {
+      const type = document.getElementById('ab-effect-type').value;
+
+      document.getElementById('field-magnitude').classList.toggle('hidden', !['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT'].includes(type));
+      document.getElementById('field-target').classList.toggle('hidden', !['DEAL_DAMAGE', 'HEAL', 'APPLY_STATUS', 'MODIFY_STAT'].includes(type));
+      document.getElementById('field-status').classList.toggle('hidden', type !== 'APPLY_STATUS');
+      document.getElementById('field-count').classList.toggle('hidden', !['DRAW_CARD', 'DISCARD_CARD'].includes(type));
+      document.getElementById('field-summon').classList.toggle('hidden', type !== 'SUMMON');
+      document.getElementById('field-script').classList.toggle('hidden', type !== 'CUSTOM_SCRIPT');
+    }
+
+    function renderCatalogList() {
+      const query = document.getElementById('ability-search-input').value.toLowerCase();
+      const list = document.getElementById('abilities-catalog-list');
+      const filtered = allAbilities.filter(a => (a.name || a.abilityId).toLowerCase().includes(query));
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="text-xs text-slate-500 italic text-center p-3">No matching abilities found.</div>`;
+        return;
+      }
+
+      list.innerHTML = filtered.map(ab => `
+        <div 
+          onclick="window.loadAbility('${ab.abilityId}')"
+          class="p-3 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex flex-col gap-1 cursor-pointer transition"
+        >
+          <div class="flex justify-between items-center font-bold text-amber-300">
+            <span>${ab.name}</span>
+            <span class="text-[9px] bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800 font-bold">${ab.trigger}</span>
+          </div>
+          <div class="text-slate-400 text-[11px]">Type: ${ab.effects?.[0]?.type || 'N/A'}</div>
+        </div>
+      `).join('');
+
+      window.loadAbility = (id) => {
+        const ab = allAbilities.find(a => a.abilityId === id);
+        if (!ab) return;
+
+        currentEditingId = ab.abilityId;
+        document.getElementById('form-heading').innerText = `⚡ Edit Ability: ${ab.name}`;
+        document.getElementById('ab-name').value = ab.name;
+        document.getElementById('ab-trigger').value = ab.trigger || 'ON_PLAY';
+        document.getElementById('ab-duration').value = ab.duration || 'instant';
+
+        const eff = ab.effects?.[0] || {};
+        document.getElementById('ab-effect-type').value = eff.type || 'DEAL_DAMAGE';
+        document.getElementById('ab-magnitude').value = eff.amount || 2;
+        document.getElementById('ab-count').value = eff.amount || 1;
+        document.getElementById('ab-target-scope').value = eff.target || 'TARGET_ENTITY';
+        if (eff.status) document.getElementById('ab-status-select').value = eff.status;
+        if (eff.cardId) document.getElementById('ab-summon-card-id').value = eff.cardId;
+        if (eff.script) document.getElementById('ab-script').value = eff.script;
+
+        updateContextFields();
+        showToast(`Loaded ability '${ab.name}' for editing.`, 'info');
+      };
+    }
+
+    function resetForm() {
+      currentEditingId = null;
+      document.getElementById('form-heading').innerText = `⚡ Design / Edit Ability`;
+      document.getElementById('ab-name').value = 'New Custom Ability';
+      updateContextFields();
+    }
+
+    document.getElementById('ability-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const effectType = document.getElementById('ab-effect-type').value;
+      const magnitude = parseInt(document.getElementById('ab-magnitude').value) || 1;
+      const count = parseInt(document.getElementById('ab-count').value) || 1;
+      const targetScope = document.getElementById('ab-target-scope').value;
+      const statusSelect = document.getElementById('ab-status-select').value;
+      const summonCardId = document.getElementById('ab-summon-card-id').value;
+      const script = document.getElementById('ab-script').value;
+
+      const effectPayload = { type: effectType };
+      if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT'].includes(effectType)) {
+        effectPayload.amount = magnitude;
+        effectPayload.target = targetScope;
+      } else if (effectType === 'APPLY_STATUS') {
+        effectPayload.status = statusSelect;
+        effectPayload.target = targetScope;
+      } else if (['DRAW_CARD', 'DISCARD_CARD'].includes(effectType)) {
+        effectPayload.amount = count;
+      } else if (effectType === 'SUMMON') {
+        effectPayload.cardId = summonCardId;
+      } else if (effectType === 'CUSTOM_SCRIPT') {
+        effectPayload.script = script;
+      }
+
+      const ability = new Ability({
+        abilityId: currentEditingId || ('ability_' + Date.now()),
+        name: document.getElementById('ab-name').value,
+        trigger: document.getElementById('ab-trigger').value,
+        duration: document.getElementById('ab-duration').value,
+        effects: [effectPayload]
+      });
+
+      await saveAbilityToCatalog(ability);
+      showToast(`Ability '${ability.name}' saved to catalog & Firestore!`, 'success');
+
+      allAbilities = [...allAbilities.filter(a => a.abilityId !== ability.abilityId), ability];
+      renderCatalogList();
+    });
+  </script>
+</body>
+</html>

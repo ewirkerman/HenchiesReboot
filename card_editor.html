@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Henchies 2 - Card Designer Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
+
+  <!-- Toast Container Top Center -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
+        HENCHIES 2
+      </span>
+      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold">
+        Card Designer Studio
+      </span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex items-center gap-3 text-xs font-semibold">
+      <a href="game.html" class="text-slate-400 hover:text-slate-200">Game Table</a>
+      <a href="deckbuilder.html" class="text-slate-400 hover:text-slate-200">Deckbuilder</a>
+      <a href="card_editor.html" class="text-amber-400 border-b-2 border-amber-400 pb-0.5">Card Studio</a>
+      <a href="ability_editor.html" class="text-slate-400 hover:text-slate-200">Ability Studio</a>
+    </nav>
+  </header>
+
+  <!-- Content -->
+  <main class="flex-1 max-w-5xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
+
+    <!-- FORM INPUTS -->
+    <div class="flex-1 glass-panel rounded-2xl p-5 flex flex-col gap-4 shadow-2xl border border-slate-800">
+      
+      <!-- Card Selector Bar -->
+      <div class="flex justify-between items-center bg-slate-900/90 p-3 rounded-xl border border-slate-800 gap-3">
+        <span class="text-xs font-black text-amber-400 uppercase tracking-wider whitespace-nowrap">Load Card to Edit:</span>
+        <select id="card-selector" class="bg-slate-950 border border-slate-700 text-xs px-3 py-1.5 rounded text-slate-200 font-bold w-full focus:outline-none focus:border-amber-500">
+          <option value="NEW">+ Create New Blank Card</option>
+        </select>
+      </div>
+
+      <form id="card-form" class="flex flex-col gap-3 text-xs">
+        <div>
+          <label class="font-bold text-slate-300 block mb-1">Card Name</label>
+          <input type="text" id="card-name" required value="Plasma Cyborg" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Card Type</label>
+            <select id="card-type" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
+              <option value="unit">Unit</option>
+              <option value="spell">Spell</option>
+              <option value="equipment">Equipment</option>
+              <option value="artifact">Artifact</option>
+            </select>
+          </div>
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Tribe Alignment (11 Tribes ONLY)</label>
+            <select id="card-tribe" class="bg-slate-900 border border-slate-700 p-2 rounded text-pink-300 font-bold w-full">
+              <option value="Robot" selected>Robot (Pink)</option>
+              <option value="Mythic">Mythic (Green)</option>
+              <option value="Elemental">Elemental (Rusty Orange)</option>
+              <option value="Pirate">Pirate (Brown)</option>
+              <option value="Undead">Undead (Blueish)</option>
+              <option value="Carnie">Carnie (Purple)</option>
+              <option value="Viking">Viking</option>
+              <option value="Ninja">Ninja</option>
+              <option value="Stalker">Stalker</option>
+              <option value="Alien">Alien</option>
+              <option value="Luchador">Luchador</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Tent Cost</label>
+            <input type="number" id="card-tents" min="0" value="2" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-400 font-black w-full" />
+          </div>
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Tribe Res Cost</label>
+            <input type="number" id="card-res" min="0" value="1" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-400 font-black w-full" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3" id="stats-inputs">
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Strength</label>
+            <input type="number" id="card-strength" min="0" value="3" class="bg-slate-900 border border-slate-700 p-2 rounded text-yellow-400 font-bold w-full" />
+          </div>
+          <div>
+            <label class="font-bold text-slate-300 block mb-1">Health</label>
+            <input type="number" id="card-health" min="1" value="4" class="bg-slate-900 border border-slate-700 p-2 rounded text-red-400 font-bold w-full" />
+          </div>
+        </div>
+
+        <!-- SEARCHABLE MULTI-SELECT FOR TRAITS & ABILITIES -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-bold text-slate-300">Traits & Abilities Selection</label>
+            <button type="button" id="open-traits-modal-btn" class="bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1 rounded border border-slate-700 text-[11px] font-bold">
+              🔍 Manage Traits & Abilities (<span id="selected-traits-count">0</span> selected)
+            </button>
+          </div>
+          <div id="selected-traits-pills" class="flex flex-wrap gap-1.5 p-2 bg-slate-950 rounded border border-slate-800 min-h-[40px]">
+            <span class="text-slate-500 italic text-[11px]">No traits or abilities attached.</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="font-bold text-slate-300 block mb-1">Card Image Art (URL or Upload File)</label>
+          <input type="text" id="card-art-url" placeholder="https://..." class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full mb-1" />
+          <input type="file" id="card-art-file" accept="image/*" class="text-[10px] text-slate-400" />
+        </div>
+
+        <div>
+          <label class="font-bold text-slate-300 block mb-1">Description</label>
+          <textarea id="card-desc" rows="2" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">Deals plasma damage and protects cyber units.</textarea>
+        </div>
+
+        <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-3 rounded-xl shadow-xl transition mt-2">
+          ✨ Save Card to Firestore & Catalog
+        </button>
+      </form>
+    </div>
+
+    <!-- LIVE PREVIEW CARD -->
+    <div class="w-full md:w-72 glass-panel rounded-2xl p-5 flex flex-col items-center gap-4 shadow-2xl border border-slate-800">
+      <h2 class="text-sm font-black text-amber-400 uppercase tracking-wider">
+        👁️ Live Visual Preview
+      </h2>
+      <p class="text-[10px] text-slate-400 text-center">Click preview card to open full Inspection Modal.</p>
+
+      <div id="preview-card-container" class="my-auto cursor-pointer"></div>
+    </div>
+
+  </main>
+
+  <!-- SEARCHABLE TRAITS & ABILITIES MULTI-SELECT MODAL -->
+  <div id="traits-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden select-none">
+    <div class="bg-slate-900 border-2 border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl flex flex-col gap-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+        <h3 class="text-base font-black text-amber-400 uppercase tracking-wider">Searchable Traits & Abilities Multi-Select</h3>
+        <button id="close-traits-modal-btn" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+      </div>
+
+      <input type="text" id="traits-search-input" placeholder="🔍 Search traits or custom abilities..." class="bg-slate-950 border border-slate-700 p-2 rounded text-xs text-amber-300 w-full focus:outline-none focus:border-amber-500" />
+
+      <div id="traits-options-list" class="flex flex-col gap-2 max-h-60 overflow-y-auto p-1 bg-slate-950 rounded border border-slate-800">
+      </div>
+
+      <button id="confirm-traits-modal-btn" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-2.5 rounded-xl shadow">
+        Confirm Selection
+      </button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { Card, TRAITS, DEFAULT_CARDS } from './src/engine.js';
+    import { renderCardHTML, openInspectionModal, showToast } from './src/ui.js';
+    import { saveCardToCatalog, fetchCustomCards, fetchCustomAbilities } from './src/firebase.js';
+
+    let fullCatalog = [...DEFAULT_CARDS];
+    let customAbilities = [];
+    let selectedTraits = ['Fast'];
+    let selectedAbilityIds = [];
+    let currentEditingCardId = null;
+
+    init();
+
+    async function init() {
+      const customCards = await fetchCustomCards();
+      if (customCards.length > 0) fullCatalog = [...DEFAULT_CARDS, ...customCards];
+      
+      customAbilities = await fetchCustomAbilities();
+      populateCardSelector();
+
+      document.getElementById('card-selector').addEventListener('change', (e) => {
+        if (e.target.value === 'NEW') {
+          currentEditingCardId = null;
+          resetForm();
+        } else {
+          const card = fullCatalog.find(c => c.id === e.target.value);
+          if (card) loadCardIntoForm(card);
+        }
+      });
+
+      const form = document.getElementById('card-form');
+      form.querySelectorAll('input, select, textarea').forEach(i => i.addEventListener('input', updatePreview));
+
+      document.getElementById('open-traits-modal-btn').addEventListener('click', openTraitsModal);
+      document.getElementById('close-traits-modal-btn').addEventListener('click', closeTraitsModal);
+      document.getElementById('confirm-traits-modal-btn').addEventListener('click', closeTraitsModal);
+      document.getElementById('traits-search-input').addEventListener('input', renderTraitsModalList);
+
+      updatePreview();
+    }
+
+    function populateCardSelector() {
+      const sel = document.getElementById('card-selector');
+      sel.innerHTML = `<option value="NEW">+ Create New Blank Card</option>` + 
+        fullCatalog.map(c => `<option value="${c.id}">${c.name} (${c.tribe} ${c.type})</option>`).join('');
+    }
+
+    function loadCardIntoForm(card) {
+      currentEditingCardId = card.id;
+      document.getElementById('card-name').value = card.name;
+      document.getElementById('card-type').value = card.type;
+      document.getElementById('card-tribe').value = card.tribe;
+      document.getElementById('card-tents').value = card.cost?.tents || 0;
+      document.getElementById('card-res').value = card.cost?.tribeResource || 0;
+      document.getElementById('card-strength').value = card.strength || 0;
+      document.getElementById('card-health').value = card.health || 1;
+      document.getElementById('card-art-url').value = card.artUrl || '';
+      document.getElementById('card-desc').value = card.description || '';
+
+      selectedTraits = card.traits || [];
+      selectedAbilityIds = (card.abilities || []).map(a => a.abilityId || a.name);
+
+      updateSelectedPills();
+      updatePreview();
+      showToast(`Loaded '${card.name}' for editing.`, 'info');
+    }
+
+    function resetForm() {
+      document.getElementById('card-name').value = 'New Custom Card';
+      document.getElementById('card-desc').value = 'Card description...';
+      selectedTraits = [];
+      selectedAbilityIds = [];
+      updateSelectedPills();
+      updatePreview();
+    }
+
+    function getFormData() {
+      const attachedAbilities = customAbilities.filter(a => selectedAbilityIds.includes(a.abilityId));
+
+      return new Card({
+        id: currentEditingCardId || ('custom_' + Date.now()),
+        name: document.getElementById('card-name').value,
+        type: document.getElementById('card-type').value,
+        tribe: document.getElementById('card-tribe').value,
+        cost: {
+          tents: parseInt(document.getElementById('card-tents').value) || 0,
+          tribeResource: parseInt(document.getElementById('card-res').value) || 0
+        },
+        strength: parseInt(document.getElementById('card-strength').value) || 0,
+        health: parseInt(document.getElementById('card-health').value) || 1,
+        maxHealth: parseInt(document.getElementById('card-health').value) || 1,
+        traits: selectedTraits,
+        abilities: attachedAbilities,
+        artUrl: document.getElementById('card-art-url').value,
+        description: document.getElementById('card-desc').value
+      });
+    }
+
+    function updatePreview() {
+      const card = getFormData();
+      const container = document.getElementById('preview-card-container');
+      const json = encodeURIComponent(JSON.stringify(card));
+
+      container.innerHTML = renderCardHTML(card, {
+        onClick: `window.inspectPreview('${json}')`
+      });
+
+      window.inspectPreview = (cardJson) => {
+        openInspectionModal(JSON.parse(decodeURIComponent(cardJson)));
+      };
+    }
+
+    function updateSelectedPills() {
+      const container = document.getElementById('selected-traits-pills');
+      const totalCount = selectedTraits.length + selectedAbilityIds.length;
+      document.getElementById('selected-traits-count').innerText = totalCount;
+
+      if (totalCount === 0) {
+        container.innerHTML = `<span class="text-slate-500 italic text-[11px]">No traits or abilities attached.</span>`;
+        return;
+      }
+
+      const traitPills = selectedTraits.map(t => `<span class="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] px-2 py-0.5 rounded font-extrabold">${t}</span>`);
+      const abilityPills = selectedAbilityIds.map(id => `<span class="bg-amber-950 text-amber-300 border border-amber-800 text-[10px] px-2 py-0.5 rounded font-extrabold">⚡ ${id}</span>`);
+      
+      container.innerHTML = [...traitPills, ...abilityPills].join('');
+    }
+
+    function openTraitsModal() {
+      document.getElementById('traits-modal').classList.remove('hidden');
+      renderTraitsModalList();
+    }
+
+    function closeTraitsModal() {
+      document.getElementById('traits-modal').classList.add('hidden');
+      updateSelectedPills();
+      updatePreview();
+    }
+
+    function renderTraitsModalList() {
+      const query = document.getElementById('traits-search-input').value.toLowerCase();
+      const list = document.getElementById('traits-options-list');
+
+      const traitsFiltered = TRAITS.filter(t => t.toLowerCase().includes(query));
+      const abilitiesFiltered = customAbilities.filter(a => (a.name || a.abilityId).toLowerCase().includes(query));
+
+      list.innerHTML = `
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 pt-1">Core Traits:</div>
+        ${traitsFiltered.map(t => `
+          <label class="flex items-center justify-between p-2 rounded bg-slate-900 border border-slate-800 text-xs cursor-pointer hover:bg-slate-800">
+            <span class="font-bold text-cyan-300">${t}</span>
+            <input type="checkbox" value="${t}" ${selectedTraits.includes(t) ? 'checked' : ''} onchange="window.toggleTrait('${t}')" />
+          </label>
+        `).join('')}
+
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 pt-2">Custom Studio Abilities:</div>
+        ${abilitiesFiltered.map(a => `
+          <label class="flex items-center justify-between p-2 rounded bg-slate-900 border border-slate-800 text-xs cursor-pointer hover:bg-slate-800">
+            <div>
+              <div class="font-bold text-amber-300">${a.name}</div>
+              <div class="text-[10px] text-slate-500">${a.trigger}</div>
+            </div>
+            <input type="checkbox" value="${a.abilityId}" ${selectedAbilityIds.includes(a.abilityId) ? 'checked' : ''} onchange="window.toggleAbility('${a.abilityId}')" />
+          </label>
+        `).join('')}
+      `;
+
+      window.toggleTrait = (t) => {
+        if (selectedTraits.includes(t)) selectedTraits = selectedTraits.filter(item => item !== t);
+        else selectedTraits.push(t);
+      };
+
+      window.toggleAbility = (id) => {
+        if (selectedAbilityIds.includes(id)) selectedAbilityIds = selectedAbilityIds.filter(item => item !== id);
+        else selectedAbilityIds.push(id);
+      };
+    }
+
+    document.getElementById('card-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const fileInput = document.getElementById('card-art-file');
+      let artUrl = document.getElementById('card-art-url').value;
+
+      if (fileInput.files.length > 0) {
+        const uploadedUrl = await uploadCardArt(fileInput.files[0]);
+        if (uploadedUrl) artUrl = uploadedUrl;
+      }
+
+      const card = getFormData();
+      card.artUrl = artUrl;
+
+      await saveCardToCatalog(card);
+      showToast(`Card '${card.name}' saved to catalog & Firestore!`, 'success');
+
+      fullCatalog = [...fullCatalog.filter(c => c.id !== card.id), card];
+      populateCardSelector();
+    });
+  </script>
+</body>
+</html>

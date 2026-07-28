@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Henchies 2 - Tabletop Card Battler</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
+
+  <!-- Toast Container Top Center -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
+
+  <!-- Header Navigation -->
+  <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-2 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
+        HENCHIES 2
+      </span>
+      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold" id="header-room-badge">
+        Match Setup Lobby
+      </span>
+    </div>
+
+    <!-- Multi-Page Navigation Links -->
+    <nav class="flex items-center gap-3 text-xs font-semibold">
+      <a href="game.html" class="text-amber-400 border-b-2 border-amber-400 pb-0.5">Game Table</a>
+      <a href="deckbuilder.html" class="text-slate-400 hover:text-slate-200">Deckbuilder</a>
+      <a href="card_editor.html" class="text-slate-400 hover:text-slate-200">Card Studio</a>
+      <a href="ability_editor.html" class="text-slate-400 hover:text-slate-200">Ability Studio</a>
+    </nav>
+  </header>
+
+  <!-- ================= SCREEN 1: MATCH SETUP & DECK SELECTOR ================= -->
+  <div id="match-setup-screen" class="flex-1 max-w-xl w-full mx-auto p-4 flex flex-col justify-center my-auto">
+    <div class="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800 flex flex-col gap-5">
+      
+      <div class="text-center border-b border-slate-800 pb-3">
+        <h1 class="text-2xl font-black text-amber-400 tracking-wider">⚔️ HENCHIES 2 MATCH LOBBY</h1>
+        <p class="text-xs text-slate-400 mt-1">Configure your player identity, room code, and select your 40-card deck to launch the match.</p>
+      </div>
+
+      <!-- Player Identity -->
+      <div class="flex flex-col gap-3">
+        <div>
+          <label class="text-xs font-bold text-slate-300 block mb-1">Your Player Username</label>
+          <input type="text" id="setup-username" value="Warlord Player" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-amber-300 font-extrabold text-sm w-full focus:outline-none focus:border-amber-500" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold text-slate-300 block mb-1">Match Role</label>
+            <select id="setup-role" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-xs text-slate-200 font-bold w-full">
+              <option value="player1">Player 1 (Host & Starts T1)</option>
+              <option value="player2">Player 2 (Joins with Target Dummy)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-300 block mb-1">Match Room Code</label>
+            <input type="text" id="setup-room-code" value="ROOM_HENCHIES_1" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-xs text-amber-300 font-extrabold w-full" />
+          </div>
+        </div>
+
+        <!-- Deck Selector -->
+        <div>
+          <label class="text-xs font-bold text-amber-400 block mb-1">Select Battle Deck (40 Cards)</label>
+          <select id="setup-deck-select" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-xs text-white font-bold w-full focus:outline-none focus:border-amber-500">
+            <option value="DEFAULT_MYTHIC">Starter Deck: Mythic Warlord (40 Cards)</option>
+            <option value="DEFAULT_ROBOT">Starter Deck: Cyber Robot (40 Cards)</option>
+            <option value="CUSTOM_SAVED">Custom Saved Deck from Deckbuilder</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Launch Match Button -->
+      <button id="launch-match-btn" class="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-sm p-4 rounded-2xl shadow-2xl transition transform hover:scale-[1.02] flex items-center justify-center gap-2">
+        🚀 Launch Battleboard Tabletop
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ================= SCREEN 2: TABLETOP MATCH BOARD (HIDDEN INITIALLY) ================= -->
+  <main id="match-tabletop-screen" class="flex-1 max-w-4xl w-full mx-auto p-2 sm:p-4 flex flex-col gap-3 hidden">
+
+    <!-- Replay Scrubbing & Status Bar -->
+    <div id="replay-bar-container" class="w-full"></div>
+
+    <!-- Active Player Turn Indicator & Phase Bar -->
+    <div class="glass-panel rounded-xl p-3 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30">
+      <div class="flex items-center gap-2">
+        <div id="turn-badge" class="px-3 py-1 rounded-lg bg-amber-500 text-black font-extrabold text-xs uppercase shadow-md">
+          Turn 1: Player 1
+        </div>
+        <div id="phase-badge" class="px-2 py-1 rounded bg-slate-800 text-amber-300 font-semibold text-xs border border-slate-700">
+          DRAW DECISION
+        </div>
+      </div>
+      <div id="active-lock-notice" class="text-xs font-bold text-yellow-400 hidden">
+        🔒 Opponent's Turn - Board Locked
+      </div>
+    </div>
+
+    <!-- TABLETOP VERTICAL MIRROR BOARD -->
+    <div class="glass-panel rounded-2xl p-3 sm:p-4 flex flex-col gap-4 shadow-2xl relative border border-slate-800">
+      
+      <!-- ================= OPPONENT BOARD (TOP) ================= -->
+      <div class="flex flex-col gap-2 p-2 bg-slate-950/60 rounded-xl border border-red-950/40" id="opponent-board">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-red-900/80 border-2 border-red-500 text-white font-extrabold text-sm flex items-center justify-center shadow-lg" id="opp-avatar-hp">
+              30
+            </div>
+            <div>
+              <div class="font-extrabold text-sm text-red-400" id="opp-name">Opponent (P2)</div>
+              <div class="text-[10px] text-slate-400" id="opp-resources">Tents: 1/1 | Tribe Res: 0/0</div>
+            </div>
+          </div>
+          <div class="text-right text-xs">
+            <span class="text-slate-400">Power: <strong id="opp-power" class="text-amber-400">0</strong></span>
+            <span class="ml-2 text-slate-400">Hand: <strong id="opp-hand-count" class="text-white">0</strong></span>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2" id="opp-lines-container">
+          <div id="opp-line-hero" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+          <div id="opp-line-bodyguard" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
+          <div id="opp-line-back" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hidden"></div>
+          <div id="opp-line-mid" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/60 border border-slate-700/60"></div>
+          <div id="opp-line-front" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hidden"></div>
+          <div id="opp-line-taunt" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden"></div>
+        </div>
+      </div>
+
+      <!-- ================= THE EQUATOR (CENTER NEUTRAL ZONE) ================= -->
+      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border-2 border-dashed border-amber-500/40 rounded-xl p-3 min-h-[70px] flex flex-col gap-1">
+        <div class="flex justify-between items-center">
+          <span class="text-[10px] uppercase tracking-widest font-black text-amber-400">⚡ The Equator (Equipment & Artifacts Zone)</span>
+          <span class="text-[9px] text-slate-400">Equip Cost: 2 Tents</span>
+        </div>
+        <div id="equator-cards-container" class="flex flex-wrap gap-2 items-center">
+          <span class="text-xs text-slate-500 italic" id="equator-empty-msg">No unattached items in equator.</span>
+        </div>
+      </div>
+
+      <!-- ================= LOCAL PLAYER BOARD (BOTTOM) ================= -->
+      <div class="flex flex-col gap-2 p-2 bg-slate-950/60 rounded-xl border border-emerald-950/40" id="player-board">
+        <div class="flex flex-col gap-2" id="player-lines-container">
+          <div id="player-line-taunt" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden"></div>
+          <div id="player-line-front" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hidden"></div>
+          <div id="player-line-mid" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/60 border border-slate-700/60"></div>
+          <div id="player-line-back" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hidden"></div>
+          <div id="player-line-bodyguard" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
+          <div id="player-line-hero" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+        </div>
+
+        <div class="flex justify-between items-center border-t border-slate-800 pt-2">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-emerald-900/80 border-2 border-emerald-500 text-white font-extrabold text-sm flex items-center justify-center shadow-lg" id="player-avatar-hp">
+              30
+            </div>
+            <div>
+              <div class="font-extrabold text-sm text-emerald-400" id="player-name">Local Player (P1)</div>
+              <div class="text-[10px] text-slate-400" id="player-resources">Tents: 1/1 | Tribe Res: 0/0</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button 
+              id="bodyguard-ability-btn"
+              class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-lg border border-purple-400 transition"
+              title="Avatar Ability: Moves selected friendly unit into Bodyguard line."
+            >
+              🛡️ Activate Bodyguard
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- DECISION & ACTION CONTROLS PANEL -->
+    <div class="glass-panel rounded-xl p-4 flex flex-col gap-3 shadow-xl border border-slate-800" id="action-panel">
+      <!-- Phase 1: Draw Decision -->
+      <div id="phase1-draw-controls" class="flex flex-wrap items-center justify-between gap-3 p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl">
+        <div class="text-xs">
+          <strong class="text-amber-400 uppercase tracking-wider block mb-0.5">Phase 1: Draw Decision</strong>
+          <span class="text-slate-300">Choose your drawing strategy for this turn.</span>
+        </div>
+        <div class="flex gap-2">
+          <button id="draw-option-a" class="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black px-3 py-2 rounded-lg shadow-lg">
+            Option A: Draw 2 Cards
+          </button>
+          <button id="draw-option-b" class="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black px-3 py-2 rounded-lg shadow-lg">
+            ⚡ Option B: Double Down (Draw 4 & Skip Turn)
+          </button>
+        </div>
+      </div>
+
+      <!-- Phase 2: Sacrifice Decision -->
+      <div id="phase2-sacrifice-controls" class="flex flex-wrap items-center justify-between gap-3 p-3 bg-indigo-950/30 border border-indigo-500/40 rounded-xl hidden">
+        <div class="text-xs">
+          <strong class="text-indigo-400 uppercase tracking-wider block mb-0.5">Phase 2: Sacrifice Decision</strong>
+          <span class="text-slate-300">Optionally banish 1 card from hand to gain +1 Max Tent & +1 Max Tribe Resource.</span>
+        </div>
+        <div class="flex gap-2">
+          <button id="sacrifice-confirm-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black px-3 py-2 rounded-lg shadow-lg">
+            🔥 Banish Selected Card
+          </button>
+          <button id="sacrifice-skip-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-3 py-2 rounded-lg border border-slate-700">
+            Skip Sacrifice
+          </button>
+        </div>
+      </div>
+
+      <!-- Phase 3: Action Phase -->
+      <div id="phase3-action-controls" class="flex justify-between items-center gap-3 p-2 bg-slate-900/60 rounded-xl border border-slate-800 hidden">
+        <span class="text-xs text-slate-300 font-semibold">
+          Phase 3: Play cards, attack targets, or equip items from Equator.
+        </span>
+        <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-4 py-2 rounded-lg shadow-lg border border-emerald-400 transition">
+          Explicit End Turn 🏁
+        </button>
+      </div>
+    </div>
+
+    <!-- THE HAND (HORIZONTAL AUTO-WRAPPING BULK CONTAINER) -->
+    <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800">
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-extrabold uppercase tracking-wider text-amber-400">
+          🎴 Your Hand (<span id="hand-card-count">0</span> cards)
+        </span>
+        <span class="text-[10px] text-slate-400">Click a card to select for deployment or sacrifice</span>
+      </div>
+
+      <div id="player-hand-container" class="flex flex-wrap gap-2.5 p-2 bg-slate-950/80 rounded-xl border border-slate-800/80 min-h-[170px] items-center justify-start overflow-y-auto max-h-[300px]">
+        <span class="text-xs text-slate-500 italic mx-auto">Your hand is empty.</span>
+      </div>
+    </div>
+
+    <!-- HISTORY LOG DISPLAY -->
+    <div class="glass-panel rounded-xl p-3 flex flex-col gap-1 max-h-36 overflow-y-auto text-xs font-mono text-slate-300 border border-slate-800">
+      <div class="font-extrabold text-[10px] uppercase text-amber-400 tracking-wider">📜 Action & Combat Log:</div>
+      <div id="history-log-text" class="flex flex-col gap-0.5">
+        <div class="text-slate-500 italic">Match tabletop initialized.</div>
+      </div>
+    </div>
+
+  </main>
+
+  <script type="module">
+    import { 
+      GameState, Card, UnitInstance, Avatar, DEFAULT_CARDS, LINES, generate40CardDeck,
+      initGame, joinGame, executeDrawDecision, executeSacrificeDecision, 
+      playCard, resolveCombat, endTurn, useBodyguardAbility, equipFromEquator,
+      getValidAttackTargets, cloneGameState 
+    } from './src/engine.js';
+    import { renderCardHTML, openInspectionModal, renderHistorySlider, showToast } from './src/ui.js';
+    import { createGameRoom, subscribeToGameRoom, pushActionToLog } from './src/firebase.js';
+
+    let currentGameState = null;
+    let localPlayerRole = 'player1';
+    let roomCode = 'ROOM_HENCHIES_1';
+    let activeBattleDeck = null;
+    let selectedCardId = null;
+    let selectedAttackerId = null;
+    let selectedEquatorItemIndex = null;
+    let validTargets = [];
+    let replayStepIndex = 0;
+    let localReplayStates = [];
+
+    window.inspectCard = (cardJson) => {
+      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)));
+    };
+
+    document.getElementById('launch-match-btn').addEventListener('click', handleLaunchMatch);
+    document.getElementById('draw-option-a').addEventListener('click', () => handleDrawDecision('OPTION_A'));
+    document.getElementById('draw-option-b').addEventListener('click', () => handleDrawDecision('OPTION_B'));
+    document.getElementById('sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
+    document.getElementById('sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
+    document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
+    document.getElementById('bodyguard-ability-btn').addEventListener('click', handleBodyguardAbility);
+
+    async function handleLaunchMatch() {
+      const username = document.getElementById('setup-username').value.trim() || 'Player';
+      localPlayerRole = document.getElementById('setup-role').value;
+      roomCode = document.getElementById('setup-room-code').value.trim() || 'ROOM_HENCHIES_1';
+      
+      const deckOption = document.getElementById('setup-deck-select').value;
+      if (deckOption === 'DEFAULT_MYTHIC') {
+        activeBattleDeck = generate40CardDeck('Mythic');
+      } else if (deckOption === 'DEFAULT_ROBOT') {
+        activeBattleDeck = generate40CardDeck('Robot');
+      } else {
+        const saved = localStorage.getItem('henchies_active_deck');
+        if (saved) {
+          try { activeBattleDeck = JSON.parse(saved); } catch (e) {}
+        }
+        if (!activeBattleDeck || activeBattleDeck.length === 0) {
+          showToast('No saved custom deck found in Deckbuilder! Falling back to Mythic Starter Deck.', 'info');
+          activeBattleDeck = generate40CardDeck('Mythic');
+        }
+      }
+
+      currentGameState = initGame(roomCode, localPlayerRole === 'player1' ? username : 'Player 1', activeBattleDeck);
+      if (localPlayerRole === 'player2') {
+        currentGameState = joinGame(currentGameState, username, activeBattleDeck);
+      }
+
+      await createGameRoom(roomCode, currentGameState);
+      document.getElementById('header-room-badge').innerText = `Lobby: ${roomCode}`;
+
+      subscribeToGameRoom(roomCode, (data) => {
+        if (data && data.turn_start_state) {
+          reconstructStateFromLog(data);
+        }
+      });
+
+      document.getElementById('match-setup-screen').classList.add('hidden');
+      document.getElementById('match-tabletop-screen').classList.remove('hidden');
+
+      showToast(`Entered match tabletop as ${localPlayerRole.toUpperCase()}!`, 'success');
+      updateUI();
+    }
+
+    function reconstructStateFromLog(data) {
+      if (!data.turn_start_state) return;
+      
+      const baseState = JSON.parse(data.turn_start_state);
+      localReplayStates = [cloneGameState(baseState)];
+      let liveState = cloneGameState(baseState);
+      
+      if (data.action_log) {
+        for (const action of data.action_log) {
+          if (action.type === 'DRAW_DECISION') {
+            executeDrawDecision(liveState, action.option);
+          } else if (action.type === 'SACRIFICE_DECISION') {
+            executeSacrificeDecision(liveState, action.option, action.cardId);
+          } else if (action.type === 'PLAY_CARD') {
+            playCard(liveState, action.playerId, action.cardId, action.targetLine, action.targetUnitId);
+          } else if (action.type === 'ATTACK') {
+            resolveCombat(liveState, action.attackerOwnerId, action.attackerId, action.targetLine, action.targetId);
+          } else if (action.type === 'END_TURN') {
+            endTurn(liveState);
+          } else if (action.type === 'BODYGUARD') {
+            useBodyguardAbility(liveState, action.playerId, action.targetUnitId);
+          } else if (action.type === 'EQUIP_EQUATOR') {
+            equipFromEquator(liveState, action.playerId, action.itemIndex, action.targetUnitId);
+          }
+          localReplayStates.push(cloneGameState(liveState));
+        }
+      }
+
+      currentGameState = liveState;
+      replayStepIndex = localReplayStates.length - 1;
+      updateUI();
+    }
+
+    function isMyTurn() {
+      return currentGameState && currentGameState.activePlayerId === localPlayerRole && currentGameState.status === 'active';
+    }
+
+    function updateUI() {
+      if (!currentGameState) return;
+
+      const state = currentGameState;
+      const myP = state.players[localPlayerRole];
+      const oppRole = localPlayerRole === 'player1' ? 'player2' : 'player1';
+      const oppP = state.players[oppRole];
+
+      renderHistorySlider(
+        document.getElementById('replay-bar-container'), 
+        state.history_log, 
+        replayStepIndex, 
+        'window.scrubReplay'
+      );
+      window.scrubReplay = (step) => {
+        replayStepIndex = parseInt(step);
+        if (localReplayStates[replayStepIndex]) {
+          currentGameState = cloneGameState(localReplayStates[replayStepIndex]);
+          updateUI();
+        }
+      };
+
+      document.getElementById('turn-badge').innerText = `Turn ${state.turnNumber}: ${state.players[state.activePlayerId].name}`;
+      document.getElementById('phase-badge').innerText = state.turnPhase.replace('_', ' ');
+
+      const isLocked = !isMyTurn();
+      document.getElementById('active-lock-notice').classList.toggle('hidden', !isLocked);
+
+      const actionInputs = document.querySelectorAll('#action-panel button');
+      actionInputs.forEach(btn => btn.disabled = isLocked);
+
+      document.getElementById('player-name').innerText = `${myP.name} (${localPlayerRole.toUpperCase()})`;
+      document.getElementById('player-avatar-hp').innerText = myP.avatar.health;
+      document.getElementById('player-resources').innerText = `Tents: ${myP.tents}/${myP.maxTents} | Tribe Res: ${myP.tribeResource}/${myP.maxTribeResource}`;
+
+      document.getElementById('opp-name').innerText = `${oppP.name} (${oppRole.toUpperCase()})`;
+      document.getElementById('opp-avatar-hp').innerText = oppP.avatar.health;
+      document.getElementById('opp-power').innerText = oppP.avatar.power;
+      document.getElementById('opp-hand-count').innerText = oppP.hand.length;
+      document.getElementById('opp-resources').innerText = `Tents: ${oppP.tents}/${oppP.maxTents} | Tribe Res: ${oppP.tribeResource}/${oppP.maxTribeResource}`;
+
+      document.getElementById('phase1-draw-controls').classList.toggle('hidden', state.turnPhase !== 'DRAW_DECISION');
+      document.getElementById('phase2-sacrifice-controls').classList.toggle('hidden', state.turnPhase !== 'SACRIFICE_DECISION');
+      document.getElementById('phase3-action-controls').classList.toggle('hidden', state.turnPhase !== 'ACTION_PHASE');
+
+      renderEquator(state.equator);
+      renderPlayerBattlelines(myP, 'player');
+      renderPlayerBattlelines(oppP, 'opp');
+      renderHand(myP.hand);
+
+      const logBox = document.getElementById('history-log-text');
+      logBox.innerHTML = state.history_log.map(msg => `<div class="py-0.5 border-b border-slate-900/50">${msg}</div>`).join('');
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function renderEquator(equatorItems) {
+      const container = document.getElementById('equator-cards-container');
+      const emptyMsg = document.getElementById('equator-empty-msg');
+      if (!equatorItems || equatorItems.length === 0) {
+        emptyMsg.classList.remove('hidden');
+        container.innerHTML = '';
+        container.appendChild(emptyMsg);
+        return;
+      }
+      emptyMsg.classList.add('hidden');
+
+      container.innerHTML = equatorItems.map((item, idx) => {
+        const json = encodeURIComponent(JSON.stringify(item));
+        return renderCardHTML(item, {
+          isSelected: selectedEquatorItemIndex === idx,
+          onClick: `window.selectEquatorItem(${idx})`,
+          onInspect: `window.inspectCard('${json}')`
+        });
+      }).join('');
+
+      window.selectEquatorItem = (idx) => {
+        if (!isMyTurn()) return;
+        selectedEquatorItemIndex = selectedEquatorItemIndex === idx ? null : idx;
+        updateUI();
+      };
+    }
+
+    function renderPlayerBattlelines(player, prefix) {
+      for (const line of LINES) {
+        const lineEl = document.getElementById(`${prefix}-line-${line}`);
+        if (!lineEl) continue;
+
+        const units = player.lines[line] || [];
+
+        if (line !== 'hero' && line !== 'mid' && units.length === 0) {
+          lineEl.classList.add('hidden');
+        } else {
+          lineEl.classList.remove('hidden');
+        }
+
+        if (line === 'hero') {
+          const isTargetable = validTargets.some(t => t.line === 'hero' && prefix === 'opp');
+          lineEl.innerHTML = `
+            <div 
+              onclick="window.handleTargetClick('hero', '${player.avatar.id}')"
+              class="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border-2 ${isTargetable ? 'border-red-500 ring-4 ring-red-500 animate-bounce cursor-pointer' : 'border-slate-700'} min-w-[140px]"
+            >
+              <div class="w-8 h-8 rounded-full bg-amber-500 text-black font-black flex items-center justify-center text-xs">
+                ${player.avatar.health}
+              </div>
+              <div>
+                <div class="text-xs font-bold text-amber-300">${player.avatar.name}</div>
+                <div class="text-[9px] text-slate-400">Tribe: ${player.avatar.tribe}</div>
+              </div>
+            </div>
+          `;
+        } else {
+          lineEl.innerHTML = units.map(u => {
+            const json = encodeURIComponent(JSON.stringify(u));
+            const isAttacker = selectedAttackerId === u.instanceId;
+            const isTargetable = validTargets.some(t => t.id === u.instanceId);
+
+            return renderCardHTML(u, {
+              readiness: u.readiness,
+              isSelected: isAttacker,
+              isTargetable: isTargetable,
+              onClick: `window.handleUnitClick('${prefix}', '${line}', '${u.instanceId}')`,
+              onInspect: `window.inspectCard('${json}')`
+            });
+          }).join('');
+        }
+      }
+
+      window.handleUnitClick = (prefix, line, instanceId) => {
+        if (!isMyTurn()) return;
+
+        if (prefix === 'player') {
+          if (currentGameState.turnPhase === 'ACTION_PHASE') {
+            selectedAttackerId = selectedAttackerId === instanceId ? null : instanceId;
+            if (selectedAttackerId) {
+              validTargets = getValidAttackTargets(currentGameState, localPlayerRole);
+            } else {
+              validTargets = [];
+            }
+            updateUI();
+          }
+        } else if (prefix === 'opp') {
+          window.handleTargetClick(line, instanceId);
+        }
+      };
+
+      window.handleTargetClick = async (line, targetId) => {
+        if (!isMyTurn() || !selectedAttackerId) return;
+
+        const actionPayload = {
+          type: 'ATTACK',
+          attackerOwnerId: localPlayerRole,
+          attackerId: selectedAttackerId,
+          targetLine: line,
+          targetId: targetId
+        };
+
+        const result = resolveCombat(currentGameState, localPlayerRole, selectedAttackerId, line, targetId);
+        if (result.success) {
+          selectedAttackerId = null;
+          validTargets = [];
+          await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+          updateUI();
+        } else {
+          showToast(result.reason, 'error');
+        }
+      };
+    }
+
+    function renderHand(handCards) {
+      const container = document.getElementById('player-hand-container');
+      document.getElementById('hand-card-count').innerText = handCards.length;
+
+      if (handCards.length === 0) {
+        container.innerHTML = `<span class="text-xs text-slate-500 italic mx-auto">Your hand is empty.</span>`;
+        return;
+      }
+
+      container.innerHTML = handCards.map(c => {
+        const json = encodeURIComponent(JSON.stringify(c));
+        const isSelected = selectedCardId === c.id;
+
+        return renderCardHTML(c, {
+          isHand: true,
+          isSelected: isSelected,
+          onClick: `window.handleHandCardClick('${c.id}')`,
+          onInspect: `window.inspectCard('${json}')`
+        });
+      }).join('');
+
+      window.handleHandCardClick = async (cardId) => {
+        if (!isMyTurn()) return;
+
+        if (currentGameState.turnPhase === 'SACRIFICE_DECISION') {
+          selectedCardId = selectedCardId === cardId ? null : cardId;
+          updateUI();
+          return;
+        }
+
+        if (currentGameState.turnPhase === 'ACTION_PHASE') {
+          const actionPayload = {
+            type: 'PLAY_CARD',
+            playerId: localPlayerRole,
+            cardId: cardId,
+            targetLine: 'back',
+            targetUnitId: null
+          };
+
+          const result = playCard(currentGameState, localPlayerRole, cardId, 'back');
+          if (result.success) {
+            await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+            updateUI();
+          } else {
+            showToast(result.reason, 'error');
+          }
+        }
+      };
+    }
+
+    async function handleDrawDecision(option) {
+      if (!isMyTurn()) return;
+      const actionPayload = { type: 'DRAW_DECISION', option };
+      executeDrawDecision(currentGameState, option);
+      await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+      updateUI();
+    }
+
+    async function handleSacrificeConfirm() {
+      if (!isMyTurn() || !selectedCardId) {
+        showToast('Please select a card from your hand to sacrifice!', 'error');
+        return;
+      }
+      handleSacrificeDecision('OPTION_A', selectedCardId);
+    }
+
+    async function handleSacrificeDecision(option, cardId = null) {
+      if (!isMyTurn()) return;
+      const actionPayload = { type: 'SACRIFICE_DECISION', option, cardId };
+      executeSacrificeDecision(currentGameState, option, cardId);
+      selectedCardId = null;
+      await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+      updateUI();
+    }
+
+    async function handleEndTurn() {
+      if (!isMyTurn()) return;
+      const actionPayload = { type: 'END_TURN' };
+      endTurn(currentGameState);
+      const snapshot = JSON.stringify(currentGameState);
+      await pushActionToLog(roomCode, actionPayload, snapshot, currentGameState.history_log);
+      updateUI();
+    }
+
+    async function handleBodyguardAbility() {
+      if (!isMyTurn()) return;
+      if (!selectedAttackerId) {
+        showToast('Select a friendly unit to activate Bodyguard ability on!', 'info');
+        return;
+      }
+      const actionPayload = { type: 'BODYGUARD', playerId: localPlayerRole, targetUnitId: selectedAttackerId };
+      const success = useBodyguardAbility(currentGameState, localPlayerRole, selectedAttackerId);
+      if (success) {
+        selectedAttackerId = null;
+        await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+        updateUI();
+        showToast('Bodyguard ability activated!', 'success');
+      }
+    }
+  </script>
+</body>
+</html>

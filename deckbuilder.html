@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Henchies 2 - Deckbuilder Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
+
+  <!-- Toast Container Top Center -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
+        HENCHIES 2
+      </span>
+      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold">
+        Deckbuilder & Construction Studio
+      </span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex items-center gap-3 text-xs font-semibold">
+      <a href="game.html" class="text-slate-400 hover:text-slate-200">Game Table</a>
+      <a href="deckbuilder.html" class="text-amber-400 border-b-2 border-amber-400 pb-0.5">Deckbuilder</a>
+      <a href="card_editor.html" class="text-slate-400 hover:text-slate-200">Card Studio</a>
+      <a href="ability_editor.html" class="text-slate-400 hover:text-slate-200">Ability Studio</a>
+    </nav>
+  </header>
+
+  <!-- Deckbuilder Content -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col md:flex-row gap-4">
+    
+    <!-- LEFT: CATALOG EXPLORER -->
+    <div class="flex-1 glass-panel rounded-2xl p-4 flex flex-col gap-4 shadow-2xl border border-slate-800">
+      <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-3">
+        <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider">🎴 Card Catalog Explorer</h2>
+        
+        <!-- Filters (11 Tribes ONLY) -->
+        <div class="flex flex-wrap gap-2">
+          <select id="filter-tribe" class="bg-slate-900 border border-slate-700 text-xs px-2 py-1.5 rounded text-amber-300 focus:outline-none font-bold">
+            <option value="ALL">All Tribes</option>
+            <option value="Robot">Robot (Pink)</option>
+            <option value="Mythic">Mythic (Green)</option>
+            <option value="Elemental">Elemental (Rusty Orange)</option>
+            <option value="Pirate">Pirate (Brown)</option>
+            <option value="Undead">Undead (Blueish)</option>
+            <option value="Carnie">Carnie (Purple)</option>
+            <option value="Viking">Viking</option>
+            <option value="Ninja">Ninja</option>
+            <option value="Stalker">Stalker</option>
+            <option value="Alien">Alien</option>
+            <option value="Luchador">Luchador</option>
+          </select>
+          
+          <select id="filter-type" class="bg-slate-900 border border-slate-700 text-xs px-2 py-1.5 rounded text-slate-300 focus:outline-none">
+            <option value="ALL">All Types</option>
+            <option value="unit">Units</option>
+            <option value="spell">Spells</option>
+            <option value="equipment">Equipment</option>
+            <option value="artifact">Artifacts</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Bulk Flex Wrap Catalog Container -->
+      <div id="catalog-container" class="flex flex-wrap gap-3 p-2 bg-slate-950/80 rounded-xl border border-slate-800 max-h-[600px] overflow-y-auto items-start">
+      </div>
+    </div>
+
+    <!-- RIGHT: ACTIVE DECK PANEL -->
+    <div class="w-full md:w-80 glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl border border-slate-800">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+        <h2 class="text-base font-black text-amber-400 uppercase tracking-wider">🛡️ Your Deck</h2>
+        <span class="text-xs px-2 py-1 rounded bg-amber-500 text-black font-extrabold" id="deck-count-badge">0 / 40</span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input 
+          type="text" 
+          id="deck-name-input" 
+          value="My 40-Card Deck" 
+          class="bg-slate-900 border border-slate-700 text-xs font-bold px-3 py-1.5 rounded text-amber-300 w-full focus:outline-none focus:border-amber-500" 
+        />
+        <button id="save-deck-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-1.5 rounded shadow">
+          Save
+        </button>
+      </div>
+
+      <!-- Rule Guidelines & Validation Banner -->
+      <div id="validation-banner" class="text-[11px] p-2.5 rounded-lg bg-yellow-950/60 border border-yellow-500/40 text-yellow-300 font-semibold leading-snug">
+        ⚠️ Deck Rules: Exactly 40 cards total. Max 3 copies per card, EXCEPT exactly 1 card may have 4 copies!
+      </div>
+
+      <!-- Deck List -->
+      <div id="deck-list-container" class="flex-1 flex flex-col gap-1.5 overflow-y-auto max-h-[450px] p-1 bg-slate-950/60 rounded-xl border border-slate-800">
+        <div class="text-xs text-slate-500 italic p-3 text-center">Click cards from the catalog to add them to your deck.</div>
+      </div>
+
+      <button id="clear-deck-btn" class="bg-red-950/80 hover:bg-red-900 text-red-300 text-xs font-bold py-1.5 rounded border border-red-800 mt-auto">
+        Clear Deck
+      </button>
+    </div>
+
+  </main>
+
+  <script type="module">
+    import { DEFAULT_CARDS } from './src/engine.js';
+    import { renderCardHTML, openInspectionModal, showToast } from './src/ui.js';
+    import { fetchCustomCards } from './src/firebase.js';
+
+    let fullCatalog = [...DEFAULT_CARDS];
+    let currentDeck = [];
+
+    window.inspectCard = (cardJson) => {
+      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)));
+    };
+
+    init();
+
+    async function init() {
+      const customCards = await fetchCustomCards();
+      if (customCards.length > 0) fullCatalog = [...DEFAULT_CARDS, ...customCards];
+
+      const saved = localStorage.getItem('henchies_active_deck');
+      if (saved) {
+        try { currentDeck = JSON.parse(saved); } catch (e) {}
+      }
+
+      document.getElementById('filter-tribe').addEventListener('change', renderCatalog);
+      document.getElementById('filter-type').addEventListener('change', renderCatalog);
+      document.getElementById('save-deck-btn').addEventListener('click', saveDeck);
+      document.getElementById('clear-deck-btn').addEventListener('click', () => {
+        currentDeck = [];
+        updateDeckUI();
+      });
+
+      renderCatalog();
+      updateDeckUI();
+    }
+
+    function renderCatalog() {
+      const tribeVal = document.getElementById('filter-tribe').value;
+      const typeVal = document.getElementById('filter-type').value;
+
+      const filtered = fullCatalog.filter(c => {
+        const matchTribe = tribeVal === 'ALL' || c.tribe === tribeVal;
+        const matchType = typeVal === 'ALL' || c.type === typeVal;
+        return matchTribe && matchType;
+      });
+
+      const container = document.getElementById('catalog-container');
+      container.innerHTML = filtered.map(card => {
+        const json = encodeURIComponent(JSON.stringify(card));
+        return renderCardHTML(card, {
+          onClick: `window.addToDeck('${card.id}')`,
+          onInspect: `window.inspectCard('${json}')`
+        });
+      }).join('');
+
+      window.addToDeck = (cardId) => {
+        const card = fullCatalog.find(c => c.id === cardId);
+        if (!card) return;
+
+        const existingCount = currentDeck.filter(c => c.id === cardId).length;
+
+        if (existingCount >= 4) {
+          showToast('Maximum 4 copies allowed for a single card!', 'error');
+          return;
+        }
+
+        if (existingCount === 3) {
+          const counts = {};
+          currentDeck.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
+          const fourCopyCards = Object.keys(counts).filter(id => counts[id] === 4);
+
+          if (fourCopyCards.length >= 1) {
+            showToast('Rule Violation: Exactly ONE card may have 4 copies in a deck!', 'error');
+            return;
+          }
+        }
+
+        if (currentDeck.length >= 40) {
+          showToast('Deck already has 40 cards!', 'error');
+          return;
+        }
+
+        currentDeck.push(card);
+        updateDeckUI();
+      };
+    }
+
+    function validateDeckRules(deck) {
+      if (deck.length !== 40) return { valid: false, reason: `Deck must have exactly 40 cards (Currently ${deck.length}).` };
+
+      const counts = {};
+      deck.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
+
+      const fourCopyCards = Object.keys(counts).filter(id => counts[id] === 4);
+      const overFourCards = Object.keys(counts).filter(id => counts[id] > 4);
+
+      if (overFourCards.length > 0) {
+        return { valid: false, reason: 'No card may have more than 4 copies.' };
+      }
+
+      if (fourCopyCards.length !== 1) {
+        return { valid: false, reason: `Deck must have EXACTLY ONE card with 4 copies (Currently ${fourCopyCards.length}).` };
+      }
+
+      return { valid: true, reason: '✅ Deck Valid (40 Cards, exactly 1 card with 4 copies).' };
+    }
+
+    function updateDeckUI() {
+      const badge = document.getElementById('deck-count-badge');
+      const container = document.getElementById('deck-list-container');
+      const banner = document.getElementById('validation-banner');
+
+      badge.innerText = `${currentDeck.length} / 40`;
+
+      const check = validateDeckRules(currentDeck);
+      if (check.valid) {
+        banner.className = 'text-[11px] p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-bold';
+        banner.innerText = check.reason;
+      } else {
+        banner.className = 'text-[11px] p-2.5 rounded-lg bg-yellow-950/80 border border-yellow-500/50 text-yellow-300 font-bold';
+        banner.innerText = `⚠️ ${check.reason}`;
+      }
+
+      if (currentDeck.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-500 italic p-3 text-center">Click cards from the catalog to add them to your deck.</div>`;
+        return;
+      }
+
+      const cardMap = {};
+      currentDeck.forEach(c => {
+        if (!cardMap[c.id]) cardMap[c.id] = { card: c, count: 0 };
+        cardMap[c.id].count++;
+      });
+
+      container.innerHTML = Object.values(cardMap).map(entry => `
+        <div class="flex justify-between items-center p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold text-[10px] flex items-center justify-center">${entry.card.cost?.tents || 0}</span>
+            <span class="font-bold text-slate-200">${entry.card.name}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="${entry.count === 4 ? 'text-amber-400 font-black ring-1 ring-amber-400 px-1 rounded' : 'text-slate-300 font-bold'}">x${entry.count}</span>
+            <button onclick="window.removeFromDeck('${entry.card.id}')" class="text-red-400 hover:text-red-300 px-1 font-bold">✕</button>
+          </div>
+        </div>
+      `).join('');
+
+      window.removeFromDeck = (cardId) => {
+        const idx = currentDeck.findIndex(c => c.id === cardId);
+        if (idx !== -1) {
+          currentDeck.splice(idx, 1);
+          updateDeckUI();
+        }
+      };
+    }
+
+    function saveDeck() {
+      const check = validateDeckRules(currentDeck);
+      localStorage.setItem('henchies_active_deck', JSON.stringify(currentDeck));
+      if (check.valid) {
+        showToast('Valid 40-Card Deck saved successfully!', 'success');
+      } else {
+        showToast(`Deck saved as draft. ${check.reason}`, 'info');
+      }
+    }
+  </script>
+</body>
+</html>
