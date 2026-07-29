@@ -4,30 +4,27 @@
  * Updated to include Anonymous Authentication to pass Firestore security rules.
  */
 
-// Firebase CDN Module Imports
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { 
-  getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, collection, getDocs, addDoc 
+  getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, collection, getDocs, addDoc, deleteDoc 
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-// NEW: Import Auth modules
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 // Default Firebase Configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyACHtGdXLq9TNZZchfrx46pUQcGb6ndtAI",
-  authDomain: "henchies-reboot.firebaseapp.com",
-  projectId: "henchies-reboot",
-  storageBucket: "henchies-reboot.firebasestorage.app",
-  messagingSenderId: "641284877771",
-  appId: "1:641284877771:web:0497d79a089e6ca2831a4e"
+  apiKey: "AIzaSyACHtGdXLq9TNZZchfrx46pUQcGb6ndtAI",
+  authDomain: "henchies-reboot.firebaseapp.com",
+  projectId: "henchies-reboot",
+  storageBucket: "henchies-reboot.firebasestorage.app",
+  messagingSenderId: "641284877771",
+  appId: "1:641284877771:web:0497d79a089e6ca2831a4e"
 };
 
 let app, db, storage, auth;
 let isFirebaseOnline = false;
-let authReady = false; // Track if we are logged in
+let authReady = false; 
 
-// NEW: Promise mechanism to wait for auth resolution
 let authResolved = false;
 let authWaiters = [];
 const resolveAuth = () => {
@@ -71,7 +68,6 @@ try {
   resolveAuth();
 }
 
-// Helper to check if we are truly ready to write to DB
 const isReadyForDB = () => {
   return new Promise((resolve) => {
     if (authResolved) {
@@ -86,9 +82,6 @@ const isReadyForDB = () => {
 // GAME ROOM & MULTIPLAYER SYNC API
 // ---------------------------------------------------------------------------
 
-/**
- * Creates or overwrites a game room document in Firestore or LocalStorage.
- */
 export async function createGameRoom(gameId, state) {
   const payload = {
     gameId: state.gameId,
@@ -115,20 +108,16 @@ export async function createGameRoom(gameId, state) {
     }
   }
 
-  // LocalStorage Fallback
   localStorage.setItem(`henchies_game_${gameId}`, JSON.stringify(payload));
   window.dispatchEvent(new CustomEvent('henchies_local_game_update', { detail: payload }));
 }
 
-/**
- * Listens for real-time updates on a game document.
- */
 export function subscribeToGameRoom(gameId, callback) {
   let unsub = () => {};
   let isUnsubscribed = false;
 
   isReadyForDB().then((ready) => {
-    if (isUnsubscribed) return; // Prevent setting up if already cancelled
+    if (isUnsubscribed) return; 
 
     if (ready) {
       try {
@@ -144,7 +133,6 @@ export function subscribeToGameRoom(gameId, callback) {
       }
     }
 
-    // LocalStorage Fallback listener
     const handler = (e) => {
       if (e.detail && e.detail.gameId === gameId) {
         callback(e.detail);
@@ -171,9 +159,6 @@ export function subscribeToGameRoom(gameId, callback) {
   };
 }
 
-/**
- * Appends an action to the action_log and updates game state snapshot.
- */
 export async function pushActionToLog(gameId, actionPayload, updatedTurnStartState = null, currentHistoryLog = []) {
   if (await isReadyForDB()) {
     try {
@@ -193,7 +178,6 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
     }
   }
 
-  // LocalStorage fallback
   const raw = localStorage.getItem(`henchies_game_${gameId}`);
   if (raw) {
     const data = JSON.parse(raw);
@@ -242,6 +226,22 @@ export async function fetchCustomCards() {
   return JSON.parse(localStorage.getItem('henchies_custom_cards') || '[]');
 }
 
+export async function deleteCardFromCatalog(cardId) {
+  if (await isReadyForDB()) {
+    try {
+      await deleteDoc(doc(db, "cards", cardId));
+      console.log(`Card ${cardId} deleted from Firestore`);
+    } catch (e) {
+      console.warn("Firestore card delete failed, deleting from LocalStorage", e);
+    }
+  }
+
+  const existing = JSON.parse(localStorage.getItem('henchies_custom_cards') || '[]');
+  const filtered = existing.filter(c => c.id !== cardId);
+  localStorage.setItem('henchies_custom_cards', JSON.stringify(filtered));
+}
+
+
 export async function saveAbilityToCatalog(abilityData) {
   if (await isReadyForDB()) {
     try {
@@ -273,6 +273,22 @@ export async function fetchCustomAbilities() {
   }
   return JSON.parse(localStorage.getItem('henchies_custom_abilities') || '[]');
 }
+
+export async function deleteAbilityFromCatalog(abilityId) {
+  if (await isReadyForDB()) {
+    try {
+      await deleteDoc(doc(db, "abilities", abilityId));
+      console.log(`Ability ${abilityId} deleted from Firestore`);
+    } catch (e) {
+      console.warn("Firestore ability delete failed, deleting from LocalStorage", e);
+    }
+  }
+
+  const existing = JSON.parse(localStorage.getItem('henchies_custom_abilities') || '[]');
+  const filtered = existing.filter(a => a.abilityId !== abilityId);
+  localStorage.setItem('henchies_custom_abilities', JSON.stringify(filtered));
+}
+
 
 export async function uploadCardArt(file) {
   if ((await isReadyForDB()) && file) {
