@@ -58,7 +58,7 @@
       <form id="card-form" class="flex flex-col gap-3 text-xs">
         <div>
           <label class="font-bold text-slate-300 block mb-1">Card Name</label>
-          <input type="text" id="card-name" required value="Plasma Cyborg" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500" />
+          <input type="text" id="card-name" required value="" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500" />
         </div>
 
         <div class="grid grid-cols-2 gap-3">
@@ -69,6 +69,7 @@
               <option value="spell">Spell</option>
               <option value="equipment">Equipment</option>
               <option value="artifact">Artifact</option>
+              <option value="avatar">Avatar</option>
             </select>
           </div>
           <div>
@@ -99,11 +100,11 @@
         <div class="grid grid-cols-2 gap-3" id="stats-inputs">
           <div>
             <label class="font-bold text-slate-300 block mb-1">Strength</label>
-            <input type="number" id="card-strength" min="0" value="3" class="bg-slate-900 border border-slate-700 p-2 rounded text-yellow-400 font-bold w-full" />
+            <input type="number" id="card-strength" min="0" value="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-yellow-400 font-bold w-full" />
           </div>
           <div>
             <label class="font-bold text-slate-300 block mb-1">Health</label>
-            <input type="number" id="card-health" min="1" value="4" class="bg-slate-900 border border-slate-700 p-2 rounded text-red-400 font-bold w-full" />
+            <input type="number" id="card-health" min="1" value="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-red-400 font-bold w-full" />
           </div>
         </div>
 
@@ -169,13 +170,13 @@
   </div>
 
   <script type="module">
-    import { Card, TRAITS, DEFAULT_CARDS } from './src/engine.js';
+    import { Card, TRAITS } from './src/engine.js';
     import { renderCardHTML, openInspectionModal, showToast } from './src/ui.js';
     import { saveCardToCatalog, fetchCustomCards, fetchCustomAbilities } from './src/firebase.js';
 
-    let fullCatalog = [...DEFAULT_CARDS];
+    let fullCatalog = [];
     let customAbilities = [];
-    let selectedTraits = ['Fast'];
+    let selectedTraits = [];
     let selectedAbilityIds = [];
     let currentEditingCardId = null;
 
@@ -183,7 +184,7 @@
 
     async function init() {
       const customCards = await fetchCustomCards();
-      if (customCards.length > 0) fullCatalog = [...DEFAULT_CARDS, ...customCards];
+      if (customCards.length > 0) fullCatalog = [...customCards];
       
       customAbilities = await fetchCustomAbilities();
       populateCardSelector();
@@ -231,7 +232,7 @@
 
       updateSelectedPills();
       updatePreview();
-      showToast(`Loaded '${card.name}' for editing.`, 'info');
+      //showToast(`Loaded '${card.name}' for editing.`, 'info');
     }
 
     function resetForm() {
@@ -286,8 +287,9 @@
         return;
       }
 
+      
       const traitPills = selectedTraits.map(t => `<span class="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] px-2 py-0.5 rounded font-extrabold">${t}</span>`);
-      const abilityPills = selectedAbilityIds.map(id => `<span class="bg-amber-950 text-amber-300 border border-amber-800 text-[10px] px-2 py-0.5 rounded font-extrabold">⚡ ${id}</span>`);
+      const abilityPills = selectedAbilityIds.map(id => customAbilities.find(abil => abil.abilityId == id).name).map(name => `<span class="bg-amber-950 text-amber-300 border border-amber-800 text-[10px] px-2 py-0.5 rounded font-extrabold">⚡ ${name}</span>`);
       
       container.innerHTML = [...traitPills, ...abilityPills].join('');
     }
@@ -361,6 +363,10 @@
 
       fullCatalog = [...fullCatalog.filter(c => c.id !== card.id), card];
       populateCardSelector();
+
+      const selector = document.getElementById('card-selector');
+      selector.value = card.id; 
+      selector.dispatchEvent(new Event('change'));
     });
   </script>
 </body>

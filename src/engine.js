@@ -12,6 +12,10 @@ export const CARD_TYPES = ['unit', 'spell', 'equipment', 'artifact'];
 export const TRAITS = ['Fast', 'Taunt', 'Ambush', 'Passive', 'Stun'];
 export const LINES = ['hero', 'bodyguard', 'back', 'mid', 'front', 'taunt'];
 
+import { fetchCustomCards } from './firebase.js';
+
+
+
 // ---------------------------------------------------------------------------
 // DATA MODELS
 // ---------------------------------------------------------------------------
@@ -48,6 +52,10 @@ export class Card {
     this.traits = data.traits || [];
     this.artUrl = data.artUrl || '';
     this.description = data.description || '';
+  }
+
+  toObject() {
+    return JSON.parse(JSON.stringify(this));
   }
 }
 
@@ -150,8 +158,7 @@ export class GameState {
 // DEFAULT CATALOG (NO NEUTRAL, NO RARITY)
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_CARDS = [
-];
+export const CARD_CATALOG = await fetchCustomCards();
 
 export function cloneGameState(state) {
   return JSON.parse(JSON.stringify(state));
@@ -492,7 +499,7 @@ export function joinGame(state, player2Name = 'Player 2', customDeck = null) {
   shuffleArray(state.players.player2.deck);
   drawCards(state, 'player2', 5);
 
-  const dummyCard = DEFAULT_CARDS.find(c => c.id === 'target_dummy');
+  const dummyCard = CARD_CATALOG.find(c => c.name === 'Target Dummy');
   const dummyUnit = new UnitInstance(dummyCard, 'player2');
   dummyUnit.line = 'mid';
   state.players.player2.lines.mid.push(dummyUnit);
@@ -503,12 +510,12 @@ export function joinGame(state, player2Name = 'Player 2', customDeck = null) {
 }
 
 export function generate40CardDeck(tribe) {
-  const tribeCards = DEFAULT_CARDS.filter(c => c.tribe === tribe);
+  const tribeCards = CARD_CATALOG.filter(c => c.tribe === tribe);
   const deck = [];
   while (deck.length < 40) {
     const randomCard = tribeCards.length > 0 
       ? tribeCards[Math.floor(Math.random() * tribeCards.length)]
-      : DEFAULT_CARDS[Math.floor(Math.random() * DEFAULT_CARDS.length)];
+      : CARD_CATALOG[Math.floor(Math.random() * CARD_CATALOG.length)];
     deck.push(new Card(randomCard));
   }
   return deck;
@@ -622,3 +629,152 @@ export function useBodyguardAbility(state, playerId, targetUnitId) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// ENTITY ACTIONS & ABILITIES MENU SUPPORT
+// ---------------------------------------------------------------------------
+
+/**
+ * Call this when a user clicks a Unit or Avatar on the board.
+ * It returns a list of valid actions they can take (like 'Attack' or Manual Abilities).
+ */
+export function getEntityAvailableActions(state, playerId, entityId) {
+  if (state.turnPhase !== 'ACTION_PHASE' || state.activePlayerId !== playerId) return [];
+  
+  const p = state.players[playerId];
+  let entity = null;
+  let isAvatar = false;
+
+  // 1. Find the entity
+  if (p.avatar.id === entityId) {
+    entity = p.avatar;
+    isAvatar = true;
+  } else {
+    for (const line of LINES) {
+      const found = p.lines[line].find(u => u.instanceId === entityId);
+      if (found) { 
+        entity = found; 
+        break; 
+      }
+    }
+  }
+
+  if (!entity) return [];
+
+  const actions = [];
+
+  // 2. Add 'Attack' option if it's a ready unit capable of damage
+  if (!isAvatar && entity.readiness >= 1 && (entity.strength > 0)) {
+    actions.push({
+      actionType: 'ATTACK',
+      name: 'Attack',
+      requiresTarget: true,
+      targetCriteria: { affiliation: 'enemy' }
+    });
+  }
+
+  // 3. Add Manual Abilities
+  if (entity.abilities && entity.abilities.length > 0) {
+    for (const ab of entity.abilities) {
+      if (ab.trigger === 'MANUAL') {
+        let canAfford = true;
+        
+        // Check costs
+        if (ab.cost) {
+          if (ab.cost.readiness && entity.readiness < ab.cost.readiness) canAfford = false;
+          // If the ability has a specific resource cost, ensure the player has enough of that entity's native resource
+          if (ab.cost.resource && p.resources[entity.tribe] < ab.cost.resource) canAfford = false;
+        }
+
+        // Custom Avatar restriction (Bodyguard can only be used once per turn)
+        if (isAvatar && ab.abilityId === 'ability_avatar_bodyguard' && p.avatar.bodyguardUsedThisTurn) {
+          canAfford = false;
+        }
+
+        if (canAfford) {
+          actions.push({
+            actionType: 'ABILITY',
+            abilityId: ab.abilityId,
+            name: ab.name,
+            requiresTarget: ab.targetCriteria ? true : false,
+            targetCriteria: ab.targetCriteria,
+            ability: ab
+          });
+        }
+      }
+    }
+  }
+
+  return actions;
+}
+
+/**
+ * Executes an action chosen from the getEntityAvailableActions menu.
+ */
+export function executeEntityAction(state, playerId, entityId, actionType, targetLine = null, targetId = null, abilityId = null) {
+  if (state.turnPhase !== 'ACTION_PHASE' || state.activePlayerId !== playerId) {
+    return { success: false, reason: 'Not your turn or phase.' };
+  }
+
+  // Handle Attack
+  if (actionType === 'ATTACK') {
+    return resolveCombat(state, playerId, entityId, targetLine, targetId);
+  }
+
+  // Handle Manual Ability
+  if (actionType === 'ABILITY') {
+    const p = state.players[playerId];
+    let entity = null;
+    let isAvatar = false;
+
+    // Find Entity
+    if (p.avatar.id === entityId) {
+      entity = p.avatar;
+      isAvatar = true;
+    } else {
+      for (const line of LINES) {
+        const found = p.lines[line].find(u => u.instanceId === entityId);
+        if (found) { entity = found; break; }
+      }
+    }
+
+    if (!entity) return { success: false, reason: 'Entity not found.' };
+
+    const ability = entity.abilities.find(a => a.abilityId === abilityId);
+    if (!ability || ability.trigger !== 'MANUAL') {
+      return { success: false, reason: 'Invalid or non-manual ability.' };
+    }
+
+    // Deduct costs
+    if (ability.cost) {
+      if (ability.cost.readiness) entity.readiness -= ability.cost.readiness;
+      if (ability.cost.resource) p.resources[entity.tribe] -= ability.cost.resource;
+    }
+
+    // Special override: Map the generic Bodyguard ability to the existing hardcoded engine function
+    if (isAvatar && abilityId === 'ability_avatar_bodyguard') {
+      p.avatar.bodyguardUsedThisTurn = true;
+      const success = useBodyguardAbility(state, playerId, targetId);
+      return { success, log: success ? [`Activated Bodyguard`] : [] };
+    }
+
+    // Standard target resolution for other custom abilities
+    let targetEntity = null;
+    if (targetId) {
+       const enemyId = playerId === 'player1' ? 'player2' : 'player1';
+       const searchPlayers = [p, state.players[enemyId]];
+       for (const sp of searchPlayers) {
+         if (sp.avatar.id === targetId) { targetEntity = sp.avatar; break; }
+         for (const line of LINES) {
+           const found = sp.lines[line].find(u => u.instanceId === targetId);
+           if (found) { targetEntity = found; break; }
+         }
+         if (targetEntity) break;
+       }
+    }
+
+    executeAbility(state, ability, entity, targetEntity);
+    return { success: true, log: [`Activated ability: ${ability.name}`] };
+  }
+
+  return { success: false, reason: 'Unknown action type.' };
+}

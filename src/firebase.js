@@ -1,6 +1,7 @@
 /**
  * Henchies 2 Firebase Persistence & Multiplayer Sync Module
  * Includes Firestore real-time snapshot sync + LocalStorage fallback for seamless local/offline testing.
+ * Updated to include Anonymous Authentication to pass Firestore security rules.
  */
 
 // Firebase CDN Module Imports
@@ -9,30 +10,77 @@ import {
   getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, collection, getDocs, addDoc 
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+// NEW: Import Auth modules
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
-// Default Firebase Configuration (Update with your project credentials if hosting on Firebase)
+// Default Firebase Configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDemoConfigKeyForPrototype12345",
-  authDomain: "henchies2-prototype.firebaseapp.com",
-  projectId: "henchies2-prototype",
-  storageBucket: "henchies2-prototype.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+  apiKey: "AIzaSyACHtGdXLq9TNZZchfrx46pUQcGb6ndtAI",
+  authDomain: "henchies-reboot.firebaseapp.com",
+  projectId: "henchies-reboot",
+  storageBucket: "henchies-reboot.firebasestorage.app",
+  messagingSenderId: "641284877771",
+  appId: "1:641284877771:web:0497d79a089e6ca2831a4e"
 };
 
-let app, db, storage;
+let app, db, storage, auth;
 let isFirebaseOnline = false;
+let authReady = false; // Track if we are logged in
+
+// NEW: Promise mechanism to wait for auth resolution
+let authResolved = false;
+let authWaiters = [];
+const resolveAuth = () => {
+    authResolved = true;
+    authWaiters.forEach(resolve => resolve(isFirebaseOnline && authReady));
+    authWaiters = [];
+};
 
 try {
   app = initializeApp(firebaseConfig);
   db = getFirestore(app);
   storage = getStorage(app);
-  isFirebaseOnline = true;
-  console.log("🔥 Firebase initialized successfully.");
+  auth = getAuth(app);
+  
+  // Sign in anonymously immediately so we have a valid request.auth for Firestore rules
+  signInAnonymously(auth)
+    .then(() => {
+        console.log("🤫 Signed in anonymously");
+    })
+    .catch((error) => {
+        console.error("Auth Error:", error.code, error.message);
+        isFirebaseOnline = false;
+        resolveAuth();
+    });
+
+  // Listen for auth state to confirm we are ready to write
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+        authReady = true;
+        isFirebaseOnline = true;
+        console.log("🔥 Firebase initialized and User Authenticated. UID:", user.uid);
+    } else {
+        authReady = false;
+    }
+    resolveAuth();
+  });
+
 } catch (e) {
   console.warn("⚠️ Firebase credentials offline/unconfigured. Falling back to LocalStorage sync.", e);
   isFirebaseOnline = false;
+  resolveAuth();
 }
+
+// Helper to check if we are truly ready to write to DB
+const isReadyForDB = () => {
+  return new Promise((resolve) => {
+    if (authResolved) {
+      resolve(isFirebaseOnline && authReady);
+    } else {
+      authWaiters.push(resolve);
+    }
+  });
+};
 
 // ---------------------------------------------------------------------------
 // GAME ROOM & MULTIPLAYER SYNC API
@@ -40,7 +88,6 @@ try {
 
 /**
  * Creates or overwrites a game room document in Firestore or LocalStorage.
- * Keyframe + Action Log architecture.
  */
 export async function createGameRoom(gameId, state) {
   const payload = {
@@ -59,7 +106,7 @@ export async function createGameRoom(gameId, state) {
     updatedAt: Date.now()
   };
 
-  if (isFirebaseOnline) {
+  if (await isReadyForDB()) {
     try {
       await setDoc(doc(db, "games", gameId), payload);
       return;
@@ -77,38 +124,50 @@ export async function createGameRoom(gameId, state) {
  * Listens for real-time updates on a game document.
  */
 export function subscribeToGameRoom(gameId, callback) {
-  if (isFirebaseOnline) {
-    try {
-      const unsub = onSnapshot(doc(db, "games", gameId), (snapshot) => {
-        if (snapshot.exists()) {
-          callback(snapshot.data());
-        }
-      });
-      return unsub;
-    } catch (err) {
-      console.warn("Firestore snapshot failed, falling back to LocalStorage listener", err);
-    }
-  }
+  let unsub = () => {};
+  let isUnsubscribed = false;
 
-  // LocalStorage Fallback listener
-  const handler = (e) => {
-    if (e.detail && e.detail.gameId === gameId) {
-      callback(e.detail);
-    }
-  };
-  window.addEventListener('henchies_local_game_update', handler);
+  isReadyForDB().then((ready) => {
+    if (isUnsubscribed) return; // Prevent setting up if already cancelled
 
-  // Poll LocalStorage every second for multi-tab testing
-  const interval = setInterval(() => {
-    const raw = localStorage.getItem(`henchies_game_${gameId}`);
-    if (raw) {
-      callback(JSON.parse(raw));
+    if (ready) {
+      try {
+        const firestoreUnsub = onSnapshot(doc(db, "games", gameId), (snapshot) => {
+          if (snapshot.exists()) {
+            callback(snapshot.data());
+          }
+        });
+        unsub = firestoreUnsub;
+        return;
+      } catch (err) {
+        console.warn("Firestore snapshot failed, falling back to LocalStorage listener", err);
+      }
     }
-  }, 1000);
+
+    // LocalStorage Fallback listener
+    const handler = (e) => {
+      if (e.detail && e.detail.gameId === gameId) {
+        callback(e.detail);
+      }
+    };
+    window.addEventListener('henchies_local_game_update', handler);
+
+    const interval = setInterval(() => {
+      const raw = localStorage.getItem(`henchies_game_${gameId}`);
+      if (raw) {
+        callback(JSON.parse(raw));
+      }
+    }, 1000);
+
+    unsub = () => {
+      window.removeEventListener('henchies_local_game_update', handler);
+      clearInterval(interval);
+    };
+  });
 
   return () => {
-    window.removeEventListener('henchies_local_game_update', handler);
-    clearInterval(interval);
+    isUnsubscribed = true;
+    unsub();
   };
 }
 
@@ -116,7 +175,7 @@ export function subscribeToGameRoom(gameId, callback) {
  * Appends an action to the action_log and updates game state snapshot.
  */
 export async function pushActionToLog(gameId, actionPayload, updatedTurnStartState = null, currentHistoryLog = []) {
-  if (isFirebaseOnline) {
+  if (await isReadyForDB()) {
     try {
       const gameRef = doc(db, "games", gameId);
       const updateData = {
@@ -152,10 +211,11 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
 // ---------------------------------------------------------------------------
 
 export async function saveCardToCatalog(cardData) {
-  if (isFirebaseOnline) {
+  if (await isReadyForDB()) {
     try {
-      await setDoc(doc(db, "cards", cardData.id), cardData);
+      await setDoc(doc(db, "cards", cardData.id), cardData.toObject());
       console.log("Card saved to Firestore");
+      return;
     } catch (e) {
       console.warn("Firestore card save failed, saving to LocalStorage", e);
     }
@@ -169,7 +229,7 @@ export async function saveCardToCatalog(cardData) {
 }
 
 export async function fetchCustomCards() {
-  if (isFirebaseOnline) {
+  if (await isReadyForDB()) {
     try {
       const querySnapshot = await getDocs(collection(db, "cards"));
       const cards = [];
@@ -183,10 +243,11 @@ export async function fetchCustomCards() {
 }
 
 export async function saveAbilityToCatalog(abilityData) {
-  if (isFirebaseOnline) {
+  if (await isReadyForDB()) {
     try {
       await setDoc(doc(db, "abilities", abilityData.abilityId), abilityData);
       console.log("Ability saved to Firestore");
+      return;
     } catch (e) {
       console.warn("Firestore ability save failed, saving to LocalStorage", e);
     }
@@ -200,7 +261,7 @@ export async function saveAbilityToCatalog(abilityData) {
 }
 
 export async function fetchCustomAbilities() {
-  if (isFirebaseOnline) {
+  if (await isReadyForDB()) {
     try {
       const querySnapshot = await getDocs(collection(db, "abilities"));
       const abs = [];
@@ -214,7 +275,7 @@ export async function fetchCustomAbilities() {
 }
 
 export async function uploadCardArt(file) {
-  if (isFirebaseOnline && file) {
+  if ((await isReadyForDB()) && file) {
     try {
       const storageRef = ref(storage, `card_art/${Date.now()}_${file.name}`);
       const snapshot = await uploadBytes(storageRef, file);

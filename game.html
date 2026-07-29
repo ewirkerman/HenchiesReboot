@@ -256,14 +256,29 @@
       </div>
     </div>
 
+    <!-- ================= UNIT ACTION MODAL ================= -->
+    <div id="unit-action-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+      <div class="glass-panel rounded-2xl p-5 shadow-2xl border border-slate-700 max-w-sm w-full mx-4 flex flex-col gap-4 relative">
+        <button onclick="window.closeUnitActionModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white font-bold text-lg leading-none">&times;</button>
+        <div class="text-center border-b border-slate-800 pb-3">
+          <h2 id="modal-unit-name" class="text-xl font-black text-amber-400 tracking-wider">Unit Name</h2>
+          <p class="text-xs text-slate-400 mt-1">Select an action for this unit.</p>
+        </div>
+        <div id="modal-abilities-container" class="flex flex-col gap-2">
+          <!-- Buttons dynamically injected here -->
+        </div>
+        <button onclick="window.closeUnitActionModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold p-3 rounded-xl border border-slate-700 mt-2 transition">Cancel</button>
+      </div>
+    </div>
+
   </main>
 
   <script type="module">
     import { 
-      GameState, Card, UnitInstance, Avatar, DEFAULT_CARDS, LINES, generate40CardDeck,
+      GameState, Card, UnitInstance, Avatar, CARD_CATALOG, LINES, generate40CardDeck,
       initGame, joinGame, executeDrawDecision, executeSacrificeDecision, 
       playCard, resolveCombat, endTurn, useBodyguardAbility, equipFromEquator,
-      getValidAttackTargets, cloneGameState 
+      getValidAttackTargets, cloneGameState, getEntityAvailableActions, executeEntityAction
     } from './src/engine.js';
     import { renderCardHTML, openInspectionModal, renderHistorySlider, showToast } from './src/ui.js';
     import { createGameRoom, subscribeToGameRoom, pushActionToLog } from './src/firebase.js';
@@ -278,6 +293,61 @@
     let validTargets = [];
     let replayStepIndex = 0;
     let localReplayStates = [];
+
+    // Check for room in URL on page load to auto-rejoin match
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRoom = urlParams.get('room');
+    
+    if (urlRoom) {
+      // Immediately hide the setup screen while connecting
+      document.getElementById('match-setup-screen').classList.add('hidden');
+
+      // Small timeout ensures DOM elements are fully accessible
+      setTimeout(() => {
+        const savedName = localStorage.getItem('henchies_last_username');
+        if (savedName) document.getElementById('setup-username').value = savedName;
+        
+        const savedRole = localStorage.getItem('henchies_last_role');
+        if (savedRole) document.getElementById('setup-role').value = savedRole;
+
+        const savedDeck = localStorage.getItem('henchies_last_deck');
+        if (savedDeck) document.getElementById('setup-deck-select').value = savedDeck;
+
+        document.getElementById('setup-room-code').value = urlRoom;
+        
+        localPlayerRole = document.getElementById('setup-role').value;
+        roomCode = urlRoom;
+
+        document.getElementById('header-room-badge').innerText = `Lobby: ${roomCode}`;
+        
+        let hasLoadedState = false;
+        showToast('Connecting to match...', 'info');
+
+        // Fallback: If connection fails or room doesn't exist, return to setup
+        setTimeout(() => {
+          if (!hasLoadedState) {
+            document.getElementById('match-setup-screen').classList.remove('hidden');
+            showToast('Match not found or expired. Please create a new one.', 'error');
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        }, 4000);
+
+        // Immediately subscribe to the active game instead of overwriting it
+        subscribeToGameRoom(roomCode, (data) => {
+          if (data && data.turn_start_state) {
+            reconstructStateFromLog(data);
+            
+            // Only unhide the tabletop once the state is successfully loaded
+            if (!hasLoadedState && currentGameState) {
+              hasLoadedState = true;
+              document.getElementById('match-setup-screen').classList.add('hidden');
+              document.getElementById('match-tabletop-screen').classList.remove('hidden');
+              showToast(`Rejoined match tabletop as ${localPlayerRole.toUpperCase()}!`, 'success');
+            }
+          }
+        });
+      }, 50);
+    }
 
     window.inspectCard = (cardJson) => {
       openInspectionModal(JSON.parse(decodeURIComponent(cardJson)));
@@ -296,6 +366,16 @@
       localPlayerRole = document.getElementById('setup-role').value;
       roomCode = document.getElementById('setup-room-code').value.trim() || 'ROOM_HENCHIES_1';
       
+      // Save settings for refresh recovery
+      localStorage.setItem('henchies_last_username', username);
+      localStorage.setItem('henchies_last_role', localPlayerRole);
+      localStorage.setItem('henchies_last_deck', document.getElementById('setup-deck-select').value);
+
+      // Push room code to URL so refreshes remain in the match
+      const newUrl = new URL(window.location);
+      newUrl.searchParams.set('room', roomCode);
+      window.history.pushState({}, '', newUrl);
+
       const deckOption = document.getElementById('setup-deck-select').value;
       if (deckOption === 'DEFAULT_MYTHIC') {
         activeBattleDeck = generate40CardDeck('Mythic');
@@ -336,20 +416,22 @@
     function reconstructStateFromLog(data) {
       if (!data.turn_start_state) return;
       
-      const baseState = JSON.parse(data.turn_start_state);
-      localReplayStates = [cloneGameState(baseState)];
-      let liveState = cloneGameState(baseState);
-      
-      if (data.action_log) {
-        for (const action of data.action_log) {
-          if (action.type === 'DRAW_DECISION') {
-            executeDrawDecision(liveState, action.option);
-          } else if (action.type === 'SACRIFICE_DECISION') {
-            executeSacrificeDecision(liveState, action.option, action.cardId);
-          } else if (action.type === 'PLAY_CARD') {
-            playCard(liveState, action.playerId, action.cardId, action.targetLine, action.targetUnitId);
+      try {
+        const baseState = JSON.parse(data.turn_start_state);
+        localReplayStates = [cloneGameState(baseState)];
+        let liveState = cloneGameState(baseState);
+        
+        if (data.action_log) {
+          for (const action of data.action_log) {
+            if (action.type === 'DRAW_DECISION') {
+              executeDrawDecision(liveState, action.option);
+            } else if (action.type === 'SACRIFICE_DECISION') {
+              executeSacrificeDecision(liveState, action.option, action.cardId);
+            } else if (action.type === 'PLAY_CARD') {
           } else if (action.type === 'ATTACK') {
             resolveCombat(liveState, action.attackerOwnerId, action.attackerId, action.targetLine, action.targetId);
+          } else if (action.type === 'ENTITY_ACTION') {
+            executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
           } else if (action.type === 'END_TURN') {
             endTurn(liveState);
           } else if (action.type === 'BODYGUARD') {
@@ -361,13 +443,20 @@
         }
       }
 
-      currentGameState = liveState;
-      replayStepIndex = localReplayStates.length - 1;
-      updateUI();
+        currentGameState = liveState;
+        replayStepIndex = localReplayStates.length - 1;
+        updateUI();
+      } catch (err) {
+        console.error("Error reconstructing game state from log:", err);
+        showToast("Error loading game state. Data may be out of sync.", "error");
+      }
     }
 
     function isMyTurn() {
-      return currentGameState && currentGameState.activePlayerId === localPlayerRole && currentGameState.status === 'active';
+      if (!currentGameState) return false;
+      // Removed the strict currentGameState.status === 'active' check 
+      // in case the engine initializes status differently.
+      return currentGameState.activePlayerId === localPlayerRole;
     }
 
     function updateUI() {
@@ -469,8 +558,8 @@
           const isTargetable = validTargets.some(t => t.line === 'hero' && prefix === 'opp');
           lineEl.innerHTML = `
             <div 
-              onclick="window.handleTargetClick('hero', '${player.avatar.id}')"
-              class="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border-2 ${isTargetable ? 'border-red-500 ring-4 ring-red-500 animate-bounce cursor-pointer' : 'border-slate-700'} min-w-[140px]"
+              onclick="window.handleEntityClick('${prefix}', 'hero', '${player.avatar.id}')"
+              class="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border-2 ${isTargetable ? 'border-red-500 ring-4 ring-red-500 animate-bounce cursor-pointer' : (prefix === 'player' ? 'border-emerald-500 hover:ring-2 hover:ring-emerald-400 cursor-pointer' : 'border-slate-700')} min-w-[140px]"
             >
               <div class="w-8 h-8 rounded-full bg-amber-500 text-black font-black flex items-center justify-center text-xs">
                 ${player.avatar.health}
@@ -491,28 +580,92 @@
               readiness: u.readiness,
               isSelected: isAttacker,
               isTargetable: isTargetable,
-              onClick: `window.handleUnitClick('${prefix}', '${line}', '${u.instanceId}')`,
+              onClick: `window.handleEntityClick('${prefix}', '${line}', '${u.instanceId}')`,
               onInspect: `window.inspectCard('${json}')`
             });
           }).join('');
         }
       }
 
-      window.handleUnitClick = (prefix, line, instanceId) => {
+      window.handleEntityClick = (prefix, line, entityId) => {
         if (!isMyTurn()) return;
 
         if (prefix === 'player') {
           if (currentGameState.turnPhase === 'ACTION_PHASE') {
-            selectedAttackerId = selectedAttackerId === instanceId ? null : instanceId;
-            if (selectedAttackerId) {
-              validTargets = getValidAttackTargets(currentGameState, localPlayerRole);
+            const actions = getEntityAvailableActions(currentGameState, localPlayerRole, entityId);
+            if (actions.length > 0) {
+              // Find the entity name for the UI Modal
+              let entityName = "Unknown Entity";
+              if (currentGameState.players[localPlayerRole].avatar.id === entityId) {
+                entityName = currentGameState.players[localPlayerRole].avatar.name;
+              } else {
+                for (const l of LINES) {
+                  const u = currentGameState.players[localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
+                  if (u) { entityName = u.name; break; }
+                }
+              }
+              window.openActionModal(entityId, entityName, actions);
             } else {
-              validTargets = [];
+              showToast("No available actions or not enough resources.", "info");
             }
-            updateUI();
           }
         } else if (prefix === 'opp') {
-          window.handleTargetClick(line, instanceId);
+          window.handleTargetClick(line, entityId);
+        }
+      };
+
+      window.openActionModal = (entityId, entityName, actions) => {
+        document.getElementById('modal-unit-name').innerText = entityName;
+        const container = document.getElementById('modal-abilities-container');
+        
+        let html = '';
+        
+        actions.forEach((act) => {
+          if (act.type === 'ATTACK') {
+            html += `<button onclick="window.selectAttacker('${entityId}')" class="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">⚔️ ${act.name}</button>`;
+          } else if (act.type === 'ABILITY') {
+            html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ ${act.name}</button>`;
+          }
+        });
+        
+        container.innerHTML = html;
+        document.getElementById('unit-action-modal').classList.remove('hidden');
+      };
+
+      window.closeUnitActionModal = () => {
+        document.getElementById('unit-action-modal').classList.add('hidden');
+      };
+
+      window.selectAttacker = (instanceId) => {
+        window.closeUnitActionModal();
+        selectedAttackerId = selectedAttackerId === instanceId ? null : instanceId;
+        if (selectedAttackerId) {
+          validTargets = getValidAttackTargets(currentGameState, localPlayerRole);
+        } else {
+          validTargets = [];
+        }
+        updateUI();
+      };
+
+      window.activateAbility = async (entityId, abilityId) => {
+        window.closeUnitActionModal();
+        if (!isMyTurn()) return;
+        
+        const actionPayload = {
+          type: 'ENTITY_ACTION',
+          playerId: localPlayerRole,
+          entityId: entityId,
+          actionType: 'ABILITY',
+          abilityId: abilityId
+        };
+        
+        const result = executeEntityAction(currentGameState, localPlayerRole, entityId, 'ABILITY', abilityId);
+        if (result && result.success) {
+          showToast('Ability Activated!', 'success');
+          await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+          updateUI();
+        } else {
+          showToast(result?.reason || 'Failed to activate ability', 'error');
         }
       };
 
@@ -520,21 +673,22 @@
         if (!isMyTurn() || !selectedAttackerId) return;
 
         const actionPayload = {
-          type: 'ATTACK',
-          attackerOwnerId: localPlayerRole,
-          attackerId: selectedAttackerId,
+          type: 'ENTITY_ACTION',
+          playerId: localPlayerRole,
+          entityId: selectedAttackerId,
+          actionType: 'ATTACK',
           targetLine: line,
           targetId: targetId
         };
 
-        const result = resolveCombat(currentGameState, localPlayerRole, selectedAttackerId, line, targetId);
+        const result = executeEntityAction(currentGameState, localPlayerRole, selectedAttackerId, 'ATTACK', null, targetId, line);
         if (result.success) {
           selectedAttackerId = null;
           validTargets = [];
           await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
           updateUI();
         } else {
-          showToast(result.reason, 'error');
+          showToast(result.reason || 'Attack failed', 'error');
         }
       };
     }
@@ -590,9 +744,19 @@
     }
 
     async function handleDrawDecision(option) {
-      if (!isMyTurn()) return;
+      console.log("🔘 Draw Decision Clicked:", option);
+      
+      if (!isMyTurn()) {
+        console.warn("Click blocked: It is not your turn.", {
+          activePlayer: currentGameState?.activePlayerId,
+          localRole: localPlayerRole
+        });
+        return;
+      }
+      
       const actionPayload = { type: 'DRAW_DECISION', option };
       executeDrawDecision(currentGameState, option);
+      
       await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
       updateUI();
     }
