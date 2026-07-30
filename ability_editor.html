@@ -110,15 +110,60 @@
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Trigger Event</label>
-                <select id="ab-trigger" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-full">
-                  <option value="MANUAL" selected>MANUAL (Player activates on turn)</option>
-                  <option value="ON_PLAY">TRIGGERED: ON_PLAY (Battlecry)</option>
-                  <option value="ON_DEATH">TRIGGERED: ON_DEATH (Deathrattle)</option>
-                  <option value="START_OF_TURN">TRIGGERED: START_OF_TURN</option>
-                  <option value="END_OF_TURN">TRIGGERED: END_OF_TURN</option>
-                  <option value="ON_ATTACK_DECLARED">TRIGGERED: ON_ATTACK_DECLARED</option>
-                  <option value="ON_DAMAGE_RECEIVED">TRIGGERED: ON_DAMAGE_RECEIVED</option>
-                </select>
+                <input list="trigger-list" id="ab-trigger" value="MANUAL" placeholder="Search or type trigger event..." class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-full focus:outline-none focus:border-amber-500" />
+                <datalist id="trigger-list">
+                  <option value="MANUAL">Player activates on turn</option>
+                  <option value="ON_PLAY">Battlecry</option>
+                  <option value="ON_DEATH">Deathrattle</option>
+                  <option value="START_OF_TURN"></option>
+                  <option value="END_OF_TURN"></option>
+                  <option value="ON_ATTACK_DECLARED"></option>
+                  <option value="ON_DAMAGE_RECEIVED"></option>
+                  <option value="PLAY"></option>
+                  <option value="SUMMON"></option>
+                  <option value="KILL"></option>
+                  <option value="UNFIELD"></option>
+                  <option value="TRASH"></option>
+                  <option value="RETURN"></option>
+                  <option value="SHUFFLE"></option>
+                  <option value="ATTACK"></option>
+                  <option value="FIELD"></option>
+                  <option value="ATTACH"></option>
+                  <option value="UNATTACH"></option>
+                  <option value="PLAYED"></option>
+                  <option value="SUMMONED"></option>
+                  <option value="KILLED"></option>
+                  <option value="UNFIELDED"></option>
+                  <option value="TRASHED"></option>
+                  <option value="RETURNED"></option>
+                  <option value="SHUFFLEED"></option>
+                  <option value="ATTACKED"></option>
+                  <option value="FIELDED"></option>
+                  <option value="ATTACHED"></option>
+                  <option value="UNATTACHED"></option>
+                  <option value="WOULD_PLAY"></option>
+                  <option value="WOULD_SUMMON"></option>
+                  <option value="WOULD_KILL"></option>
+                  <option value="WOULD_UNFIELD"></option>
+                  <option value="WOULD_TRASH"></option>
+                  <option value="WOULD_RETURN"></option>
+                  <option value="WOULD_SHUFFLE"></option>
+                  <option value="WOULD_ATTACK"></option>
+                  <option value="WOULD_FIELD"></option>
+                  <option value="WOULD_ATTACH"></option>
+                  <option value="WOULD_UNATTACH"></option>
+                  <option value="WOULD_BE_PLAYED"></option>
+                  <option value="WOULD_BE_SUMMONED"></option>
+                  <option value="WOULD_BE_KILLED"></option>
+                  <option value="WOULD_BE_UNFIELDED"></option>
+                  <option value="WOULD_BE_TRASHED"></option>
+                  <option value="WOULD_BE_RETURNED"></option>
+                  <option value="WOULD_BE_SHUFFLEED"></option>
+                  <option value="WOULD_BE_ATTACKED"></option>
+                  <option value="WOULD_BE_FIELDED"></option>
+                  <option value="WOULD_BE_ATTACHED"></option>
+                  <option value="WOULD_BE_UNATTACHED"></option>
+                </datalist>
               </div>
             </div>
           </div>
@@ -205,16 +250,21 @@
             </div>
           </div>
 
-          <button type="button" id="save-ability-btn" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-3 rounded-xl shadow-xl transition mt-2 text-sm uppercase tracking-wider">
-            💾 Save Ability Logic
-          </button>
+          <div class="flex gap-3 mt-2">
+            <button type="button" id="save-ability-btn" class="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-3 rounded-xl shadow-xl transition text-sm uppercase tracking-wider">
+              💾 Save Ability Logic
+            </button>
+            <button type="button" id="delete-ability-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-extrabold p-3 rounded-xl shadow-xl transition text-sm uppercase tracking-wider">
+              🗑️ Delete
+            </button>
+          </div>
         </form>
       </div>
     </div>
   </main>
 
   <script type="module">
-    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards } from './src/firebase.js';
+    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './src/firebase.js';
     import { CARD_CATALOG } from './src/engine.js';
 
     let allAbilities = [];
@@ -242,7 +292,7 @@
       'line': { label: 'Board Line', type: 'select', options: ['front', 'mid', 'back', 'bodyguard', 'hero'] },
       'health': { label: 'Current Health', type: 'number' },
       'strength': { label: 'Strength', type: 'number' },
-      'hasAbility': { label: 'Has Ability / Trait', type: 'text' }
+      'hasAbility': { label: 'Has Ability', type: 'text' }
     };
 
     const OPERATORS = {
@@ -257,6 +307,7 @@
     async function init() {
       document.getElementById('add-effect-btn').addEventListener('click', handleAddEffect);
       document.getElementById('save-ability-btn').addEventListener('click', handleSaveAbility);
+      document.getElementById('delete-ability-btn').addEventListener('click', handleDeleteAbility);
       document.getElementById('create-new-ability-btn').addEventListener('click', resetForm);
       
       document.getElementById('ability-form').addEventListener('input', updateJSONPreview);
@@ -538,8 +589,6 @@
               <input type="number" value="${eff.amount || 1}" onchange="window.updateEffect(${idx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" />
             </div>`;
         } else if (eff.type === 'GRANT_ABILITY') {
-          const coreAbilities = ['Stun', 'Burn', 'Freeze', 'Shield', 'Poison', 'Taunt', 'Cleave', 'Flying', 'Lifesteal'];
-          const coreOptions = coreAbilities.map(t => `<option value="${t}"></option>`).join('');
           const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
           
           let displayValue = eff.grantedAbilityId || eff.traitId || '';
@@ -548,10 +597,9 @@
           
           paramsHtml = `
             <div class="flex-1">
-              <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Ability / Trait to Grant</label>
+              <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Ability to Grant</label>
               <input list="ability-list-${idx}" value="${displayValue}" onchange="window.updateGrantedAbility(${idx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
               <datalist id="ability-list-${idx}">
-                ${coreOptions}
                 ${customOptions}
               </datalist>
             </div>`;
@@ -623,6 +671,21 @@
 
     async function handleSaveAbility() {
       const ability = getCurrentAbilityState();
+
+      // Check for duplicate names
+      const isDuplicate = allAbilities.some(a => 
+        a.name.toLowerCase() === ability.name.toLowerCase() && 
+        a.abilityId !== ability.abilityId
+      );
+
+      if (isDuplicate) {
+        const toast = document.createElement('div');
+        toast.className = 'bg-red-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+        toast.innerText = `Cannot save: An ability named '${ability.name}' already exists!`;
+        document.getElementById('toast-container').appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+        return;
+      }
       
       const btn = document.getElementById('save-ability-btn');
       const originalText = btn.innerHTML;
@@ -644,6 +707,43 @@
       renderCatalogList();
     }
 
+    async function handleDeleteAbility(e) {
+      const btn = e.currentTarget;
+      
+      // Two-click confirmation required to delete
+      if (!btn.dataset.confirm) {
+        btn.dataset.confirm = 'true';
+        btn.innerHTML = '⚠️ Confirm Deletion';
+        btn.classList.replace('bg-red-600/80', 'bg-red-700');
+        
+        setTimeout(() => {
+          delete btn.dataset.confirm;
+          btn.innerHTML = '🗑️ Delete';
+          btn.classList.replace('bg-red-700', 'bg-red-600/80');
+        }, 3000);
+        return;
+      }
+
+      // Reset button state
+      delete btn.dataset.confirm;
+      btn.innerHTML = '🗑️ Delete';
+      btn.classList.replace('bg-red-700', 'bg-red-600/80');
+
+      if (currentEditingId) {
+        await deleteAbilityFromCatalog(currentEditingId);
+        allAbilities = allAbilities.filter(a => a.abilityId !== currentEditingId);
+        
+        const toast = document.createElement('div');
+        toast.className = 'bg-slate-700 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+        toast.innerText = `Ability deleted successfully.`;
+        document.getElementById('toast-container').appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+
+        resetForm();
+        renderCatalogList();
+      }
+    }
+
     function resetForm() {
       currentEditingId = null;
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
@@ -657,6 +757,9 @@
       effectScopeRoot = { type: 'group', logicalOperator: 'AND', children: [] };
       
       abilityEffects = [{ type: 'DEAL_DAMAGE', amount: 2 }];
+      
+      document.getElementById('delete-ability-btn').classList.add('hidden');
+      
       renderLogicTrees();
       renderEffects();
       window.updateTargetingUI();
@@ -692,7 +795,7 @@
           >
             <div class="flex justify-between items-center font-bold text-amber-300">
               <span>${ab.name}</span>
-              <span class="text-[9px] bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800 font-bold">${ab.trigger}</span>
+              <span class="text-[9px] bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800 font-bold max-w-[120px] truncate" title="${ab.trigger}">${ab.trigger}</span>
             </div>
             <div class="text-[10px] text-emerald-400">${ab.effects?.length || 0} Effects Configured</div>
             ${conditionCount > 0 ? 
@@ -709,8 +812,10 @@
       currentEditingId = ab.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ab.name}`;
       document.getElementById('ab-name').value = ab.name;
-      document.getElementById('ab-trigger').value = ab.trigger || 'MANUAL';
+      document.getElementById('ab-trigger').value = ab.trigger;
       
+      document.getElementById('delete-ability-btn').classList.remove('hidden');
+
       // AUTO-MIGRATION LOGIC (Handles old `targeting` object safely)
       const srcAct = ab.activation || ab.targeting || {};
       
