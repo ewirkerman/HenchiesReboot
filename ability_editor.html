@@ -89,13 +89,16 @@
     <div class="flex-1 flex flex-col gap-4">
       <div class="glass-panel rounded-2xl p-5 shadow-2xl border border-slate-800 flex flex-col gap-5">
         
-        <div class="border-b border-slate-800 pb-3 flex justify-between items-end">
+        <div class="border-b border-slate-800 pb-3 flex justify-between items-start">
           <div>
             <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider" id="form-heading">
               ⚡ Design Ability Logic
             </h2>
             <p class="text-[10px] text-slate-400 mt-1">Configure Triggers, Activation Targets, Effect Scopes, and Payloads.</p>
           </div>
+          <button type="button" id="delete-ability-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap mt-1">
+            🗑️ Delete Ability
+          </button>
         </div>
 
         <form id="ability-form" class="flex flex-col gap-6 text-xs">
@@ -103,96 +106,128 @@
           <!-- 1. IDENTITY & TRIGGER -->
           <div class="flex flex-col gap-3 p-4 bg-slate-900/50 rounded-xl border border-slate-700/50">
             <h3 class="text-xs font-black text-white uppercase tracking-widest border-b border-slate-800 pb-1 mb-1">1. Trigger & Identity</h3>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Ability Name</label>
-                <input type="text" id="ab-name" required value="Selective Strike" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500" />
+                <input type="text" id="ab-name" required value="" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500" />
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Trigger Event</label>
-                <input list="trigger-list" id="ab-trigger" value="MANUAL" placeholder="Search or type trigger event..." class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-full focus:outline-none focus:border-amber-500" />
+                <input list="trigger-list" id="ab-trigger" value="" placeholder="Search or type trigger event..." class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-full focus:outline-none focus:border-amber-500" />
                 <datalist id="trigger-list">
-                  <option value="MANUAL">Player activates on turn</option>
-                  <option value="ON_PLAY">Battlecry</option>
-                  <option value="ON_DEATH">Deathrattle</option>
-                  <option value="START_OF_TURN"></option>
-                  <option value="END_OF_TURN"></option>
-                  <option value="ON_ATTACK_DECLARED"></option>
-                  <option value="ON_DAMAGE_RECEIVED"></option>
-                  <option value="PLAY"></option>
-                  <option value="SUMMON"></option>
-                  <option value="KILL"></option>
-                  <option value="UNFIELD"></option>
-                  <option value="TRASH"></option>
-                  <option value="RETURN"></option>
-                  <option value="SHUFFLE"></option>
-                  <option value="ATTACK"></option>
-                  <option value="FIELD"></option>
-                  <option value="ATTACH"></option>
-                  <option value="UNATTACH"></option>
-                  <option value="PLAYED"></option>
-                  <option value="SUMMONED"></option>
-                  <option value="KILLED"></option>
-                  <option value="UNFIELDED"></option>
-                  <option value="TRASHED"></option>
-                  <option value="RETURNED"></option>
-                  <option value="SHUFFLEED"></option>
-                  <option value="ATTACKED"></option>
-                  <option value="FIELDED"></option>
-                  <option value="ATTACHED"></option>
-                  <option value="UNATTACHED"></option>
-                  <option value="WOULD_PLAY"></option>
-                  <option value="WOULD_SUMMON"></option>
-                  <option value="WOULD_KILL"></option>
-                  <option value="WOULD_UNFIELD"></option>
-                  <option value="WOULD_TRASH"></option>
-                  <option value="WOULD_RETURN"></option>
-                  <option value="WOULD_SHUFFLE"></option>
-                  <option value="WOULD_ATTACK"></option>
-                  <option value="WOULD_FIELD"></option>
-                  <option value="WOULD_ATTACH"></option>
-                  <option value="WOULD_UNATTACH"></option>
-                  <option value="WOULD_BE_PLAYED"></option>
-                  <option value="WOULD_BE_SUMMONED"></option>
-                  <option value="WOULD_BE_KILLED"></option>
-                  <option value="WOULD_BE_UNFIELDED"></option>
-                  <option value="WOULD_BE_TRASHED"></option>
-                  <option value="WOULD_BE_RETURNED"></option>
-                  <option value="WOULD_BE_SHUFFLEED"></option>
-                  <option value="WOULD_BE_ATTACKED"></option>
-                  <option value="WOULD_BE_FIELDED"></option>
-                  <option value="WOULD_BE_ATTACHED"></option>
-                  <option value="WOULD_BE_UNATTACHED"></option>
+                  <!-- Now populated automatically from JS Constants -->
                 </datalist>
+              </div>
+              <div>
+                <label class="font-bold text-slate-300 block mb-1">Trigger Frequency</label>
+                <select id="ab-trigger-limit" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <option value="UNLIMITED" selected>Unlimited (Every time triggered)</option>
+                  <option value="ONCE_PER_ROUND">Once Per Round</option>
+                  <option value="TWICE_PER_ROUND">Twice Per Round</option>
+                </select>
+              </div>
+              
+              <!-- DESCRIPTION & GLOSSARY MENTIONS -->
+              <div class="md:col-span-3 relative">
+                <label class="font-bold text-slate-300 block mb-1 flex justify-between">
+                  <span>Ability Description (Override)</span>
+                  <span class="text-amber-500/80 font-normal italic text-[10px]">Type @ to link other abilities</span>
+                </label>
+                <textarea id="ab-description" rows="2" placeholder="e.g. When played, trigger @[Another Ability]... (Leave blank to use auto-generated description)" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500"></textarea>
+                
+                <!-- Auto-Generated Preview -->
+                <div class="mt-2 bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                    <span class="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">Auto-Generated System Description</span>
+                    <p id="ab-auto-description" class="text-xs text-amber-100 italic"></p>
+                </div>
+
+                <!-- Autocomplete Dropdown -->
+                <div id="mention-dropdown" class="hidden absolute top-[4.5rem] left-0 mt-1 w-full max-w-md bg-slate-800 border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto">
+                    <!-- Mention items injected here -->
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 2. PLAYER ACTIVATION TARGETING -->
+          <!-- 2. COST & REQUIREMENTS -->
+          <div class="flex flex-col gap-3 p-4 bg-rose-950/20 rounded-xl border border-rose-900/40">
+            <h3 class="text-xs font-black text-rose-400 uppercase tracking-widest border-b border-rose-900/50 pb-1 mb-1">
+              2. Cost & Requirements
+            </h3>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label class="font-bold text-slate-300 block mb-1">Tribe Resource</label>
+                <select id="ab-cost-tribe-type" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500">
+                  <option value="NONE" selected>None</option>
+                  <option value="Robot">Robot</option>
+                  <option value="Mythic">Mythic</option>
+                  <option value="Elemental">Elemental</option>
+                  <option value="Pirate">Pirate</option>
+                  <option value="Undead">Undead</option>
+                  <option value="Carnie">Carnie</option>
+                  <option value="Viking">Viking</option>
+                  <option value="Ninja">Ninja</option>
+                  <option value="Stalker">Stalker</option>
+                  <option value="Alien">Alien</option>
+                  <option value="Luchador">Luchador</option>
+                </select>
+              </div>
+              <div>
+                <label class="font-bold text-slate-300 block mb-1">Tribe Amount</label>
+                <input type="number" id="ab-cost-tribe-amt" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
+              </div>
+              <div>
+                <label class="font-bold text-slate-300 block mb-1">Tent Cost</label>
+                <input type="number" id="ab-cost-tent" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
+              </div>
+              <div>
+                <label class="font-bold text-slate-300 block mb-1">Power Cost</label>
+                <input type="number" id="ab-cost-power" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1 items-end">
+              <div>
+                <label class="font-bold text-slate-300 block mb-1">Readiness Cost</label>
+                <select id="ab-cost-readiness" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500">
+                  <option value="NONE" selected>None</option>
+                  <option value="UNREADIES">Unreadies (Soft Tap)</option>
+                  <option value="EXHAUSTS">Exhausts (Hard Tap)</option>
+                </select>
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition pb-2">
+                <input type="checkbox" id="ab-cost-reuse-exempt" class="w-4 h-4 accent-rose-500" />
+                <span class="font-bold text-[11px]">Subsequent uses this round ignore readiness cost</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 3. PLAYER ACTIVATION TARGETING -->
           <div class="flex flex-col gap-3 p-4 bg-indigo-950/20 rounded-xl border border-indigo-900/40">
             <h3 class="text-xs font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-900/50 pb-1 mb-1">
-              2. Player Activation Targeting (Requirements)
+              3. Player Activation Targeting (Requirements)
             </h3>
             
             <div class="grid grid-cols-2 gap-3 mb-2">
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Activation Method</label>
                 <select id="ab-act-method" onchange="window.updateTargetingUI()" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
-                  <option value="NONE">None (Self, Global, or Auto-Trigger)</option>
-                  <option value="PLAYER_CHOICE" selected>Player Choice (Click 1 Target)</option>
+                  <option value="NONE" selected>None (Self, Global, or Auto-Trigger)</option>
+                  <option value="PLAYER_CHOICE">Player Choice (Click 1 Target)</option>
                 </select>
               </div>
-              <div id="act-affiliation-container">
+              <div id="act-affiliation-container" class="hidden">
                 <label class="font-bold text-slate-300 block mb-1">Base Affiliation</label>
                 <select id="ab-act-affiliation" onchange="window.updateJSONPreview()" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
                   <option value="FRIENDLY">Friendly Units / Hero</option>
-                  <option value="ENEMY" selected>Enemy Units / Hero</option>
-                  <option value="ANY">Any Unit on Board</option>
+                  <option value="ENEMY">Enemy Units / Hero</option>
+                  <option value="ANY" selected>Any Unit on Board</option>
                 </select>
               </div>
             </div>
 
-            <div id="act-logic-tree-wrapper" class="flex flex-col gap-2">
+            <div id="act-logic-tree-wrapper" class="flex flex-col gap-2 hidden">
               <label class="font-bold text-indigo-300 block mb-1">Activation Condition Filters</label>
               <div id="activation-conditions-container" class="flex flex-col gap-2 min-h-[40px]">
                 <!-- Activation tree rendered here via JS -->
@@ -200,46 +235,10 @@
             </div>
           </div>
 
-          <!-- 3. EFFECT APPLICATION SCOPE -->
-          <div class="flex flex-col gap-3 p-4 bg-fuchsia-950/20 rounded-xl border border-fuchsia-900/40">
-            <h3 class="text-xs font-black text-fuchsia-400 uppercase tracking-widest border-b border-fuchsia-900/50 pb-1 mb-1">
-              3. Effect Application Scope
-            </h3>
-            
-            <div class="grid grid-cols-2 gap-3 mb-2">
-              <div>
-                <label class="font-bold text-slate-300 block mb-1">Scope Method (Who receives effect?)</label>
-                <div class="flex gap-2">
-                  <select id="ab-eff-method" onchange="window.updateTargetingUI()" class="bg-slate-900 border border-slate-700 p-2 rounded text-white flex-1">
-                    <option value="SAME_AS_ACTIVATION" selected>Just hit the Activated Target(s)</option>
-                    <option value="AUTO_ALL">Hit ALL valid matches below</option>
-                    <option value="AUTO_RANDOM">Hit N RANDOM valid matches below</option>
-                  </select>
-                  <input type="number" id="ab-eff-count" value="1" min="1" onchange="window.updateJSONPreview()" title="Number of targets (N)" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-16 hidden focus:outline-none focus:border-amber-500" />
-                </div>
-              </div>
-              <div id="eff-affiliation-container" class="hidden">
-                <label class="font-bold text-slate-300 block mb-1">Base Affiliation Scope</label>
-                <select id="ab-eff-affiliation" onchange="window.updateJSONPreview()" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
-                  <option value="FRIENDLY">Friendly Units / Hero</option>
-                  <option value="ENEMY" selected>Enemy Units / Hero</option>
-                  <option value="ANY">Any Unit on Board</option>
-                </select>
-              </div>
-            </div>
-
-            <div id="eff-logic-tree-wrapper" class="flex flex-col gap-2 hidden">
-              <label class="font-bold text-fuchsia-300 block mb-1">Effect Scope Condition Filters</label>
-              <div id="effect-conditions-container" class="flex flex-col gap-2 min-h-[40px]">
-                <!-- Effect Scope tree rendered here via JS -->
-              </div>
-            </div>
-          </div>
-
-          <!-- 4. EFFECT PAYLOADS -->
+          <!-- 4. EFFECT PAYLOADS & TARGETING -->
           <div class="flex flex-col gap-3 p-4 bg-emerald-950/20 rounded-xl border border-emerald-900/40">
             <h3 class="text-xs font-black text-emerald-400 uppercase tracking-widest border-b border-emerald-900/50 pb-1 mb-1 flex justify-between items-center">
-              <span>4. Effect Payloads (Runs N times)</span>
+              <span>4. Effect Payloads (Runs sequentially)</span>
               <button type="button" id="add-effect-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">
                 + Add Effect Action
               </button>
@@ -254,9 +253,6 @@
             <button type="button" id="save-ability-btn" class="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-3 rounded-xl shadow-xl transition text-sm uppercase tracking-wider">
               💾 Save Ability Logic
             </button>
-            <button type="button" id="delete-ability-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-extrabold p-3 rounded-xl shadow-xl transition text-sm uppercase tracking-wider">
-              🗑️ Delete
-            </button>
           </div>
         </form>
       </div>
@@ -266,6 +262,10 @@
   <script type="module">
     import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './src/firebase.js';
     import { CARD_CATALOG } from './src/engine.js';
+    import { generateAbilityDescription } from './src/language_description.js';
+    
+    // Import the centralized state/enums directly from the JS model
+    import { TRIGGER_EVENTS, EFFECT_TYPES } from './src/abilities.js';
 
     let allAbilities = [];
     let allCards = [];
@@ -277,14 +277,14 @@
       logicalOperator: 'AND',
       children: []
     };
-
-    let effectScopeRoot = {
-      type: 'group',
-      logicalOperator: 'AND',
-      children: []
-    };
     
-    let abilityEffects = [{ type: 'DEAL_DAMAGE', amount: 2 }];
+    let abilityEffects = [];
+    
+    // Autocomplete State
+    let mentionActive = false;
+    let mentionStart = -1;
+    let selectedMentionIndex = 0;
+    let filteredMentions = [];
 
     const ATTRIBUTE_TYPES = {
       'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'HERO', 'UNIT', 'TARGET', 'ATTACKER'] },
@@ -305,6 +305,12 @@
     init();
 
     async function init() {
+      // Setup datalist purely from JS Constants
+      const triggerDatalist = document.getElementById('trigger-list');
+      if (triggerDatalist) {
+        triggerDatalist.innerHTML = TRIGGER_EVENTS.map(t => `<option value="${t}"></option>`).join('');
+      }
+
       document.getElementById('add-effect-btn').addEventListener('click', handleAddEffect);
       document.getElementById('save-ability-btn').addEventListener('click', handleSaveAbility);
       document.getElementById('delete-ability-btn').addEventListener('click', handleDeleteAbility);
@@ -314,29 +320,65 @@
       document.getElementById('ability-form').addEventListener('change', updateJSONPreview);
       document.getElementById('ability-search-input').addEventListener('input', renderCatalogList);
 
+      // Listen for trigger changes to validate allowed targeting methods and trigger limits
+      document.getElementById('ab-trigger').addEventListener('input', () => window.updateTargetingUI());
+      document.getElementById('ab-trigger').addEventListener('change', () => window.updateTargetingUI());
+
+      // Mention Autocomplete Listeners
+      const descInput = document.getElementById('ab-description');
+      descInput.addEventListener('input', handleDescriptionInput);
+      descInput.addEventListener('keydown', handleDescriptionKeydown);
+      descInput.addEventListener('blur', () => setTimeout(closeMentionDropdown, 200));
+
       window.updateTargetingUI = () => {
         // Activation UI Setup
-        const actMethod = document.getElementById('ab-act-method').value;
+        const triggerValue = document.getElementById('ab-trigger').value.toUpperCase();
+        const actMethodSelect = document.getElementById('ab-act-method');
         const actLogicTreeWrapper = document.getElementById('act-logic-tree-wrapper');
         const actAffiliationContainer = document.getElementById('act-affiliation-container');
-        
-        actLogicTreeWrapper.classList.toggle('hidden', actMethod === 'NONE');
-        actAffiliationContainer.classList.toggle('hidden', actMethod === 'NONE');
+        const triggerLimitSelect = document.getElementById('ab-trigger-limit');
 
-        // Effect Scope UI Setup
-        const effMethod = document.getElementById('ab-eff-method').value;
-        const countInput = document.getElementById('ab-eff-count');
-        const effLogicTreeWrapper = document.getElementById('eff-logic-tree-wrapper');
-        const effAffiliationContainer = document.getElementById('eff-affiliation-container');
+        // Disable trigger limit if UNTRIGGERABLE
+        if (triggerValue === 'UNTRIGGERABLE') {
+          triggerLimitSelect.disabled = true;
+          triggerLimitSelect.title = "Not applicable for UNTRIGGERABLE abilities";
+        } else {
+          triggerLimitSelect.disabled = false;
+          triggerLimitSelect.title = "";
+        }
         
-        countInput.classList.toggle('hidden', effMethod !== 'AUTO_RANDOM');
-        effLogicTreeWrapper.classList.toggle('hidden', effMethod === 'SAME_AS_ACTIVATION');
-        effAffiliationContainer.classList.toggle('hidden', effMethod === 'SAME_AS_ACTIVATION');
+        // Enforce trigger requirement for Player Choice targeting
+        const allowedTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL'];
+        const allowsPlayerChoice = allowedTriggers.includes(triggerValue);
+        const playerChoiceOption = actMethodSelect.querySelector('option[value="PLAYER_CHOICE"]');
+        
+        if (playerChoiceOption) {
+          if (!allowsPlayerChoice) {
+            playerChoiceOption.disabled = true;
+            playerChoiceOption.text = 'Player Choice (Requires Manual/Play Trigger)';
+            // Auto-reset to NONE if they change the trigger to something invalid while Choice is selected
+            if (actMethodSelect.value === 'PLAYER_CHOICE') {
+              actMethodSelect.value = 'NONE';
+            }
+          } else {
+            playerChoiceOption.disabled = false;
+            playerChoiceOption.text = 'Player Choice (Click 1 Target)';
+          }
+        }
+        
+        // Toggle visibility of target filters based on method
+        if (actMethodSelect.value === 'PLAYER_CHOICE') {
+          actAffiliationContainer.classList.remove('hidden');
+          actLogicTreeWrapper.classList.remove('hidden');
+        } else {
+          actAffiliationContainer.classList.add('hidden');
+          actLogicTreeWrapper.classList.add('hidden');
+        }
         
         updateJSONPreview();
       };
 
-      allAbilities = await fetchCustomAbilities();
+      const rawAbilities = await fetchCustomAbilities();
       
       const customCards = await fetchCustomCards();
       if (customCards && customCards.length > 0) {
@@ -345,16 +387,121 @@
       } else {
         allCards = [...CARD_CATALOG];
       }
+
+      // Process abilities AFTER cards are loaded so SUMMON descriptions can resolve names
+      allAbilities = rawAbilities.map(ab => ({
+        ...ab,
+        displayDescription: generateAbilityDescription(ab, rawAbilities, allCards)
+      }));
       
       renderCatalogList();
-      renderLogicTrees();
-      renderEffects();
-      window.updateTargetingUI();
-      updateJSONPreview();
+      resetForm(); // Start Blank!
     }
 
+    // --- MENTION AUTOCOMPLETE LOGIC ---
+    function handleDescriptionInput(e) {
+      const val = e.target.value;
+      const cursor = e.target.selectionStart;
+      const textBeforeCursor = val.slice(0, cursor);
+      const lastAt = textBeforeCursor.lastIndexOf('@');
+
+      if (lastAt !== -1) {
+        const query = textBeforeCursor.slice(lastAt + 1);
+        // If there's no space after the @, we assume they are typing a name
+        if (!query.includes(' ') && !query.includes('\n')) {
+          mentionActive = true;
+          mentionStart = lastAt;
+          showMentionDropdown(query);
+          return;
+        }
+      }
+      closeMentionDropdown();
+    }
+
+    function handleDescriptionKeydown(e) {
+      if (!mentionActive) return;
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedMentionIndex = Math.min(selectedMentionIndex + 1, filteredMentions.length - 1);
+        renderMentionDropdown();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedMentionIndex = Math.max(selectedMentionIndex - 1, 0);
+        renderMentionDropdown();
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(filteredMentions[selectedMentionIndex]);
+      } else if (e.key === 'Escape') {
+        closeMentionDropdown();
+      }
+    }
+
+    function showMentionDropdown(query) {
+      const q = query.toLowerCase();
+      filteredMentions = allAbilities.filter(a => a.name.toLowerCase().includes(q));
+      
+      if (filteredMentions.length === 0) {
+        closeMentionDropdown();
+        return;
+      }
+      
+      selectedMentionIndex = 0;
+      document.getElementById('mention-dropdown').classList.remove('hidden');
+      renderMentionDropdown();
+    }
+
+    function renderMentionDropdown() {
+      const dropdown = document.getElementById('mention-dropdown');
+      dropdown.innerHTML = filteredMentions.map((a, i) => `
+        <div class="p-2 cursor-pointer border-b border-slate-700 last:border-0 ${i === selectedMentionIndex ? 'bg-amber-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-700'}" 
+             onmousedown="event.preventDefault(); window.insertMentionById('${a.abilityId}')">
+            ${a.name}
+        </div>
+      `).join('');
+    }
+
+    function closeMentionDropdown() {
+      mentionActive = false;
+      document.getElementById('mention-dropdown').classList.add('hidden');
+    }
+
+    window.insertMentionById = (id) => {
+      const ab = allAbilities.find(a => a.abilityId === id);
+      if (ab) insertMention(ab);
+    };
+
+    function insertMention(ability) {
+      if (!ability) return;
+      const descInput = document.getElementById('ab-description');
+      const val = descInput.value;
+      const cursor = descInput.selectionStart;
+      
+      const before = val.slice(0, mentionStart);
+      const after = val.slice(cursor);
+      
+      // Formats the mention clearly for engine parsing later
+      const insertText = "@[" + ability.name + "]"; 
+      
+      descInput.value = before + insertText + ' ' + after;
+      descInput.focus();
+      
+      const newCursor = before.length + insertText.length + 1;
+      descInput.setSelectionRange(newCursor, newCursor);
+      
+      closeMentionDropdown();
+      updateJSONPreview();
+    }
+    
+    // ----------------------------------
+
     function getRoot(treeType) {
-        return treeType === 'activation' ? activationRoot : effectScopeRoot;
+        if (treeType === 'activation') return activationRoot;
+        if (treeType.startsWith('effect_')) {
+            const idx = parseInt(treeType.split('_')[1], 10);
+            return abilityEffects[idx].logicTree;
+        }
+        return null;
     }
 
     function getNodeAtPath(treeType, path) {
@@ -381,7 +528,8 @@
       const group = path.length === 0 ? getRoot(treeType) : getNodeAtPath(treeType, path);
       if (group && group.type === 'group') {
         group.children.push({ type: 'condition', attribute: 'tribe', operator: '==', value: 'Robot' });
-        renderLogicTrees();
+        if (treeType === 'activation') renderLogicTrees();
+        else renderEffects();
         updateJSONPreview();
       }
     };
@@ -391,7 +539,8 @@
       const group = path.length === 0 ? getRoot(treeType) : getNodeAtPath(treeType, path);
       if (group && group.type === 'group') {
         group.children.push({ type: 'group', logicalOperator: 'AND', children: [] });
-        renderLogicTrees();
+        if (treeType === 'activation') renderLogicTrees();
+        else renderEffects();
         updateJSONPreview();
       }
     };
@@ -404,7 +553,8 @@
       const indexToRemove = path[path.length - 1];
       parentArray.splice(indexToRemove, 1);
       
-      renderLogicTrees();
+      if (treeType === 'activation') renderLogicTrees();
+      else renderEffects();
       updateJSONPreview();
     };
 
@@ -420,13 +570,13 @@
         node.operator = '==';
       }
       
-      renderLogicTrees();
+      if (treeType === 'activation') renderLogicTrees();
+      else renderEffects();
       updateJSONPreview();
     };
 
     function renderLogicTrees() {
       document.getElementById('activation-conditions-container').innerHTML = generateGroupHTML('activation', activationRoot, []);
-      document.getElementById('effect-conditions-container').innerHTML = generateGroupHTML('effect', effectScopeRoot, []);
     }
 
     function generateGroupHTML(treeType, group, path) {
@@ -435,10 +585,11 @@
       
       const isAnd = group.logicalOperator === 'AND';
       const borderClass = isAnd ? 'border-and' : 'border-or';
-      const bgClass = treeType === 'activation' 
+      const isActivation = treeType === 'activation';
+      const bgClass = isActivation 
         ? (isAnd ? 'bg-indigo-950/40' : 'bg-amber-950/40') 
         : (isAnd ? 'bg-fuchsia-950/40' : 'bg-amber-950/40');
-      const textClass = treeType === 'activation'
+      const textClass = isActivation
         ? (isAnd ? 'text-indigo-400' : 'text-amber-400')
         : (isAnd ? 'text-fuchsia-400' : 'text-amber-400');
       
@@ -529,7 +680,15 @@
     }
 
     function handleAddEffect() {
-      abilityEffects.push({ type: 'DEAL_DAMAGE', amount: 1 });
+      abilityEffects.push({
+        type: 'DEAL_DAMAGE',
+        amount: 1,
+        duration: 'INSTANT',
+        targetMethod: 'SAME_AS_ACTIVATION',
+        targetCount: 1,
+        targetAffiliation: 'ANY',
+        logicTree: { type: 'group', logicalOperator: 'AND', children: [] }
+      });
       renderEffects();
       updateJSONPreview();
     }
@@ -543,13 +702,21 @@
     window.updateEffect = (index, field, value) => {
       abilityEffects[index][field] = value;
       if (field === 'type') {
+        const eff = abilityEffects[index];
         const type = value;
-        const eff = { type: type };
-        if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'DRAW_CARD'].includes(type)) eff.amount = 1;
-        else if (type === 'GRANT_ABILITY') eff.grantedAbilityId = '';
-        else if (type === 'SUMMON') eff.cardId = 'target_dummy';
-        else if (type === 'CUSTOM_SCRIPT') eff.script = 'state.players[state.activePlayerId].health += params.amount;';
-        abilityEffects[index] = eff;
+        // Retain target rules but reset type-specific payload data
+        if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
+            eff.amount = 1; 
+            delete eff.grantedAbilityId; 
+            delete eff.cardId; 
+            delete eff.script; 
+            if (type === 'MODIFY_STAT' || type === 'SET_STAT') eff.stat = 'strength';
+            else delete eff.stat;
+        }
+        else if (type === 'GRANT_ABILITY') { eff.grantedAbilityId = ''; delete eff.amount; delete eff.cardId; delete eff.script; delete eff.stat; }
+        else if (type === 'SUMMON') { eff.cardId = 'target_dummy'; eff.amount = 1; delete eff.grantedAbilityId; delete eff.script; delete eff.stat; }
+        else if (type === 'CUSTOM_SCRIPT') { eff.script = 'state.players[state.activePlayerId].health += params.amount;'; delete eff.amount; delete eff.grantedAbilityId; delete eff.cardId; delete eff.stat; }
+        else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH'].includes(type)) { delete eff.amount; delete eff.grantedAbilityId; delete eff.cardId; delete eff.script; delete eff.stat; }
       }
       renderEffects();
       updateJSONPreview();
@@ -578,15 +745,31 @@
       }
 
       container.innerHTML = abilityEffects.map((eff, idx) => {
-        const types = ['DEAL_DAMAGE', 'HEAL', 'GRANT_ABILITY', 'MODIFY_STAT', 'DRAW_CARD', 'SUMMON', 'CUSTOM_SCRIPT'];
-        const typeOptions = types.map(t => `<option value="${t}" ${eff.type === t ? 'selected' : ''}>${t}</option>`).join('');
+        // Utilize the imported constant from JS Logic controller to prevent drift
+        const typeOptions = EFFECT_TYPES.map(t => `<option value="${t}" ${eff.type === t ? 'selected' : ''}>${t}</option>`).join('');
 
         let paramsHtml = '';
-        if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'DRAW_CARD'].includes(eff.type)) {
+        if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(eff.type)) {
+          let statHtml = '';
+          if (eff.type === 'MODIFY_STAT' || eff.type === 'SET_STAT') {
+            statHtml = `
+              <div class="flex-1">
+                <label class="block text-[10px] font-bold text-amber-400 mb-0.5">Target Stat</label>
+                <select onchange="window.updateEffect(${idx}, 'stat', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full focus:outline-none focus:border-amber-500">
+                  <option value="strength" ${eff.stat === 'strength' ? 'selected' : ''}>Strength</option>
+                  <option value="health" ${eff.stat === 'health' ? 'selected' : ''}>Current Health</option>
+                  <option value="maxHealth" ${eff.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
+                </select>
+              </div>`;
+          }
+
           paramsHtml = `
-            <div class="flex-1">
-              <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude / Value</label>
-              <input type="number" value="${eff.amount || 1}" onchange="window.updateEffect(${idx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" />
+            <div class="flex-1 flex gap-3">
+              <div class="flex-1">
+                <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude / Value / Card Amount</label>
+                <input type="number" value="${eff.amount || 1}" onchange="window.updateEffect(${idx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full focus:outline-none focus:border-slate-500" />
+              </div>
+              ${statHtml}
             </div>`;
         } else if (eff.type === 'GRANT_ABILITY') {
           const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
@@ -611,12 +794,18 @@
           if (foundCard) displayValue = foundCard.name;
           
           paramsHtml = `
-            <div class="flex-1">
-              <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Unit to Summon</label>
-              <input list="card-list-${idx}" value="${displayValue}" onchange="window.updateSummonCard(${idx}, this.value)" placeholder="Search or type unit name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full" />
-              <datalist id="card-list-${idx}">
-                ${cardOptions}
-              </datalist>
+            <div class="flex-1 flex gap-3">
+              <div class="w-24">
+                <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Amount</label>
+                <input type="number" value="${eff.amount || 1}" min="1" onchange="window.updateEffect(${idx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full focus:outline-none focus:border-slate-500" />
+              </div>
+              <div class="flex-1">
+                <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Unit to Summon</label>
+                <input list="card-list-${idx}" value="${displayValue}" onchange="window.updateSummonCard(${idx}, this.value)" placeholder="Search or type unit name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full" />
+                <datalist id="card-list-${idx}">
+                  ${cardOptions}
+                </datalist>
+              </div>
             </div>`;
         } else if (eff.type === 'CUSTOM_SCRIPT') {
           paramsHtml = `
@@ -632,13 +821,64 @@
         return `
           <div class="flex flex-wrap items-start gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-700 relative shadow-inner">
             <button type="button" onclick="window.removeEffect(${idx})" class="absolute top-2 right-2 text-slate-500 hover:text-red-400 font-black px-1.5 leading-none">&times;</button>
-            <div class="w-full md:w-2/5">
-              <label class="block text-[10px] font-bold text-emerald-500 mb-0.5">Action Type</label>
-              <select onchange="window.updateEffect(${idx}, 'type', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold w-full focus:outline-none focus:border-emerald-500">
-                ${typeOptions}
-              </select>
+            
+            <div class="w-full flex flex-wrap items-end gap-3">
+                <div class="w-full md:w-1/3">
+                  <label class="block text-[10px] font-bold text-emerald-500 mb-0.5">Action Type</label>
+                  <select onchange="window.updateEffect(${idx}, 'type', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold w-full focus:outline-none focus:border-emerald-500">
+                    ${typeOptions}
+                  </select>
+                </div>
+                
+                <div class="w-full md:w-1/4">
+                  <label class="block text-[10px] font-bold text-sky-400 mb-0.5">Duration</label>
+                  <select onchange="window.updateEffect(${idx}, 'duration', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-sky-300 font-bold w-full focus:outline-none focus:border-sky-500">
+                    <option value="INSTANT" ${eff.duration === 'INSTANT' ? 'selected' : ''}>Instant</option>
+                    <option value="BRIEF" ${eff.duration === 'BRIEF' ? 'selected' : ''}>Brief (End of Turn)</option>
+                    <option value="TEMPORARY" ${eff.duration === 'TEMPORARY' ? 'selected' : ''}>Temporary (End of Round)</option>
+                    <option value="INDEFINITE" ${eff.duration === 'INDEFINITE' ? 'selected' : ''}>Indefinite (While on Board)</option>
+                    <option value="PERMANENT" ${eff.duration === 'PERMANENT' ? 'selected' : ''}>Permanent (Across Zones)</option>
+                  </select>
+                </div>
+
+                ${paramsHtml}
             </div>
-            ${paramsHtml}
+
+            <!-- PER-EFFECT TARGETING SCOPE -->
+            <div class="flex flex-col gap-2 mt-2 w-full border-t border-slate-700/50 pt-3">
+              <h4 class="text-[10px] font-bold text-fuchsia-400 uppercase tracking-widest flex items-center gap-1">
+                <span>🎯 Effect ${idx + 1} Targets</span>
+              </h4>
+              <div class="flex gap-2">
+                <select onchange="window.updateEffect(${idx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1">
+                  <option value="SAME_AS_ACTIVATION" ${eff.targetMethod === 'SAME_AS_ACTIVATION' ? 'selected' : ''}>Activated Target(s)</option>
+                  <option value="SELF" ${eff.targetMethod === 'SELF' ? 'selected' : ''}>Self (Caster / This Card)</option>
+                  <option value="AUTO_ALL" ${eff.targetMethod === 'AUTO_ALL' ? 'selected' : ''}>Auto-Target ALL Matching Below</option>
+                  <option value="AUTO_RANDOM" ${eff.targetMethod === 'AUTO_RANDOM' ? 'selected' : ''}>Auto-Target N RANDOM Matching Below</option>
+                </select>
+                ${eff.targetMethod === 'AUTO_RANDOM' ? `<input type="number" value="${eff.targetCount || 1}" onchange="window.updateEffect(${idx}, 'targetCount', parseInt(this.value))" title="Number of targets (N)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-16" />` : ''}
+              </div>
+              
+              ${['AUTO_ALL', 'AUTO_RANDOM'].includes(eff.targetMethod) ? `
+              <div class="flex flex-col gap-2 bg-fuchsia-950/20 p-2 rounded border border-fuchsia-900/30">
+                <div>
+                    <label class="font-bold text-slate-400 block mb-1 text-[9px]">Base Affiliation</label>
+                    <select onchange="window.updateEffect(${idx}, 'targetAffiliation', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white w-full">
+                      <option value="FRIENDLY" ${eff.targetAffiliation === 'FRIENDLY' ? 'selected' : ''}>Friendly Units / Hero</option>
+                      <option value="ENEMY" ${eff.targetAffiliation === 'ENEMY' ? 'selected' : ''}>Enemy Units / Hero</option>
+                      <option value="ANY" ${eff.targetAffiliation === 'ANY' ? 'selected' : ''}>Any Unit on Board</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-2 mt-1">
+                  <label class="font-bold text-fuchsia-300 block mb-1 text-[9px]">Scope Condition Filters</label>
+                  <div class="flex flex-col gap-2 min-h-[40px]">
+                    ${generateGroupHTML(`effect_${idx}`, eff.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
+                  </div>
+                </div>
+              </div>
+              ` : ''}
+            </div>
+
           </div>
         `;
       }).join('');
@@ -648,29 +888,48 @@
       return {
         abilityId: currentEditingId || ('ability_' + Date.now()),
         name: document.getElementById('ab-name').value,
+        description: document.getElementById('ab-description').value,
         trigger: document.getElementById('ab-trigger').value,
+        triggerLimit: document.getElementById('ab-trigger-limit').value,
+        cost: {
+          tribeType: document.getElementById('ab-cost-tribe-type').value,
+          tribeAmount: parseInt(document.getElementById('ab-cost-tribe-amt').value) || 0,
+          tent: parseInt(document.getElementById('ab-cost-tent').value) || 0,
+          power: parseInt(document.getElementById('ab-cost-power').value) || 0,
+          readinessCost: document.getElementById('ab-cost-readiness').value,
+          reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked
+        },
         activation: {
           method: document.getElementById('ab-act-method').value,
           affiliation: document.getElementById('ab-act-affiliation').value,
           logicTree: JSON.parse(JSON.stringify(activationRoot)) 
         },
-        effectScope: {
-          method: document.getElementById('ab-eff-method').value,
-          count: parseInt(document.getElementById('ab-eff-count').value) || 1,
-          affiliation: document.getElementById('ab-eff-affiliation').value,
-          logicTree: JSON.parse(JSON.stringify(effectScopeRoot))
-        },
-        effects: [...abilityEffects]
+        effects: JSON.parse(JSON.stringify(abilityEffects))
       };
     }
 
     function updateJSONPreview() {
       const state = getCurrentAbilityState();
       document.getElementById('json-preview').innerText = JSON.stringify(state, null, 2);
+      
+      // Live update the auto-generated description as the user edits the form
+      // Force the generator to show the underlying system text by removing the custom override
+      const stateForAutoGen = { ...state, description: '' };
+      const autoDesc = generateAbilityDescription(stateForAutoGen, allAbilities, allCards);
+      document.getElementById('ab-auto-description').innerText = autoDesc || 'Complete the ability details to generate a description.';
     }
 
     async function handleSaveAbility() {
       const ability = getCurrentAbilityState();
+
+      if (!ability.name || ability.name.trim() === '') {
+        const toast = document.createElement('div');
+        toast.className = 'bg-red-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+        toast.innerText = `Cannot save: Please provide an Ability Name!`;
+        document.getElementById('toast-container').appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+        return;
+      }
 
       // Check for duplicate names
       const isDuplicate = allAbilities.some(a => 
@@ -703,7 +962,13 @@
       document.getElementById('toast-container').appendChild(toast);
       setTimeout(() => toast.remove(), 3000);
 
-      allAbilities = [...allAbilities.filter(a => a.abilityId !== ability.abilityId), ability];
+      // Process and attach the description before pushing back to the UI state
+      const processedAbility = {
+          ...ability,
+          displayDescription: generateAbilityDescription(ability, allAbilities, allCards)
+      };
+
+      allAbilities = [...allAbilities.filter(a => a.abilityId !== ability.abilityId), processedAbility];
       renderCatalogList();
     }
 
@@ -713,20 +978,22 @@
       // Two-click confirmation required to delete
       if (!btn.dataset.confirm) {
         btn.dataset.confirm = 'true';
-        btn.innerHTML = '⚠️ Confirm Deletion';
+        btn.innerHTML = '⚠️ Click again to delete';
         btn.classList.replace('bg-red-600/80', 'bg-red-700');
         
         setTimeout(() => {
-          delete btn.dataset.confirm;
-          btn.innerHTML = '🗑️ Delete';
-          btn.classList.replace('bg-red-700', 'bg-red-600/80');
+          if (btn.dataset.confirm) {
+            delete btn.dataset.confirm;
+            btn.innerHTML = '🗑️ Delete Ability';
+            btn.classList.replace('bg-red-700', 'bg-red-600/80');
+          }
         }, 3000);
         return;
       }
 
       // Reset button state
       delete btn.dataset.confirm;
-      btn.innerHTML = '🗑️ Delete';
+      btn.innerHTML = '🗑️ Delete Ability';
       btn.classList.replace('bg-red-700', 'bg-red-600/80');
 
       if (currentEditingId) {
@@ -747,18 +1014,32 @@
     function resetForm() {
       currentEditingId = null;
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
-      document.getElementById('ab-name').value = 'New Custom Ability';
+      document.getElementById('ab-name').value = '';
+      document.getElementById('ab-description').value = '';
+      document.getElementById('ab-auto-description').innerText = 'Complete the ability details to generate a description.';
+      document.getElementById('ab-trigger').value = '';
+      document.getElementById('ab-trigger-limit').value = 'UNLIMITED';
       
-      document.getElementById('ab-act-method').value = 'PLAYER_CHOICE';
-      document.getElementById('ab-eff-method').value = 'SAME_AS_ACTIVATION';
-      document.getElementById('ab-eff-count').value = 1;
+      // Reset Cost section
+      document.getElementById('ab-cost-tribe-type').value = 'NONE';
+      document.getElementById('ab-cost-tribe-amt').value = '0';
+      document.getElementById('ab-cost-tent').value = '0';
+      document.getElementById('ab-cost-power').value = '0';
+      document.getElementById('ab-cost-readiness').value = 'NONE';
+      document.getElementById('ab-cost-reuse-exempt').checked = false;
+
+      document.getElementById('ab-act-method').value = 'NONE';
+      document.getElementById('ab-act-affiliation').value = 'ANY';
       
       activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-      effectScopeRoot = { type: 'group', logicalOperator: 'AND', children: [] };
       
-      abilityEffects = [{ type: 'DEAL_DAMAGE', amount: 2 }];
+      abilityEffects = [];
       
-      document.getElementById('delete-ability-btn').classList.add('hidden');
+      const deleteBtn = document.getElementById('delete-ability-btn');
+      deleteBtn.classList.add('hidden');
+      delete deleteBtn.dataset.confirm;
+      deleteBtn.innerHTML = '🗑️ Delete Ability';
+      deleteBtn.classList.replace('bg-red-700', 'bg-red-600/80');
       
       renderLogicTrees();
       renderEffects();
@@ -812,15 +1093,42 @@
       currentEditingId = ab.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ab.name}`;
       document.getElementById('ab-name').value = ab.name;
-      document.getElementById('ab-trigger').value = ab.trigger;
+      document.getElementById('ab-description').value = ab.description || '';
       
+      // Force generation of the raw system description without the override
+      const autoDesc = generateAbilityDescription({ ...ab, description: '' }, allAbilities, allCards);
+      document.getElementById('ab-auto-description').innerText = autoDesc || 'No description generated.';
+      
+      document.getElementById('ab-trigger').value = ab.trigger;
+      document.getElementById('ab-trigger-limit').value = ab.triggerLimit || 'UNLIMITED';
+      
+      // Load Cost Section
+      const cost = ab.cost || {};
+      document.getElementById('ab-cost-tribe-type').value = cost.tribeType || 'NONE';
+      document.getElementById('ab-cost-tribe-amt').value = cost.tribeAmount || 0;
+      document.getElementById('ab-cost-tent').value = cost.tent || 0;
+      document.getElementById('ab-cost-power').value = cost.power || 0;
+      
+      // Auto-migrate old requiresReady/exhausts structure to the new Readiness Cost Enum
+      if (cost.readinessCost) {
+        document.getElementById('ab-cost-readiness').value = cost.readinessCost;
+      } else if (cost.exhausts) {
+        document.getElementById('ab-cost-readiness').value = 'EXHAUSTS';
+      } else if (cost.requiresReady) {
+        document.getElementById('ab-cost-readiness').value = 'UNREADIES';
+      } else {
+        document.getElementById('ab-cost-readiness').value = 'NONE';
+      }
+      
+      document.getElementById('ab-cost-reuse-exempt').checked = !!cost.reuseIgnoresReadiness;
+
       document.getElementById('delete-ability-btn').classList.remove('hidden');
 
       // AUTO-MIGRATION LOGIC (Handles old `targeting` object safely)
       const srcAct = ab.activation || ab.targeting || {};
       
-      document.getElementById('ab-act-method').value = srcAct.method || 'PLAYER_CHOICE';
-      document.getElementById('ab-act-affiliation').value = srcAct.affiliation || 'ENEMY';
+      document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
+      document.getElementById('ab-act-affiliation').value = srcAct.affiliation || 'ANY';
       
       if (srcAct.logicTree) {
          activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
@@ -828,25 +1136,18 @@
          activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
       }
 
-      const srcEff = ab.effectScope || {};
-      document.getElementById('ab-eff-method').value = srcEff.method || 'SAME_AS_ACTIVATION';
-      document.getElementById('ab-eff-count').value = srcEff.count || 1;
-      document.getElementById('ab-eff-affiliation').value = srcEff.affiliation || 'ANY';
-      
-      if (srcEff.logicTree) {
-         effectScopeRoot = JSON.parse(JSON.stringify(srcEff.logicTree));
-      } else {
-         effectScopeRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-      }
+      // Legacy global effectScope support for mapping to individual effects
+      const srcEffScope = ab.effectScope || { method: 'SAME_AS_ACTIVATION', count: 1, affiliation: 'ANY', logicTree: { type: 'group', logicalOperator: 'AND', children: [] } };
       
       const migrateConditions = (node) => {
+        if (!node) return;
         if (node.type === 'condition' && node.attribute === 'hasTrait') {
           node.attribute = 'hasAbility';
         }
         if (node.children) node.children.forEach(migrateConditions);
       };
+      
       migrateConditions(activationRoot);
-      migrateConditions(effectScopeRoot);
       
       if (ab.effects && ab.effects.length > 0) {
         abilityEffects = JSON.parse(JSON.stringify(ab.effects)).map(e => {
@@ -855,10 +1156,21 @@
                 e.grantedAbilityId = e.traitId;
                 delete e.traitId;
             }
+            // Merge legacy global effect scope into per-effect target settings if missing
+            if (!e.targetMethod) {
+                e.targetMethod = srcEffScope.method || 'SAME_AS_ACTIVATION';
+                e.targetCount = srcEffScope.count || 1;
+                e.targetAffiliation = srcEffScope.affiliation || 'ANY';
+                e.logicTree = JSON.parse(JSON.stringify(srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }));
+            }
+            if (!e.duration) {
+                e.duration = 'INSTANT';
+            }
+            migrateConditions(e.logicTree);
             return e;
         });
       } else {
-        abilityEffects = [{ type: 'DEAL_DAMAGE', amount: 2 }];
+        abilityEffects = [];
       }
       
       renderLogicTrees();

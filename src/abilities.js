@@ -4,6 +4,7 @@
 
 import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './firebase.js';
 import { CARD_CATALOG } from './engine.js';
+import { generateAbilityDescription } from './language_description.js';
 
 // --- STATE MANAGEMENT ---
 const state = {
@@ -11,11 +12,32 @@ const state = {
     allCards: [],
     currentEditingId: null,
     activationRoot: { type: 'group', logicalOperator: 'AND', children: [] },
-    effectScopeRoot: { type: 'group', logicalOperator: 'AND', children: [] },
-    abilityEffects: [{ type: 'DEAL_DAMAGE', amount: 2 }]
+    abilityEffects: []
 };
 
 // --- CONSTANTS & CONFIGURATION ---
+
+export const EFFECT_TYPES = [
+    'DEAL_DAMAGE', 'HEAL', 'GRANT_ABILITY', 'MODIFY_STAT', 'SET_STAT', 
+    'DRAW_CARD', 'SUMMON', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 
+    'CUSTOM_SCRIPT', 'DISCARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'ATTACH', 
+    'UNATTACH', 'TRASH'
+];
+
+export const TRIGGER_EVENTS = [
+    'MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'PLAY', 'PLAY_OPTIONAL',
+    'SUMMON', 'KILL', 'UNFIELD', 'TRASH', 'RETURN', 'SHUFFLE', 'ATTACK', 'DAMAGE',
+    'FIELD', 'ATTACH', 'UNATTACH', 'PLAYED', 'SUMMONED', 'KILLED', 'UNFIELDED',
+    'TRASHED', 'RETURNED', 'SHUFFLED', 'ATTACKED', 'DAMAGED', 'FIELDED', 'ATTACHED',
+    'UNATTACHED', 'DISCARDED', 'HARVESTED',
+    'WOULD_PLAY', 'WOULD_SUMMON', 'WOULD_KILL', 'WOULD_UNFIELD', 'WOULD_TRASH',
+    'WOULD_RETURN', 'WOULD_SHUFFLE', 'WOULD_ATTACK', 'WOULD_DAMAGE', 'WOULD_FIELD',
+    'WOULD_ATTACH', 'WOULD_UNATTACH', 'WOULD_BE_PLAYED', 'WOULD_BE_SUMMONED',
+    'WOULD_BE_KILLED', 'WOULD_BE_UNFIELDED', 'WOULD_BE_TRASHED', 'WOULD_BE_RETURNED',
+    'WOULD_BE_SHUFFLED', 'WOULD_BE_ATTACKED', 'WOULD_BE_DAMAGED', 'WOULD_BE_FIELDED',
+    'WOULD_BE_ATTACHED', 'WOULD_BE_UNATTACHED', 'WOULD_BE_DISCARDED', 'WOULD_BE_HARVESTED'
+];
+
 const ATTRIBUTE_TYPES = {
     'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'HERO', 'UNIT', 'TARGET', 'ATTACKER'] },
     'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
@@ -34,7 +56,13 @@ const OPERATORS = {
 
 // --- CORE INITIALIZATION ---
 export async function initializeModule() {
-    state.allAbilities = await fetchCustomAbilities();
+    const rawAbilities = await fetchCustomAbilities();
+    
+    // Inject the natural language description onto every loaded ability
+    state.allAbilities = rawAbilities.map(ab => ({
+        ...ab,
+        displayDescription: generateAbilityDescription(ab)
+    }));
       
     const customCards = await fetchCustomCards();
     if (customCards && customCards.length > 0) {
@@ -49,7 +77,12 @@ export async function initializeModule() {
 
 // --- LOGIC TREE MANIPULATION ---
 function getRoot(treeType) {
-    return treeType === 'activation' ? state.activationRoot : state.effectScopeRoot;
+    if (treeType === 'activation') return state.activationRoot;
+    if (treeType.startsWith('effect_')) {
+        const index = parseInt(treeType.split('_')[1], 10);
+        return state.abilityEffects[index].logicTree;
+    }
+    return null;
 }
 
 function getNodeAtPath(treeType, path) {
@@ -96,7 +129,15 @@ export function updateNode(treeType, path, field, value) {
 
 // --- EFFECT PAYLOAD MANIPULATION ---
 export function addEffectPayload() {
-    state.abilityEffects.push({ type: 'DEAL_DAMAGE', amount: 1 });
+    state.abilityEffects.push({
+        type: 'DEAL_DAMAGE',
+        amount: 1,
+        duration: 'INSTANT',
+        targetMethod: 'SAME_AS_ACTIVATION',
+        targetCount: 1,
+        targetAffiliation: 'ANY',
+        logicTree: { type: 'group', logicalOperator: 'AND', children: [] }
+    });
 }
 
 export function removeEffectPayload(index) {
@@ -108,12 +149,15 @@ export function updateEffectPayload(index, field, value) {
     
     if (field === 'type') {
         const type = value;
-        const eff = { type: type };
-        if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD'].includes(type)) eff.amount = 1;
-        else if (type === 'MODIFY_STAT') { eff.amount = 1; eff.stat = ''; }
+        const eff = { type: type, duration: state.abilityEffects[index].duration || 'INSTANT', targetMethod: state.abilityEffects[index].targetMethod, targetCount: state.abilityEffects[index].targetCount, targetAffiliation: state.abilityEffects[index].targetAffiliation, logicTree: state.abilityEffects[index].logicTree };
+        
+        // Use the centralized effect handling for parameterized effects
+        if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) eff.amount = 1;
+        else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { eff.amount = 1; eff.stat = 'strength'; }
         else if (type === 'GRANT_ABILITY') eff.grantedAbilityId = '';
         else if (type === 'SUMMON') eff.cardId = '';
         else if (type === 'CUSTOM_SCRIPT') eff.script = 'state.players[state.activePlayerId].health += params.amount;';
+        else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH'].includes(type)) { /* Blocks don't require parameters */ }
         
         state.abilityEffects[index] = eff;
     }
@@ -125,10 +169,11 @@ export function renderGroupHTML(treeType, group, path = []) {
     const isRoot = path.length === 0;
     const isAnd = group.logicalOperator === 'AND';
     const borderClass = isAnd ? 'border-and' : 'border-or';
-    const bgClass = treeType === 'activation' 
+    const isActivation = treeType === 'activation';
+    const bgClass = isActivation 
         ? (isAnd ? 'bg-indigo-950/40' : 'bg-amber-950/40') 
         : (isAnd ? 'bg-fuchsia-950/40' : 'bg-amber-950/40');
-    const textClass = treeType === 'activation'
+    const textClass = isActivation
         ? (isAnd ? 'text-indigo-400' : 'text-amber-400')
         : (isAnd ? 'text-fuchsia-400' : 'text-amber-400');
     
@@ -202,18 +247,34 @@ export function exportCurrentState(formData) {
     return {
         abilityId: state.currentEditingId || ('ability_' + Date.now()),
         name: formData.name,
+        description: formData.description || '',
         trigger: formData.trigger,
+        triggerLimit: formData.triggerLimit || 'UNLIMITED',
+        cost: {
+            tribeType: formData.tribeType || 'NONE',
+            tribeAmount: parseInt(formData.tribeAmount) || 0,
+            tent: parseInt(formData.tent) || 0,
+            power: parseInt(formData.power) || 0,
+            readinessCost: formData.readinessCost || 'NONE',
+            reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness
+        },
         activation: { method: formData.actMethod, affiliation: formData.actAffiliation, logicTree: JSON.parse(JSON.stringify(state.activationRoot)) },
-        effectScope: { method: formData.effMethod, count: formData.effCount, affiliation: formData.effAffiliation, logicTree: JSON.parse(JSON.stringify(state.effectScopeRoot)) },
-        effects: [...state.abilityEffects]
+        effects: JSON.parse(JSON.stringify(state.abilityEffects))
     };
 }
 
 export async function saveAbility(formData) {
     const ability = exportCurrentState(formData);
     await saveAbilityToCatalog(ability);
-    state.allAbilities = [...state.allAbilities.filter(a => a.abilityId !== ability.abilityId), ability];
-    return ability;
+    
+    // Process it through the language generator before updating the active local state
+    const processedAbility = {
+        ...ability,
+        displayDescription: generateAbilityDescription(ability)
+    };
+    
+    state.allAbilities = [...state.allAbilities.filter(a => a.abilityId !== ability.abilityId), processedAbility];
+    return processedAbility;
 }
 
 export async function deleteAbility(abilityId) {
@@ -226,10 +287,28 @@ export async function deleteAbility(abilityId) {
 
 export function hydrateStateFromAbility(ability) {
     state.currentEditingId = ability.abilityId;
+    
+    // Load activation tree
     const srcAct = ability.activation || ability.targeting || {};
     state.activationRoot = srcAct.logicTree ? JSON.parse(JSON.stringify(srcAct.logicTree)) : { type: 'group', logicalOperator: 'AND', children: [] };
-    const srcEff = ability.effectScope || {};
-    state.effectScopeRoot = srcEff.logicTree ? JSON.parse(JSON.stringify(srcEff.logicTree)) : { type: 'group', logicalOperator: 'AND', children: [] };
-    state.abilityEffects = ability.effects && ability.effects.length > 0 ? JSON.parse(JSON.stringify(ability.effects)) : [{ type: 'DEAL_DAMAGE', amount: 2 }];
+    
+    // Legacy mapping support
+    const srcEffScope = ability.effectScope || { method: 'SAME_AS_ACTIVATION', count: 1, affiliation: 'ANY', logicTree: { type: 'group', logicalOperator: 'AND', children: [] } };
+
+    // Hydrate Effects
+    if (ability.effects && ability.effects.length > 0) {
+        state.abilityEffects = JSON.parse(JSON.stringify(ability.effects)).map(e => {
+            if (!e.targetMethod) {
+                e.targetMethod = srcEffScope.method || 'SAME_AS_ACTIVATION';
+                e.targetCount = srcEffScope.count || 1;
+                e.targetAffiliation = srcEffScope.affiliation || 'ANY';
+                e.logicTree = JSON.parse(JSON.stringify(srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }));
+            }
+            if (!e.duration) e.duration = 'INSTANT';
+            return e;
+        });
+    } else {
+        state.abilityEffects = [];
+    }
     return state;
 }

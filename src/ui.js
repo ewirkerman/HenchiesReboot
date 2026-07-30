@@ -3,7 +3,6 @@
  * 5:7 Ratio Physical Card Layout, Lighter Bottom Area, Double-Click Inspection, Armor Badge.
  */
 
-// Tribe Color Schemes & Lighter Bottom Shades
 export const TRIBE_STYLES = {
   Robot: { bg: 'bg-pink-900', lightBg: 'bg-pink-950/90', border: 'border-black', text: 'text-pink-300' },
   Mythic: { bg: 'bg-emerald-900', lightBg: 'bg-emerald-950/90', border: 'border-black', text: 'text-emerald-300' },
@@ -18,9 +17,6 @@ export const TRIBE_STYLES = {
   Luchador: { bg: 'bg-yellow-900', lightBg: 'bg-yellow-950/90', border: 'border-black', text: 'text-yellow-300' }
 };
 
-/**
- * Toast Notification System - Top Center
- */
 export function showToast(message, type = 'info') {
   let container = document.getElementById('toast-container');
   if (!container) {
@@ -47,9 +43,7 @@ export function showToast(message, type = 'info') {
 
   container.appendChild(toast);
 
-  requestAnimationFrame(() => {
-    toast.classList.remove('-translate-y-2', 'opacity-0');
-  });
+  requestAnimationFrame(() => toast.classList.remove('-translate-y-2', 'opacity-0'));
 
   setTimeout(() => {
     toast.classList.add('opacity-0', '-translate-y-2');
@@ -57,22 +51,20 @@ export function showToast(message, type = 'info') {
   }, 3500);
 }
 
-/**
- * Render Mini-Card HTML
- * 5:7 Physical Card Ratio, Image fills top area, Cost overlaid top-left,
- * Lighter shade bottom area with Name, Taxonomy (Type/Genus), Stats (Strength, Armor, Health).
- * Double-click / double-tap triggers inspect modal!
- */
-export function renderCardHTML(card, options = {}) {
-  const {
-    isHand = false,
-    isSelected = false,
-    isTargetable = false,
-    readiness = null,
-    onClick = '',
-    onInspect = ''
-  } = options;
+function formatAbilityCostBadge(cost) {
+  if (!cost) return '';
+  let badgeStr = '';
+  if (cost.tent > 0) badgeStr += `${cost.tent}⛺ `;
+  if (cost.power > 0) badgeStr += `${cost.power}⚡ `;
+  if (cost.tribeAmount > 0 && cost.tribeType !== 'NONE') badgeStr += `${cost.tribeAmount} ${cost.tribeType.charAt(0)} `;
+  if (cost.readinessCost === 'EXHAUSTS') badgeStr += `🔄 `;
+  if (cost.readinessCost === 'UNREADIES') badgeStr += `⤵️ `;
+  
+  return badgeStr.trim() ? `<span class="text-[8px] bg-slate-900 text-amber-300 px-1 rounded border border-slate-700 ml-1 font-bold whitespace-nowrap">${badgeStr.trim()}</span>` : '';
+}
 
+export function renderCardHTML(card, options = {}) {
+  const { isSelected = false, isTargetable = false, readiness = null, onClick = '', onInspect = '' } = options;
   const style = TRIBE_STYLES[card.tribe] || TRIBE_STYLES.Mythic;
   const isUnit = card.type === 'unit' || card.type === 'avatar';
   const isAvatar = card.type === 'avatar';
@@ -88,6 +80,16 @@ export function renderCardHTML(card, options = {}) {
 
   const doubleClickAttr = onInspect ? `ondblclick="event.stopPropagation(); ${onInspect}"` : '';
 
+  let abilitiesHTML = '';
+  if (card.abilities && card.abilities.length > 0) {
+      abilitiesHTML = card.abilities.map(ab => `
+          <div class="text-[8px] text-slate-200 font-bold leading-tight truncate flex items-center justify-center gap-0.5">
+            <span class="truncate">⚡ ${ab.name}</span>
+            ${formatAbilityCostBadge(ab.cost)}
+          </div>
+      `).join('');
+  }
+
   return `
     <div 
       onclick="${onClick}"
@@ -95,30 +97,21 @@ export function renderCardHTML(card, options = {}) {
       title="Double click to inspect"
       class="group relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52 aspect-[5/7] rounded-md ${style.bg} border-2 border-black ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-red-500 animate-bounce z-20 cursor-pointer' : ''} cursor-pointer hover:scale-105 transition-all duration-200 shadow-md flex flex-col justify-between select-none overflow-hidden"
     >
-      <!-- TOP AREA: Full Image & Cost Overlay -->
       <div class="relative w-full h-[52%] overflow-hidden bg-slate-900 border-b border-black">
-        ${card.artUrl ? `
-          <img src="${card.artUrl}" alt="${card.name}" class="w-full h-full object-cover" />
-        ` : `
+        ${card.artUrl ? `<img src="${card.artUrl}" alt="${card.name}" class="w-full h-full object-cover" />` : `
           <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-2xl font-bold">
             ${card.type === 'unit' ? '⚔️' : card.type === 'avatar' ? '👑' : card.type === 'boon' ? '✨' : card.type === 'buff' ? '🛡️' : '📜'}
           </div>
         `}
-
-        <!-- Cost Overlay (Top Left) - Avatars have no cost -->
         ${!isAvatar ? `
-          <div class="absolute top-1 left-1 w-6 h-6 rounded-full bg-amber-500 text-black font-black text-xs flex items-center justify-center border border-black shadow z-10" title="Cost: ${card.cost ?? 0} ${card.tribe} Resource">
+          <div class="absolute top-1 left-1 w-6 h-6 rounded-full bg-amber-500 text-black font-black text-xs flex items-center justify-center border border-black shadow z-10" title="Cost">
             ${card.cost ?? 0}
           </div>
         ` : ''}
-
         ${readinessBadge}
       </div>
 
-      <!-- BOTTOM AREA: Lighter Shade Container (Name, Taxonomy, Stats) -->
       <div class="w-full h-[48%] ${style.lightBg} p-1.5 flex flex-col justify-between">
-        
-        <!-- Name & Taxonomy -->
         <div class="flex flex-col items-center justify-center text-center">
           <div class="text-[10px] font-black text-white leading-tight break-words text-center min-h-[22px] flex items-center justify-center">
             ${card.name}
@@ -128,133 +121,232 @@ export function renderCardHTML(card, options = {}) {
           </div>
         </div>
 
-        <!-- Stats Bar (Units & Avatars) -->
+        <div class="flex-1 flex flex-col gap-0.5 mt-1 overflow-hidden">
+            ${abilitiesHTML}
+        </div>
+
         ${isUnit ? `
           <div class="flex justify-between items-end w-full pt-1">
-            <!-- Strength (Yellow Circle - Bottom Left, omitted for Avatars) -->
-            ${!isAvatar ? `
-              <div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">
-                ${card.strength ?? 0}
-              </div>
+            ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `
+              <div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${card.strength}</div>
             ` : '<div></div>'}
-
-            <!-- Armor (Blue Shield Badge - Bottom Center) -->
             ${(card.armor > 0) ? `
-              <div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow" title="Armor: ${card.armor}">
-                🛡️${card.armor}
-              </div>
+              <div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow" title="Armor: ${card.armor}">🛡️${card.armor}</div>
             ` : '<div></div>'}
-
-            <!-- Health (Red Circle - Bottom Right) -->
-            <div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[11px] flex items-center justify-center shadow" title="Health">
-              ${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}
-            </div>
+            <div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[11px] flex items-center justify-center shadow" title="Health">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
           </div>
-        ` : `
-          <div class="text-[8px] text-slate-400 text-center italic font-semibold">
-            Double-click to inspect
-          </div>
-        `}
+        ` : ''}
       </div>
     </div>
   `;
 }
 
-/**
- * Inspection Modal Renderer
- */
-export function openInspectionModal(cardOrUnit) {
+function extractGlossary(baseAbilities, allAbilitiesRegistry) {
+    if (!allAbilitiesRegistry || allAbilitiesRegistry.length === 0) return [];
+    
+    let glossaryMap = new Map();
+    let queue = [...(baseAbilities || [])];
+    
+    // Create a set of base IDs to exclude them from the sidebar (so we only show nested definitions)
+    let baseIds = new Set(queue.map(a => a.abilityId));
+
+    while(queue.length > 0) {
+        let current = queue.shift();
+        if (!current) continue;
+        
+        // Find mentions in description (e.g., @[Walker])
+        const text = (current.displayDescription || current.description || '');
+        const mentionRegex = /@\[(.*?)\]/g;
+        let match;
+        while ((match = mentionRegex.exec(text)) !== null) {
+            const matchedName = match[1];
+            const found = allAbilitiesRegistry.find(a => a.name.toLowerCase() === matchedName.toLowerCase());
+            if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
+                glossaryMap.set(found.abilityId, found);
+                queue.push(found);
+            }
+        }
+
+        // Find deeply nested GRANT_ABILITY effects
+        if (current.effects) {
+            current.effects.forEach(eff => {
+                if (eff.type === 'GRANT_ABILITY') {
+                    const found = allAbilitiesRegistry.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
+                    if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
+                        glossaryMap.set(found.abilityId, found);
+                        queue.push(found);
+                    }
+                }
+            });
+        }
+    }
+
+    return Array.from(glossaryMap.values());
+}
+
+export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
   let modal = document.getElementById('inspection-modal');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'inspection-modal';
-    modal.className = 'fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 select-none';
+    modal.className = 'fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none';
     document.body.appendChild(modal);
   }
 
   const isUnit = cardOrUnit.type === 'unit' || cardOrUnit.type === 'avatar' || cardOrUnit.currentHealth !== undefined;
+  const isAvatar = cardOrUnit.type === 'avatar';
   const style = TRIBE_STYLES[cardOrUnit.tribe] || TRIBE_STYLES.Mythic;
+  
+  // Extract Glossary
+  const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry);
 
   modal.innerHTML = `
-    <div class="relative w-full max-w-md bg-slate-900 border-2 border-black rounded-xl p-6 shadow-2xl text-slate-100 flex flex-col gap-4">
+    <div class="relative w-full max-w-5xl bg-slate-900 border-2 border-black rounded-xl shadow-2xl text-slate-100 flex flex-col md:flex-row overflow-hidden max-h-[95vh]">
+      
+      <!-- Close Button (Absolute Top Right of Container) -->
       <button 
         onclick="document.getElementById('inspection-modal').classList.add('hidden')"
-        class="absolute top-3 right-3 text-slate-400 hover:text-white text-xl font-bold w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700"
-      >
-        ✕
-      </button>
+        class="absolute top-3 right-3 text-slate-400 hover:text-white text-xl font-bold w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 z-50 shadow-lg"
+      >✕</button>
 
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-xl bg-amber-500 text-black font-black text-xl flex items-center justify-center border border-black shadow">
-          ${cardOrUnit.cost ?? 0}
-        </div>
-        <div>
-          <h3 class="text-xl font-black tracking-wide text-white leading-tight">${cardOrUnit.name}</h3>
-          <div class="flex items-center gap-2 mt-1">
-            <span class="text-xs px-2 py-0.5 rounded border font-extrabold ${style.bg} ${style.border} ${style.text}">${cardOrUnit.tribe}</span>
-            <span class="text-xs text-slate-300 font-bold capitalize">${cardOrUnit.type} • ${cardOrUnit.genus || 'Generic'}</span>
-          </div>
-        </div>
-      </div>
-
-      ${isUnit ? `
-        <div class="grid grid-cols-4 gap-2 bg-slate-950/80 rounded-xl p-3 border border-slate-800 text-center">
-          <div>
-            <div class="text-[9px] text-slate-400 uppercase font-bold">Strength</div>
-            <div class="text-lg font-black text-yellow-400">${cardOrUnit.strength ?? 0}</div>
-          </div>
-          <div>
-            <div class="text-[9px] text-slate-400 uppercase font-bold">Armor</div>
-            <div class="text-lg font-black text-cyan-400">${cardOrUnit.armor ?? 0}</div>
-          </div>
-          <div>
-            <div class="text-[9px] text-slate-400 uppercase font-bold">Health</div>
-            <div class="text-lg font-black text-red-500">${cardOrUnit.currentHealth ?? cardOrUnit.health ?? 20} / ${cardOrUnit.maxHealth ?? cardOrUnit.health ?? 20}</div>
-          </div>
-          <div>
-            <div class="text-[9px] text-slate-400 uppercase font-bold">Readiness</div>
-            <div class="text-xs font-bold ${cardOrUnit.readiness === 1 ? 'text-emerald-400' : cardOrUnit.readiness === 0 ? 'text-yellow-400' : 'text-red-400'}">
-              ${cardOrUnit.readiness === 1 ? 'Ready' : cardOrUnit.readiness === 0 ? 'Unready' : 'Exhausted'}
-            </div>
-          </div>
-        </div>
-      ` : ''}
-
-      <div class="bg-slate-950/60 rounded-xl p-4 border border-slate-800 text-sm leading-relaxed text-slate-300">
-        <div class="font-bold text-slate-200 mb-1">Description:</div>
-        <p>${cardOrUnit.description || 'No detailed text provided.'}</p>
+      <!-- LEFT COLUMN: The Giant 5x7 Card Layout -->
+      <div class="flex-1 p-6 md:p-10 flex items-center justify-center bg-slate-950/90 border-r border-slate-800 overflow-y-auto">
         
-        ${cardOrUnit.traits && cardOrUnit.traits.length > 0 ? `
-          <div class="mt-3 flex flex-wrap gap-1">
-            ${cardOrUnit.traits.map(t => `<span class="text-[10px] bg-slate-800 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800 font-extrabold">${t}</span>`).join('')}
+        <div class="relative h-[75vh] min-h-[450px] max-h-[750px] aspect-[5/7] rounded-2xl overflow-hidden border-4 ${style.border} shadow-2xl flex flex-col shrink-0 ${style.bg} transition-transform duration-300">
+          
+          <!-- Top Half: Art & Cost (50%) -->
+          <div class="relative w-full h-[50%] bg-slate-900 border-b-2 border-black shrink-0 overflow-hidden">
+            ${cardOrUnit.artUrl ? `<img src="${cardOrUnit.artUrl}" alt="${cardOrUnit.name}" class="w-full h-full object-cover" />` : `
+              <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-6xl font-bold">
+                ${cardOrUnit.type === 'unit' ? '⚔️' : cardOrUnit.type === 'avatar' ? '👑' : cardOrUnit.type === 'boon' ? '✨' : cardOrUnit.type === 'buff' ? '🛡️' : '📜'}
+              </div>
+            `}
+            
+            ${!isAvatar ? `
+              <div class="absolute top-3 left-3 w-12 h-12 rounded-full bg-amber-500 text-black font-black text-2xl flex items-center justify-center border-2 border-black shadow-lg z-10" title="Cost">
+                ${cardOrUnit.cost ?? 0}
+              </div>
+            ` : ''}
+
+            ${cardOrUnit.readiness !== undefined && cardOrUnit.readiness !== null ? `
+              <div class="absolute top-3 right-3 text-sm px-2.5 py-1 rounded-md font-black uppercase tracking-wider z-20 border-2 border-black shadow-lg ${
+                cardOrUnit.readiness === 1 ? 'bg-emerald-500 text-black' : 
+                cardOrUnit.readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border-red-700'
+              }">
+                ${cardOrUnit.readiness === 1 ? 'READY' : cardOrUnit.readiness === 0 ? 'UNREADY' : 'EXHAUSTED'}
+              </div>
+            ` : ''}
           </div>
-        ` : ''}
+
+          <!-- Bottom Half: Details & Abilities (50%) -->
+          <div class="w-full h-[50%] ${style.lightBg} p-3 sm:p-5 flex flex-col relative overflow-hidden">
+            
+            <!-- Name & Type Band -->
+            <div class="flex flex-col items-center justify-center text-center pb-2 shrink-0 border-b border-black/10 mb-2">
+              <h3 class="text-2xl sm:text-3xl font-black text-white leading-tight drop-shadow-md uppercase tracking-wide break-words w-full px-1">
+                ${cardOrUnit.name}
+              </h3>
+              <div class="text-[11px] sm:text-xs font-bold text-slate-200 capitalize tracking-wider mt-1 bg-black/20 px-3 py-0.5 rounded-full border border-black/10 shadow-inner">
+                ${cardOrUnit.tribe} • ${cardOrUnit.type} ${cardOrUnit.genus ? `• ${cardOrUnit.genus}` : ''}
+              </div>
+            </div>
+
+            <!-- Scrollable Traits & Abilities Box -->
+            <div class="flex-1 flex flex-col gap-3 overflow-y-auto pb-20 minimal-scrollbar pr-1">
+
+              <!-- Traits -->
+              ${cardOrUnit.traits && cardOrUnit.traits.length > 0 ? `
+                <div class="flex flex-wrap justify-center gap-1.5 mt-1">
+                  ${cardOrUnit.traits.map(t => `<span class="text-[10px] bg-slate-900/80 text-cyan-300 px-2 py-1 rounded border border-cyan-800 font-extrabold uppercase tracking-wider shadow-sm">${t}</span>`).join('')}
+                </div>
+              ` : ''}
+
+              <!-- Full Abilities with Registry Lookup -->
+              ${cardOrUnit.abilities && cardOrUnit.abilities.length > 0 ? `
+                <div class="flex flex-col gap-2 mt-1">
+                  ${cardOrUnit.abilities.map(a => {
+                    const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
+                    const finalDesc = regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
+                    
+                    return `
+                    <div class="bg-black/40 backdrop-blur-sm p-2.5 rounded-lg border border-white/10 shadow-sm flex flex-col gap-1">
+                      <div class="flex justify-between items-start border-b border-white/5 pb-1 mb-0.5">
+                        <div class="font-black text-amber-400 text-sm sm:text-base drop-shadow-sm flex items-center gap-1 leading-none">
+                          ⚡ ${a.name || a.abilityId}
+                        </div>
+                        <div class="flex items-center gap-1">
+                            ${formatAbilityCostBadge(a.cost)}
+                            <span class="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-600 font-bold uppercase tracking-widest shadow-inner">${a.trigger || 'MANUAL'}</span>
+                        </div>
+                      </div>
+                      <div class="text-slate-200 text-xs sm:text-sm leading-snug">
+                        ${finalDesc.replace(/@\[(.*?)\]/g, '<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary">$&</span>')}
+                      </div>
+                    </div>
+                  `}).join('')}
+                </div>
+              ` : ''}
+
+            </div>
+
+            <!-- Combined Footer (Stats & Flavor Text) Anchored to Extreme Bottom -->
+            <div class="absolute bottom-3 left-3 right-3 flex justify-between items-end pointer-events-none z-20">
+              
+              <!-- Left: Strength -->
+              ${(isUnit && !isAvatar && cardOrUnit.strength !== undefined && cardOrUnit.strength !== null) ? `
+                <div class="w-12 h-12 rounded-full bg-yellow-500 border-2 border-black text-black font-black text-xl flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Strength">${cardOrUnit.strength}</div>
+              ` : '<div class="w-12 h-12 shrink-0"></div>'}
+              
+              <!-- Center: Armor & Flavor Text -->
+              <div class="flex-1 flex flex-col items-center justify-end pb-1 px-1 gap-1 pointer-events-none">
+                ${isUnit && (cardOrUnit.armor > 0) ? `
+                  <div class="w-10 h-10 rounded bg-cyan-600 border-2 border-black text-white font-black text-base flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Armor: ${cardOrUnit.armor}">🛡️${cardOrUnit.armor}</div>
+                ` : ''}
+                ${cardOrUnit.description ? `
+                  <div class="text-[10px] italic text-slate-300 text-center leading-snug w-full opacity-90 drop-shadow-md">
+                    "${cardOrUnit.description}"
+                  </div>
+                ` : ''}
+              </div>
+              
+              <!-- Right: Health -->
+              ${isUnit ? `
+                <div class="w-12 h-12 rounded-full bg-red-600 border-2 border-black text-white font-black text-xl flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Health">${cardOrUnit.currentHealth ?? cardOrUnit.health ?? (isAvatar ? 20 : 1)}</div>
+              ` : '<div class="w-12 h-12 shrink-0"></div>'}
+            </div>
+
+          </div>
+        </div>
       </div>
 
-      ${cardOrUnit.abilities && cardOrUnit.abilities.length > 0 ? `
-        <div>
-          <h4 class="text-xs uppercase font-extrabold text-slate-400 mb-2">Abilities & Triggers</h4>
-          <div class="flex flex-col gap-2 max-h-40 overflow-y-auto">
-            ${cardOrUnit.abilities.map(a => `
-              <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs">
-                <div class="flex justify-between font-bold text-amber-300">
-                  <span>${a.name || a.abilityId}</span>
-                  <span class="text-[10px] bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800 font-bold">${a.trigger || 'MANUAL'}</span>
+      <!-- RIGHT COLUMN: Recursive Glossary -->
+      <div class="w-full md:w-80 bg-slate-950 p-6 overflow-y-auto flex flex-col gap-4 shadow-inner">
+        <h4 class="text-xs uppercase font-black text-fuchsia-400 tracking-widest border-b border-slate-800 pb-2 flex items-center gap-2">
+          <span>📚 References</span>
+        </h4>
+        
+        ${glossaryAbilities.length > 0 ? `
+          <div class="flex flex-col gap-3">
+            ${glossaryAbilities.map(a => `
+              <div class="bg-slate-900 p-3 rounded-lg border border-slate-800/80 shadow-inner flex flex-col gap-1">
+                <div class="flex justify-between items-center">
+                    <div class="font-black text-fuchsia-300 text-sm">${a.name || a.abilityId}</div>
+                    <span class="text-[8px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold">${a.trigger || 'MANUAL'}</span>
                 </div>
-                <div class="text-slate-400 mt-1">${a.description || 'Executes effects on trigger.'}</div>
+                <div class="text-slate-400 text-xs leading-tight">${a.displayDescription || a.description || 'No details.'}</div>
               </div>
             `).join('')}
           </div>
-        </div>
-      ` : ''}
+        ` : `
+          <div class="text-center text-slate-600 text-xs italic mt-10">No nested abilities or glossary terms detected.</div>
+        `}
+      </div>
+
     </div>
   `;
   modal.classList.remove('hidden');
 }
 
-/**
- * Replay Slider Bar
- */
 export function renderHistorySlider(container, historyLog, currentStep, onStepChange) {
   if (!container) return;
 
