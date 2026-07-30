@@ -94,7 +94,7 @@
             <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider" id="form-heading">
               ⚡ Design Ability Logic
             </h2>
-            <p class="text-[10px] text-slate-400 mt-1">Configure Triggers, Activation Targets, Effect Scopes, and Payloads.</p>
+            <p class="text-[10px] text-slate-400 mt-1">Configure Triggers, Quick Targets, Effect Scopes, and Payloads.</p>
           </div>
           <button type="button" id="delete-ability-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap mt-1">
             🗑️ Delete Ability
@@ -204,12 +204,12 @@
           </div>
 
           <!-- 3. PLAYER ACTIVATION TARGETING -->
-          <div class="flex flex-col gap-3 p-4 bg-indigo-950/20 rounded-xl border border-indigo-900/40">
+          <div class="flex flex-col gap-3 p-4 bg-indigo-950/20 rounded-xl border border-indigo-900/40 transition-all duration-300">
             <h3 class="text-xs font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-900/50 pb-1 mb-1">
               3. Player Activation Targeting (Requirements)
             </h3>
             
-            <div class="grid grid-cols-2 gap-3 mb-2">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Activation Method</label>
                 <select id="ab-act-method" onchange="window.updateTargetingUI()" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
@@ -217,18 +217,23 @@
                   <option value="PLAYER_CHOICE">Player Choice (Click 1 Target)</option>
                 </select>
               </div>
-              <div id="act-affiliation-container" class="hidden">
-                <label class="font-bold text-slate-300 block mb-1">Base Affiliation</label>
-                <select id="ab-act-affiliation" onchange="window.updateJSONPreview()" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
-                  <option value="FRIENDLY">Friendly Units / Hero</option>
-                  <option value="ENEMY">Enemy Units / Hero</option>
-                  <option value="ANY" selected>Any Unit on Board</option>
-                </select>
-              </div>
             </div>
 
-            <div id="act-logic-tree-wrapper" class="flex flex-col gap-2 hidden">
-              <label class="font-bold text-indigo-300 block mb-1">Activation Condition Filters</label>
+            <!-- The new UX: Quick Target Matrix -->
+            <div id="act-quick-matrix-container" class="hidden grid grid-cols-1 gap-2 mt-2">
+              <!-- Rendered via JS -->
+            </div>
+
+            <!-- Advanced Filters Accordion Toggle -->
+            <div id="act-advanced-toggle-container" class="hidden mt-1">
+               <button type="button" onclick="window.toggleAdvancedLogic('activation')" class="text-[10px] font-bold text-slate-400 hover:text-indigo-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                 <span id="act-advanced-icon" class="transition-transform duration-200">▶</span>
+                 <span>⚙️ Advanced Filters (Tribes, Stats, Traits, Complex Logic...)</span>
+               </button>
+            </div>
+
+            <div id="act-logic-tree-wrapper" class="flex flex-col gap-2 hidden mt-3 pl-3 border-l-2 border-indigo-500/30">
+              <label class="font-bold text-indigo-300 block mb-1">Advanced Target Filtering Tree</label>
               <div id="activation-conditions-container" class="flex flex-col gap-2 min-h-[40px]">
                 <!-- Activation tree rendered here via JS -->
               </div>
@@ -271,13 +276,12 @@
     let allCards = [];
     let currentEditingId = null;
     
+    // Quick Matrix UI State
+    let activationQuickTargeting = { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+    let showAdvancedActivation = false;
+
     // Core Logic Tree States
-    let activationRoot = {
-      type: 'group',
-      logicalOperator: 'AND',
-      children: []
-    };
-    
+    let activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
     let abilityEffects = [];
     
     // Autocomplete State
@@ -287,9 +291,10 @@
     let filteredMentions = [];
 
     const ATTRIBUTE_TYPES = {
-      'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'HERO', 'UNIT', 'TARGET', 'ATTACKER'] },
+      'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER'] },
       'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
-      'line': { label: 'Board Line', type: 'select', options: ['front', 'mid', 'back', 'bodyguard', 'hero'] },
+      'family': { label: 'Family', type: 'text' },
+      'genus': { label: 'Genus', type: 'text' },
       'health': { label: 'Current Health', type: 'number' },
       'strength': { label: 'Strength', type: 'number' },
       'hasAbility': { label: 'Has Ability', type: 'text' }
@@ -307,7 +312,7 @@
     async function init() {
       // Setup datalist purely from JS Constants
       const triggerDatalist = document.getElementById('trigger-list');
-      if (triggerDatalist) {
+      if (triggerDatalist && typeof TRIGGER_EVENTS !== 'undefined') {
         triggerDatalist.innerHTML = TRIGGER_EVENTS.map(t => `<option value="${t}"></option>`).join('');
       }
 
@@ -334,8 +339,6 @@
         // Activation UI Setup
         const triggerValue = document.getElementById('ab-trigger').value.toUpperCase();
         const actMethodSelect = document.getElementById('ab-act-method');
-        const actLogicTreeWrapper = document.getElementById('act-logic-tree-wrapper');
-        const actAffiliationContainer = document.getElementById('act-affiliation-container');
         const triggerLimitSelect = document.getElementById('ab-trigger-limit');
 
         // Disable trigger limit if UNTRIGGERABLE
@@ -356,7 +359,6 @@
           if (!allowsPlayerChoice) {
             playerChoiceOption.disabled = true;
             playerChoiceOption.text = 'Player Choice (Requires Manual/Play Trigger)';
-            // Auto-reset to NONE if they change the trigger to something invalid while Choice is selected
             if (actMethodSelect.value === 'PLAYER_CHOICE') {
               actMethodSelect.value = 'NONE';
             }
@@ -366,13 +368,28 @@
           }
         }
         
-        // Toggle visibility of target filters based on method
+        // UI Logic for UX Quick Matrix
+        const matrixContainer = document.getElementById('act-quick-matrix-container');
+        const advancedToggleContainer = document.getElementById('act-advanced-toggle-container');
+        const advancedTreeWrapper = document.getElementById('act-logic-tree-wrapper');
+        const advancedIcon = document.getElementById('act-advanced-icon');
+        
         if (actMethodSelect.value === 'PLAYER_CHOICE') {
-          actAffiliationContainer.classList.remove('hidden');
-          actLogicTreeWrapper.classList.remove('hidden');
+          matrixContainer.classList.remove('hidden');
+          advancedToggleContainer.classList.remove('hidden');
+          matrixContainer.innerHTML = generateQuickMatrixHTML('activation', activationQuickTargeting);
+          
+          if (showAdvancedActivation) {
+            advancedTreeWrapper.classList.remove('hidden');
+            advancedIcon.style.transform = 'rotate(90deg)';
+          } else {
+            advancedTreeWrapper.classList.add('hidden');
+            advancedIcon.style.transform = 'rotate(0deg)';
+          }
         } else {
-          actAffiliationContainer.classList.add('hidden');
-          actLogicTreeWrapper.classList.add('hidden');
+          matrixContainer.classList.add('hidden');
+          advancedToggleContainer.classList.add('hidden');
+          advancedTreeWrapper.classList.add('hidden');
         }
         
         updateJSONPreview();
@@ -398,6 +415,94 @@
       resetForm(); // Start Blank!
     }
 
+    window.toggleQuickMatrixArray = (context, index, field, value) => {
+        const targetState = context === 'activation' ? activationQuickTargeting : abilityEffects[index].quickTargeting;
+        const arr = targetState[field] || [];
+        if (arr.includes(value)) {
+            if (arr.length > 1) { // Prevent deselecting everything
+                targetState[field] = arr.filter(v => v !== value);
+            }
+        } else {
+            targetState[field].push(value);
+        }
+        if (context === 'activation') window.updateTargetingUI();
+        else renderEffects();
+        updateJSONPreview();
+    };
+
+    window.toggleQuickMatrixBoolean = (context, index, field) => {
+        const targetState = context === 'activation' ? activationQuickTargeting : abilityEffects[index].quickTargeting;
+        targetState[field] = !targetState[field];
+        if (context === 'activation') window.updateTargetingUI();
+        else renderEffects();
+        updateJSONPreview();
+    };
+
+    window.toggleAdvancedLogic = (context, index) => {
+        if (context === 'activation') {
+            showAdvancedActivation = !showAdvancedActivation;
+            window.updateTargetingUI();
+        } else {
+            abilityEffects[index].showAdvanced = !abilityEffects[index].showAdvanced;
+            renderEffects();
+        }
+    };
+
+    function generateQuickMatrixHTML(context, targetState, index = null) {
+      const themeColor = context === 'activation' ? 'indigo' : 'fuchsia';
+      const activeBg = context === 'activation' ? 'bg-indigo-600 border-indigo-500' : 'bg-fuchsia-600 border-fuchsia-500';
+      const hoverBg = context === 'activation' ? 'hover:bg-indigo-900/50' : 'hover:bg-fuchsia-900/50';
+
+      const buildMultiPills = (field, options, currentArray) => {
+          const arr = currentArray || [];
+          return options.map(opt => {
+              const isActive = arr.includes(opt.value);
+              const baseClass = "px-3 py-1.5 text-[10px] font-bold rounded-md cursor-pointer transition-all border whitespace-nowrap";
+              const activeClass = isActive 
+                ? `${activeBg} text-white shadow-md` 
+                : `bg-slate-800 border-slate-700 text-slate-400 ${hoverBg}`;
+              
+              const clickHandler = context === 'activation' 
+                  ? `window.toggleQuickMatrixArray('activation', null, '${field}', '${opt.value}')`
+                  : `window.toggleQuickMatrixArray('effect', ${index}, '${field}', '${opt.value}')`;
+
+              return `<button type="button" onclick="${clickHandler}" class="${baseClass} ${activeClass}">${opt.label}</button>`;
+          }).join('');
+      };
+
+      const alignmentOptions = [{label: 'Friendly', value: 'FRIENDLY'}, {label: 'Enemy', value: 'ENEMY'}];
+      const entityOptions = [{label: 'Unit', value: 'UNIT'}, {label: 'Avatar', value: 'AVATAR'}, {label: 'Equipment', value: 'EQUIPMENT'}];
+
+      const toggleBoolHandler = context === 'activation'
+          ? `window.toggleQuickMatrixBoolean('activation', null, 'ignoreBattlelines')`
+          : `window.toggleQuickMatrixBoolean('effect', ${index}, 'ignoreBattlelines')`;
+          
+      const isIgnoreLines = targetState.ignoreBattlelines;
+      const boolActiveClass = isIgnoreLines ? `${activeBg} text-white shadow-md` : `bg-slate-800 border-slate-700 text-slate-400 ${hoverBg}`;
+
+      return `
+          <div class="flex flex-col md:flex-row flex-wrap gap-4 bg-slate-900/70 p-3 rounded-lg border border-slate-700/50 shadow-inner">
+              <div class="flex-1 min-w-[150px]">
+                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Target Alignment (Multi)</label>
+                  <div class="flex flex-wrap gap-1.5">${buildMultiPills('alignment', alignmentOptions, targetState.alignment)}</div>
+              </div>
+              <div class="flex-1 min-w-[200px]">
+                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Entity Type (Multi)</label>
+                  <div class="flex flex-wrap gap-1.5">${buildMultiPills('entityType', entityOptions, targetState.entityType)}</div>
+              </div>
+              <div class="w-full md:w-auto flex flex-col justify-end">
+                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Restrictions</label>
+                  <button type="button" onclick="${toggleBoolHandler}" class="px-3 py-1.5 text-[10px] font-bold rounded-md cursor-pointer transition-all border whitespace-nowrap flex items-center gap-2 ${boolActiveClass}">
+                      <div class="w-3 h-3 rounded-sm border ${isIgnoreLines ? 'border-white bg-white/20' : 'border-slate-500'} flex items-center justify-center transition-colors">
+                          ${isIgnoreLines ? '✓' : ''}
+                      </div>
+                      Ignore Battlelines
+                  </button>
+              </div>
+          </div>
+      `;
+    }
+
     // --- MENTION AUTOCOMPLETE LOGIC ---
     function handleDescriptionInput(e) {
       const val = e.target.value;
@@ -420,32 +525,16 @@
 
     function handleDescriptionKeydown(e) {
       if (!mentionActive) return;
-      
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        selectedMentionIndex = Math.min(selectedMentionIndex + 1, filteredMentions.length - 1);
-        renderMentionDropdown();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        selectedMentionIndex = Math.max(selectedMentionIndex - 1, 0);
-        renderMentionDropdown();
-      } else if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        insertMention(filteredMentions[selectedMentionIndex]);
-      } else if (e.key === 'Escape') {
-        closeMentionDropdown();
-      }
+      if (e.key === 'ArrowDown') { e.preventDefault(); selectedMentionIndex = Math.min(selectedMentionIndex + 1, filteredMentions.length - 1); renderMentionDropdown(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); selectedMentionIndex = Math.max(selectedMentionIndex - 1, 0); renderMentionDropdown(); }
+      else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(filteredMentions[selectedMentionIndex]); }
+      else if (e.key === 'Escape') { closeMentionDropdown(); }
     }
 
     function showMentionDropdown(query) {
       const q = query.toLowerCase();
       filteredMentions = allAbilities.filter(a => a.name.toLowerCase().includes(q));
-      
-      if (filteredMentions.length === 0) {
-        closeMentionDropdown();
-        return;
-      }
-      
+      if (filteredMentions.length === 0) { closeMentionDropdown(); return; }
       selectedMentionIndex = 0;
       document.getElementById('mention-dropdown').classList.remove('hidden');
       renderMentionDropdown();
@@ -476,25 +565,18 @@
       const descInput = document.getElementById('ab-description');
       const val = descInput.value;
       const cursor = descInput.selectionStart;
-      
       const before = val.slice(0, mentionStart);
       const after = val.slice(cursor);
-      
-      // Formats the mention clearly for engine parsing later
       const insertText = "@[" + ability.name + "]"; 
-      
       descInput.value = before + insertText + ' ' + after;
       descInput.focus();
-      
       const newCursor = before.length + insertText.length + 1;
       descInput.setSelectionRange(newCursor, newCursor);
-      
       closeMentionDropdown();
       updateJSONPreview();
     }
     
     // ----------------------------------
-
     function getRoot(treeType) {
         if (treeType === 'activation') return activationRoot;
         if (treeType.startsWith('effect_')) {
@@ -507,11 +589,8 @@
     function getNodeAtPath(treeType, path) {
       let current = getRoot(treeType);
       for (const index of path) {
-        if (current && current.children) {
-          current = current.children[index];
-        } else {
-          return null; // Invalid path
-        }
+        if (current && current.children) current = current.children[index];
+        else return null; 
       }
       return current;
     }
@@ -528,8 +607,7 @@
       const group = path.length === 0 ? getRoot(treeType) : getNodeAtPath(treeType, path);
       if (group && group.type === 'group') {
         group.children.push({ type: 'condition', attribute: 'tribe', operator: '==', value: 'Robot' });
-        if (treeType === 'activation') renderLogicTrees();
-        else renderEffects();
+        if (treeType === 'activation') renderLogicTrees(); else renderEffects();
         updateJSONPreview();
       }
     };
@@ -539,8 +617,7 @@
       const group = path.length === 0 ? getRoot(treeType) : getNodeAtPath(treeType, path);
       if (group && group.type === 'group') {
         group.children.push({ type: 'group', logicalOperator: 'AND', children: [] });
-        if (treeType === 'activation') renderLogicTrees();
-        else renderEffects();
+        if (treeType === 'activation') renderLogicTrees(); else renderEffects();
         updateJSONPreview();
       }
     };
@@ -548,30 +625,23 @@
     window.removeNode = (treeType, pathString) => {
       const path = JSON.parse(pathString);
       if (path.length === 0) return;
-      
       const parentArray = getParentArrayAtPath(treeType, path);
       const indexToRemove = path[path.length - 1];
       parentArray.splice(indexToRemove, 1);
-      
-      if (treeType === 'activation') renderLogicTrees();
-      else renderEffects();
+      if (treeType === 'activation') renderLogicTrees(); else renderEffects();
       updateJSONPreview();
     };
 
     window.updateNodeField = (treeType, pathString, field, value) => {
       const path = JSON.parse(pathString);
       const node = path.length === 0 ? getRoot(treeType) : getNodeAtPath(treeType, path);
-      
       node[field] = value;
-      
       if (field === 'attribute') {
         const typeDef = ATTRIBUTE_TYPES[value];
         node.value = typeDef.type === 'select' ? typeDef.options[0] : 1;
         node.operator = '==';
       }
-      
-      if (treeType === 'activation') renderLogicTrees();
-      else renderEffects();
+      if (treeType === 'activation') renderLogicTrees(); else renderEffects();
       updateJSONPreview();
     };
 
@@ -582,7 +652,6 @@
     function generateGroupHTML(treeType, group, path) {
       const pathStr = JSON.stringify(path);
       const isRoot = path.length === 0;
-      
       const isAnd = group.logicalOperator === 'AND';
       const borderClass = isAnd ? 'border-and' : 'border-or';
       const isActivation = treeType === 'activation';
@@ -597,11 +666,8 @@
       if (group.children && group.children.length > 0) {
         childrenHTML = group.children.map((child, index) => {
           const childPath = [...path, index];
-          if (child.type === 'group') {
-            return generateGroupHTML(treeType, child, childPath);
-          } else {
-            return generateConditionHTML(treeType, child, childPath, borderClass);
-          }
+          if (child.type === 'group') return generateGroupHTML(treeType, child, childPath);
+          else return generateConditionHTML(treeType, child, childPath, borderClass);
         }).join('');
       } else {
         childrenHTML = `<div class="text-[10px] text-slate-500 italic p-2 ml-4">Empty Group. (Always evaluates to true)</div>`;
@@ -609,32 +675,21 @@
 
       return `
         <div class="flex flex-col gap-2 rounded-lg border border-slate-700/50 p-2 ${bgClass} ${isRoot ? '' : 'ml-4 logic-group-border ' + borderClass}">
-          
           <div class="flex justify-between items-center bg-slate-900/60 p-1.5 rounded border border-slate-800">
             <div class="flex items-center gap-2">
-              <span class="text-[10px] font-black uppercase tracking-widest ${textClass}">
-                ${isRoot ? 'ROOT MATCH' : 'SUB-GROUP'}
-              </span>
+              <span class="text-[10px] font-black uppercase tracking-widest ${textClass}">${isRoot ? 'ROOT MATCH' : 'SUB-GROUP'}</span>
               <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'logicalOperator', this.value)" class="bg-slate-950 border border-slate-700 px-1 py-0.5 rounded text-xs font-bold ${textClass}">
                 <option value="AND" ${group.logicalOperator === 'AND' ? 'selected' : ''}>Match ALL (AND)</option>
                 <option value="OR" ${group.logicalOperator === 'OR' ? 'selected' : ''}>Match ANY (OR)</option>
               </select>
             </div>
-            
             <div class="flex items-center gap-1">
-              <button type="button" onclick='window.addConditionToGroup("${treeType}", "${pathStr}")' class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded transition">
-                + Condition
-              </button>
-              <button type="button" onclick='window.addGroupToGroup("${treeType}", "${pathStr}")' class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded transition">
-                + Group
-              </button>
+              <button type="button" onclick='window.addConditionToGroup("${treeType}", "${pathStr}")' class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded transition">+ Condition</button>
+              <button type="button" onclick='window.addGroupToGroup("${treeType}", "${pathStr}")' class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded transition">+ Group</button>
               ${!isRoot ? `<button type="button" onclick='window.removeNode("${treeType}", "${pathStr}")' class="text-slate-500 hover:text-red-400 font-black px-1.5 ml-1 transition">&times;</button>` : ''}
             </div>
           </div>
-
-          <div class="flex flex-col gap-1.5">
-            ${childrenHTML}
-          </div>
+          <div class="flex flex-col gap-1.5">${childrenHTML}</div>
         </div>
       `;
     }
@@ -642,14 +697,8 @@
     function generateConditionHTML(treeType, cond, path, parentBorderClass) {
       const pathStr = JSON.stringify(path);
       const typeDef = ATTRIBUTE_TYPES[cond.attribute] || ATTRIBUTE_TYPES['entity'];
-      
-      const attrOptions = Object.entries(ATTRIBUTE_TYPES).map(([key, def]) => 
-        `<option value="${key}" ${cond.attribute === key ? 'selected' : ''}>${def.label}</option>`
-      ).join('');
-
-      const opOptions = Object.entries(OPERATORS).map(([val, label]) => 
-        `<option value="${val}" ${cond.operator === val ? 'selected' : ''}>${label}</option>`
-      ).join('');
+      const attrOptions = Object.entries(ATTRIBUTE_TYPES).map(([key, def]) => `<option value="${key}" ${cond.attribute === key ? 'selected' : ''}>${def.label}</option>`).join('');
+      const opOptions = Object.entries(OPERATORS).map(([val, label]) => `<option value="${val}" ${cond.operator === val ? 'selected' : ''}>${label}</option>`).join('');
 
       let valueInputHTML = '';
       if (typeDef.type === 'select') {
@@ -657,23 +706,16 @@
           ${typeDef.options.map(opt => `<option value="${opt}" ${cond.value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
         </select>`;
       } else if (typeDef.type === 'text') {
-        valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="Ability ID or Name..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
+        valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="Value..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
       } else {
         valueInputHTML = `<input type="number" value="${cond.value}" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
       }
 
       return `
         <div class="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded border border-slate-700 ml-4 logic-group-border ${parentBorderClass} hover:border-slate-500 transition-colors">
-          <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'attribute', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-cyan-300 font-bold w-1/3">
-            ${attrOptions}
-          </select>
-          
-          <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'operator', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-pink-300 font-bold w-24">
-            ${opOptions}
-          </select>
-
+          <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'attribute', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-cyan-300 font-bold w-1/3">${attrOptions}</select>
+          <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'operator', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-pink-300 font-bold w-24">${opOptions}</select>
           ${valueInputHTML}
-
           <button type="button" onclick='window.removeNode("${treeType}", "${pathStr}")' class="text-slate-500 hover:text-red-400 font-bold px-2">&times;</button>
         </div>
       `;
@@ -686,32 +728,24 @@
         duration: 'INSTANT',
         targetMethod: 'SAME_AS_ACTIVATION',
         targetCount: 1,
-        targetAffiliation: 'ANY',
+        quickTargeting: { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false },
+        showAdvanced: false,
         logicTree: { type: 'group', logicalOperator: 'AND', children: [] }
       });
       renderEffects();
       updateJSONPreview();
     }
 
-    window.removeEffect = (index) => {
-      abilityEffects.splice(index, 1);
-      renderEffects();
-      updateJSONPreview();
-    };
+    window.removeEffect = (index) => { abilityEffects.splice(index, 1); renderEffects(); updateJSONPreview(); };
 
     window.updateEffect = (index, field, value) => {
       abilityEffects[index][field] = value;
       if (field === 'type') {
         const eff = abilityEffects[index];
         const type = value;
-        // Retain target rules but reset type-specific payload data
         if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-            eff.amount = 1; 
-            delete eff.grantedAbilityId; 
-            delete eff.cardId; 
-            delete eff.script; 
-            if (type === 'MODIFY_STAT' || type === 'SET_STAT') eff.stat = 'strength';
-            else delete eff.stat;
+            eff.amount = 1; delete eff.grantedAbilityId; delete eff.cardId; delete eff.script; 
+            if (type === 'MODIFY_STAT' || type === 'SET_STAT') eff.stat = 'strength'; else delete eff.stat;
         }
         else if (type === 'GRANT_ABILITY') { eff.grantedAbilityId = ''; delete eff.amount; delete eff.cardId; delete eff.script; delete eff.stat; }
         else if (type === 'SUMMON') { eff.cardId = 'target_dummy'; eff.amount = 1; delete eff.grantedAbilityId; delete eff.script; delete eff.stat; }
@@ -725,15 +759,13 @@
     window.updateGrantedAbility = (index, value) => {
       const match = allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
       abilityEffects[index].grantedAbilityId = match ? match.abilityId : value;
-      renderEffects();
-      updateJSONPreview();
+      renderEffects(); updateJSONPreview();
     };
 
     window.updateSummonCard = (index, value) => {
       const match = allCards.find(c => c.name.toLowerCase() === value.toLowerCase() && c.type === 'unit');
       abilityEffects[index].cardId = match ? match.id : value;
-      renderEffects();
-      updateJSONPreview();
+      renderEffects(); updateJSONPreview();
     };
 
     function renderEffects() {
@@ -745,8 +777,9 @@
       }
 
       container.innerHTML = abilityEffects.map((eff, idx) => {
-        // Utilize the imported constant from JS Logic controller to prevent drift
-        const typeOptions = EFFECT_TYPES.map(t => `<option value="${t}" ${eff.type === t ? 'selected' : ''}>${t}</option>`).join('');
+        // Fallback for types if JS Constants missing temporarily
+        const localEffectTypes = typeof EFFECT_TYPES !== 'undefined' ? EFFECT_TYPES : ['DEAL_DAMAGE', 'HEAL', 'GRANT_ABILITY', 'MODIFY_STAT', 'DRAW_CARD', 'SUMMON', 'CUSTOM_SCRIPT', 'DISCARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'ATTACH', 'UNATTACH', 'TRASH'];
+        const typeOptions = localEffectTypes.map(t => `<option value="${t}" ${eff.type === t ? 'selected' : ''}>${t}</option>`).join('');
 
         let paramsHtml = '';
         if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(eff.type)) {
@@ -762,7 +795,6 @@
                 </select>
               </div>`;
           }
-
           paramsHtml = `
             <div class="flex-1 flex gap-3">
               <div class="flex-1">
@@ -773,26 +805,20 @@
             </div>`;
         } else if (eff.type === 'GRANT_ABILITY') {
           const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
-          
           let displayValue = eff.grantedAbilityId || eff.traitId || '';
           const foundAb = allAbilities.find(a => a.abilityId === displayValue);
           if (foundAb) displayValue = foundAb.name;
-          
           paramsHtml = `
             <div class="flex-1">
               <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Ability to Grant</label>
               <input list="ability-list-${idx}" value="${displayValue}" onchange="window.updateGrantedAbility(${idx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
-              <datalist id="ability-list-${idx}">
-                ${customOptions}
-              </datalist>
+              <datalist id="ability-list-${idx}">${customOptions}</datalist>
             </div>`;
         } else if (eff.type === 'SUMMON') {
           const cardOptions = allCards.filter(c => c.type === 'unit').map(c => `<option value="${c.name}"></option>`).join('');
-          
           let displayValue = eff.cardId || '';
           const foundCard = allCards.find(c => c.id === displayValue);
           if (foundCard) displayValue = foundCard.name;
-          
           paramsHtml = `
             <div class="flex-1 flex gap-3">
               <div class="w-24">
@@ -802,9 +828,7 @@
               <div class="flex-1">
                 <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Unit to Summon</label>
                 <input list="card-list-${idx}" value="${displayValue}" onchange="window.updateSummonCard(${idx}, this.value)" placeholder="Search or type unit name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full" />
-                <datalist id="card-list-${idx}">
-                  ${cardOptions}
-                </datalist>
+                <datalist id="card-list-${idx}">${cardOptions}</datalist>
               </div>
             </div>`;
         } else if (eff.type === 'CUSTOM_SCRIPT') {
@@ -818,6 +842,9 @@
             </div>`;
         }
 
+        // Setup defaults for missing state on older objects
+        eff.quickTargeting = eff.quickTargeting || { alignment: eff.targetAffiliation || 'ANY', entityType: 'ANY', line: 'ANY' };
+        
         return `
           <div class="flex flex-wrap items-start gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-700 relative shadow-inner">
             <button type="button" onclick="window.removeEffect(${idx})" class="absolute top-2 right-2 text-slate-500 hover:text-red-400 font-black px-1.5 leading-none">&times;</button>
@@ -829,7 +856,6 @@
                     ${typeOptions}
                   </select>
                 </div>
-                
                 <div class="w-full md:w-1/4">
                   <label class="block text-[10px] font-bold text-sky-400 mb-0.5">Duration</label>
                   <select onchange="window.updateEffect(${idx}, 'duration', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-sky-300 font-bold w-full focus:outline-none focus:border-sky-500">
@@ -840,7 +866,6 @@
                     <option value="PERMANENT" ${eff.duration === 'PERMANENT' ? 'selected' : ''}>Permanent (Across Zones)</option>
                   </select>
                 </div>
-
                 ${paramsHtml}
             </div>
 
@@ -860,25 +885,27 @@
               </div>
               
               ${['AUTO_ALL', 'AUTO_RANDOM'].includes(eff.targetMethod) ? `
-              <div class="flex flex-col gap-2 bg-fuchsia-950/20 p-2 rounded border border-fuchsia-900/30">
-                <div>
-                    <label class="font-bold text-slate-400 block mb-1 text-[9px]">Base Affiliation</label>
-                    <select onchange="window.updateEffect(${idx}, 'targetAffiliation', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white w-full">
-                      <option value="FRIENDLY" ${eff.targetAffiliation === 'FRIENDLY' ? 'selected' : ''}>Friendly Units / Hero</option>
-                      <option value="ENEMY" ${eff.targetAffiliation === 'ENEMY' ? 'selected' : ''}>Enemy Units / Hero</option>
-                      <option value="ANY" ${eff.targetAffiliation === 'ANY' ? 'selected' : ''}>Any Unit on Board</option>
-                    </select>
+              <div class="flex flex-col gap-2 mt-1">
+                ${generateQuickMatrixHTML('effect', eff.quickTargeting, idx)}
+                
+                <div class="mt-1">
+                   <button type="button" onclick="window.toggleAdvancedLogic('effect', ${idx})" class="text-[10px] font-bold text-slate-400 hover:text-fuchsia-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                     <span style="transform: rotate(${eff.showAdvanced ? '90deg' : '0deg'});" class="transition-transform duration-200">▶</span>
+                     <span>⚙️ Advanced Filters</span>
+                   </button>
                 </div>
-                <div class="flex flex-col gap-2 mt-1">
-                  <label class="font-bold text-fuchsia-300 block mb-1 text-[9px]">Scope Condition Filters</label>
+
+                ${eff.showAdvanced ? `
+                <div class="flex flex-col gap-2 mt-2 pl-3 border-l-2 border-fuchsia-500/30">
+                  <label class="font-bold text-fuchsia-300 block mb-1 text-[9px]">Advanced Scope Filters</label>
                   <div class="flex flex-col gap-2 min-h-[40px]">
                     ${generateGroupHTML(`effect_${idx}`, eff.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
                   </div>
                 </div>
+                ` : ''}
               </div>
               ` : ''}
             </div>
-
           </div>
         `;
       }).join('');
@@ -901,10 +928,13 @@
         },
         activation: {
           method: document.getElementById('ab-act-method').value,
-          affiliation: document.getElementById('ab-act-affiliation').value,
+          quickTargeting: JSON.parse(JSON.stringify(activationQuickTargeting)),
           logicTree: JSON.parse(JSON.stringify(activationRoot)) 
         },
-        effects: JSON.parse(JSON.stringify(abilityEffects))
+        effects: JSON.parse(JSON.stringify(abilityEffects)).map(e => {
+            delete e.showAdvanced; // Clean up ephemeral UI state before saving
+            return e;
+        })
       };
     }
 
@@ -912,8 +942,6 @@
       const state = getCurrentAbilityState();
       document.getElementById('json-preview').innerText = JSON.stringify(state, null, 2);
       
-      // Live update the auto-generated description as the user edits the form
-      // Force the generator to show the underlying system text by removing the custom override
       const stateForAutoGen = { ...state, description: '' };
       const autoDesc = generateAbilityDescription(stateForAutoGen, allAbilities, allCards);
       document.getElementById('ab-auto-description').innerText = autoDesc || 'Complete the ability details to generate a description.';
@@ -931,12 +959,7 @@
         return;
       }
 
-      // Check for duplicate names
-      const isDuplicate = allAbilities.some(a => 
-        a.name.toLowerCase() === ability.name.toLowerCase() && 
-        a.abilityId !== ability.abilityId
-      );
-
+      const isDuplicate = allAbilities.some(a => a.name.toLowerCase() === ability.name.toLowerCase() && a.abilityId !== ability.abilityId);
       if (isDuplicate) {
         const toast = document.createElement('div');
         toast.className = 'bg-red-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
@@ -962,36 +985,20 @@
       document.getElementById('toast-container').appendChild(toast);
       setTimeout(() => toast.remove(), 3000);
 
-      // Process and attach the description before pushing back to the UI state
-      const processedAbility = {
-          ...ability,
-          displayDescription: generateAbilityDescription(ability, allAbilities, allCards)
-      };
-
+      const processedAbility = { ...ability, displayDescription: generateAbilityDescription(ability, allAbilities, allCards) };
       allAbilities = [...allAbilities.filter(a => a.abilityId !== ability.abilityId), processedAbility];
       renderCatalogList();
     }
 
     async function handleDeleteAbility(e) {
       const btn = e.currentTarget;
-      
-      // Two-click confirmation required to delete
       if (!btn.dataset.confirm) {
         btn.dataset.confirm = 'true';
         btn.innerHTML = '⚠️ Click again to delete';
         btn.classList.replace('bg-red-600/80', 'bg-red-700');
-        
-        setTimeout(() => {
-          if (btn.dataset.confirm) {
-            delete btn.dataset.confirm;
-            btn.innerHTML = '🗑️ Delete Ability';
-            btn.classList.replace('bg-red-700', 'bg-red-600/80');
-          }
-        }, 3000);
+        setTimeout(() => { if (btn.dataset.confirm) { delete btn.dataset.confirm; btn.innerHTML = '🗑️ Delete Ability'; btn.classList.replace('bg-red-700', 'bg-red-600/80'); } }, 3000);
         return;
       }
-
-      // Reset button state
       delete btn.dataset.confirm;
       btn.innerHTML = '🗑️ Delete Ability';
       btn.classList.replace('bg-red-700', 'bg-red-600/80');
@@ -999,13 +1006,6 @@
       if (currentEditingId) {
         await deleteAbilityFromCatalog(currentEditingId);
         allAbilities = allAbilities.filter(a => a.abilityId !== currentEditingId);
-        
-        const toast = document.createElement('div');
-        toast.className = 'bg-slate-700 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
-        toast.innerText = `Ability deleted successfully.`;
-        document.getElementById('toast-container').appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-
         resetForm();
         renderCatalogList();
       }
@@ -1016,11 +1016,9 @@
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
       document.getElementById('ab-name').value = '';
       document.getElementById('ab-description').value = '';
-      document.getElementById('ab-auto-description').innerText = 'Complete the ability details to generate a description.';
       document.getElementById('ab-trigger').value = '';
       document.getElementById('ab-trigger-limit').value = 'UNLIMITED';
       
-      // Reset Cost section
       document.getElementById('ab-cost-tribe-type').value = 'NONE';
       document.getElementById('ab-cost-tribe-amt').value = '0';
       document.getElementById('ab-cost-tent').value = '0';
@@ -1029,17 +1027,15 @@
       document.getElementById('ab-cost-reuse-exempt').checked = false;
 
       document.getElementById('ab-act-method').value = 'NONE';
-      document.getElementById('ab-act-affiliation').value = 'ANY';
       
+      // Reset Quick UI State
+      activationQuickTargeting = { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+      showAdvancedActivation = false;
       activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-      
       abilityEffects = [];
       
       const deleteBtn = document.getElementById('delete-ability-btn');
       deleteBtn.classList.add('hidden');
-      delete deleteBtn.dataset.confirm;
-      deleteBtn.innerHTML = '🗑️ Delete Ability';
-      deleteBtn.classList.replace('bg-red-700', 'bg-red-600/80');
       
       renderLogicTrees();
       renderEffects();
@@ -1050,7 +1046,6 @@
     function renderCatalogList() {
       const list = document.getElementById('abilities-catalog-list');
       const query = document.getElementById('ability-search-input').value.toLowerCase();
-      
       const filtered = allAbilities.filter(a => a.name.toLowerCase().includes(query));
       
       if (filtered.length === 0) {
@@ -1065,22 +1060,16 @@
           if (node.type === 'condition') conditionCount++;
           else if (node.children) node.children.forEach(countConditions);
         };
-        
-        // Check either the new activation or old targeting node
         countConditions(ab.activation?.logicTree || ab.targeting?.logicTree);
 
         return `
-          <div 
-            onclick="window.loadAbility('${ab.abilityId}')"
-            class="p-3 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex flex-col gap-1 cursor-pointer transition"
-          >
+          <div onclick="window.loadAbility('${ab.abilityId}')" class="p-3 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex flex-col gap-1 cursor-pointer transition">
             <div class="flex justify-between items-center font-bold text-amber-300">
               <span>${ab.name}</span>
               <span class="text-[9px] bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800 font-bold max-w-[120px] truncate" title="${ab.trigger}">${ab.trigger}</span>
             </div>
             <div class="text-[10px] text-emerald-400">${ab.effects?.length || 0} Effects Configured</div>
-            ${conditionCount > 0 ? 
-              `<div class="text-[9px] text-indigo-400 mt-1">${conditionCount} Nested Filters</div>` : ''}
+            ${conditionCount > 0 ? `<div class="text-[9px] text-indigo-400 mt-1">${conditionCount} Nested Filters</div>` : ''}
           </div>
         `
       }).join('');
@@ -1094,84 +1083,88 @@
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ab.name}`;
       document.getElementById('ab-name').value = ab.name;
       document.getElementById('ab-description').value = ab.description || '';
-      
-      // Force generation of the raw system description without the override
-      const autoDesc = generateAbilityDescription({ ...ab, description: '' }, allAbilities, allCards);
-      document.getElementById('ab-auto-description').innerText = autoDesc || 'No description generated.';
-      
       document.getElementById('ab-trigger').value = ab.trigger;
       document.getElementById('ab-trigger-limit').value = ab.triggerLimit || 'UNLIMITED';
       
-      // Load Cost Section
       const cost = ab.cost || {};
       document.getElementById('ab-cost-tribe-type').value = cost.tribeType || 'NONE';
       document.getElementById('ab-cost-tribe-amt').value = cost.tribeAmount || 0;
       document.getElementById('ab-cost-tent').value = cost.tent || 0;
       document.getElementById('ab-cost-power').value = cost.power || 0;
       
-      // Auto-migrate old requiresReady/exhausts structure to the new Readiness Cost Enum
-      if (cost.readinessCost) {
-        document.getElementById('ab-cost-readiness').value = cost.readinessCost;
-      } else if (cost.exhausts) {
-        document.getElementById('ab-cost-readiness').value = 'EXHAUSTS';
-      } else if (cost.requiresReady) {
-        document.getElementById('ab-cost-readiness').value = 'UNREADIES';
-      } else {
-        document.getElementById('ab-cost-readiness').value = 'NONE';
-      }
-      
+      if (cost.readinessCost) document.getElementById('ab-cost-readiness').value = cost.readinessCost;
+      else if (cost.exhausts) document.getElementById('ab-cost-readiness').value = 'EXHAUSTS';
+      else if (cost.requiresReady) document.getElementById('ab-cost-readiness').value = 'UNREADIES';
+      else document.getElementById('ab-cost-readiness').value = 'NONE';
       document.getElementById('ab-cost-reuse-exempt').checked = !!cost.reuseIgnoresReadiness;
 
       document.getElementById('delete-ability-btn').classList.remove('hidden');
 
-      // AUTO-MIGRATION LOGIC (Handles old `targeting` object safely)
+      // AUTO-MIGRATION LOGIC
       const srcAct = ab.activation || ab.targeting || {};
-      
       document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
-      document.getElementById('ab-act-affiliation').value = srcAct.affiliation || 'ANY';
       
-      if (srcAct.logicTree) {
-         activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
-      } else {
-         activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-      }
+      // Migrate legacy affiliation to new Quick Targeting Schema
+      const oldTargeting = srcAct.quickTargeting || {};
+      activationQuickTargeting = {
+          alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
+                     (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
+          entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
+                      (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [oldTargeting.entityType || 'UNIT']),
+          ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines : 
+                             (oldTargeting.line === 'ANY' || false)
+      };
 
-      // Legacy global effectScope support for mapping to individual effects
-      const srcEffScope = ab.effectScope || { method: 'SAME_AS_ACTIVATION', count: 1, affiliation: 'ANY', logicTree: { type: 'group', logicalOperator: 'AND', children: [] } };
+      if (srcAct.logicTree) activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
+      else activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
       
+      // Auto-open advanced drawer if there's complex logic
+      showAdvancedActivation = activationRoot.children && activationRoot.children.length > 0;
+
       const migrateConditions = (node) => {
         if (!node) return;
-        if (node.type === 'condition' && node.attribute === 'hasTrait') {
-          node.attribute = 'hasAbility';
-        }
+        if (node.type === 'condition' && node.attribute === 'hasTrait') node.attribute = 'hasAbility';
         if (node.children) node.children.forEach(migrateConditions);
       };
-      
       migrateConditions(activationRoot);
+      
+      const srcEffScope = ab.effectScope || { method: 'SAME_AS_ACTIVATION', count: 1, quickTargeting: { alignment: 'ANY', entityType: 'ANY', line: 'ANY' }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] } };
       
       if (ab.effects && ab.effects.length > 0) {
         abilityEffects = JSON.parse(JSON.stringify(ab.effects)).map(e => {
             if (e.type === 'APPLY_TRAIT' || e.type === 'GRANT_TRAIT_OR_ABILITY') e.type = 'GRANT_ABILITY';
-            if (e.traitId) {
-                e.grantedAbilityId = e.traitId;
-                delete e.traitId;
-            }
-            // Merge legacy global effect scope into per-effect target settings if missing
+            if (e.traitId) { e.grantedAbilityId = e.traitId; delete e.traitId; }
             if (!e.targetMethod) {
                 e.targetMethod = srcEffScope.method || 'SAME_AS_ACTIVATION';
                 e.targetCount = srcEffScope.count || 1;
-                e.targetAffiliation = srcEffScope.affiliation || 'ANY';
+                // Migrate legacy targetAffiliation to quickTargeting
+                const effQT = srcEffScope.quickTargeting || {};
+                e.quickTargeting = {
+                    alignment: Array.isArray(effQT.alignment) ? effQT.alignment : 
+                               (effQT.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [effQT.alignment || srcEffScope.affiliation || e.targetAffiliation || 'ENEMY']),
+                    entityType: Array.isArray(effQT.entityType) ? effQT.entityType : 
+                                (effQT.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [effQT.entityType || 'UNIT']),
+                    ignoreBattlelines: effQT.ignoreBattlelines !== undefined ? effQT.ignoreBattlelines : 
+                                       (effQT.line === 'ANY' || false)
+                };
                 e.logicTree = JSON.parse(JSON.stringify(srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }));
             }
-            if (!e.duration) {
-                e.duration = 'INSTANT';
+            
+            if (!e.quickTargeting) {
+                e.quickTargeting = { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+            } else {
+                // Ensure array format for older saves
+                if (!Array.isArray(e.quickTargeting.alignment)) e.quickTargeting.alignment = e.quickTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [e.quickTargeting.alignment || e.targetAffiliation || 'ENEMY'];
+                if (!Array.isArray(e.quickTargeting.entityType)) e.quickTargeting.entityType = e.quickTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [e.quickTargeting.entityType || 'UNIT'];
+                if (typeof e.quickTargeting.ignoreBattlelines === 'undefined') e.quickTargeting.ignoreBattlelines = e.quickTargeting.line === 'ANY' || false;
             }
+            
+            if (!e.duration) e.duration = 'INSTANT';
+            e.showAdvanced = e.logicTree && e.logicTree.children && e.logicTree.children.length > 0;
             migrateConditions(e.logicTree);
             return e;
         });
-      } else {
-        abilityEffects = [];
-      }
+      } else { abilityEffects = []; }
       
       renderLogicTrees();
       renderEffects();

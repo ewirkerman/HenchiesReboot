@@ -39,9 +39,10 @@ export const TRIGGER_EVENTS = [
 ];
 
 const ATTRIBUTE_TYPES = {
-    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'HERO', 'UNIT', 'TARGET', 'ATTACKER'] },
+    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER'] },
     'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
-    'line': { label: 'Board Line', type: 'select', options: ['front', 'mid', 'back', 'bodyguard', 'hero'] },
+    'family': { label: 'Family', type: 'text' },
+    'genus': { label: 'Genus', type: 'text' },
     'health': { label: 'Current Health', type: 'number' },
     'strength': { label: 'Strength', type: 'number' },
     'hasAbility': { label: 'Has Ability', type: 'text' }
@@ -135,7 +136,7 @@ export function addEffectPayload() {
         duration: 'INSTANT',
         targetMethod: 'SAME_AS_ACTIVATION',
         targetCount: 1,
-        targetAffiliation: 'ANY',
+        quickTargeting: { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false },
         logicTree: { type: 'group', logicalOperator: 'AND', children: [] }
     });
 }
@@ -149,7 +150,7 @@ export function updateEffectPayload(index, field, value) {
     
     if (field === 'type') {
         const type = value;
-        const eff = { type: type, duration: state.abilityEffects[index].duration || 'INSTANT', targetMethod: state.abilityEffects[index].targetMethod, targetCount: state.abilityEffects[index].targetCount, targetAffiliation: state.abilityEffects[index].targetAffiliation, logicTree: state.abilityEffects[index].logicTree };
+        const eff = { type: type, duration: state.abilityEffects[index].duration || 'INSTANT', targetMethod: state.abilityEffects[index].targetMethod, targetCount: state.abilityEffects[index].targetCount, quickTargeting: state.abilityEffects[index].quickTargeting, logicTree: state.abilityEffects[index].logicTree };
         
         // Use the centralized effect handling for parameterized effects
         if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) eff.amount = 1;
@@ -258,7 +259,11 @@ export function exportCurrentState(formData) {
             readinessCost: formData.readinessCost || 'NONE',
             reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness
         },
-        activation: { method: formData.actMethod, affiliation: formData.actAffiliation, logicTree: JSON.parse(JSON.stringify(state.activationRoot)) },
+        activation: { 
+            method: formData.actMethod, 
+            quickTargeting: formData.actQuickTargeting || { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false }, 
+            logicTree: JSON.parse(JSON.stringify(state.activationRoot)) 
+        },
         effects: JSON.parse(JSON.stringify(state.abilityEffects))
     };
 }
@@ -293,7 +298,7 @@ export function hydrateStateFromAbility(ability) {
     state.activationRoot = srcAct.logicTree ? JSON.parse(JSON.stringify(srcAct.logicTree)) : { type: 'group', logicalOperator: 'AND', children: [] };
     
     // Legacy mapping support
-    const srcEffScope = ability.effectScope || { method: 'SAME_AS_ACTIVATION', count: 1, affiliation: 'ANY', logicTree: { type: 'group', logicalOperator: 'AND', children: [] } };
+    const srcEffScope = ability.effectScope || { method: 'SAME_AS_ACTIVATION', count: 1, quickTargeting: { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] } };
 
     // Hydrate Effects
     if (ability.effects && ability.effects.length > 0) {
@@ -301,9 +306,29 @@ export function hydrateStateFromAbility(ability) {
             if (!e.targetMethod) {
                 e.targetMethod = srcEffScope.method || 'SAME_AS_ACTIVATION';
                 e.targetCount = srcEffScope.count || 1;
-                e.targetAffiliation = srcEffScope.affiliation || 'ANY';
+                
+                // Migrate legacy affiliations over to quickTargeting arrays
+                const effQT = srcEffScope.quickTargeting || {};
+                e.quickTargeting = {
+                    alignment: Array.isArray(effQT.alignment) ? effQT.alignment : 
+                               (effQT.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [effQT.alignment || srcEffScope.affiliation || e.targetAffiliation || 'ENEMY']),
+                    entityType: Array.isArray(effQT.entityType) ? effQT.entityType : 
+                                (effQT.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [effQT.entityType || 'UNIT']),
+                    ignoreBattlelines: effQT.ignoreBattlelines !== undefined ? effQT.ignoreBattlelines : 
+                                       (effQT.line === 'ANY' || false)
+                };
                 e.logicTree = JSON.parse(JSON.stringify(srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }));
             }
+            
+            // Ensure backwards compatibility with slightly older configurations lacking properties entirely
+            if (!e.quickTargeting) {
+                e.quickTargeting = { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+            } else {
+                if (!Array.isArray(e.quickTargeting.alignment)) e.quickTargeting.alignment = e.quickTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [e.quickTargeting.alignment || e.targetAffiliation || 'ENEMY'];
+                if (!Array.isArray(e.quickTargeting.entityType)) e.quickTargeting.entityType = e.quickTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [e.quickTargeting.entityType || 'UNIT'];
+                if (typeof e.quickTargeting.ignoreBattlelines === 'undefined') e.quickTargeting.ignoreBattlelines = e.quickTargeting.line === 'ANY' || false;
+            }
+            
             if (!e.duration) e.duration = 'INSTANT';
             return e;
         });
