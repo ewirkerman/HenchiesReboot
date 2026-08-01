@@ -332,10 +332,12 @@
         if (playerChoiceOption) {
           if (!allowsPlayerChoice) {
             playerChoiceOption.disabled = true;
-            playerChoiceOption.text = 'Player Choice (Requires Manual/Play Trigger)';
+            playerChoiceOption.hidden = true;
+            playerChoiceOption.text = 'Player Choice (Requires Manual/Play)';
             if (actMethodSelect.value === 'PLAYER_CHOICE') actMethodSelect.value = 'NONE';
           } else {
             playerChoiceOption.disabled = false;
+            playerChoiceOption.hidden = false;
             playerChoiceOption.text = 'Player Choice (Click 1 Target)';
           }
         }
