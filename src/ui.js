@@ -51,12 +51,19 @@ export function showToast(message, type = 'info') {
   }, 3500);
 }
 
-function formatAbilityCostBadge(cost) {
+function formatAbilityCostBadge(cost, cardTribe) {
   if (!cost) return '';
   let badgeStr = '';
   if (cost.tent > 0) badgeStr += `${cost.tent}⛺ `;
   if (cost.power > 0) badgeStr += `${cost.power}⚡ `;
-  if (cost.tribeAmount > 0 && cost.tribeType !== 'NONE') badgeStr += `${cost.tribeAmount} ${cost.tribeType.charAt(0)} `;
+  if (cost.tribeAmount > 0) {
+      const tType = cost.tribeType || cardTribe;
+      if (tType && tType !== 'NONE') {
+          badgeStr += `${cost.tribeAmount} ${tType.charAt(0)} `;
+      } else {
+          badgeStr += `${cost.tribeAmount}💎 `;
+      }
+  }
   if (cost.readinessCost === 'EXHAUSTS') badgeStr += `🔄 `;
   if (cost.readinessCost === 'UNREADIES') badgeStr += `⤵️ `;
   
@@ -78,14 +85,24 @@ export function renderCardHTML(card, options = {}) {
     </div>
   ` : '';
 
-  const doubleClickAttr = onInspect ? `ondblclick="event.stopPropagation(); ${onInspect}"` : '';
+  const inspectButton = onInspect ? `
+    <button 
+      onclick="event.stopPropagation(); ${onInspect}"
+      class="absolute ${readiness !== null ? 'top-8' : 'top-1'} right-1 w-6 h-6 rounded-full bg-slate-900/80 hover:bg-slate-700 text-white font-black text-[10px] flex items-center justify-center border border-slate-500 shadow-lg z-30 transition-colors backdrop-blur-sm"
+      title="Inspect Card"
+    >
+      🔍
+    </button>
+  ` : '';
+
+  const rightClickAttr = onInspect ? `oncontextmenu="event.preventDefault(); event.stopPropagation(); ${onInspect}"` : '';
 
   let abilitiesHTML = '';
   if (card.abilities && card.abilities.length > 0) {
       abilitiesHTML = card.abilities.map(ab => `
           <div class="text-[8px] text-slate-200 font-bold leading-tight truncate flex items-center justify-center gap-0.5">
             <span class="truncate">⚡ ${ab.name}</span>
-            ${formatAbilityCostBadge(ab.cost)}
+            ${formatAbilityCostBadge(ab.cost, card.tribe)}
           </div>
       `).join('');
   }
@@ -93,8 +110,8 @@ export function renderCardHTML(card, options = {}) {
   return `
     <div 
       onclick="${onClick}"
-      ${doubleClickAttr}
-      title="Double click to inspect"
+      ${rightClickAttr}
+      title="Right-click or tap 🔍 to inspect"
       class="group relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52 aspect-[5/7] rounded-md ${style.bg} border-2 border-black ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-red-500 animate-bounce z-20 cursor-pointer' : ''} cursor-pointer hover:scale-105 transition-all duration-200 shadow-md flex flex-col justify-between select-none overflow-hidden"
     >
       <div class="relative w-full h-[52%] overflow-hidden bg-slate-900 border-b border-black">
@@ -109,6 +126,7 @@ export function renderCardHTML(card, options = {}) {
           </div>
         ` : ''}
         ${readinessBadge}
+        ${inspectButton}
       </div>
 
       <div class="w-full h-[48%] ${style.lightBg} p-1.5 flex flex-col justify-between">
@@ -189,7 +207,17 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'inspection-modal';
-    modal.className = 'fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none';
+    modal.className = 'fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none';
+    
+    modal.onclick = (e) => { if (e.target === modal) modal.classList.add('hidden'); };
+    modal.oncontextmenu = (e) => { if (e.target === modal) { e.preventDefault(); modal.classList.add('hidden'); } };
+    
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        modal.classList.add('hidden');
+      }
+    });
+    
     document.body.appendChild(modal);
   }
 
@@ -201,17 +229,19 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
   const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry);
 
   modal.innerHTML = `
-    <div class="relative w-full max-w-5xl bg-slate-900 border-2 border-black rounded-xl shadow-2xl text-slate-100 flex flex-col md:flex-row overflow-hidden max-h-[95vh]">
-      
-      <!-- Close Button (Absolute Top Right of Container) -->
-      <button 
-        onclick="document.getElementById('inspection-modal').classList.add('hidden')"
-        class="absolute top-3 right-3 text-slate-400 hover:text-white text-xl font-bold w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 z-50 shadow-lg"
-      >✕</button>
+    <!-- Close Button (Fixed Top Right) -->
+    <button 
+      onclick="document.getElementById('inspection-modal').classList.add('hidden')"
+      class="fixed top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-white text-xl font-bold w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur flex items-center justify-center border border-slate-700 z-[60] shadow-2xl transition-transform hover:scale-110 pointer-events-auto"
+    >✕</button>
 
-      <!-- LEFT COLUMN: The Giant 5x7 Card Layout -->
-      <div class="flex-1 p-6 md:p-10 flex items-center justify-center bg-slate-950/90 border-r border-slate-800 overflow-y-auto">
-        
+    <div class="w-full h-full max-w-7xl text-slate-100 flex flex-col md:grid md:grid-cols-3 items-center justify-center gap-6 pointer-events-none">
+      
+      <!-- LEFT SPACER (Forces card to perfect center) -->
+      <div class="hidden md:block pointer-events-none"></div>
+
+      <!-- CENTER: The Giant 5x7 Card Layout -->
+      <div class="flex items-center justify-center pointer-events-auto">
         <div class="relative h-[75vh] min-h-[450px] max-h-[750px] aspect-[5/7] rounded-2xl overflow-hidden border-4 ${style.border} shadow-2xl flex flex-col shrink-0 ${style.bg} transition-transform duration-300">
           
           <!-- Top Half: Art & Cost (50%) -->
@@ -275,7 +305,7 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
                           ⚡ ${a.name || a.abilityId}
                         </div>
                         <div class="flex items-center gap-1">
-                            ${formatAbilityCostBadge(a.cost)}
+                            ${formatAbilityCostBadge(a.cost, cardOrUnit.tribe)}
                             <span class="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-600 font-bold uppercase tracking-widest shadow-inner">${a.trigger || 'MANUAL'}</span>
                         </div>
                       </div>
@@ -319,27 +349,21 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
         </div>
       </div>
 
-      <!-- RIGHT COLUMN: Recursive Glossary -->
-      <div class="w-full md:w-80 bg-slate-950 p-6 overflow-y-auto flex flex-col gap-4 shadow-inner">
-        <h4 class="text-xs uppercase font-black text-fuchsia-400 tracking-widest border-b border-slate-800 pb-2 flex items-center gap-2">
-          <span>📚 References</span>
-        </h4>
-        
+      <!-- RIGHT COLUMN: Recursive Glossary Bubbles -->
+      <div class="w-full md:w-[350px] flex flex-col gap-4 overflow-y-auto max-h-[85vh] p-2 pointer-events-auto minimal-scrollbar justify-self-start md:ml-4">
         ${glossaryAbilities.length > 0 ? `
           <div class="flex flex-col gap-3">
             ${glossaryAbilities.map(a => `
-              <div class="bg-slate-900 p-3 rounded-lg border border-slate-800/80 shadow-inner flex flex-col gap-1">
-                <div class="flex justify-between items-center">
-                    <div class="font-black text-fuchsia-300 text-sm">${a.name || a.abilityId}</div>
-                    <span class="text-[8px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold">${a.trigger || 'MANUAL'}</span>
+              <div class="bg-slate-900/90 backdrop-blur-md p-4 rounded-xl border border-slate-700 shadow-2xl flex flex-col gap-1.5 transform transition-transform hover:scale-[1.02]">
+                <div class="flex justify-between items-center border-b border-slate-700/50 pb-1.5">
+                    <div class="font-black text-fuchsia-300 text-sm drop-shadow-md">${a.name || a.abilityId}</div>
+                    <span class="text-[9px] bg-slate-950 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-bold uppercase tracking-wider">${a.trigger || 'MANUAL'}</span>
                 </div>
-                <div class="text-slate-400 text-xs leading-tight">${a.displayDescription || a.description || 'No details.'}</div>
+                <div class="text-slate-200 text-xs leading-snug">${a.displayDescription || a.description || 'No details.'}</div>
               </div>
             `).join('')}
           </div>
-        ` : `
-          <div class="text-center text-slate-600 text-xs italic mt-10">No nested abilities or glossary terms detected.</div>
-        `}
+        ` : ''}
       </div>
 
     </div>
