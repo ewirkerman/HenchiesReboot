@@ -15,7 +15,6 @@
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
     
-    /* Logic Tree Lines for Visual Grouping */
     .logic-group-border {
       border-left: 2px solid;
       position: relative;
@@ -29,16 +28,14 @@
       border-top: 2px solid;
     }
     
-    .border-and { border-color: #4f46e5; } /* indigo-600 */
-    .border-or { border-color: #d97706; } /* amber-600 */
+    .border-and { border-color: #4f46e5; }
+    .border-or { border-color: #d97706; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
 
-  <!-- Toast Container Top Center -->
   <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
 
-  <!-- Header -->
   <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
     <div class="flex items-center gap-3">
       <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
@@ -94,11 +91,19 @@
             <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider" id="form-heading">
               ⚡ Design Ability Logic
             </h2>
-            <p class="text-[10px] text-slate-400 mt-1">Configure Triggers, Quick Targets, Effect Scopes, and Payloads.</p>
+            <p class="text-[10px] text-slate-400 mt-1">Configure Triggers, Costs, Target Groups, and Nested Actions.</p>
           </div>
-          <button type="button" id="delete-ability-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap mt-1">
-            🗑️ Delete Ability
-          </button>
+          <div class="flex items-center gap-2 mt-1">
+            <button type="button" id="save-ability-btn-top" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider whitespace-nowrap">
+              💾 Save
+            </button>
+            <button type="button" id="clone-ability-btn" class="hidden bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-cyan-500/30 whitespace-nowrap">
+              👯 Clone
+            </button>
+            <button type="button" id="delete-ability-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap">
+              🗑️ Delete Ability
+            </button>
+          </div>
         </div>
 
         <form id="ability-form" class="flex flex-col gap-6 text-xs">
@@ -114,9 +119,7 @@
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Trigger Event</label>
                 <input list="trigger-list" id="ab-trigger" value="" placeholder="Search or type trigger event..." class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-full focus:outline-none focus:border-amber-500" />
-                <datalist id="trigger-list">
-                  <!-- Now populated automatically from JS Constants -->
-                </datalist>
+                <datalist id="trigger-list"></datalist>
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Trigger Frequency</label>
@@ -127,7 +130,6 @@
                 </select>
               </div>
               
-              <!-- DESCRIPTION & GLOSSARY MENTIONS -->
               <div class="md:col-span-3 relative">
                 <label class="font-bold text-slate-300 block mb-1 flex justify-between">
                   <span>Ability Description (Override)</span>
@@ -135,15 +137,12 @@
                 </label>
                 <textarea id="ab-description" rows="2" placeholder="e.g. When played, trigger @[Another Ability]... (Leave blank to use auto-generated description)" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500"></textarea>
                 
-                <!-- Auto-Generated Preview -->
                 <div class="mt-2 bg-slate-800/50 p-2 rounded border border-slate-700/50">
                     <span class="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">Auto-Generated System Description</span>
-                    <p id="ab-auto-description" class="text-xs text-amber-100 italic"></p>
+                    <p id="ab-auto-description" class="text-xs text-amber-100 italic select-text cursor-text"></p>
                 </div>
 
-                <!-- Autocomplete Dropdown -->
                 <div id="mention-dropdown" class="hidden absolute top-[4.5rem] left-0 mt-1 w-full max-w-md bg-slate-800 border border-slate-600 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto">
-                    <!-- Mention items injected here -->
                 </div>
               </div>
             </div>
@@ -155,39 +154,15 @@
               2. Cost & Requirements
             </h3>
             
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
               <div>
-                <label class="font-bold text-slate-300 block mb-1">Tribe Resource</label>
-                <select id="ab-cost-tribe-type" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500">
-                  <option value="NONE" selected>None</option>
-                  <option value="Robot">Robot</option>
-                  <option value="Mythic">Mythic</option>
-                  <option value="Elemental">Elemental</option>
-                  <option value="Pirate">Pirate</option>
-                  <option value="Undead">Undead</option>
-                  <option value="Carnie">Carnie</option>
-                  <option value="Viking">Viking</option>
-                  <option value="Ninja">Ninja</option>
-                  <option value="Stalker">Stalker</option>
-                  <option value="Alien">Alien</option>
-                  <option value="Luchador">Luchador</option>
-                </select>
-              </div>
-              <div>
-                <label class="font-bold text-slate-300 block mb-1">Tribe Amount</label>
+                <label class="font-bold text-slate-300 block mb-1">Resource Amount</label>
                 <input type="number" id="ab-cost-tribe-amt" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Tent Cost</label>
                 <input type="number" id="ab-cost-tent" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
               </div>
-              <div>
-                <label class="font-bold text-slate-300 block mb-1">Power Cost</label>
-                <input type="number" id="ab-cost-power" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
-              </div>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1 items-end">
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Readiness Cost</label>
                 <select id="ab-cost-readiness" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500">
@@ -196,17 +171,19 @@
                   <option value="EXHAUSTS">Exhausts (Hard Tap)</option>
                 </select>
               </div>
-              <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition pb-2">
-                <input type="checkbox" id="ab-cost-reuse-exempt" class="w-4 h-4 accent-rose-500" />
-                <span class="font-bold text-[11px]">Subsequent uses this round ignore readiness cost</span>
-              </label>
+              <div class="md:col-span-3">
+                <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition pb-2">
+                  <input type="checkbox" id="ab-cost-reuse-exempt" class="w-4 h-4 accent-rose-500" />
+                  <span class="font-bold text-[11px]">Subsequent uses this round ignore readiness cost</span>
+                </label>
+              </div>
             </div>
           </div>
 
           <!-- 3. PLAYER ACTIVATION TARGETING -->
           <div class="flex flex-col gap-3 p-4 bg-indigo-950/20 rounded-xl border border-indigo-900/40 transition-all duration-300">
             <h3 class="text-xs font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-900/50 pb-1 mb-1">
-              3. Player Activation Targeting (Requirements)
+              3. Player Activation Targets (Input)
             </h3>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
@@ -219,16 +196,14 @@
               </div>
             </div>
 
-            <!-- The new UX: Quick Target Matrix -->
             <div id="act-quick-matrix-container" class="hidden grid grid-cols-1 gap-2 mt-2">
               <!-- Rendered via JS -->
             </div>
 
-            <!-- Advanced Filters Accordion Toggle -->
             <div id="act-advanced-toggle-container" class="hidden mt-1">
                <button type="button" onclick="window.toggleAdvancedLogic('activation')" class="text-[10px] font-bold text-slate-400 hover:text-indigo-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
                  <span id="act-advanced-icon" class="transition-transform duration-200">▶</span>
-                 <span>⚙️ Advanced Filters (Tribes, Stats, Traits, Complex Logic...)</span>
+                 <span>⚙️ Advanced Filters (Tribes, Stats, Traits...)</span>
                </button>
             </div>
 
@@ -240,17 +215,17 @@
             </div>
           </div>
 
-          <!-- 4. EFFECT PAYLOADS & TARGETING -->
+          <!-- 4. EFFECT TARGET BLOCKS & PAYLOADS -->
           <div class="flex flex-col gap-3 p-4 bg-emerald-950/20 rounded-xl border border-emerald-900/40">
             <h3 class="text-xs font-black text-emerald-400 uppercase tracking-widest border-b border-emerald-900/50 pb-1 mb-1 flex justify-between items-center">
-              <span>4. Effect Payloads (Runs sequentially)</span>
-              <button type="button" id="add-effect-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">
-                + Add Effect Action
+              <span>4. Execution (Target Groups -> Actions)</span>
+              <button type="button" id="add-effect-group-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">
+                + Add Target Group
               </button>
             </h3>
             
-            <div id="effects-container" class="flex flex-col gap-3">
-              <!-- Dynamic Effect Blocks injected here -->
+            <div id="effect-groups-container" class="flex flex-col gap-6">
+              <!-- Dynamic Target Groups and Nested Payloads injected here -->
             </div>
           </div>
 
@@ -268,21 +243,19 @@
     import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './src/firebase.js';
     import { CARD_CATALOG } from './src/engine.js';
     import { generateAbilityDescription } from './src/language_description.js';
-    
-    // Import the centralized state/enums directly from the JS model
-    import { TRIGGER_EVENTS, EFFECT_TYPES } from './src/abilities.js';
+    import { TRIGGER_EVENTS, EFFECT_TYPES, EFFECT_ZONE_MAP, getValidActionsForZones } from './src/abilities.js';
 
     let allAbilities = [];
     let allCards = [];
     let currentEditingId = null;
     
-    // Quick Matrix UI State
-    let activationQuickTargeting = { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+    // UI State
+    let activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
     let showAdvancedActivation = false;
 
-    // Core Logic Tree States
     let activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-    let abilityEffects = [];
+    let effectGroups = []; 
+    let lastTriggerValue = '';
     
     // Autocomplete State
     let mentionActive = false;
@@ -292,56 +265,58 @@
 
     const ATTRIBUTE_TYPES = {
       'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER'] },
+      'zone': { label: 'Zone', type: 'select', options: ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'] },
       'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
-      'family': { label: 'Family', type: 'text' },
-      'genus': { label: 'Genus', type: 'text' },
+      'family': { label: 'Family (Text)', type: 'text' },
+      'genus': { label: 'Genus (Text)', type: 'text' },
       'health': { label: 'Current Health', type: 'number' },
       'strength': { label: 'Strength', type: 'number' },
-      'hasAbility': { label: 'Has Ability', type: 'text' }
+      'hasAbility': { label: 'Has Ability ID', type: 'text' }
     };
 
-    const OPERATORS = {
-      '==': 'Is (==)',
-      '!=': 'Is Not (!=)',
-      '>': 'Greater Than (>)',
-      '<': 'Less Than (<)'
-    };
+    const OPERATORS = { '==': 'Is (==)', '!=': 'Is Not (!=)', '>': 'Greater Than (>)', '<': 'Less Than (<)' };
 
     init();
 
     async function init() {
-      // Setup datalist purely from JS Constants
       const triggerDatalist = document.getElementById('trigger-list');
       if (triggerDatalist && typeof TRIGGER_EVENTS !== 'undefined') {
         triggerDatalist.innerHTML = TRIGGER_EVENTS.map(t => `<option value="${t}"></option>`).join('');
       }
 
-      document.getElementById('add-effect-btn').addEventListener('click', handleAddEffect);
+      document.getElementById('add-effect-group-btn').addEventListener('click', handleAddEffectGroup);
       document.getElementById('save-ability-btn').addEventListener('click', handleSaveAbility);
+      document.getElementById('save-ability-btn-top').addEventListener('click', handleSaveAbility);
       document.getElementById('delete-ability-btn').addEventListener('click', handleDeleteAbility);
       document.getElementById('create-new-ability-btn').addEventListener('click', resetForm);
+      document.getElementById('clone-ability-btn').addEventListener('click', handleCloneAbility);
       
       document.getElementById('ability-form').addEventListener('input', updateJSONPreview);
       document.getElementById('ability-form').addEventListener('change', updateJSONPreview);
       document.getElementById('ability-search-input').addEventListener('input', renderCatalogList);
 
-      // Listen for trigger changes to validate allowed targeting methods and trigger limits
       document.getElementById('ab-trigger').addEventListener('input', () => window.updateTargetingUI());
       document.getElementById('ab-trigger').addEventListener('change', () => window.updateTargetingUI());
 
-      // Mention Autocomplete Listeners
       const descInput = document.getElementById('ab-description');
       descInput.addEventListener('input', handleDescriptionInput);
       descInput.addEventListener('keydown', handleDescriptionKeydown);
       descInput.addEventListener('blur', () => setTimeout(closeMentionDropdown, 200));
 
       window.updateTargetingUI = () => {
-        // Activation UI Setup
         const triggerValue = document.getElementById('ab-trigger').value.toUpperCase();
         const actMethodSelect = document.getElementById('ab-act-method');
         const triggerLimitSelect = document.getElementById('ab-trigger-limit');
 
-        // Disable trigger limit if UNTRIGGERABLE
+        if (triggerValue !== lastTriggerValue) {
+             if (triggerValue === 'PLAY' || triggerValue === 'PLAY_OPTIONAL') {
+                 activationQuickTargeting.ignoreBattlelines = true;
+             } else if (triggerValue === 'MANUAL') {
+                 activationQuickTargeting.ignoreBattlelines = false;
+             }
+             lastTriggerValue = triggerValue;
+        }
+
         if (triggerValue === 'UNTRIGGERABLE') {
           triggerLimitSelect.disabled = true;
           triggerLimitSelect.title = "Not applicable for UNTRIGGERABLE abilities";
@@ -350,7 +325,6 @@
           triggerLimitSelect.title = "";
         }
         
-        // Enforce trigger requirement for Player Choice targeting
         const allowedTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL'];
         const allowsPlayerChoice = allowedTriggers.includes(triggerValue);
         const playerChoiceOption = actMethodSelect.querySelector('option[value="PLAYER_CHOICE"]');
@@ -359,16 +333,13 @@
           if (!allowsPlayerChoice) {
             playerChoiceOption.disabled = true;
             playerChoiceOption.text = 'Player Choice (Requires Manual/Play Trigger)';
-            if (actMethodSelect.value === 'PLAYER_CHOICE') {
-              actMethodSelect.value = 'NONE';
-            }
+            if (actMethodSelect.value === 'PLAYER_CHOICE') actMethodSelect.value = 'NONE';
           } else {
             playerChoiceOption.disabled = false;
             playerChoiceOption.text = 'Player Choice (Click 1 Target)';
           }
         }
         
-        // UI Logic for UX Quick Matrix
         const matrixContainer = document.getElementById('act-quick-matrix-container');
         const advancedToggleContainer = document.getElementById('act-advanced-toggle-container');
         const advancedTreeWrapper = document.getElementById('act-logic-tree-wrapper');
@@ -396,8 +367,8 @@
       };
 
       const rawAbilities = await fetchCustomAbilities();
-      
       const customCards = await fetchCustomCards();
+      
       if (customCards && customCards.length > 0) {
         const merged = [...CARD_CATALOG, ...customCards];
         allCards = Array.from(new Map(merged.map(c => [c.id, c])).values());
@@ -405,33 +376,77 @@
         allCards = [...CARD_CATALOG];
       }
 
-      // Process abilities AFTER cards are loaded so SUMMON descriptions can resolve names
-      allAbilities = rawAbilities.map(ab => ({
-        ...ab,
-        displayDescription: generateAbilityDescription(ab, rawAbilities, allCards)
-      }));
+      allAbilities = rawAbilities.map(ab => {
+        let desc = 'Description unavailable (format mismatch)';
+        try {
+            desc = generateAbilityDescription(ab, rawAbilities, allCards);
+        } catch (e) {
+            console.warn(`Failed to generate description for ${ab.name}:`, e);
+        }
+        return { ...ab, displayDescription: desc };
+      });
       
       renderCatalogList();
-      resetForm(); // Start Blank!
+      resetForm();
     }
 
+    window.revalidatePayloadTypes = () => {
+        if (typeof getValidActionsForZones === 'undefined') return;
+        effectGroups.forEach((group) => {
+            let actualZones = group.quickTargeting.zones;
+            if (group.targetMethod === 'SAME_AS_ACTIVATION') actualZones = activationQuickTargeting.zones;
+            
+            const validActions = group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(actualZones);
+            
+            group.payloads.forEach((payload) => {
+                if (!validActions.includes(payload.type)) {
+                    const fallback = validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT';
+                    payload.type = fallback;
+                    
+                    // Reset properties based on new fallback type
+                    const type = fallback;
+                    if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
+                        payload.amount = payload.amount || 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.zoneOwner;
+                    } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
+                        payload.amount = payload.amount || 1; payload.stat = payload.stat || 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.zoneOwner;
+                    } else if (type === 'GRANT_ABILITY') { 
+                        payload.grantedAbilityId = payload.grantedAbilityId || ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.zoneOwner;
+                    } else if (type === 'SUMMON') { 
+                        payload.cardId = payload.cardId || ''; payload.amount = payload.amount || 1; payload.zoneOwner = payload.zoneOwner || 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.stat; 
+                    } else if (type === 'CUSTOM_SCRIPT') { 
+                        payload.script = payload.script || 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.zoneOwner;
+                    } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD'].includes(type)) { 
+                        delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.zoneOwner;
+                    }
+                }
+            });
+        });
+    };
+
     window.toggleQuickMatrixArray = (context, index, field, value) => {
-        const targetState = context === 'activation' ? activationQuickTargeting : abilityEffects[index].quickTargeting;
+        const targetState = context === 'activation' ? activationQuickTargeting : effectGroups[index].quickTargeting;
         const arr = targetState[field] || [];
+        
         if (arr.includes(value)) {
-            if (arr.length > 1) { // Prevent deselecting everything
-                targetState[field] = arr.filter(v => v !== value);
-            }
+            // Prevent deselecting last zone to avoid breaking logic validation unexpectedly
+            if (field === 'zones' && arr.length === 1) return; 
+            targetState[field] = arr.filter(v => v !== value);
         } else {
             targetState[field].push(value);
         }
+
+        // Always revalidate payload types in case zones were modified
+        if (field === 'zones') {
+            window.revalidatePayloadTypes();
+        }
+
         if (context === 'activation') window.updateTargetingUI();
-        else renderEffects();
+        renderEffects(); // Always re-render effects UI as it may depend on activation state
         updateJSONPreview();
     };
 
     window.toggleQuickMatrixBoolean = (context, index, field) => {
-        const targetState = context === 'activation' ? activationQuickTargeting : abilityEffects[index].quickTargeting;
+        const targetState = context === 'activation' ? activationQuickTargeting : effectGroups[index].quickTargeting;
         targetState[field] = !targetState[field];
         if (context === 'activation') window.updateTargetingUI();
         else renderEffects();
@@ -443,13 +458,12 @@
             showAdvancedActivation = !showAdvancedActivation;
             window.updateTargetingUI();
         } else {
-            abilityEffects[index].showAdvanced = !abilityEffects[index].showAdvanced;
+            effectGroups[index].showAdvanced = !effectGroups[index].showAdvanced;
             renderEffects();
         }
     };
 
     function generateQuickMatrixHTML(context, targetState, index = null) {
-      const themeColor = context === 'activation' ? 'indigo' : 'fuchsia';
       const activeBg = context === 'activation' ? 'bg-indigo-600 border-indigo-500' : 'bg-fuchsia-600 border-fuchsia-500';
       const hoverBg = context === 'activation' ? 'hover:bg-indigo-900/50' : 'hover:bg-fuchsia-900/50';
 
@@ -470,6 +484,11 @@
           }).join('');
       };
 
+      const zoneOptions = [
+          {label: 'Field', value: 'FIELD'}, {label: 'Hand', value: 'HAND'}, 
+          {label: 'Deck', value: 'DECK'}, {label: 'Discard', value: 'DISCARD'},
+          {label: 'Banish', value: 'BANISH'}, {label: 'Orig. Deck', value: 'ORIGINAL_DECK'}
+      ];
       const alignmentOptions = [{label: 'Friendly', value: 'FRIENDLY'}, {label: 'Enemy', value: 'ENEMY'}];
       const entityOptions = [{label: 'Unit', value: 'UNIT'}, {label: 'Avatar', value: 'AVATAR'}, {label: 'Equipment', value: 'EQUIPMENT'}];
 
@@ -481,29 +500,34 @@
       const boolActiveClass = isIgnoreLines ? `${activeBg} text-white shadow-md` : `bg-slate-800 border-slate-700 text-slate-400 ${hoverBg}`;
 
       return `
-          <div class="flex flex-col md:flex-row flex-wrap gap-4 bg-slate-900/70 p-3 rounded-lg border border-slate-700/50 shadow-inner">
-              <div class="flex-1 min-w-[150px]">
-                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Target Alignment (Multi)</label>
-                  <div class="flex flex-wrap gap-1.5">${buildMultiPills('alignment', alignmentOptions, targetState.alignment)}</div>
+          <div class="flex flex-col gap-4 bg-slate-900/70 p-3 rounded-lg border border-slate-700/50 shadow-inner">
+              <div class="w-full">
+                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Zone Scope (Multi)</label>
+                  <div class="flex flex-wrap gap-1.5">${buildMultiPills('zones', zoneOptions, targetState.zones)}</div>
               </div>
-              <div class="flex-1 min-w-[200px]">
-                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Entity Type (Multi)</label>
-                  <div class="flex flex-wrap gap-1.5">${buildMultiPills('entityType', entityOptions, targetState.entityType)}</div>
-              </div>
-              <div class="w-full md:w-auto flex flex-col justify-end">
-                  <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Restrictions</label>
-                  <button type="button" onclick="${toggleBoolHandler}" class="px-3 py-1.5 text-[10px] font-bold rounded-md cursor-pointer transition-all border whitespace-nowrap flex items-center gap-2 ${boolActiveClass}">
-                      <div class="w-3 h-3 rounded-sm border ${isIgnoreLines ? 'border-white bg-white/20' : 'border-slate-500'} flex items-center justify-center transition-colors">
-                          ${isIgnoreLines ? '✓' : ''}
-                      </div>
-                      Ignore Battlelines
-                  </button>
+              <div class="flex flex-col md:flex-row flex-wrap gap-4">
+                  <div class="flex-1 min-w-[150px]">
+                      <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Target Alignment (Multi)</label>
+                      <div class="flex flex-wrap gap-1.5">${buildMultiPills('alignment', alignmentOptions, targetState.alignment)}</div>
+                  </div>
+                  <div class="flex-1 min-w-[200px]">
+                      <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Entity Type (Multi)</label>
+                      <div class="flex flex-wrap gap-1.5">${buildMultiPills('entityType', entityOptions, targetState.entityType)}</div>
+                  </div>
+                  <div class="w-full md:w-auto flex flex-col justify-end">
+                      <label class="text-[9px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Restrictions</label>
+                      <button type="button" onclick="${toggleBoolHandler}" class="px-3 py-1.5 text-[10px] font-bold rounded-md cursor-pointer transition-all border whitespace-nowrap flex items-center gap-2 ${boolActiveClass}">
+                          <div class="w-3 h-3 rounded-sm border ${isIgnoreLines ? 'border-white bg-white/20' : 'border-slate-500'} flex items-center justify-center transition-colors">
+                              ${isIgnoreLines ? '✓' : ''}
+                          </div>
+                          Ignore Battlelines
+                      </button>
+                  </div>
               </div>
           </div>
       `;
     }
 
-    // --- MENTION AUTOCOMPLETE LOGIC ---
     function handleDescriptionInput(e) {
       const val = e.target.value;
       const cursor = e.target.selectionStart;
@@ -512,7 +536,6 @@
 
       if (lastAt !== -1) {
         const query = textBeforeCursor.slice(lastAt + 1);
-        // If there's no space after the @, we assume they are typing a name
         if (!query.includes(' ') && !query.includes('\n')) {
           mentionActive = true;
           mentionStart = lastAt;
@@ -575,13 +598,12 @@
       closeMentionDropdown();
       updateJSONPreview();
     }
-    
-    // ----------------------------------
+
     function getRoot(treeType) {
         if (treeType === 'activation') return activationRoot;
         if (treeType.startsWith('effect_')) {
             const idx = parseInt(treeType.split('_')[1], 10);
-            return abilityEffects[idx].logicTree;
+            return effectGroups[idx].logicTree;
         }
         return null;
     }
@@ -606,7 +628,7 @@
       const path = JSON.parse(pathString);
       const group = path.length === 0 ? getRoot(treeType) : getNodeAtPath(treeType, path);
       if (group && group.type === 'group') {
-        group.children.push({ type: 'condition', attribute: 'tribe', operator: '==', value: 'Robot' });
+        group.children.push({ type: 'condition', attribute: 'family', operator: '==', value: 'SomeFamily' });
         if (treeType === 'activation') renderLogicTrees(); else renderEffects();
         updateJSONPreview();
       }
@@ -721,191 +743,436 @@
       `;
     }
 
-    function handleAddEffect() {
-      abilityEffects.push({
-        type: 'DEAL_DAMAGE',
-        amount: 1,
-        duration: 'INSTANT',
+    function handleAddEffectGroup() {
+      effectGroups.push({
         targetMethod: 'SAME_AS_ACTIVATION',
         targetCount: 1,
-        quickTargeting: { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false },
+        quickTargeting: { 
+          zones: [...(activationQuickTargeting.zones || ['FIELD'])], 
+          alignment: [...(activationQuickTargeting.alignment || ['ENEMY'])], 
+          entityType: [...(activationQuickTargeting.entityType || ['UNIT', 'AVATAR'])], 
+          ignoreBattlelines: activationQuickTargeting.ignoreBattlelines || false 
+        },
         showAdvanced: false,
-        logicTree: { type: 'group', logicalOperator: 'AND', children: [] }
+        logicTree: { type: 'group', logicalOperator: 'AND', children: [] },
+        payloads: [
+            { type: 'DEAL_DAMAGE', amount: 1, duration: 'INSTANT' }
+        ]
       });
+      window.revalidatePayloadTypes();
       renderEffects();
       updateJSONPreview();
     }
 
-    window.removeEffect = (index) => { abilityEffects.splice(index, 1); renderEffects(); updateJSONPreview(); };
+    window.removeEffectGroup = (index) => { effectGroups.splice(index, 1); renderEffects(); updateJSONPreview(); };
+    
+    window.moveEffectGroup = (index, direction) => {
+        if (index + direction < 0 || index + direction >= effectGroups.length) return;
+        const temp = effectGroups[index];
+        effectGroups[index] = effectGroups[index + direction];
+        effectGroups[index + direction] = temp;
+        renderEffects();
+        updateJSONPreview();
+    };
 
-    window.updateEffect = (index, field, value) => {
-      abilityEffects[index][field] = value;
+    window.updateEffectGroup = (index, field, value) => { 
+        effectGroups[index][field] = value; 
+        if (field === 'targetMethod') window.revalidatePayloadTypes();
+        renderEffects(); 
+        updateJSONPreview(); 
+    };
+    
+    window.addPayload = (groupIndex) => {
+        const group = effectGroups[groupIndex];
+        let actualZones = group.quickTargeting.zones;
+        if (group.targetMethod === 'SAME_AS_ACTIVATION') actualZones = activationQuickTargeting.zones;
+            
+        const validActions = typeof getValidActionsForZones !== 'undefined' 
+            ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(actualZones))
+            : EFFECT_TYPES;
+            
+        const initialType = validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT';
+        group.payloads.push({ type: initialType, amount: 1, duration: 'INSTANT' });
+        
+        renderEffects();
+        updateJSONPreview();
+    };
+
+    window.removePayload = (groupIndex, payloadIndex) => {
+        effectGroups[groupIndex].payloads.splice(payloadIndex, 1);
+        renderEffects();
+        updateJSONPreview();
+    };
+
+    window.updatePayload = (groupIndex, payloadIndex, field, value) => {
+      const payload = effectGroups[groupIndex].payloads[payloadIndex];
+      payload[field] = value;
+      
       if (field === 'type') {
-        const eff = abilityEffects[index];
         const type = value;
-        if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-            eff.amount = 1; delete eff.grantedAbilityId; delete eff.cardId; delete eff.script; 
-            if (type === 'MODIFY_STAT' || type === 'SET_STAT') eff.stat = 'strength'; else delete eff.stat;
+        if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
+            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zoneOwner;
+        } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
+            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zoneOwner;
+        } else if (type === 'GRANT_ABILITY') { 
+            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zoneOwner;
+        } else if (type === 'SUMMON') { 
+            payload.cardId = ''; payload.amount = 1; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.stat; 
+            payload.nestedGroup = {
+                targetMethod: 'AUTO_ALL',
+                targetCount: 1,
+                quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false },
+                logicTree: { type: 'group', logicalOperator: 'AND', children: [] },
+                payloads: []
+            };
+        } else if (type === 'CUSTOM_SCRIPT') { 
+            payload.script = 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zoneOwner;
+        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD'].includes(type)) { 
+            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zoneOwner;
         }
-        else if (type === 'GRANT_ABILITY') { eff.grantedAbilityId = ''; delete eff.amount; delete eff.cardId; delete eff.script; delete eff.stat; }
-        else if (type === 'SUMMON') { eff.cardId = 'target_dummy'; eff.amount = 1; delete eff.grantedAbilityId; delete eff.script; delete eff.stat; }
-        else if (type === 'CUSTOM_SCRIPT') { eff.script = 'state.players[state.activePlayerId].health += params.amount;'; delete eff.amount; delete eff.grantedAbilityId; delete eff.cardId; delete eff.stat; }
-        else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH'].includes(type)) { delete eff.amount; delete eff.grantedAbilityId; delete eff.cardId; delete eff.script; delete eff.stat; }
       }
       renderEffects();
       updateJSONPreview();
     };
 
-    window.updateGrantedAbility = (index, value) => {
+    window.updateGrantedAbility = (gIdx, pIdx, value) => {
       const match = allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
-      abilityEffects[index].grantedAbilityId = match ? match.abilityId : value;
+      effectGroups[gIdx].payloads[pIdx].grantedAbilityId = match ? match.abilityId : value;
       renderEffects(); updateJSONPreview();
     };
 
-    window.updateSummonCard = (index, value) => {
+    window.updateSummonCard = (gIdx, pIdx, value) => {
       const match = allCards.find(c => c.name.toLowerCase() === value.toLowerCase() && c.type === 'unit');
-      abilityEffects[index].cardId = match ? match.id : value;
+      effectGroups[gIdx].payloads[pIdx].cardId = match ? match.id : value;
       renderEffects(); updateJSONPreview();
+    };
+    
+    // Nested Payload Handlers
+    window.addNestedPayload = (gIdx, pIdx) => {
+        effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads.push({ type: 'MODIFY_STAT', amount: 1, stat: 'strength', duration: 'INSTANT' });
+        renderEffects();
+        updateJSONPreview();
+    };
+    
+    window.removeNestedPayload = (gIdx, pIdx, nIdx) => {
+        effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads.splice(nIdx, 1);
+        renderEffects();
+        updateJSONPreview();
+    };
+
+    window.updateNestedPayload = (gIdx, pIdx, nIdx, field, value) => {
+      const payload = effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx];
+      payload[field] = value;
+      
+      if (field === 'type') {
+        const type = value;
+        if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
+            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script;
+        } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
+            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script;
+        } else if (type === 'GRANT_ABILITY') { 
+            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script;
+        } else if (type === 'CUSTOM_SCRIPT') { 
+            payload.script = ''; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat;
+        } else { 
+            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat;
+        }
+      }
+      
+      renderEffects();
+      updateJSONPreview();
+    };
+    
+    window.updateNestedGrantedAbility = (gIdx, pIdx, nIdx, value) => {
+      const match = allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
+      effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx].grantedAbilityId = match ? match.abilityId : value;
+      renderEffects(); updateJSONPreview();
+    };
+
+    window.updateNestedGroup = (gIdx, pIdx, field, value) => {
+        effectGroups[gIdx].payloads[pIdx].nestedGroup[field] = value;
+        renderEffects();
+        updateJSONPreview();
     };
 
     function renderEffects() {
-      const container = document.getElementById('effects-container');
+      const container = document.getElementById('effect-groups-container');
       
-      if (abilityEffects.length === 0) {
-        container.innerHTML = `<div class="text-slate-500 italic text-xs p-3 text-center border border-dashed border-slate-700 rounded-xl">No effects added. This ability does nothing.</div>`;
+      if (effectGroups.length === 0) {
+        container.innerHTML = `<div class="text-slate-500 italic text-xs p-3 text-center border border-dashed border-slate-700 rounded-xl">No target blocks added. This ability does nothing.</div>`;
         return;
       }
 
-      container.innerHTML = abilityEffects.map((eff, idx) => {
-        // Fallback for types if JS Constants missing temporarily
-        const localEffectTypes = typeof EFFECT_TYPES !== 'undefined' ? EFFECT_TYPES : ['DEAL_DAMAGE', 'HEAL', 'GRANT_ABILITY', 'MODIFY_STAT', 'DRAW_CARD', 'SUMMON', 'CUSTOM_SCRIPT', 'DISCARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'ATTACH', 'UNATTACH', 'TRASH'];
-        const typeOptions = localEffectTypes.map(t => `<option value="${t}" ${eff.type === t ? 'selected' : ''}>${t}</option>`).join('');
+      container.innerHTML = effectGroups.map((group, gIdx) => {
+          
+        const payloadsHtml = group.payloads.map((payload, pIdx) => {
+            // Filter dynamic action types based on the selected zones
+            let actualZones = group.quickTargeting.zones;
+            if (group.targetMethod === 'SAME_AS_ACTIVATION') actualZones = activationQuickTargeting.zones;
+                
+            const validEffectTypes = typeof getValidActionsForZones !== 'undefined' 
+                ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(actualZones))
+                : EFFECT_TYPES;
 
-        let paramsHtml = '';
-        if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(eff.type)) {
-          let statHtml = '';
-          if (eff.type === 'MODIFY_STAT' || eff.type === 'SET_STAT') {
-            statHtml = `
-              <div class="flex-1">
-                <label class="block text-[10px] font-bold text-amber-400 mb-0.5">Target Stat</label>
-                <select onchange="window.updateEffect(${idx}, 'stat', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full focus:outline-none focus:border-amber-500">
-                  <option value="strength" ${eff.stat === 'strength' ? 'selected' : ''}>Strength</option>
-                  <option value="health" ${eff.stat === 'health' ? 'selected' : ''}>Current Health</option>
-                  <option value="maxHealth" ${eff.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
-                </select>
-              </div>`;
-          }
-          paramsHtml = `
-            <div class="flex-1 flex gap-3">
-              <div class="flex-1">
-                <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude / Value / Card Amount</label>
-                <input type="number" value="${eff.amount || 1}" onchange="window.updateEffect(${idx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full focus:outline-none focus:border-slate-500" />
-              </div>
-              ${statHtml}
-            </div>`;
-        } else if (eff.type === 'GRANT_ABILITY') {
-          const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
-          let displayValue = eff.grantedAbilityId || eff.traitId || '';
-          const foundAb = allAbilities.find(a => a.abilityId === displayValue);
-          if (foundAb) displayValue = foundAb.name;
-          paramsHtml = `
-            <div class="flex-1">
-              <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Ability to Grant</label>
-              <input list="ability-list-${idx}" value="${displayValue}" onchange="window.updateGrantedAbility(${idx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
-              <datalist id="ability-list-${idx}">${customOptions}</datalist>
-            </div>`;
-        } else if (eff.type === 'SUMMON') {
-          const cardOptions = allCards.filter(c => c.type === 'unit').map(c => `<option value="${c.name}"></option>`).join('');
-          let displayValue = eff.cardId || '';
-          const foundCard = allCards.find(c => c.id === displayValue);
-          if (foundCard) displayValue = foundCard.name;
-          paramsHtml = `
-            <div class="flex-1 flex gap-3">
-              <div class="w-24">
-                <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Amount</label>
-                <input type="number" value="${eff.amount || 1}" min="1" onchange="window.updateEffect(${idx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full focus:outline-none focus:border-slate-500" />
-              </div>
-              <div class="flex-1">
-                <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Unit to Summon</label>
-                <input list="card-list-${idx}" value="${displayValue}" onchange="window.updateSummonCard(${idx}, this.value)" placeholder="Search or type unit name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full" />
-                <datalist id="card-list-${idx}">${cardOptions}</datalist>
-              </div>
-            </div>`;
-        } else if (eff.type === 'CUSTOM_SCRIPT') {
-          paramsHtml = `
-            <div class="w-full mt-2">
-              <label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end">
-                <span>⚡ Execution Script</span>
-                <span class="text-slate-500 font-normal">Signature: (state, target, params)</span>
-              </label>
-              <textarea onchange="window.updateEffect(${idx}, 'script', this.value)" rows="3" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${eff.script || ''}</textarea>
-            </div>`;
-        }
+            const typeOptions = validEffectTypes.map(t => `<option value="${t}" ${payload.type === t ? 'selected' : ''}>${t}</option>`).join('');
 
-        // Setup defaults for missing state on older objects
-        eff.quickTargeting = eff.quickTargeting || { alignment: eff.targetAffiliation || 'ANY', entityType: 'ANY', line: 'ANY' };
-        
-        return `
-          <div class="flex flex-wrap items-start gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-700 relative shadow-inner">
-            <button type="button" onclick="window.removeEffect(${idx})" class="absolute top-2 right-2 text-slate-500 hover:text-red-400 font-black px-1.5 leading-none">&times;</button>
+            let paramsHtml = '';
+            if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(payload.type)) {
+              paramsHtml = `
+                <div class="flex-1 flex gap-3">
+                  <div class="flex-1">
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude / Amount</label>
+                    <input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full focus:outline-none focus:border-slate-500" />
+                  </div>
+                </div>`;
+            } else if (payload.type === 'MODIFY_STAT' || payload.type === 'SET_STAT') {
+              paramsHtml = `
+                <div class="flex-1 flex gap-3">
+                  <div class="flex-1">
+                    <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude / Value</label>
+                    <input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" />
+                  </div>
+                  <div class="flex-1">
+                    <label class="block text-[10px] font-bold text-amber-400 mb-0.5">Target Stat</label>
+                    <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'stat', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">
+                      <option value="strength" ${payload.stat === 'strength' ? 'selected' : ''}>Strength</option>
+                      <option value="health" ${payload.stat === 'health' ? 'selected' : ''}>Current Health</option>
+                      <option value="maxHealth" ${payload.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
+                      <option value="readiness" ${payload.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
+                    </select>
+                  </div>
+                </div>`;
+            } else if (payload.type === 'GRANT_ABILITY') {
+              const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
+              let displayValue = payload.grantedAbilityId || '';
+              const foundAb = allAbilities.find(a => a.abilityId === displayValue);
+              if (foundAb) displayValue = foundAb.name;
+              paramsHtml = `
+                <div class="flex-1">
+                  <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Ability to Grant</label>
+                  <input list="ability-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateGrantedAbility(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
+                  <datalist id="ability-list-${gIdx}-${pIdx}">${customOptions}</datalist>
+                </div>`;
+            } else if (payload.type === 'SUMMON') {
+              const cardOptions = allCards.filter(c => c.type === 'unit').map(c => `<option value="${c.name}"></option>`).join('');
+              let displayValue = payload.cardId || '';
+              const foundCard = allCards.find(c => c.id === displayValue);
+              if (foundCard) displayValue = foundCard.name;
+              
+              let nestedGroupHtml = '';
+              if (payload.nestedGroup) {
+                  const ng = payload.nestedGroup;
+                  const nestedPayloadsHtml = ng.payloads.map((np, nIdx) => {
+                    let npParamsHtml = '';
+                    if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(np.type)) {
+                       npParamsHtml = `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                    } else if (['MODIFY_STAT', 'SET_STAT'].includes(np.type)) {
+                       npParamsHtml = `
+                          <div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>
+                          <div class="w-24">
+                              <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'stat', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-bold text-[10px] w-full">
+                                <option value="strength" ${np.stat === 'strength' ? 'selected' : ''}>Strength</option>
+                                <option value="health" ${np.stat === 'health' ? 'selected' : ''}>Health</option>
+                                <option value="maxHealth" ${np.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
+                                <option value="readiness" ${np.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
+                              </select>
+                          </div>
+                       `;
+                    } else if (np.type === 'GRANT_ABILITY') {
+                       const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
+                       let displayValue = np.grantedAbilityId || '';
+                       const foundAb = allAbilities.find(a => a.abilityId === displayValue);
+                       if (foundAb) displayValue = foundAb.name;
+                       npParamsHtml = `<div class="flex-1 min-w-[120px]"><input list="nest-ability-list-${gIdx}-${pIdx}-${nIdx}" value="${displayValue}" onchange="window.updateNestedGrantedAbility(${gIdx}, ${pIdx}, ${nIdx}, this.value)" placeholder="Ability name..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full text-[10px]" /><datalist id="nest-ability-list-${gIdx}-${pIdx}-${nIdx}">${customOptions}</datalist></div>`;
+                    } else if (np.type === 'CUSTOM_SCRIPT') {
+                       npParamsHtml = `<div class="flex-1 min-w-[150px]"><input type="text" value="${np.script || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'script', this.value)" placeholder="state.players..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-mono w-full text-[10px]" /></div>`;
+                    }
+
+                    return `
+                    <div class="flex flex-wrap items-center gap-2 bg-slate-950 p-2 rounded border border-slate-800 relative shadow-sm mt-1">
+                        <button type="button" onclick="window.removeNestedPayload(${gIdx}, ${pIdx}, ${nIdx})" class="absolute top-1/2 -translate-y-1/2 right-2 text-slate-500 hover:text-red-400 font-bold px-1 text-[12px]">&times;</button>
+                        <div class="w-1/3 min-w-[120px]">
+                            <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'type', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold text-[10px] w-full">
+                               ${EFFECT_TYPES.map(t => `<option value="${t}" ${np.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+                            </select>
+                        </div>
+                        ${npParamsHtml}
+                        <div class="w-24">
+                            <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'duration', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-sky-300 font-bold text-[10px] w-full">
+                                <option value="INSTANT" ${np.duration === 'INSTANT' ? 'selected' : ''}>Instant</option>
+                                <option value="TEMPORARY" ${np.duration === 'TEMPORARY' ? 'selected' : ''}>Temp (Round)</option>
+                                <option value="PERMANENT" ${np.duration === 'PERMANENT' ? 'selected' : ''}>Permanent</option>
+                                <option value="WHILE_ATTACHED" ${np.duration === 'WHILE_ATTACHED' ? 'selected' : ''}>While Attached</option>
+                            </select>
+                        </div>
+                    </div>
+                  `;
+                  }).join('');
+
+                  nestedGroupHtml = `
+                    <div class="w-full mt-4 bg-slate-900/80 p-3 rounded-lg border border-fuchsia-700/50 shadow-inner">
+                        <div class="flex justify-between items-center mb-3 border-b border-fuchsia-900/50 pb-2">
+                           <label class="block text-[11px] font-black text-fuchsia-400 tracking-wider">🎯 POST-SUMMON ACTIONS ON SUMMONED UNIT(S)</label>
+                           <button type="button" onclick="window.addNestedPayload(${gIdx}, ${pIdx})" class="text-[10px] bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-3 py-1 rounded shadow transition">+ Add Nested Action</button>
+                        </div>
+                        <div class="flex gap-3 mb-3 w-full">
+                            <div class="flex-1">
+                                <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase">Target Scope</label>
+                                <select onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white text-[10px] w-full">
+                                    <option value="AUTO_ALL" ${ng.targetMethod === 'AUTO_ALL' ? 'selected' : ''}>Apply to ALL Summoned Units</option>
+                                    <option value="AUTO_RANDOM" ${ng.targetMethod === 'AUTO_RANDOM' ? 'selected' : ''}>Apply to RANDOM N Summoned Units</option>
+                                    <option value="AUTO_FIRST" ${ng.targetMethod === 'AUTO_FIRST' ? 'selected' : ''}>Apply to FIRST N Summoned Units</option>
+                                </select>
+                            </div>
+                            ${['AUTO_RANDOM', 'AUTO_FIRST'].includes(ng.targetMethod) ? `
+                            <div class="w-24">
+                                <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase">Count (N)</label>
+                                <input type="number" value="${ng.targetCount || 1}" onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetCount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]" />
+                            </div>
+                            ` : ''}
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            ${nestedPayloadsHtml}
+                        </div>
+                        ${ng.payloads.length === 0 ? `<div class="text-[10px] text-slate-500 italic mt-2 text-center p-2 border border-dashed border-slate-700 rounded">No post-summon actions defined.</div>` : ''}
+                    </div>
+                  `;
+              }
+
+              paramsHtml = `
+                <div class="w-full flex flex-col gap-3 mt-3 border-t border-slate-700/50 pt-3">
+                    <div class="flex flex-wrap gap-3 items-end">
+                      <div class="w-24">
+                        <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Amount</label>
+                        <input type="number" value="${payload.amount || 1}" min="1" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" />
+                      </div>
+                      <div class="flex-1 min-w-[150px]">
+                        <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Unit to Summon</label>
+                        <input list="card-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateSummonCard(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type unit name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full" />
+                        <datalist id="card-list-${gIdx}-${pIdx}">${cardOptions}</datalist>
+                      </div>
+                      <div class="w-32">
+                        <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Destination Zone</label>
+                        <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'zone', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full">
+                            ${['FIELD', 'HAND', 'DECK', 'DISCARD', 'BANISH'].map(z => `<option value="${z}" ${payload.zone === z ? 'selected' : ''}>${z}</option>`).join('')}
+                        </select>
+                      </div>
+                      <div class="w-28">
+                        <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Zone Owner</label>
+                        <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'zoneOwner', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full">
+                            <option value="CASTER" ${payload.zoneOwner === 'CASTER' || !payload.zoneOwner ? 'selected' : ''}>Caster</option>
+                            <option value="TARGET" ${payload.zoneOwner === 'TARGET' ? 'selected' : ''}>Target</option>
+                        </select>
+                      </div>
+                    </div>
+                    ${nestedGroupHtml}
+                </div>`;
+            } else if (payload.type === 'CUSTOM_SCRIPT') {
+              paramsHtml = `
+                <div class="w-full mt-3 border-t border-slate-700/50 pt-3">
+                  <label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end">
+                    <span>⚡ Execution Script</span>
+                    <span class="text-slate-500 font-normal">Signature: (state, target, params)</span>
+                  </label>
+                  <textarea onchange="window.updatePayload(${gIdx}, ${pIdx}, 'script', this.value)" rows="3" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea>
+                </div>`;
+            }
             
-            <div class="w-full flex flex-wrap items-end gap-3">
-                <div class="w-full md:w-1/3">
-                  <label class="block text-[10px] font-bold text-emerald-500 mb-0.5">Action Type</label>
-                  <select onchange="window.updateEffect(${idx}, 'type', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold w-full focus:outline-none focus:border-emerald-500">
-                    ${typeOptions}
-                  </select>
-                </div>
-                <div class="w-full md:w-1/4">
-                  <label class="block text-[10px] font-bold text-sky-400 mb-0.5">Duration</label>
-                  <select onchange="window.updateEffect(${idx}, 'duration', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-sky-300 font-bold w-full focus:outline-none focus:border-sky-500">
-                    <option value="INSTANT" ${eff.duration === 'INSTANT' ? 'selected' : ''}>Instant</option>
-                    <option value="BRIEF" ${eff.duration === 'BRIEF' ? 'selected' : ''}>Brief (End of Turn)</option>
-                    <option value="TEMPORARY" ${eff.duration === 'TEMPORARY' ? 'selected' : ''}>Temporary (End of Round)</option>
-                    <option value="INDEFINITE" ${eff.duration === 'INDEFINITE' ? 'selected' : ''}>Indefinite (While on Board)</option>
-                    <option value="PERMANENT" ${eff.duration === 'PERMANENT' ? 'selected' : ''}>Permanent (Across Zones)</option>
-                  </select>
-                </div>
-                ${paramsHtml}
-            </div>
+            return `
+              <div class="flex flex-col gap-2 bg-slate-950 p-3 rounded-lg border border-slate-800 relative shadow-md">
+                  <button type="button" onclick="window.removePayload(${gIdx}, ${pIdx})" class="absolute top-2 right-2 text-slate-600 hover:text-red-400 font-black px-1.5 leading-none transition-colors">&times;</button>
+                  <div class="w-full flex flex-wrap items-end gap-3 pr-6">
+                      <div class="flex-1 min-w-[250px] flex flex-col">
+                        <label class="block text-[10px] font-bold text-emerald-500 mb-0.5">Action Effect</label>
+                        <div class="flex items-center gap-2 w-full">
+                            <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'type', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold flex-1 focus:outline-none focus:border-emerald-500">
+                              ${typeOptions}
+                            </select>
+                            <label class="flex items-center gap-1.5 bg-rose-950/40 border border-rose-900/50 px-2 py-1.5 rounded cursor-pointer hover:bg-rose-900/40 transition whitespace-nowrap" title="Require this action to execute for the ability to resolve.">
+                                <input type="checkbox" ${payload.isCost ? 'checked' : ''} onchange="window.updatePayload(${gIdx}, ${pIdx}, 'isCost', this.checked)" class="accent-rose-500 w-3 h-3" />
+                                <span class="text-[9px] font-black text-rose-400 uppercase tracking-wider">Is Cost</span>
+                            </label>
+                        </div>
+                      </div>
+                      <div class="w-32 pb-0.5">
+                        <label class="block text-[10px] font-bold text-sky-400 mb-0.5">Duration</label>
+                        <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'duration', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-sky-300 font-bold w-full focus:outline-none focus:border-sky-500">
+                          <option value="INSTANT" ${payload.duration === 'INSTANT' ? 'selected' : ''}>Instant</option>
+                          <option value="BRIEF" ${payload.duration === 'BRIEF' ? 'selected' : ''}>Brief (End of Turn)</option>
+                          <option value="TEMPORARY" ${payload.duration === 'TEMPORARY' ? 'selected' : ''}>Temporary (End of Round)</option>
+                          <option value="INDEFINITE" ${payload.duration === 'INDEFINITE' ? 'selected' : ''}>Indefinite (While on Board)</option>
+                          <option value="WHILE_ATTACHED" ${payload.duration === 'WHILE_ATTACHED' ? 'selected' : ''}>While Attached</option>
+                          <option value="PERMANENT" ${payload.duration === 'PERMANENT' ? 'selected' : ''}>Permanent (Across Zones)</option>
+                        </select>
+                      </div>
+                      ${!['SUMMON', 'CUSTOM_SCRIPT'].includes(payload.type) ? paramsHtml : ''}
+                  </div>
+                  ${['SUMMON', 'CUSTOM_SCRIPT'].includes(payload.type) ? paramsHtml : ''}
+              </div>
+            `;
+        }).join('');
 
-            <!-- PER-EFFECT TARGETING SCOPE -->
-            <div class="flex flex-col gap-2 mt-2 w-full border-t border-slate-700/50 pt-3">
-              <h4 class="text-[10px] font-bold text-fuchsia-400 uppercase tracking-widest flex items-center gap-1">
-                <span>🎯 Effect ${idx + 1} Targets</span>
+        // Ensure robust structure initialization for view
+        group.quickTargeting = group.quickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+
+        return `
+          <div class="flex flex-col gap-3 bg-slate-900/80 p-4 rounded-xl border border-slate-700 relative shadow-inner">
+            <button type="button" onclick="window.removeEffectGroup(${gIdx})" class="absolute top-2 right-2 text-slate-500 hover:text-red-400 font-black px-1.5 bg-slate-950 rounded">&times; Remove Target Group</button>
+            <div class="absolute top-2 right-40 flex gap-1">
+                <button type="button" onclick="window.moveEffectGroup(${gIdx}, -1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${gIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}">↑ Move Up</button>
+                <button type="button" onclick="window.moveEffectGroup(${gIdx}, 1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${gIdx === effectGroups.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}">↓ Move Down</button>
+            </div>
+            
+            <div class="flex flex-col gap-2">
+              <h4 class="text-[11px] font-black text-fuchsia-400 uppercase tracking-widest flex items-center gap-1">
+                <span>🎯 Target Group ${gIdx + 1}</span>
               </h4>
-              <div class="flex gap-2">
-                <select onchange="window.updateEffect(${idx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1">
-                  <option value="SAME_AS_ACTIVATION" ${eff.targetMethod === 'SAME_AS_ACTIVATION' ? 'selected' : ''}>Activated Target(s)</option>
-                  <option value="SELF" ${eff.targetMethod === 'SELF' ? 'selected' : ''}>Self (Caster / This Card)</option>
-                  <option value="AUTO_ALL" ${eff.targetMethod === 'AUTO_ALL' ? 'selected' : ''}>Auto-Target ALL Matching Below</option>
-                  <option value="AUTO_RANDOM" ${eff.targetMethod === 'AUTO_RANDOM' ? 'selected' : ''}>Auto-Target N RANDOM Matching Below</option>
+              <div class="flex gap-2 w-full md:w-2/3">
+                <select onchange="window.updateEffectGroup(${gIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1 font-bold">
+                  <option value="SAME_AS_ACTIVATION" ${group.targetMethod === 'SAME_AS_ACTIVATION' ? 'selected' : ''}>Run on Activated Target(s)</option>
+                  <option value="SELF" ${group.targetMethod === 'SELF' ? 'selected' : ''}>Run on Self (Caster)</option>
+                  <option value="AVATAR" ${group.targetMethod === 'AVATAR' ? 'selected' : ''}>Run on Your Avatar</option>
+                  <option value="ENEMY_AVATAR" ${group.targetMethod === 'ENEMY_AVATAR' ? 'selected' : ''}>Run on Enemy Avatar</option>
+                  <option value="AUTO_ALL" ${group.targetMethod === 'AUTO_ALL' ? 'selected' : ''}>Auto-Target ALL Valid Below</option>
+                  <option value="AUTO_RANDOM" ${group.targetMethod === 'AUTO_RANDOM' ? 'selected' : ''}>Auto-Target N RANDOM Below</option>
+                  <option value="AUTO_FIRST" ${group.targetMethod === 'AUTO_FIRST' ? 'selected' : ''}>Auto-Target FIRST N Valid Below</option>
+                  <option value="AUTO_LAST" ${group.targetMethod === 'AUTO_LAST' ? 'selected' : ''}>Auto-Target LAST N Valid Below</option>
                 </select>
-                ${eff.targetMethod === 'AUTO_RANDOM' ? `<input type="number" value="${eff.targetCount || 1}" onchange="window.updateEffect(${idx}, 'targetCount', parseInt(this.value))" title="Number of targets (N)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-16" />` : ''}
+                ${['AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'].includes(group.targetMethod) ? `<input type="number" value="${group.targetCount || 1}" onchange="window.updateEffectGroup(${gIdx}, 'targetCount', parseInt(this.value))" title="Number of targets (N)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-16" />` : ''}
               </div>
               
-              ${['AUTO_ALL', 'AUTO_RANDOM'].includes(eff.targetMethod) ? `
+              ${group.targetMethod.startsWith('AUTO_') ? `
               <div class="flex flex-col gap-2 mt-1">
-                ${generateQuickMatrixHTML('effect', eff.quickTargeting, idx)}
+                ${generateQuickMatrixHTML('effect', group.quickTargeting, gIdx)}
                 
                 <div class="mt-1">
-                   <button type="button" onclick="window.toggleAdvancedLogic('effect', ${idx})" class="text-[10px] font-bold text-slate-400 hover:text-fuchsia-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
-                     <span style="transform: rotate(${eff.showAdvanced ? '90deg' : '0deg'});" class="transition-transform duration-200">▶</span>
+                   <button type="button" onclick="window.toggleAdvancedLogic('effect', ${gIdx})" class="text-[10px] font-bold text-slate-400 hover:text-fuchsia-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                     <span style="transform: rotate(${group.showAdvanced ? '90deg' : '0deg'});" class="transition-transform duration-200">▶</span>
                      <span>⚙️ Advanced Filters</span>
                    </button>
                 </div>
 
-                ${eff.showAdvanced ? `
+                ${group.showAdvanced ? `
                 <div class="flex flex-col gap-2 mt-2 pl-3 border-l-2 border-fuchsia-500/30">
                   <label class="font-bold text-fuchsia-300 block mb-1 text-[9px]">Advanced Scope Filters</label>
                   <div class="flex flex-col gap-2 min-h-[40px]">
-                    ${generateGroupHTML(`effect_${idx}`, eff.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
+                    ${generateGroupHTML(`effect_${gIdx}`, group.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
                   </div>
                 </div>
                 ` : ''}
               </div>
               ` : ''}
             </div>
+
+            <div class="mt-3 pl-3 md:pl-5 border-l-2 border-emerald-500/30 flex flex-col gap-3">
+               <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between items-center pr-2 border-b border-slate-800 pb-1">
+                  <span>⚡ Executed Actions (${group.payloads.length})</span>
+                  <button type="button" onclick="window.addPayload(${gIdx})" class="text-emerald-400 hover:text-emerald-300 transition-colors">+ Add Action</button>
+               </h5>
+               ${payloadsHtml}
+               ${group.payloads.length === 0 ? `<div class="text-xs text-slate-500 italic">No actions defined for this target.</div>` : ''}
+            </div>
+
           </div>
         `;
       }).join('');
@@ -919,10 +1186,8 @@
         trigger: document.getElementById('ab-trigger').value,
         triggerLimit: document.getElementById('ab-trigger-limit').value,
         cost: {
-          tribeType: document.getElementById('ab-cost-tribe-type').value,
           tribeAmount: parseInt(document.getElementById('ab-cost-tribe-amt').value) || 0,
           tent: parseInt(document.getElementById('ab-cost-tent').value) || 0,
-          power: parseInt(document.getElementById('ab-cost-power').value) || 0,
           readinessCost: document.getElementById('ab-cost-readiness').value,
           reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked
         },
@@ -931,8 +1196,8 @@
           quickTargeting: JSON.parse(JSON.stringify(activationQuickTargeting)),
           logicTree: JSON.parse(JSON.stringify(activationRoot)) 
         },
-        effects: JSON.parse(JSON.stringify(abilityEffects)).map(e => {
-            delete e.showAdvanced; // Clean up ephemeral UI state before saving
+        effects: JSON.parse(JSON.stringify(effectGroups)).map(e => {
+            delete e.showAdvanced; // Clean ephemeral UI state
             return e;
         })
       };
@@ -943,8 +1208,14 @@
       document.getElementById('json-preview').innerText = JSON.stringify(state, null, 2);
       
       const stateForAutoGen = { ...state, description: '' };
-      const autoDesc = generateAbilityDescription(stateForAutoGen, allAbilities, allCards);
-      document.getElementById('ab-auto-description').innerText = autoDesc || 'Complete the ability details to generate a description.';
+      let autoDesc = 'Complete the ability details to generate a description.';
+      try {
+          const generated = generateAbilityDescription(stateForAutoGen, allAbilities, allCards);
+          if (generated) autoDesc = generated;
+      } catch (e) {
+          autoDesc = 'Unable to generate description (schema updating).';
+      }
+      document.getElementById('ab-auto-description').innerText = autoDesc;
     }
 
     async function handleSaveAbility() {
@@ -985,7 +1256,10 @@
       document.getElementById('toast-container').appendChild(toast);
       setTimeout(() => toast.remove(), 3000);
 
-      const processedAbility = { ...ability, displayDescription: generateAbilityDescription(ability, allAbilities, allCards) };
+      let newDesc = '';
+      try { newDesc = generateAbilityDescription(ability, allAbilities, allCards); } catch(e) {}
+      const processedAbility = { ...ability, displayDescription: newDesc };
+      
       allAbilities = [...allAbilities.filter(a => a.abilityId !== ability.abilityId), processedAbility];
       renderCatalogList();
     }
@@ -1011,6 +1285,31 @@
       }
     }
 
+    function handleCloneAbility() {
+      if (!currentEditingId) return;
+      
+      // We leverage the current UI state to create the clone, meaning 
+      // unsaved changes on the current ability are carried over to the clone.
+      const currentConfig = getCurrentAbilityState();
+      
+      // Clear the ID so it saves as a new entity
+      currentEditingId = null; 
+      
+      document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
+      document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
+      
+      document.getElementById('delete-ability-btn').classList.add('hidden');
+      document.getElementById('clone-ability-btn').classList.add('hidden');
+      
+      updateJSONPreview();
+      
+      const toast = document.createElement('div');
+      toast.className = 'bg-cyan-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+      toast.innerText = `Ability cloned! Save to keep it.`;
+      document.getElementById('toast-container').appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
     function resetForm() {
       currentEditingId = null;
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
@@ -1019,23 +1318,20 @@
       document.getElementById('ab-trigger').value = '';
       document.getElementById('ab-trigger-limit').value = 'UNLIMITED';
       
-      document.getElementById('ab-cost-tribe-type').value = 'NONE';
       document.getElementById('ab-cost-tribe-amt').value = '0';
       document.getElementById('ab-cost-tent').value = '0';
-      document.getElementById('ab-cost-power').value = '0';
       document.getElementById('ab-cost-readiness').value = 'NONE';
       document.getElementById('ab-cost-reuse-exempt').checked = false;
 
       document.getElementById('ab-act-method').value = 'NONE';
       
-      // Reset Quick UI State
-      activationQuickTargeting = { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+      activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
       showAdvancedActivation = false;
       activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-      abilityEffects = [];
+      effectGroups = [];
       
-      const deleteBtn = document.getElementById('delete-ability-btn');
-      deleteBtn.classList.add('hidden');
+      document.getElementById('delete-ability-btn').classList.add('hidden');
+      document.getElementById('clone-ability-btn').classList.add('hidden');
       
       renderLogicTrees();
       renderEffects();
@@ -1062,13 +1358,18 @@
         };
         countConditions(ab.activation?.logicTree || ab.targeting?.logicTree);
 
+        let effectsCount = 0;
+        if (ab.effects) {
+            effectsCount = ab.effects.reduce((acc, g) => acc + (g.payloads ? g.payloads.length : 1), 0);
+        }
+
         return `
           <div onclick="window.loadAbility('${ab.abilityId}')" class="p-3 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex flex-col gap-1 cursor-pointer transition">
             <div class="flex justify-between items-center font-bold text-amber-300">
               <span>${ab.name}</span>
               <span class="text-[9px] bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800 font-bold max-w-[120px] truncate" title="${ab.trigger}">${ab.trigger}</span>
             </div>
-            <div class="text-[10px] text-emerald-400">${ab.effects?.length || 0} Effects Configured</div>
+            <div class="text-[10px] text-emerald-400">${ab.effects?.length || 0} Targets, ${effectsCount} Actions</div>
             ${conditionCount > 0 ? `<div class="text-[9px] text-indigo-400 mt-1">${conditionCount} Nested Filters</div>` : ''}
           </div>
         `
@@ -1087,26 +1388,25 @@
       document.getElementById('ab-trigger-limit').value = ab.triggerLimit || 'UNLIMITED';
       
       const cost = ab.cost || {};
-      document.getElementById('ab-cost-tribe-type').value = cost.tribeType || 'NONE';
       document.getElementById('ab-cost-tribe-amt').value = cost.tribeAmount || 0;
       document.getElementById('ab-cost-tent').value = cost.tent || 0;
-      document.getElementById('ab-cost-power').value = cost.power || 0;
       
       if (cost.readinessCost) document.getElementById('ab-cost-readiness').value = cost.readinessCost;
       else if (cost.exhausts) document.getElementById('ab-cost-readiness').value = 'EXHAUSTS';
       else if (cost.requiresReady) document.getElementById('ab-cost-readiness').value = 'UNREADIES';
       else document.getElementById('ab-cost-readiness').value = 'NONE';
+      
       document.getElementById('ab-cost-reuse-exempt').checked = !!cost.reuseIgnoresReadiness;
 
       document.getElementById('delete-ability-btn').classList.remove('hidden');
+      document.getElementById('clone-ability-btn').classList.remove('hidden');
 
-      // AUTO-MIGRATION LOGIC
       const srcAct = ab.activation || ab.targeting || {};
       document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
       
-      // Migrate legacy affiliation to new Quick Targeting Schema
       const oldTargeting = srcAct.quickTargeting || {};
       activationQuickTargeting = {
+          zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
           alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
                      (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
           entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
@@ -1118,7 +1418,6 @@
       if (srcAct.logicTree) activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
       else activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
       
-      // Auto-open advanced drawer if there's complex logic
       showAdvancedActivation = activationRoot.children && activationRoot.children.length > 0;
 
       const migrateConditions = (node) => {
@@ -1128,43 +1427,66 @@
       };
       migrateConditions(activationRoot);
       
-      const srcEffScope = ab.effectScope || { method: 'SAME_AS_ACTIVATION', count: 1, quickTargeting: { alignment: 'ANY', entityType: 'ANY', line: 'ANY' }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] } };
+      const srcEffScope = ab.effectScope || {};
       
       if (ab.effects && ab.effects.length > 0) {
-        abilityEffects = JSON.parse(JSON.stringify(ab.effects)).map(e => {
+        effectGroups = JSON.parse(JSON.stringify(ab.effects)).map(e => {
+            if (e.payloads) {
+               e.showAdvanced = e.logicTree && e.logicTree.children && e.logicTree.children.length > 0;
+               migrateConditions(e.logicTree);
+               
+               if (!Array.isArray(e.quickTargeting.zones)) e.quickTargeting.zones = ['FIELD'];
+               if (!Array.isArray(e.quickTargeting.alignment)) e.quickTargeting.alignment = ['ENEMY'];
+               if (!Array.isArray(e.quickTargeting.entityType)) e.quickTargeting.entityType = ['UNIT'];
+
+               e.payloads = e.payloads.map(p => {
+                  if (p.type === 'APPLY_TRAIT' || p.type === 'GRANT_TRAIT_OR_ABILITY') p.type = 'GRANT_ABILITY';
+                  if (p.traitId) { p.grantedAbilityId = p.traitId; delete p.traitId; }
+                  return p;
+               });
+               return e;
+            }
+
+            const group = {
+                targetMethod: e.targetMethod || srcEffScope.method || 'SAME_AS_ACTIVATION',
+                targetCount: e.targetCount || srcEffScope.count || 1,
+                quickTargeting: e.quickTargeting || {},
+                logicTree: e.logicTree || srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] },
+                payloads: []
+            };
+
+            const effQT = srcEffScope.quickTargeting || {};
+            group.quickTargeting = {
+                zones: Array.isArray(e.quickTargeting?.zones) ? e.quickTargeting.zones : ['FIELD'],
+                alignment: Array.isArray(e.quickTargeting?.alignment) ? e.quickTargeting.alignment : 
+                           (e.quickTargeting?.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [e.quickTargeting?.alignment || srcEffScope.affiliation || e.targetAffiliation || 'ENEMY']),
+                entityType: Array.isArray(e.quickTargeting?.entityType) ? e.quickTargeting.entityType : 
+                            (e.quickTargeting?.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [e.quickTargeting?.entityType || 'UNIT']),
+                ignoreBattlelines: e.quickTargeting?.ignoreBattlelines !== undefined ? e.quickTargeting.ignoreBattlelines : 
+                                   (e.quickTargeting?.line === 'ANY' || false)
+            };
+            
+            group.showAdvanced = group.logicTree.children && group.logicTree.children.length > 0;
+            migrateConditions(group.logicTree);
+            
             if (e.type === 'APPLY_TRAIT' || e.type === 'GRANT_TRAIT_OR_ABILITY') e.type = 'GRANT_ABILITY';
-            if (e.traitId) { e.grantedAbilityId = e.traitId; delete e.traitId; }
-            if (!e.targetMethod) {
-                e.targetMethod = srcEffScope.method || 'SAME_AS_ACTIVATION';
-                e.targetCount = srcEffScope.count || 1;
-                // Migrate legacy targetAffiliation to quickTargeting
-                const effQT = srcEffScope.quickTargeting || {};
-                e.quickTargeting = {
-                    alignment: Array.isArray(effQT.alignment) ? effQT.alignment : 
-                               (effQT.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [effQT.alignment || srcEffScope.affiliation || e.targetAffiliation || 'ENEMY']),
-                    entityType: Array.isArray(effQT.entityType) ? effQT.entityType : 
-                                (effQT.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [effQT.entityType || 'UNIT']),
-                    ignoreBattlelines: effQT.ignoreBattlelines !== undefined ? effQT.ignoreBattlelines : 
-                                       (effQT.line === 'ANY' || false)
-                };
-                e.logicTree = JSON.parse(JSON.stringify(srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }));
-            }
             
-            if (!e.quickTargeting) {
-                e.quickTargeting = { alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
-            } else {
-                // Ensure array format for older saves
-                if (!Array.isArray(e.quickTargeting.alignment)) e.quickTargeting.alignment = e.quickTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [e.quickTargeting.alignment || e.targetAffiliation || 'ENEMY'];
-                if (!Array.isArray(e.quickTargeting.entityType)) e.quickTargeting.entityType = e.quickTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [e.quickTargeting.entityType || 'UNIT'];
-                if (typeof e.quickTargeting.ignoreBattlelines === 'undefined') e.quickTargeting.ignoreBattlelines = e.quickTargeting.line === 'ANY' || false;
-            }
+            group.payloads.push({
+                type: e.type || 'DEAL_DAMAGE',
+                duration: e.duration || 'INSTANT',
+                amount: e.amount,
+                stat: e.stat,
+                grantedAbilityId: e.grantedAbilityId || e.traitId,
+                cardId: e.cardId,
+                script: e.script,
+                zone: e.zone,
+                zoneOwner: e.zoneOwner || 'CASTER',
+                nestedGroup: e.nestedGroup // Ensure nested logic is preserved on load
+            });
             
-            if (!e.duration) e.duration = 'INSTANT';
-            e.showAdvanced = e.logicTree && e.logicTree.children && e.logicTree.children.length > 0;
-            migrateConditions(e.logicTree);
-            return e;
+            return group;
         });
-      } else { abilityEffects = []; }
+      } else { effectGroups = []; }
       
       renderLogicTrees();
       renderEffects();
