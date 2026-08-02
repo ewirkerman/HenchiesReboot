@@ -57,27 +57,16 @@
           <input type="text" id="setup-username" value="Warlord Player" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-amber-300 font-extrabold text-sm w-full focus:outline-none focus:border-amber-500" />
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="text-xs font-bold text-slate-300 block mb-1">Match Role</label>
-            <select id="setup-role" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-xs text-slate-200 font-bold w-full">
-              <option value="player1">Player 1 (Host & Starts T1)</option>
-              <option value="player2">Player 2 (Joins with Target Dummy)</option>
-            </select>
-          </div>
-          <div>
-            <label class="text-xs font-bold text-slate-300 block mb-1">Match Room Code</label>
-            <input type="text" id="setup-room-code" value="ROOM_HENCHIES_1" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-xs text-amber-300 font-extrabold w-full" />
-          </div>
+        <div>
+          <label class="text-xs font-bold text-slate-300 block mb-1">Match Room Code (Share with opponent to join)</label>
+          <input type="text" id="setup-room-code" value="ROOM_HENCHIES_1" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-xs text-amber-300 font-extrabold w-full" />
         </div>
 
         <!-- Deck Selector -->
         <div>
-          <label class="text-xs font-bold text-amber-400 block mb-1">Select Battle Deck (40 Cards)</label>
+          <label class="text-xs font-bold text-amber-400 block mb-1">Select Battle Deck (41 Cards)</label>
           <select id="setup-deck-select" class="bg-slate-900 border border-slate-700 p-2.5 rounded-xl text-xs text-white font-bold w-full focus:outline-none focus:border-amber-500">
-            <option value="DEFAULT_MYTHIC">Starter Deck: Mythic Warlord (40 Cards)</option>
-            <option value="DEFAULT_ROBOT">Starter Deck: Cyber Robot (40 Cards)</option>
-            <option value="CUSTOM_SAVED">Custom Saved Deck from Deckbuilder</option>
+            <option value="">-- Enter Username to Load Decks --</option>
           </select>
         </div>
       </div>
@@ -91,7 +80,7 @@
   </div>
 
   <!-- ================= SCREEN 2: TABLETOP MATCH BOARD (HIDDEN INITIALLY) ================= -->
-  <main id="match-tabletop-screen" class="flex-1 max-w-4xl w-full mx-auto p-2 sm:p-4 flex flex-col gap-3 hidden">
+  <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-2 sm:p-4 flex flex-col gap-3 hidden">
 
     <!-- Replay Scrubbing & Status Bar -->
     <div id="replay-bar-container" class="w-full"></div>
@@ -112,15 +101,12 @@
     </div>
 
     <!-- TABLETOP VERTICAL MIRROR BOARD -->
-    <div class="glass-panel rounded-2xl p-3 sm:p-4 flex flex-col gap-4 shadow-2xl relative border border-slate-800">
+    <div class="glass-panel rounded-2xl p-3 sm:p-4 flex flex-col gap-4 shadow-2xl relative border border-slate-800 w-full overflow-x-auto">
       
       <!-- ================= OPPONENT BOARD (TOP) ================= -->
-      <div class="flex flex-col gap-2 p-2 bg-slate-950/60 rounded-xl border border-red-950/40" id="opponent-board">
+      <div class="flex flex-col gap-2 p-2 bg-slate-950/60 rounded-xl border border-red-950/40 min-w-[800px]" id="opponent-board">
         <div class="flex justify-between items-center border-b border-slate-800 pb-2">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-red-900/80 border-2 border-red-500 text-white font-extrabold text-sm flex items-center justify-center shadow-lg" id="opp-avatar-hp">
-              30
-            </div>
             <div>
               <div class="font-extrabold text-sm text-red-400" id="opp-name">Opponent (P2)</div>
               <div class="text-[10px] text-slate-400" id="opp-resources">Tents: 1/1 | Tribe Res: 0/0</div>
@@ -132,21 +118,38 @@
           </div>
         </div>
 
-        <div class="flex flex-col gap-2" id="opp-lines-container">
-          <div id="opp-line-hero" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
-          <div id="opp-line-bodyguard" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
-          <div id="opp-line-back" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hidden"></div>
-          <div id="opp-line-mid" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/60 border border-slate-700/60"></div>
-          <div id="opp-line-front" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hidden"></div>
-          <div id="opp-line-taunt" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden"></div>
+        <div class="flex flex-row gap-3 w-full mt-2">
+            <!-- Deck -->
+            <div class="w-32 sm:w-36 shrink-0 flex flex-col justify-end" id="opp-deck-container"></div>
+            
+            <div class="flex-1 flex flex-col gap-2">
+                <div id="opp-lines-container" class="grid grid-cols-4 gap-2 w-full items-stretch">
+                    <div class="flex flex-col gap-2 col-span-1 h-full">
+                        <div id="opp-line-avatar" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                        <div id="opp-line-bodyguard" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
+                    </div>
+                    <div class="flex flex-col gap-2 col-span-2 h-full">
+                        <div id="opp-line-sheltered" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-back" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-mid" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-front" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                    </div>
+                    <div class="flex flex-col gap-2 col-span-1 h-full">
+                        <div id="opp-line-sideline" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
+                    </div>
+                </div>
+                <div id="opp-line-taunt" class="flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
+            </div>
+            
+            <!-- Discard -->
+            <div class="w-32 sm:w-36 shrink-0 flex flex-col justify-end" id="opp-discard-container"></div>
         </div>
       </div>
 
       <!-- ================= THE EQUATOR (CENTER NEUTRAL ZONE) ================= -->
-      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border-2 border-dashed border-amber-500/40 rounded-xl p-3 min-h-[70px] flex flex-col gap-1">
+      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border-2 border-dashed border-amber-500/40 rounded-xl p-3 min-h-[70px] flex flex-col gap-1 min-w-[800px]">
         <div class="flex justify-between items-center">
           <span class="text-[10px] uppercase tracking-widest font-black text-amber-400">⚡ The Equator (Equipment & Artifacts Zone)</span>
-          <span class="text-[9px] text-slate-400">Equip Cost: 2 Tents</span>
         </div>
         <div id="equator-cards-container" class="flex flex-wrap gap-2 items-center">
           <span class="text-xs text-slate-500 italic" id="equator-empty-msg">No unattached items in equator.</span>
@@ -154,35 +157,40 @@
       </div>
 
       <!-- ================= LOCAL PLAYER BOARD (BOTTOM) ================= -->
-      <div class="flex flex-col gap-2 p-2 bg-slate-950/60 rounded-xl border border-emerald-950/40" id="player-board">
-        <div class="flex flex-col gap-2" id="player-lines-container">
-          <div id="player-line-taunt" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden"></div>
-          <div id="player-line-front" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hidden"></div>
-          <div id="player-line-mid" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/60 border border-slate-700/60"></div>
-          <div id="player-line-back" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hidden"></div>
-          <div id="player-line-bodyguard" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
-          <div id="player-line-hero" class="flex flex-wrap gap-2 min-h-[50px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+      <div class="flex flex-col gap-2 p-2 bg-slate-950/60 rounded-xl border border-emerald-950/40 min-w-[800px]" id="player-board">
+        <div id="player-lines-container" class="flex flex-row gap-3 w-full mb-2">
+            <!-- Deck -->
+            <div class="w-32 sm:w-36 shrink-0 flex flex-col justify-start" id="player-deck-container"></div>
+            
+            <div class="flex-1 flex flex-col gap-2">
+                <div id="player-line-taunt" class="flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
+                <div class="grid grid-cols-4 gap-2 w-full items-stretch">
+                    <div class="flex flex-col gap-2 col-span-1 h-full">
+                        <div id="player-line-bodyguard" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
+                        <div id="player-line-avatar" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
+                    </div>
+                    <div class="flex flex-col gap-2 col-span-2 h-full">
+                        <div id="player-line-front" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
+                        <div id="player-line-mid" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
+                        <div id="player-line-back" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
+                        <div id="player-line-sheltered" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
+                    </div>
+                    <div class="flex flex-col gap-2 col-span-1 h-full">
+                        <div id="player-line-sideline" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Discard -->
+            <div class="w-32 sm:w-36 shrink-0 flex flex-col justify-start" id="player-discard-container"></div>
         </div>
 
         <div class="flex justify-between items-center border-t border-slate-800 pt-2">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-emerald-900/80 border-2 border-emerald-500 text-white font-extrabold text-sm flex items-center justify-center shadow-lg" id="player-avatar-hp">
-              30
-            </div>
             <div>
               <div class="font-extrabold text-sm text-emerald-400" id="player-name">Local Player (P1)</div>
               <div class="text-[10px] text-slate-400" id="player-resources">Tents: 1/1 | Tribe Res: 0/0</div>
             </div>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <button 
-              id="bodyguard-ability-btn"
-              class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-lg shadow-lg border border-purple-400 transition"
-              title="Avatar Ability: Moves selected friendly unit into Bodyguard line."
-            >
-              🛡️ Activate Bodyguard
-            </button>
           </div>
         </div>
       </div>
@@ -191,42 +199,26 @@
 
     <!-- DECISION & ACTION CONTROLS PANEL -->
     <div class="glass-panel rounded-xl p-4 flex flex-col gap-3 shadow-xl border border-slate-800" id="action-panel">
-      <!-- Phase 1: Draw Decision -->
-      <div id="phase1-draw-controls" class="flex flex-wrap items-center justify-between gap-3 p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl">
-        <div class="text-xs">
-          <strong class="text-amber-400 uppercase tracking-wider block mb-0.5">Phase 1: Draw Decision</strong>
-          <span class="text-slate-300">Choose your drawing strategy for this turn.</span>
-        </div>
-        <div class="flex gap-2">
-          <button id="draw-option-a" class="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black px-3 py-2 rounded-lg shadow-lg">
-            Option A: Draw 2 Cards
-          </button>
-          <button id="draw-option-b" class="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black px-3 py-2 rounded-lg shadow-lg">
-            ⚡ Option B: Double Down (Draw 4 & Skip Turn)
-          </button>
-        </div>
-      </div>
-
-      <!-- Phase 2: Sacrifice Decision -->
+      <!-- Phase 1: Sacrifice Decision -->
       <div id="phase2-sacrifice-controls" class="flex flex-wrap items-center justify-between gap-3 p-3 bg-indigo-950/30 border border-indigo-500/40 rounded-xl hidden">
         <div class="text-xs">
-          <strong class="text-indigo-400 uppercase tracking-wider block mb-0.5">Phase 2: Sacrifice Decision</strong>
-          <span class="text-slate-300">Optionally banish 1 card from hand to gain +1 Max Tent & +1 Max Tribe Resource.</span>
+          <strong class="text-indigo-400 uppercase tracking-wider block mb-0.5">Phase 1: Harvest Decision</strong>
+          <span class="text-slate-300">Optionally harvest 1 card from hand to gain +1 Max Tent & +1 Max Tribe Resource.</span>
         </div>
         <div class="flex gap-2">
           <button id="sacrifice-confirm-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black px-3 py-2 rounded-lg shadow-lg">
-            🔥 Banish Selected Card
+            🔥 Harvest Selected Card
           </button>
           <button id="sacrifice-skip-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-3 py-2 rounded-lg border border-slate-700">
-            Skip Sacrifice
+            Skip Harvest
           </button>
         </div>
       </div>
 
-      <!-- Phase 3: Action Phase -->
+      <!-- Phase 2: Action Phase -->
       <div id="phase3-action-controls" class="flex justify-between items-center gap-3 p-2 bg-slate-900/60 rounded-xl border border-slate-800 hidden">
         <span class="text-xs text-slate-300 font-semibold">
-          Phase 3: Play cards, attack targets, or equip items from Equator.
+          Phase 2: Play cards, attack targets, or equip items from Equator.
         </span>
         <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-4 py-2 rounded-lg shadow-lg border border-emerald-400 transition">
           Explicit End Turn 🏁
@@ -275,13 +267,14 @@
 
   <script type="module">
     import { 
-      GameState, Card, UnitInstance, Avatar, CARD_CATALOG, LINES, generate40CardDeck,
-      initGame, joinGame, executeDrawDecision, executeSacrificeDecision, 
-      playCard, resolveCombat, endTurn, useBodyguardAbility, equipFromEquator,
-      getValidAttackTargets, cloneGameState, getEntityAvailableActions, executeEntityAction
+      GameState, Card, UnitInstance, Avatar, CARD_CATALOG, LINES,
+      initGame, joinGame, executeSacrificeDecision, canPlayCard,
+      playCard, resolveCombat, endTurn, getValidAttackTargets, cloneGameState, 
+      getEntityAvailableActions, executeEntityAction
     } from './src/engine.js';
     import { renderCardHTML, openInspectionModal, renderHistorySlider, showToast } from './src/ui.js';
-    import { createGameRoom, subscribeToGameRoom, pushActionToLog } from './src/firebase.js';
+    import { createGameRoom, subscribeToGameRoom, pushActionToLog, fetchCustomAbilities } from './src/firebase.js';
+    import { generateAbilityDescription } from './src/language_description.js';
 
     let currentGameState = null;
     let localPlayerRole = 'player1';
@@ -293,6 +286,15 @@
     let validTargets = [];
     let replayStepIndex = 0;
     let localReplayStates = [];
+    let allAbilitiesRegistry = [];
+
+    // Fetch abilities for glossary tooltips
+    fetchCustomAbilities().then(abs => {
+        allAbilitiesRegistry = abs.map(ab => ({
+            ...ab,
+            displayDescription: generateAbilityDescription(ab, abs)
+        }));
+    }).catch(e => console.warn('Glossary fetch failed:', e));
 
     // Check for room in URL on page load to auto-rejoin match
     const urlParams = new URLSearchParams(window.location.search);
@@ -342,33 +344,59 @@
               hasLoadedState = true;
               document.getElementById('match-setup-screen').classList.add('hidden');
               document.getElementById('match-tabletop-screen').classList.remove('hidden');
-              showToast(`Rejoined match tabletop as ${localPlayerRole.toUpperCase()}!`, 'success');
-            }
-          }
+    // Check for room in URL on page load
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRoom = urlParams.get('room');
+    
+    if (urlRoom) {
+      document.getElementById('setup-room-code').value = urlRoom;
+    } else {
+      document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
+    
+    const savedName = localStorage.getItem('henchies_last_username');
+    if (savedName) document.getElementById('setup-username').value = savedName;
+
+    document.getElementById('setup-username').addEventListener('input', updateDeckDropdown);
+
+    function updateDeckDropdown() {
+      const username = document.getElementById('setup-username').value.trim();
+      const select = document.getElementById('setup-deck-select');
+      select.innerHTML = '';
+      
+      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
+      const userDecks = allDecks[username] || {};
+      const deckNames = Object.keys(userDecks);
+      
+      if (deckNames.length === 0) {
+        select.innerHTML = '<option value="">No valid decks found for this username</option>';
+        select.disabled = true;
+      } else {
+        deckNames.forEach(name => {
+          select.innerHTML += `<option value="${name}">${name}</option>`;
         });
-      }, 50);
+        select.disabled = false;
+      }
     }
 
+    // Initialize deck list once on load
+    updateDeckDropdown();
+
     window.inspectCard = (cardJson) => {
-      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)));
+      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry);
     };
 
     document.getElementById('launch-match-btn').addEventListener('click', handleLaunchMatch);
-    document.getElementById('draw-option-a').addEventListener('click', () => handleDrawDecision('OPTION_A'));
-    document.getElementById('draw-option-b').addEventListener('click', () => handleDrawDecision('OPTION_B'));
     document.getElementById('sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
     document.getElementById('sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
     document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
-    document.getElementById('bodyguard-ability-btn').addEventListener('click', handleBodyguardAbility);
 
     async function handleLaunchMatch() {
       const username = document.getElementById('setup-username').value.trim() || 'Player';
-      localPlayerRole = document.getElementById('setup-role').value;
       roomCode = document.getElementById('setup-room-code').value.trim() || 'ROOM_HENCHIES_1';
       
       // Save settings for refresh recovery
       localStorage.setItem('henchies_last_username', username);
-      localStorage.setItem('henchies_last_role', localPlayerRole);
       localStorage.setItem('henchies_last_deck', document.getElementById('setup-deck-select').value);
 
       // Push room code to URL so refreshes remain in the match
@@ -377,38 +405,68 @@
       window.history.pushState({}, '', newUrl);
 
       const deckOption = document.getElementById('setup-deck-select').value;
-      if (deckOption === 'DEFAULT_MYTHIC') {
-        activeBattleDeck = generate40CardDeck('Mythic');
-      } else if (deckOption === 'DEFAULT_ROBOT') {
-        activeBattleDeck = generate40CardDeck('Robot');
-      } else {
-        const saved = localStorage.getItem('henchies_active_deck');
-        if (saved) {
-          try { activeBattleDeck = JSON.parse(saved); } catch (e) {}
-        }
-        if (!activeBattleDeck || activeBattleDeck.length === 0) {
-          showToast('No saved custom deck found in Deckbuilder! Falling back to Mythic Starter Deck.', 'info');
-          activeBattleDeck = generate40CardDeck('Mythic');
-        }
+      if (!deckOption) {
+        showToast('You must construct and select a valid 41-card deck to play!', 'error');
+        return;
+      }
+      
+      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
+      activeBattleDeck = (allDecks[username] || {})[deckOption];
+
+      if (!activeBattleDeck || activeBattleDeck.length !== 41) {
+        showToast('The selected deck is invalid or corrupted!', 'error');
+        return;
       }
 
-      currentGameState = initGame(roomCode, localPlayerRole === 'player1' ? username : 'Player 1', activeBattleDeck);
-      if (localPlayerRole === 'player2') {
-        currentGameState = joinGame(currentGameState, username, activeBattleDeck);
-      }
+      const launchBtn = document.getElementById('launch-match-btn');
+      launchBtn.innerHTML = '⏳ Connecting to Room...';
+      launchBtn.disabled = true;
 
-      await createGameRoom(roomCode, currentGameState);
-      document.getElementById('header-room-badge').innerText = `Lobby: ${roomCode}`;
-
-      subscribeToGameRoom(roomCode, (data) => {
-        if (data && data.turn_start_state) {
-          reconstructStateFromLog(data);
+      let isJoining = true;
+      subscribeToGameRoom(roomCode, async (data) => {
+        if (isJoining) {
+          isJoining = false;
+          if (!data || !data.turn_start_state) {
+            localPlayerRole = 'player1';
+            currentGameState = initGame(roomCode, username, activeBattleDeck);
+            await createGameRoom(roomCode, currentGameState);
+            enterTabletop();
+          } else {
+            const parsedState = JSON.parse(data.turn_start_state);
+            if (parsedState.players.player1.name === username) {
+                localPlayerRole = 'player1';
+                reconstructStateFromLog(data);
+                enterTabletop();
+            } else if (parsedState.players.player2.name === username) {
+                localPlayerRole = 'player2';
+                reconstructStateFromLog(data);
+                enterTabletop();
+            } else if (parsedState.players.player2.isDummy) {
+                localPlayerRole = 'player2';
+                reconstructStateFromLog(data);
+                currentGameState = joinGame(currentGameState, username, activeBattleDeck);
+                currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
+                const actionPayload = { type: 'PLAYER_JOINED', actionIndex: currentGameState.actionIndex };
+                await pushActionToLog(roomCode, actionPayload, JSON.stringify(currentGameState), currentGameState.history_log);
+                enterTabletop();
+            } else {
+                showToast("Room is already full!", "error");
+                launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
+                launchBtn.disabled = false;
+            }
+          }
+        } else {
+          if (data && data.turn_start_state) {
+            reconstructStateFromLog(data);
+          }
         }
       });
+    }
 
+    function enterTabletop() {
+      document.getElementById('header-room-badge').innerText = `Lobby: ${roomCode}`;
       document.getElementById('match-setup-screen').classList.add('hidden');
       document.getElementById('match-tabletop-screen').classList.remove('hidden');
-
       showToast(`Entered match tabletop as ${localPlayerRole.toUpperCase()}!`, 'success');
       updateUI();
     }
@@ -423,25 +481,24 @@
         
         if (data.action_log) {
           for (const action of data.action_log) {
-            if (action.type === 'DRAW_DECISION') {
-              executeDrawDecision(liveState, action.option);
-            } else if (action.type === 'SACRIFICE_DECISION') {
+            if (action.actionIndex && action.actionIndex <= (liveState.actionIndex || 0)) {
+              continue;
+            }
+            if (action.type === 'SACRIFICE_DECISION') {
               executeSacrificeDecision(liveState, action.option, action.cardId);
             } else if (action.type === 'PLAY_CARD') {
-          } else if (action.type === 'ATTACK') {
-            resolveCombat(liveState, action.attackerOwnerId, action.attackerId, action.targetLine, action.targetId);
-          } else if (action.type === 'ENTITY_ACTION') {
-            executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
-          } else if (action.type === 'END_TURN') {
-            endTurn(liveState);
-          } else if (action.type === 'BODYGUARD') {
-            useBodyguardAbility(liveState, action.playerId, action.targetUnitId);
-          } else if (action.type === 'EQUIP_EQUATOR') {
-            equipFromEquator(liveState, action.playerId, action.itemIndex, action.targetUnitId);
+              playCard(liveState, action.playerId, action.cardId, action.targetLine);
+            } else if (action.type === 'ENTITY_ACTION') {
+              executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
+            } else if (action.type === 'END_TURN') {
+              endTurn(liveState);
+            } else if (action.type === 'PLAYER_JOINED') {
+              // Successfully skips joining action replay because snaphot is already mutated
+            }
+            liveState.actionIndex = action.actionIndex;
+            localReplayStates.push(cloneGameState(liveState));
           }
-          localReplayStates.push(cloneGameState(liveState));
         }
-      }
 
         currentGameState = liveState;
         replayStepIndex = localReplayStates.length - 1;
@@ -491,22 +548,35 @@
       actionInputs.forEach(btn => btn.disabled = isLocked);
 
       document.getElementById('player-name').innerText = `${myP.name} (${localPlayerRole.toUpperCase()})`;
-      document.getElementById('player-avatar-hp').innerText = myP.avatar.health;
-      document.getElementById('player-resources').innerText = `Tents: ${myP.tents}/${myP.maxTents} | Tribe Res: ${myP.tribeResource}/${myP.maxTribeResource}`;
+      
+      let myResStr = `Tents: ${myP.tents}/${myP.maxTents}`;
+      if (myP.resources) {
+          for (const [tribe, res] of Object.entries(myP.resources)) {
+              myResStr += ` | ${tribe}: ${res.current}/${res.max}`;
+          }
+      }
+      document.getElementById('player-resources').innerText = myResStr;
 
       document.getElementById('opp-name').innerText = `${oppP.name} (${oppRole.toUpperCase()})`;
-      document.getElementById('opp-avatar-hp').innerText = oppP.avatar.health;
       document.getElementById('opp-power').innerText = oppP.avatar.power;
       document.getElementById('opp-hand-count').innerText = oppP.hand.length;
-      document.getElementById('opp-resources').innerText = `Tents: ${oppP.tents}/${oppP.maxTents} | Tribe Res: ${oppP.tribeResource}/${oppP.maxTribeResource}`;
+      
+      let oppResStr = `Tents: ${oppP.tents}/${oppP.maxTents}`;
+      if (oppP.resources) {
+          for (const [tribe, res] of Object.entries(oppP.resources)) {
+              oppResStr += ` | ${tribe}: ${res.current}/${res.max}`;
+          }
+      }
+      document.getElementById('opp-resources').innerText = oppResStr;
 
-      document.getElementById('phase1-draw-controls').classList.toggle('hidden', state.turnPhase !== 'DRAW_DECISION');
       document.getElementById('phase2-sacrifice-controls').classList.toggle('hidden', state.turnPhase !== 'SACRIFICE_DECISION');
       document.getElementById('phase3-action-controls').classList.toggle('hidden', state.turnPhase !== 'ACTION_PHASE');
 
       renderEquator(state.equator);
       renderPlayerBattlelines(myP, 'player');
       renderPlayerBattlelines(oppP, 'opp');
+      renderDeckAndDiscard(myP, 'player');
+      renderDeckAndDiscard(oppP, 'opp');
       renderHand(myP.hand);
 
       const logBox = document.getElementById('history-log-text');
@@ -528,48 +598,103 @@
       container.innerHTML = equatorItems.map((item, idx) => {
         const json = encodeURIComponent(JSON.stringify(item));
         return renderCardHTML(item, {
-          isSelected: selectedEquatorItemIndex === idx,
-          onClick: `window.selectEquatorItem(${idx})`,
+          onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
           onInspect: `window.inspectCard('${json}')`
         });
       }).join('');
+    }
 
-      window.selectEquatorItem = (idx) => {
-        if (!isMyTurn()) return;
-        selectedEquatorItemIndex = selectedEquatorItemIndex === idx ? null : idx;
-        updateUI();
-      };
+    function renderDeckAndDiscard(player, prefix) {
+      const deckEl = document.getElementById(`${prefix}-deck-container`);
+      const discardEl = document.getElementById(`${prefix}-discard-container`);
+      
+      if (deckEl) {
+        deckEl.innerHTML = `
+          <div class="group relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52 aspect-[5/7] rounded-md bg-slate-800 border-2 border-slate-950 shadow-xl flex flex-col items-center justify-center overflow-hidden select-none">
+            <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 8px 8px;"></div>
+            <span class="text-4xl relative z-10 drop-shadow-lg">🎴</span>
+            <span class="text-[10px] font-black text-amber-400 mt-2 uppercase tracking-widest bg-slate-950/90 px-2 py-1 rounded border border-amber-900/50 relative z-10 shadow">Deck: ${player.deck.length}</span>
+          </div>
+        `;
+      }
+
+      if (discardEl) {
+        if (!player.discard || player.discard.length === 0) {
+          discardEl.innerHTML = `
+            <div class="group relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52 aspect-[5/7] rounded-md bg-slate-900/40 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center select-none text-slate-500 shadow-inner">
+              <span class="text-2xl opacity-50 mb-1">🗑️</span>
+              <span class="text-[10px] font-black uppercase tracking-widest">Discard</span>
+            </div>
+          `;
+        } else {
+          const topCard = player.discard[player.discard.length - 1];
+          const json = encodeURIComponent(JSON.stringify(topCard));
+          const cardHtml = renderCardHTML(topCard, {
+            onInspect: `window.inspectCard('${json}')`
+          });
+          discardEl.innerHTML = `
+            <div class="relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52">
+              ${cardHtml}
+              <div class="absolute -top-2 -right-2 bg-slate-950 text-white font-black text-xs w-6 h-6 rounded-full shadow-xl border border-slate-600 z-30 flex items-center justify-center">
+                ${player.discard.length}
+              </div>
+            </div>
+          `;
+        }
+      }
     }
 
     function renderPlayerBattlelines(player, prefix) {
+      const checkOccupied = (line) => {
+        if (line === 'avatar') return player.setupComplete; 
+        return player.lines[line] && player.lines[line].length > 0;
+      };
+
+      const toggleLine = (line, show) => {
+        const el = document.getElementById(`${prefix}-line-${line}`);
+        if (el) el.classList.toggle('hidden', !show);
+      };
+
+      // Dynamic Column Visibility Rules
+      toggleLine('taunt', checkOccupied('taunt'));
+      toggleLine('avatar', checkOccupied('avatar')); 
+      toggleLine('bodyguard', checkOccupied('bodyguard'));
+      toggleLine('sideline', true);
+
+      const centerLines = ['front', 'mid', 'back', 'sheltered'];
+      let centerOccupied = false;
+      for (const l of centerLines) {
+        if (checkOccupied(l)) {
+          centerOccupied = true;
+          toggleLine(l, true);
+        } else {
+          toggleLine(l, false);
+        }
+      }
+      if (!centerOccupied) toggleLine('front', true);
+
       for (const line of LINES) {
         const lineEl = document.getElementById(`${prefix}-line-${line}`);
         if (!lineEl) continue;
 
         const units = player.lines[line] || [];
 
-        if (line !== 'hero' && line !== 'mid' && units.length === 0) {
-          lineEl.classList.add('hidden');
-        } else {
-          lineEl.classList.remove('hidden');
-        }
+        if (line === 'avatar') {
+          if (!player.setupComplete) {
+            lineEl.innerHTML = '';
+            continue;
+          }
+          const json = encodeURIComponent(JSON.stringify(player.avatar));
+          const isTargetable = validTargets.some(t => t.id === player.avatar.id);
+          const isAttacker = selectedAttackerId === player.avatar.id;
 
-        if (line === 'hero') {
-          const isTargetable = validTargets.some(t => t.line === 'hero' && prefix === 'opp');
-          lineEl.innerHTML = `
-            <div 
-              onclick="window.handleEntityClick('${prefix}', 'hero', '${player.avatar.id}')"
-              class="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border-2 ${isTargetable ? 'border-red-500 ring-4 ring-red-500 animate-bounce cursor-pointer' : (prefix === 'player' ? 'border-emerald-500 hover:ring-2 hover:ring-emerald-400 cursor-pointer' : 'border-slate-700')} min-w-[140px]"
-            >
-              <div class="w-8 h-8 rounded-full bg-amber-500 text-black font-black flex items-center justify-center text-xs">
-                ${player.avatar.health}
-              </div>
-              <div>
-                <div class="text-xs font-bold text-amber-300">${player.avatar.name}</div>
-                <div class="text-[9px] text-slate-400">Tribe: ${player.avatar.tribe}</div>
-              </div>
-            </div>
-          `;
+          lineEl.innerHTML = renderCardHTML(player.avatar, {
+            readiness: player.avatar.readiness,
+            isSelected: isAttacker,
+            isTargetable: isTargetable,
+            onClick: `window.handleEntityClick('${prefix}', 'avatar', '${player.avatar.id}')`,
+            onInspect: `window.inspectCard('${json}')`
+          });
         } else {
           lineEl.innerHTML = units.map(u => {
             const json = encodeURIComponent(JSON.stringify(u));
@@ -587,16 +712,29 @@
         }
       }
 
+      window.handleLineClick = async (clickedPrefix, line) => {
+        // Line dropping is removed. Cards auto-play to back.
+        if (!isMyTurn() || clickedPrefix !== 'player') return;
+      };
+
       window.handleEntityClick = (prefix, line, entityId) => {
+        if (event) event.stopPropagation();
         if (!isMyTurn()) return;
 
-        if (prefix === 'player') {
+        if (prefix === 'player' || prefix === 'equator') {
           if (currentGameState.turnPhase === 'ACTION_PHASE') {
             const actions = getEntityAvailableActions(currentGameState, localPlayerRole, entityId);
             if (actions.length > 0) {
+              if (actions.length === 1 && actions[0].type === 'ATTACK') {
+                window.selectAttacker(entityId);
+                return;
+              }
               // Find the entity name for the UI Modal
               let entityName = "Unknown Entity";
-              if (currentGameState.players[localPlayerRole].avatar.id === entityId) {
+              if (prefix === 'equator') {
+                  const eq = currentGameState.equator.find(i => i.instanceId === entityId);
+                  if (eq) entityName = eq.name;
+              } else if (currentGameState.players[localPlayerRole].avatar.id === entityId) {
                 entityName = currentGameState.players[localPlayerRole].avatar.name;
               } else {
                 for (const l of LINES) {
@@ -651,8 +789,10 @@
         window.closeUnitActionModal();
         if (!isMyTurn()) return;
         
+        currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
         const actionPayload = {
           type: 'ENTITY_ACTION',
+          actionIndex: currentGameState.actionIndex,
           playerId: localPlayerRole,
           entityId: entityId,
           actionType: 'ABILITY',
@@ -672,8 +812,10 @@
       window.handleTargetClick = async (line, targetId) => {
         if (!isMyTurn() || !selectedAttackerId) return;
 
+        currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
         const actionPayload = {
           type: 'ENTITY_ACTION',
+          actionIndex: currentGameState.actionIndex,
           playerId: localPlayerRole,
           entityId: selectedAttackerId,
           actionType: 'ATTACK',
@@ -704,12 +846,15 @@
 
       container.innerHTML = handCards.map(c => {
         const json = encodeURIComponent(JSON.stringify(c));
-        const isSelected = selectedCardId === c.id;
+        const cardRefId = c.instanceId || c.id;
+        const isSelected = selectedCardId === cardRefId;
+        const playable = currentGameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(currentGameState, localPlayerRole, c) : false;
 
         return renderCardHTML(c, {
           isHand: true,
           isSelected: isSelected,
-          onClick: `window.handleHandCardClick('${c.id}')`,
+          isPlayable: playable,
+          onClick: `window.handleHandCardClick('${cardRefId}')`,
           onInspect: `window.inspectCard('${json}')`
         });
       }).join('');
@@ -724,16 +869,18 @@
         }
 
         if (currentGameState.turnPhase === 'ACTION_PHASE') {
+          currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
           const actionPayload = {
             type: 'PLAY_CARD',
+            actionIndex: currentGameState.actionIndex,
             playerId: localPlayerRole,
             cardId: cardId,
-            targetLine: 'back',
-            targetUnitId: null
+            targetLine: 'back'
           };
 
           const result = playCard(currentGameState, localPlayerRole, cardId, 'back');
           if (result.success) {
+            selectedCardId = null;
             await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
             updateUI();
           } else {
@@ -741,24 +888,6 @@
           }
         }
       };
-    }
-
-    async function handleDrawDecision(option) {
-      console.log("🔘 Draw Decision Clicked:", option);
-      
-      if (!isMyTurn()) {
-        console.warn("Click blocked: It is not your turn.", {
-          activePlayer: currentGameState?.activePlayerId,
-          localRole: localPlayerRole
-        });
-        return;
-      }
-      
-      const actionPayload = { type: 'DRAW_DECISION', option };
-      executeDrawDecision(currentGameState, option);
-      
-      await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
-      updateUI();
     }
 
     async function handleSacrificeConfirm() {
@@ -771,7 +900,8 @@
 
     async function handleSacrificeDecision(option, cardId = null) {
       if (!isMyTurn()) return;
-      const actionPayload = { type: 'SACRIFICE_DECISION', option, cardId };
+      currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
+      const actionPayload = { type: 'SACRIFICE_DECISION', option, cardId, actionIndex: currentGameState.actionIndex };
       executeSacrificeDecision(currentGameState, option, cardId);
       selectedCardId = null;
       await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
@@ -780,27 +910,12 @@
 
     async function handleEndTurn() {
       if (!isMyTurn()) return;
-      const actionPayload = { type: 'END_TURN' };
+      currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
+      const actionPayload = { type: 'END_TURN', actionIndex: currentGameState.actionIndex };
       endTurn(currentGameState);
       const snapshot = JSON.stringify(currentGameState);
       await pushActionToLog(roomCode, actionPayload, snapshot, currentGameState.history_log);
       updateUI();
-    }
-
-    async function handleBodyguardAbility() {
-      if (!isMyTurn()) return;
-      if (!selectedAttackerId) {
-        showToast('Select a friendly unit to activate Bodyguard ability on!', 'info');
-        return;
-      }
-      const actionPayload = { type: 'BODYGUARD', playerId: localPlayerRole, targetUnitId: selectedAttackerId };
-      const success = useBodyguardAbility(currentGameState, localPlayerRole, selectedAttackerId);
-      if (success) {
-        selectedAttackerId = null;
-        await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
-        updateUI();
-        showToast('Bodyguard ability activated!', 'success');
-      }
     }
   </script>
 </body>

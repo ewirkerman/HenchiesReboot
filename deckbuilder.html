@@ -87,14 +87,19 @@
     <div class="w-full md:w-80 glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl border border-slate-800">
       <div class="flex justify-between items-center border-b border-slate-800 pb-2">
         <h2 class="text-base font-black text-amber-400 uppercase tracking-wider">🛡️ Your Deck</h2>
-        <span class="text-xs px-2 py-1 rounded bg-amber-500 text-black font-extrabold" id="deck-count-badge">0 / 40</span>
+        <span class="text-xs px-2 py-1 rounded bg-amber-500 text-black font-extrabold" id="deck-count-badge">0 / 41</span>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-col gap-2 border-b border-slate-800 pb-3 mb-1">
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Deck Owner (Username)</label>
+        <input type="text" id="deck-owner-input" placeholder="Your Username" class="bg-slate-900 border border-slate-700 text-xs font-bold px-3 py-1.5 rounded text-amber-300 w-full focus:outline-none focus:border-amber-500" />
+      </div>
+
+      <div class="flex items-center gap-2 mb-1">
         <input 
           type="text" 
           id="deck-name-input" 
-          value="My 40-Card Deck" 
+          value="My Custom Deck" 
           class="bg-slate-900 border border-slate-700 text-xs font-bold px-3 py-1.5 rounded text-amber-300 w-full focus:outline-none focus:border-amber-500" 
         />
         <button id="save-deck-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-1.5 rounded shadow">
@@ -102,9 +107,18 @@
         </button>
       </div>
 
+      <div class="flex items-center gap-2 border-b border-slate-800 pb-3 mb-1">
+        <select id="load-deck-select" class="bg-slate-900 border border-slate-700 text-xs font-bold px-3 py-1.5 rounded text-slate-300 w-full focus:outline-none focus:border-amber-500">
+            <option value="">-- Select to Load --</option>
+        </select>
+        <button id="load-deck-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-3 py-1.5 rounded shadow">
+          Load
+        </button>
+      </div>
+
       <!-- Rule Guidelines & Validation Banner -->
       <div id="validation-banner" class="text-[11px] p-2.5 rounded-lg bg-yellow-950/60 border border-yellow-500/40 text-yellow-300 font-semibold leading-snug">
-        ⚠️ Deck Rules: Exactly 40 cards total. Max 3 copies per card, EXCEPT exactly 1 card may have 4 copies!
+        ⚠️ Deck Rules: Exactly 1 Avatar & 40 normal cards (41 total). Max 3 copies per card, EXCEPT exactly 1 card may have 4 copies!
       </div>
 
       <!-- Deck List -->
@@ -121,20 +135,28 @@
 
   <script type="module">
     import { CARD_CATALOG } from './src/engine.js';
-    import { renderCardHTML, openInspectionModal, showToast } from './src/ui.js';
-    import { fetchCustomCards } from './src/firebase.js';
+    import { renderCardHTML, openInspectionModal, showToast, TRIBE_STYLES } from './src/ui.js';
+    import { fetchCustomCards, fetchCustomAbilities } from './src/firebase.js';
+    import { generateAbilityDescription } from './src/language_description.js';
 
     let fullCatalog = [...CARD_CATALOG];
     let currentDeck = [];
+    let allAbilitiesRegistry = [];
 
     window.inspectCard = (cardJson) => {
-      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)));
+      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry);
     };
 
     init();
 
     async function init() {
       try {
+        const rawAbs = await fetchCustomAbilities();
+        allAbilitiesRegistry = rawAbs.map(ab => ({
+            ...ab,
+            displayDescription: generateAbilityDescription(ab, rawAbs)
+        }));
+
         const customCards = await fetchCustomCards();
         if (customCards && customCards.length > 0) {
            fullCatalog = [...CARD_CATALOG, ...customCards];
@@ -147,11 +169,19 @@
       if (saved) {
         try { currentDeck = JSON.parse(saved); } catch (e) {}
       }
+      
+      const savedOwner = localStorage.getItem('henchies_deck_owner');
+      if (savedOwner) {
+          document.getElementById('deck-owner-input').value = savedOwner;
+          refreshLoadDropdown();
+      }
 
       document.getElementById('filter-tribe').addEventListener('change', renderCatalog);
       document.getElementById('filter-type').addEventListener('change', renderCatalog);
       document.getElementById('filter-search').addEventListener('input', renderCatalog);
+      document.getElementById('deck-owner-input').addEventListener('input', refreshLoadDropdown);
       document.getElementById('save-deck-btn').addEventListener('click', saveDeck);
+      document.getElementById('load-deck-btn').addEventListener('click', loadDeck);
       document.getElementById('clear-deck-btn').addEventListener('click', () => {
         currentDeck = [];
         updateDeckUI();
@@ -193,19 +223,24 @@
           return;
         }
 
-        if (existingCount === 3) {
+        if (existingCount === 3 && card.type !== 'avatar') {
           const counts = {};
-          currentDeck.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
+          currentDeck.filter(c => c.type !== 'avatar').forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
           const fourCopyCards = Object.keys(counts).filter(id => counts[id] === 4);
 
           if (fourCopyCards.length >= 1) {
-            showToast('Rule Violation: Exactly ONE card may have 4 copies in a deck!', 'error');
+            showToast('Rule Violation: Exactly ONE non-avatar card may have 4 copies!', 'error');
             return;
           }
         }
 
-        if (currentDeck.length >= 40) {
-          showToast('Deck already has 40 cards!', 'error');
+        if (card.type === 'avatar' && currentDeck.some(c => c.type === 'avatar')) {
+          showToast('Rule Violation: Your deck may only contain ONE Avatar!', 'error');
+          return;
+        }
+
+        if (currentDeck.length >= 41) {
+          showToast('Deck already has 41 cards!', 'error');
           return;
         }
 
@@ -215,10 +250,14 @@
     }
 
     function validateDeckRules(deck) {
-      if (deck.length !== 40) return { valid: false, reason: `Deck must have exactly 40 cards (Currently ${deck.length}).` };
+      const avatars = deck.filter(c => c.type === 'avatar');
+      const others = deck.filter(c => c.type !== 'avatar');
+
+      if (avatars.length !== 1) return { valid: false, reason: `Deck must have exactly 1 Avatar (Currently ${avatars.length}).` };
+      if (others.length !== 40) return { valid: false, reason: `Deck must have exactly 40 non-avatar cards (Currently ${others.length}).` };
 
       const counts = {};
-      deck.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
+      others.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
 
       const fourCopyCards = Object.keys(counts).filter(id => counts[id] === 4);
       const overFourCards = Object.keys(counts).filter(id => counts[id] > 4);
@@ -231,15 +270,27 @@
         return { valid: false, reason: `Deck must have EXACTLY ONE card with 4 copies (Currently ${fourCopyCards.length}).` };
       }
 
-      return { valid: true, reason: '✅ Deck Valid (40 Cards, exactly 1 card with 4 copies).' };
+      return { valid: true, reason: '✅ Deck Valid (40 Cards + 1 Avatar, exactly 1 card with 4 copies).' };
     }
 
     function updateDeckUI() {
+      // Pin avatar to top, then tribe, then cost
+      currentDeck.sort((a, b) => {
+          if (a.type === 'avatar' && b.type !== 'avatar') return -1;
+          if (a.type !== 'avatar' && b.type === 'avatar') return 1;
+          
+          const tribeA = a.tribe || '';
+          const tribeB = b.tribe || '';
+          if (tribeA !== tribeB) return tribeA.localeCompare(tribeB);
+          
+          return (a.cost || 0) - (b.cost || 0);
+      });
+
       const badge = document.getElementById('deck-count-badge');
       const container = document.getElementById('deck-list-container');
       const banner = document.getElementById('validation-banner');
 
-      badge.innerText = `${currentDeck.length} / 40`;
+      badge.innerText = `${currentDeck.length} / 41`;
 
       const check = validateDeckRules(currentDeck);
       if (check.valid) {
@@ -261,18 +312,21 @@
         cardMap[c.id].count++;
       });
 
-      container.innerHTML = Object.values(cardMap).map(entry => `
-        <div class="flex justify-between items-center p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+      container.innerHTML = Object.values(cardMap).map(entry => {
+        const style = TRIBE_STYLES[entry.card.tribe] || { bg: 'bg-slate-900' };
+        const costVal = typeof entry.card.cost === 'object' ? (entry.card.cost.tribeAmount || entry.card.cost.tent || 0) : (entry.card.cost ?? 0);
+        return `
+        <div class="flex justify-between items-center p-2 rounded-lg ${style.bg} border border-black/40 text-xs shadow-sm">
           <div class="flex items-center gap-2">
-            <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold text-[10px] flex items-center justify-center">${entry.card.cost?.tents || 0}</span>
-            <span class="font-bold text-slate-200">${entry.card.name}</span>
+            <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold text-[10px] flex items-center justify-center shadow-sm border border-amber-700">${costVal}</span>
+            <span class="font-bold text-white drop-shadow-md">${entry.card.name}</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="${entry.count === 4 ? 'text-amber-400 font-black ring-1 ring-amber-400 px-1 rounded' : 'text-slate-300 font-bold'}">x${entry.count}</span>
-            <button onclick="window.removeFromDeck('${entry.card.id}')" class="text-red-400 hover:text-red-300 px-1 font-bold">✕</button>
+            <span class="${entry.count === 4 ? 'text-amber-300 font-black ring-1 ring-amber-300 px-1 rounded bg-black/40' : 'text-slate-100 font-bold bg-black/20 px-1.5 rounded'}">x${entry.count}</span>
+            <button onclick="window.removeFromDeck('${entry.card.id}')" class="text-red-300 hover:text-white hover:bg-red-900/80 rounded px-1.5 py-0.5 font-bold transition">✕</button>
           </div>
         </div>
-      `).join('');
+      `}).join('');
 
       window.removeFromDeck = (cardId) => {
         const idx = currentDeck.findIndex(c => c.id === cardId);
@@ -284,12 +338,58 @@
     }
 
     function saveDeck() {
+      const owner = document.getElementById('deck-owner-input').value.trim();
+      const deckName = document.getElementById('deck-name-input').value.trim();
+      
+      if (!owner || !deckName) {
+        showToast('You must provide a Username and Deck Name to save.', 'error');
+        return;
+      }
+
       const check = validateDeckRules(currentDeck);
-      localStorage.setItem('henchies_active_deck', JSON.stringify(currentDeck));
-      if (check.valid) {
-        showToast('Valid 40-Card Deck saved successfully!', 'success');
-      } else {
-        showToast(`Deck saved as draft. ${check.reason}`, 'info');
+      if (!check.valid) {
+        showToast(`Cannot save invalid deck: ${check.reason}`, 'error');
+        return;
+      }
+
+      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
+      if (!allDecks[owner]) allDecks[owner] = {};
+      
+      allDecks[owner][deckName] = currentDeck;
+      localStorage.setItem('henchies_user_decks', JSON.stringify(allDecks));
+      localStorage.setItem('henchies_deck_owner', owner);
+      
+      refreshLoadDropdown();
+      showToast('Deck saved successfully to your library!', 'success');
+    }
+
+    function refreshLoadDropdown() {
+      const owner = document.getElementById('deck-owner-input').value.trim();
+      const select = document.getElementById('load-deck-select');
+      select.innerHTML = '<option value="">-- Select to Load --</option>';
+      
+      if (!owner) return;
+      
+      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
+      const userDecks = allDecks[owner] || {};
+      
+      Object.keys(userDecks).forEach(name => {
+          select.innerHTML += `<option value="${name}">${name}</option>`;
+      });
+    }
+
+    function loadDeck() {
+      const owner = document.getElementById('deck-owner-input').value.trim();
+      const deckName = document.getElementById('load-deck-select').value;
+      
+      if (!owner || !deckName) return;
+
+      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
+      if (allDecks[owner] && allDecks[owner][deckName]) {
+          currentDeck = allDecks[owner][deckName];
+          document.getElementById('deck-name-input').value = deckName;
+          updateDeckUI();
+          showToast(`Loaded deck: ${deckName}`, 'success');
       }
     }
   </script>

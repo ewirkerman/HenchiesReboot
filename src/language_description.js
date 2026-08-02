@@ -191,7 +191,16 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'WOULD_BE_HARVESTED': 'When it would be harvested'
     };
 
-    triggerText = triggerDict[trigger] !== undefined ? triggerDict[trigger] : `On ${trigger.toLowerCase().replace(/_/g, ' ')}`;
+    triggerText = triggerDict[trigger];
+    if (!triggerText) {
+        if (trigger.startsWith('ON_BE_')) triggerText = `After being ${trigger.replace('ON_BE_', '').toLowerCase().replace(/_/g, ' ')}`;
+        else if (trigger.startsWith('ON_')) triggerText = `After performing ${trigger.replace('ON_', '').toLowerCase().replace(/_/g, ' ')}`;
+        else if (trigger.startsWith('WOULD_BE_')) triggerText = `When it would be ${trigger.replace('WOULD_BE_', '').toLowerCase().replace(/_/g, ' ')}`;
+        else if (trigger.startsWith('WOULD_')) triggerText = `When it would perform ${trigger.replace('WOULD_', '').toLowerCase().replace(/_/g, ' ')}`;
+        else if (trigger.startsWith('MODIFY_BE_')) triggerText = `When modifying it being ${trigger.replace('MODIFY_BE_', '').toLowerCase().replace(/_/g, ' ')}`;
+        else if (trigger.startsWith('MODIFY_')) triggerText = `When modifying its ${trigger.replace('MODIFY_', '').toLowerCase().replace(/_/g, ' ')}`;
+        else triggerText = `On ${trigger.toLowerCase().replace(/_/g, ' ')}`;
+    }
     
     // 1b. Symbol String Prefix Cost Block
     const cost = ability.cost || {};
@@ -331,13 +340,13 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     case 'GRANT_ABILITY':
                         let abilityName = eff.grantedAbilityId;
                         if (allAbilities && Array.isArray(allAbilities)) {
-                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
+                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
                             if (match) abilityName = match.name;
                         } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
                              const grantedAb = getAbility(eff.grantedAbilityId);
                              if(grantedAb) abilityName = grantedAb.name;
                         }
-                        effText = `grant ability '${abilityName}' to {TARGET}`;
+                        effText = `grant ability @[${abilityName}] to {TARGET}`;
                         break;
                     case 'SUMMON':
                         let cardName = eff.cardId;

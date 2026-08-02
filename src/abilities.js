@@ -5,6 +5,7 @@
 import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './firebase.js';
 import { CARD_CATALOG } from './engine.js';
 import { generateAbilityDescription } from './language_description.js';
+import { getActionTriggers } from './actions.js';
 
 // --- STATE MANAGEMENT ---
 const state = {
@@ -19,25 +20,15 @@ const state = {
 
 export const ZONES = ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'];
 
-export const EFFECT_TYPES = [
-    'DEAL_DAMAGE', 'HEAL', 'GRANT_ABILITY', 'MODIFY_STAT', 'SET_STAT', 
-    'DRAW_CARD', 'SUMMON', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 
-    'CUSTOM_SCRIPT', 'DISCARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'ATTACH', 'ATTACH_TO', 
-    'UNATTACH', 'TRASH', 'KILL', 'FIELD', 'BANISH'
-];
+export { EFFECT_TYPES } from './actions.js';
 
 export const TRIGGER_EVENTS = [
-    'MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'PLAY', 'PLAY_OPTIONAL',
-    'SUMMON', 'KILL', 'UNFIELD', 'TRASH', 'RETURN', 'SHUFFLE', 'ATTACK', 'DAMAGE',
-    'FIELD', 'ATTACH', 'UNATTACH', 'PLAYED', 'SUMMONED', 'KILLED', 'UNFIELDED',
-    'TRASHED', 'RETURNED', 'SHUFFLED', 'ATTACKED', 'DAMAGED', 'FIELDED', 'ATTACHED',
-    'UNATTACHED', 'DISCARDED', 'HARVESTED',
-    'WOULD_PLAY', 'WOULD_SUMMON', 'WOULD_KILL', 'WOULD_UNFIELD', 'WOULD_TRASH',
-    'WOULD_RETURN', 'WOULD_SHUFFLE', 'WOULD_ATTACK', 'WOULD_DAMAGE', 'WOULD_FIELD',
-    'WOULD_ATTACH', 'WOULD_UNATTACH', 'WOULD_BE_PLAYED', 'WOULD_BE_SUMMONED',
-    'WOULD_BE_KILLED', 'WOULD_BE_UNFIELDED', 'WOULD_BE_TRASHED', 'WOULD_BE_RETURNED',
-    'WOULD_BE_SHUFFLED', 'WOULD_BE_ATTACKED', 'WOULD_BE_DAMAGED', 'WOULD_BE_FIELDED',
-    'WOULD_BE_ATTACHED', 'WOULD_BE_UNATTACHED', 'WOULD_BE_DISCARDED', 'WOULD_BE_HARVESTED'
+    'MANUAL', 'UNTRIGGERABLE', 
+    'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED',
+    'PLAY', 'PLAY_OPTIONAL', 'PLAYED',
+    'ATTACK', 'ATTACKED',
+    'HARVESTED', 'DISCARDED',
+    ...getActionTriggers()
 ];
 
 export const EFFECT_ZONE_MAP = {
@@ -49,6 +40,7 @@ export const EFFECT_ZONE_MAP = {
     'ATTACH_TO': ['FIELD'],
     'RETURN': ['FIELD'],
     'TRASH': ['FIELD'],
+    'ATTACK': ['FIELD'],
     'DRAW_CARD': ['DECK'],
     'DISCARD': ['DECK', 'HAND'],
     'RECOVER': ['DISCARD'],
@@ -65,13 +57,17 @@ export const EFFECT_ZONE_MAP = {
     'CUSTOM_SCRIPT': ZONES,
     'DISCARD_CARD': ['DECK', 'HAND'],
     'FIELD': ['HAND', 'DISCARD'],
+    'PLAY': ['HAND'],
+    'HARVEST': ['HAND']
 };
 
 export const SINGLE_ZONE_ACTIONS = {
     'DEAL_DAMAGE': 'FIELD', 'HEAL': 'FIELD', 'KILL': 'FIELD', 
     'ATTACH': 'FIELD', 'UNATTACH': 'FIELD', 'ATTACH_TO': 'FIELD', 
     'RETURN': 'FIELD', 'TRASH': 'FIELD',
-    'DRAW_CARD': 'DECK', 'RECOVER': 'DISCARD'
+    'ATTACK': 'FIELD',
+    'DRAW_CARD': 'DECK', 'RECOVER': 'DISCARD',
+    'PLAY': 'HAND', 'HARVEST': 'HAND'
 };
 
 export function getValidActionsForZones(selectedZones) {
@@ -227,7 +223,7 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
             };
         } else if (type === 'CUSTOM_SCRIPT') { 
             payload.script = 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
-        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH'].includes(type)) { 
+        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST'].includes(type)) { 
             delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
         }
     }

@@ -3,36 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Henchies 2 - Card Designer Studio</title>
+  <title>Henchies 2 - Card Studio</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
-    .glass-panel {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
+    .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
-
-  <!-- Toast Container Top Center -->
+  
   <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
 
-  <!-- Header -->
   <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
     <div class="flex items-center gap-3">
-      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
-        HENCHIES 2
-      </span>
-      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold">
-        Card Designer Studio
-      </span>
+      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">HENCHIES 2</span>
+      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold">Card Studio</span>
     </div>
-
-    <!-- Navigation -->
     <nav class="flex items-center gap-3 text-xs font-semibold">
       <a href="game.html" class="text-slate-400 hover:text-slate-200">Game Table</a>
       <a href="deckbuilder.html" class="text-slate-400 hover:text-slate-200">Deckbuilder</a>
@@ -41,453 +29,381 @@
     </nav>
   </header>
 
-  <!-- Content -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col lg:flex-row gap-6">
-
-    <!-- LEFT: CARD CATALOG -->
-    <div class="w-full lg:w-72 flex-shrink-0 flex flex-col gap-4">
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
+    <!-- Catalog (Left) -->
+    <div class="w-full md:w-80 flex flex-col gap-4">
       <div class="glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl border border-slate-800">
         <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-          <h2 class="text-sm font-black text-amber-400 uppercase tracking-wider">
-            📦 Card Catalog
-          </h2>
-          <button id="create-new-card-btn" class="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black px-2.5 py-1 rounded shadow transition">
-            + New
-          </button>
+          <h2 class="text-sm font-black text-amber-400 uppercase tracking-wider">📦 Card Catalog</h2>
+          <button id="new-card-btn" class="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black px-2.5 py-1 rounded shadow">+ New</button>
         </div>
-        <input type="text" id="card-search-input" placeholder="🔍 Search custom cards..." class="bg-slate-900 border border-slate-700 p-2 rounded text-xs text-amber-300 w-full focus:outline-none focus:border-amber-500" />
-        <div id="cards-catalog-list" class="flex flex-col gap-2 overflow-y-auto max-h-[600px] pr-1">
-          <div class="text-xs text-slate-500 italic text-center p-3">Loading cards...</div>
+        <input type="text" id="catalog-search" placeholder="🔍 Search cards..." class="bg-slate-900 border border-slate-700 p-2 rounded text-xs text-amber-300 w-full focus:outline-none focus:border-amber-500" />
+        <div id="catalog-list" class="flex flex-col gap-2 overflow-y-auto max-h-[600px] minimal-scrollbar">
+            <div class="text-xs text-slate-500 italic text-center p-3">Loading catalog...</div>
         </div>
       </div>
     </div>
 
-    <!-- CENTER: FORM INPUTS -->
-    <div class="flex-1 glass-panel rounded-2xl p-5 flex flex-col gap-4 shadow-2xl border border-slate-800 min-w-0">
-      <div class="border-b border-slate-800 pb-2">
-        <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider" id="form-heading">
-          ✨ Design Card
-        </h2>
+    <!-- Editor (Center/Right) -->
+    <div class="flex-1 flex flex-col gap-4">
+      <div class="glass-panel rounded-2xl p-5 shadow-2xl border border-slate-800 flex flex-col xl:flex-row gap-6">
+        <!-- Form -->
+        <div class="flex-1 flex flex-col gap-4">
+          <div class="flex justify-between items-end border-b border-slate-800 pb-2">
+            <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider" id="form-title">⚡ Design Card</h2>
+            <div class="flex gap-2">
+              <button id="clone-card-btn" class="hidden bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-3 py-1.5 rounded shadow text-xs">👯 Clone</button>
+              <button id="delete-card-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded shadow text-xs">🗑️ Delete</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="col-span-2">
+              <label class="font-bold text-slate-300 block mb-1">Name</label>
+              <input type="text" id="card-name" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" />
+            </div>
+            <div>
+              <label class="font-bold text-slate-300 block mb-1">Tribe</label>
+              <select id="card-tribe" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none">
+                <option value="Robot">Robot</option>
+                <option value="Mythic">Mythic</option>
+                <option value="Elemental">Elemental</option>
+                <option value="Pirate">Pirate</option>
+                <option value="Undead">Undead</option>
+                <option value="Carnie">Carnie</option>
+                <option value="Viking">Viking</option>
+                <option value="Ninja">Ninja</option>
+                <option value="Stalker">Stalker</option>
+                <option value="Alien">Alien</option>
+                <option value="Luchador">Luchador</option>
+                <option value="Generic">Generic (Neutral)</option>
+              </select>
+            </div>
+            <div>
+              <label class="font-bold text-slate-300 block mb-1">Type</label>
+              <select id="card-type" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none">
+                <option value="unit">Unit</option>
+                <option value="avatar">Avatar</option>
+                <option value="equipment">Equipment</option>
+                <option value="spell">Spell</option>
+              </select>
+            </div>
+            <div>
+              <label class="font-bold text-slate-300 block mb-1">Genus / Subtype</label>
+              <input type="text" id="card-genus" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="e.g. Melee, Ranged, Relic" />
+            </div>
+            <div>
+              <label class="font-bold text-slate-300 block mb-1">Cost (Resource / Tents)</label>
+              <input type="number" id="card-cost" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" value="1" min="0" />
+            </div>
+            <div id="stat-health-container">
+              <label class="font-bold text-slate-300 block mb-1">Health (Max)</label>
+              <input type="number" id="card-health" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" value="1" min="1" />
+            </div>
+            <div id="stat-strength-container">
+              <label class="font-bold text-slate-300 block mb-1">Strength (Damage)</label>
+              <input type="number" id="card-strength" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" value="0" min="0" />
+            </div>
+            <div class="col-span-2">
+              <label class="font-bold text-slate-300 block mb-1">Art URL</label>
+              <input type="text" id="card-art" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="https://..." />
+            </div>
+            <div class="col-span-2">
+              <label class="font-bold text-slate-300 block mb-1">Flavor Text / Manual Description</label>
+              <textarea id="card-description" rows="2" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none"></textarea>
+            </div>
+          </div>
+          
+          <div class="mt-2 border-t border-slate-800 pt-3 flex flex-col gap-2">
+            <h3 class="text-xs font-bold text-indigo-400">⚡ Assigned Abilities</h3>
+            <div id="assigned-abilities" class="flex flex-col gap-2"></div>
+            
+            <!-- Upgraded Searchable Datalist Input -->
+            <input type="text" list="ability-options" id="add-ability-input" placeholder="+ Type to search abilities..." class="bg-slate-900 border border-indigo-500/50 p-2 rounded text-indigo-300 text-xs w-full mt-1 outline-none focus:border-indigo-400 placeholder-indigo-500/50" />
+            <datalist id="ability-options"></datalist>
+          </div>
+
+          <button id="save-card-btn" class="mt-4 bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-3 rounded-xl shadow-xl transition text-sm uppercase tracking-wider">💾 Save Card</button>
+        </div>
+
+        <!-- Preview -->
+        <div class="w-full xl:w-[400px] flex flex-col items-center gap-4 bg-slate-900/50 rounded-xl p-6 border border-slate-800">
+          <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 w-full text-center pb-2">Live Preview</h3>
+          <div id="card-preview-container" class="transform scale-125 origin-top mt-4 mb-16"></div>
+        </div>
       </div>
-
-      <form id="card-form" class="flex flex-col gap-3 text-xs">
-        <div>
-          <label class="font-bold text-slate-300 block mb-1">Card Name</label>
-          <input type="text" id="card-name" required value="" placeholder="Enter card name..." class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500" />
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="font-bold text-slate-300 block mb-1">Card Type</label>
-            <select id="card-type" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
-              <option value="unit">Unit</option>
-              <option value="spell">Spell</option>
-              <option value="equipment">Equipment</option>
-              <option value="artifact">Artifact</option>
-              <option value="avatar">Avatar</option>
-            </select>
-          </div>
-          <div>
-            <label class="font-bold text-slate-300 block mb-1">Tribe Alignment (11 Tribes ONLY)</label>
-            <select id="card-tribe" class="bg-slate-900 border border-slate-700 p-2 rounded text-pink-300 font-bold w-full">
-              <option value="Robot" selected>Robot (Pink)</option>
-              <option value="Mythic">Mythic (Green)</option>
-              <option value="Elemental">Elemental (Rusty Orange)</option>
-              <option value="Pirate">Pirate (Brown)</option>
-              <option value="Undead">Undead (Blueish)</option>
-              <option value="Carnie">Carnie (Purple)</option>
-              <option value="Viking">Viking</option>
-              <option value="Ninja">Ninja</option>
-              <option value="Stalker">Stalker</option>
-              <option value="Alien">Alien</option>
-              <option value="Luchador">Luchador</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="font-bold text-slate-300 block mb-1">Cost</label>
-            <input type="number" id="card-res" min="0" value="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-400 font-black w-full" />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3 transition-all duration-300" id="stats-inputs">
-          <div>
-            <label class="font-bold text-slate-300 mb-1 flex items-center justify-between">
-              <span>Strength</span>
-              <label class="flex items-center gap-1 text-[10px] text-slate-400 font-normal cursor-pointer hover:text-white transition-colors" title="Check this if the unit can attack. Uncheck for pure defenders/structures.">
-                <input type="checkbox" id="has-strength" class="accent-amber-500 w-3 h-3"> Can Attack?
-              </label>
-            </label>
-            <input type="number" id="card-strength" min="0" value="" class="bg-slate-900 border border-slate-700 p-2 rounded text-yellow-400 font-bold w-full disabled:opacity-30 disabled:cursor-not-allowed" />
-          </div>
-          <div>
-            <label class="font-bold text-slate-300 block mb-1">Health <span class="text-red-500 font-black">*</span></label>
-            <input type="number" id="card-health" min="1" value="1" class="bg-slate-900 border border-slate-700 p-2 rounded text-red-400 font-bold w-full" />
-          </div>
-        </div>
-
-        <!-- SEARCHABLE MULTI-SELECT FOR TRAITS & ABILITIES -->
-        <div>
-          <div class="flex justify-between items-center mb-1">
-            <label class="font-bold text-slate-300">Traits & Abilities Selection</label>
-            <button type="button" id="open-traits-modal-btn" class="bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1 rounded border border-slate-700 text-[11px] font-bold transition">
-              🔍 Manage Traits & Abilities (<span id="selected-traits-count">0</span> selected)
-            </button>
-          </div>
-          <div id="selected-traits-pills" class="flex flex-wrap gap-1.5 p-2 bg-slate-950 rounded border border-slate-800 min-h-[40px]">
-            <span class="text-slate-500 italic text-[11px]">No traits or abilities attached.</span>
-          </div>
-        </div>
-
-        <div>
-          <label class="font-bold text-slate-300 block mb-1">Card Image Art (URL or Upload File)</label>
-          <input type="text" id="card-art-url" placeholder="https://..." class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full mb-1" />
-          <input type="file" id="card-art-file" accept="image/*" class="text-[10px] text-slate-400" />
-        </div>
-
-        <div>
-          <label class="font-bold text-slate-300 block mb-1">Flavor Text</label>
-          <textarea id="card-desc" rows="2" placeholder="Flavor text goes here..." class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full"></textarea>
-        </div>
-
-        <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-3 rounded-xl shadow-xl transition mt-2">
-          ✨ Save Card to Firestore & Catalog
-        </button>
-      </form>
     </div>
-
-    <!-- RIGHT: LIVE PREVIEW CARD -->
-    <div class="w-full lg:w-80 flex-shrink-0 glass-panel rounded-2xl p-5 flex flex-col items-center gap-4 shadow-2xl border border-slate-800">
-      <h2 class="text-sm font-black text-amber-400 uppercase tracking-wider">
-        👁️ Live Visual Preview
-      </h2>
-      <p class="text-[10px] text-slate-400 text-center">Click preview card to open full Inspection Modal.</p>
-
-      <div id="preview-card-container" class="my-auto cursor-pointer"></div>
-    </div>
-
   </main>
-
-  <!-- SEARCHABLE TRAITS & ABILITIES MULTI-SELECT MODAL -->
-  <div id="traits-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden select-none">
-    <div class="bg-slate-900 border-2 border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl flex flex-col gap-4">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-        <h3 class="text-base font-black text-amber-400 uppercase tracking-wider">Searchable Traits & Abilities Multi-Select</h3>
-        <button id="close-traits-modal-btn" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
-      </div>
-
-      <input type="text" id="traits-search-input" placeholder="🔍 Search traits or custom abilities..." class="bg-slate-950 border border-slate-700 p-2 rounded text-xs text-amber-300 w-full focus:outline-none focus:border-amber-500" />
-
-      <div id="traits-options-list" class="flex flex-col gap-2 max-h-60 overflow-y-auto p-1 bg-slate-950 rounded border border-slate-800">
-      </div>
-
-      <button id="confirm-traits-modal-btn" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-2.5 rounded-xl shadow">
-        Confirm Selection
-      </button>
-    </div>
-  </div>
-
+  
   <script type="module">
-    import { Card, TRAITS, CARD_CATALOG } from './src/engine.js';
-    import { renderCardHTML, openInspectionModal, showToast } from './src/ui.js';
-    import { saveCardToCatalog, fetchCustomCards, fetchCustomAbilities } from './src/firebase.js';
+    import { CARD_CATALOG } from './src/engine.js';
+    import { renderCardHTML, showToast, openInspectionModal } from './src/ui.js';
+    import { fetchCustomAbilities, fetchCustomCards, saveCardToCatalog, deleteCardFromCatalog } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
 
-    let fullCatalog = [];
-    let customAbilities = [];
-    let selectedTraits = [];
-    let selectedAbilityIds = [];
-    let currentEditingCardId = null;
+    let allCards = [];
+    let allAbilities = [];
+    let currentEditingId = null;
+    let currentAbilities = []; // Stores abilityIds attached to the current card
 
     init();
 
     async function init() {
-      const customCards = await fetchCustomCards();
-      if (customCards.length > 0) fullCatalog = [...customCards];
-      
-      const allCards = [...CARD_CATALOG, ...fullCatalog];
+      // 1. Fetch dependencies
       const rawAbilities = await fetchCustomAbilities();
+      allAbilities = rawAbilities.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab) }));
       
-      // Process the raw abilities to attach their auto-generated natural language descriptions
-      customAbilities = rawAbilities.map(ab => ({
-        ...ab,
-        displayDescription: generateAbilityDescription(ab, rawAbilities, allCards)
-      }));
+      const customCards = await fetchCustomCards();
+      allCards = [...CARD_CATALOG, ...customCards];
 
-      document.getElementById('card-search-input').addEventListener('input', renderCatalogList);
-      document.getElementById('create-new-card-btn').addEventListener('click', resetForm);
+      // 2. Populate Ability Datalist
+      const abilityDatalist = document.getElementById('ability-options');
+      allAbilities.forEach(ab => {
+          const opt = document.createElement('option');
+          opt.value = ab.name;
+          abilityDatalist.appendChild(opt);
+      });
 
-      const form = document.getElementById('card-form');
-      form.querySelectorAll('input, select, textarea').forEach(i => i.addEventListener('input', updatePreview));
+      // 3. Attach Listeners
+      const inputs = document.querySelectorAll('input:not(#add-ability-input):not(#catalog-search), select, textarea');
+      inputs.forEach(el => {
+          el.addEventListener('input', updatePreview);
+          el.addEventListener('change', updatePreview);
+      });
 
-      document.getElementById('card-type').addEventListener('change', (e) => { toggleStatsVisibility(); updatePreview(); });
-      document.getElementById('has-strength').addEventListener('change', (e) => { toggleStrengthInput(); updatePreview(); });
+      document.getElementById('card-type').addEventListener('change', toggleStatFields);
+      document.getElementById('catalog-search').addEventListener('input', renderCatalog);
       
-      document.getElementById('open-traits-modal-btn').addEventListener('click', openTraitsModal);
-      document.getElementById('close-traits-modal-btn').addEventListener('click', closeTraitsModal);
-      document.getElementById('confirm-traits-modal-btn').addEventListener('click', closeTraitsModal);
-      document.getElementById('traits-search-input').addEventListener('input', renderTraitsModalList);
-
-      resetForm(); // Start Blank
-    }
-
-    function renderCatalogList() {
-      const list = document.getElementById('cards-catalog-list');
-      const query = document.getElementById('card-search-input').value.toLowerCase();
-      
-      const filtered = fullCatalog.filter(c => c.name.toLowerCase().includes(query));
-      
-      if (filtered.length === 0) {
-        list.innerHTML = `<div class="text-xs text-slate-500 italic text-center p-3">No custom cards found.</div>`;
-        return;
-      }
-
-      list.innerHTML = filtered.map(c => `
-        <div 
-          onclick="window.loadCard('${c.id}')"
-          class="p-2.5 bg-slate-900 border ${currentEditingCardId === c.id ? 'border-amber-500 shadow-md scale-[1.02]' : 'border-slate-800 hover:border-slate-500'} rounded-xl text-xs flex flex-col gap-1 cursor-pointer transition-all duration-200"
-        >
-          <div class="flex justify-between items-center font-bold text-amber-300">
-            <span class="truncate pr-2">${c.name}</span>
-            <span class="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700 shrink-0">${c.cost || 0} Res</span>
-          </div>
-          <div class="text-[10px] text-slate-400 capitalize">${c.tribe} • ${c.type}</div>
-        </div>
-      `).join('');
-    }
-
-    window.loadCard = function(id) {
-      const card = fullCatalog.find(c => c.id === id);
-      if (card) loadCardIntoForm(card);
-    };
-
-    function toggleStatsVisibility() {
-      const type = document.getElementById('card-type').value;
-      const statsInputs = document.getElementById('stats-inputs');
-      if (type === 'unit' || type === 'avatar') {
-        statsInputs.style.display = 'grid';
-      } else {
-        statsInputs.style.display = 'none';
-      }
-    }
-
-    function toggleStrengthInput() {
-      const hasStrength = document.getElementById('has-strength').checked;
-      const strengthInput = document.getElementById('card-strength');
-      strengthInput.disabled = !hasStrength;
-      if (!hasStrength) {
-        strengthInput.value = ''; 
-      } else if (strengthInput.value === '') {
-        strengthInput.value = '0'; 
-      }
-    }
-
-    function loadCardIntoForm(card) {
-      currentEditingCardId = card.id;
-      document.getElementById('form-heading').innerText = `✨ Edit: ${card.name}`;
-      
-      document.getElementById('card-name').value = card.name;
-      document.getElementById('card-type').value = card.type;
-      document.getElementById('card-tribe').value = card.tribe;
-      document.getElementById('card-res').value = card.cost || 0;
-      
-      toggleStatsVisibility();
-
-      if (card.type === 'unit' || card.type === 'avatar') {
-          if (card.strength !== undefined && card.strength !== null) {
-              document.getElementById('has-strength').checked = true;
-              document.getElementById('card-strength').value = card.strength;
-          } else {
-              document.getElementById('has-strength').checked = false;
-              document.getElementById('card-strength').value = '';
+      const addAbilityInput = document.getElementById('add-ability-input');
+      addAbilityInput.addEventListener('change', (e) => {
+          const val = e.target.value.toLowerCase();
+          const match = allAbilities.find(a => a.name.toLowerCase() === val);
+          
+          if (match) {
+              if (!currentAbilities.includes(match.abilityId)) {
+                  currentAbilities.push(match.abilityId);
+                  renderAssignedAbilities();
+                  updatePreview();
+              }
+              e.target.value = ''; // Reset input
+              e.target.blur(); // Dismiss keyboard/dropdown
           }
-          toggleStrengthInput();
-          document.getElementById('card-health').value = card.health || 1;
-      }
+      });
 
-      document.getElementById('card-art-url').value = card.artUrl || '';
-      document.getElementById('card-desc').value = card.description || '';
+      document.getElementById('new-card-btn').addEventListener('click', resetForm);
+      document.getElementById('save-card-btn').addEventListener('click', saveCard);
+      document.getElementById('clone-card-btn').addEventListener('click', cloneCard);
+      document.getElementById('delete-card-btn').addEventListener('click', deleteCard);
 
-      selectedTraits = card.traits || [];
-      selectedAbilityIds = (card.abilities || []).map(a => a.abilityId || a.name);
-
-      updateSelectedPills();
-      updatePreview();
-      renderCatalogList();
+      renderCatalog();
+      resetForm();
     }
+
+    function toggleStatFields() {
+        const type = document.getElementById('card-type').value;
+        const hpContainer = document.getElementById('stat-health-container');
+        const strContainer = document.getElementById('stat-strength-container');
+        
+        if (type === 'unit' || type === 'avatar') {
+            hpContainer.classList.remove('hidden');
+            strContainer.classList.remove('hidden');
+        } else {
+            hpContainer.classList.add('hidden');
+            strContainer.classList.add('hidden');
+        }
+    }
+
+    function renderAssignedAbilities() {
+        const container = document.getElementById('assigned-abilities');
+        if (currentAbilities.length === 0) {
+            container.innerHTML = `<span class="text-xs text-slate-500 italic">No abilities assigned.</span>`;
+            return;
+        }
+
+        container.innerHTML = currentAbilities.map((abId, index) => {
+            const ab = allAbilities.find(a => a.abilityId === abId);
+            if (!ab) return '';
+            return `
+                <div class="flex justify-between items-center bg-indigo-950/40 border border-indigo-900 p-2 rounded text-xs">
+                    <div>
+                        <span class="font-bold text-indigo-300">${ab.name}</span>
+                        <span class="text-[9px] bg-indigo-900 text-indigo-200 px-1 py-0.5 rounded ml-1">${ab.trigger || 'MANUAL'}</span>
+                    </div>
+                    <button onclick="window.removeAbility(${index})" class="text-red-400 hover:text-red-300 font-black px-1">&times;</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.removeAbility = (index) => {
+        currentAbilities.splice(index, 1);
+        renderAssignedAbilities();
+        updatePreview();
+    };
 
     function resetForm() {
-      currentEditingCardId = null;
-      document.getElementById('form-heading').innerText = `✨ Design New Card`;
-      
-      document.getElementById('card-name').value = '';
-      document.getElementById('card-desc').value = '';
-      document.getElementById('card-type').value = 'unit';
-      document.getElementById('card-tribe').value = 'Robot';
-      document.getElementById('card-res').value = '0';
-      
-      document.getElementById('has-strength').checked = false;
-      document.getElementById('card-strength').value = '';
-      document.getElementById('card-health').value = '1';
-      toggleStatsVisibility();
-      toggleStrengthInput();
-
-      document.getElementById('card-art-url').value = '';
-      document.getElementById('card-art-file').value = '';
-
-      selectedTraits = [];
-      selectedAbilityIds = [];
-      updateSelectedPills();
-      updatePreview();
-      
-      if (typeof renderCatalogList === 'function') renderCatalogList();
+        currentEditingId = null;
+        document.getElementById('form-title').innerText = '⚡ Design New Card';
+        document.getElementById('card-name').value = '';
+        document.getElementById('card-tribe').value = 'Robot';
+        document.getElementById('card-type').value = 'unit';
+        document.getElementById('card-genus').value = '';
+        document.getElementById('card-cost').value = '1';
+        document.getElementById('card-health').value = '1';
+        document.getElementById('card-strength').value = '0';
+        document.getElementById('card-art').value = '';
+        document.getElementById('card-description').value = '';
+        
+        currentAbilities = [];
+        
+        document.getElementById('clone-card-btn').classList.add('hidden');
+        document.getElementById('delete-card-btn').classList.add('hidden');
+        
+        toggleStatFields();
+        renderAssignedAbilities();
+        updatePreview();
     }
 
-    function getFormData() {
-      const attachedAbilities = customAbilities.filter(a => selectedAbilityIds.includes(a.abilityId));
-
-      const cardType = document.getElementById('card-type').value;
-      const isUnitOrAvatar = cardType === 'unit' || cardType === 'avatar';
-      const hasStrength = document.getElementById('has-strength').checked;
-      
-      let strengthVal = undefined;
-      let healthVal = undefined;
-
-      if (isUnitOrAvatar) {
-          healthVal = parseInt(document.getElementById('card-health').value) || 1;
-          if (hasStrength) {
-              strengthVal = parseInt(document.getElementById('card-strength').value) || 0;
-          }
-      }
-
-      return new Card({
-        id: currentEditingCardId || ('custom_' + Date.now()),
-        name: document.getElementById('card-name').value,
-        type: cardType,
-        tribe: document.getElementById('card-tribe').value,
-        cost: parseInt(document.getElementById('card-res').value) || 0,
-        strength: strengthVal,
-        health: healthVal,
-        maxHealth: healthVal,
-        artUrl: document.getElementById('card-art-url').value || '',
-        description: document.getElementById('card-desc').value || '',
-        traits: selectedTraits,
-        abilities: attachedAbilities
-      });
+    function buildCardState() {
+        return {
+            id: currentEditingId || ('card_' + Date.now()),
+            name: document.getElementById('card-name').value || 'Unnamed Card',
+            tribe: document.getElementById('card-tribe').value,
+            type: document.getElementById('card-type').value,
+            genus: document.getElementById('card-genus').value || 'Generic',
+            cost: parseInt(document.getElementById('card-cost').value) || 0,
+            health: parseInt(document.getElementById('card-health').value) || 1,
+            maxHealth: parseInt(document.getElementById('card-health').value) || 1,
+            strength: parseInt(document.getElementById('card-strength').value) || 0,
+            description: document.getElementById('card-description').value || '',
+            artUrl: document.getElementById('card-art').value || '',
+            abilities: (currentAbilities || []).map(id => allAbilities.find(a => a.abilityId === id)).filter(Boolean)
+        };
     }
 
-    function updatePreview() {
-      const container = document.getElementById('preview-card-container');
-      if (!container) return;
-      
-      const card = getFormData();
-      
-      // Ensure abilities have their rich text for the modal rendering
-      card.abilities = card.abilities.map(a => {
-        const full = customAbilities.find(ab => ab.abilityId === a.abilityId);
-        return full ? { ...a, displayDescription: full.displayDescription } : a;
-      });
-      
-      window.currentPreviewCard = card;
-      container.innerHTML = renderCardHTML(card, { onInspect: 'window.inspectCurrentCard()' });
-    }
-
-    window.inspectCurrentCard = function() {
-      if (window.currentPreviewCard) {
-        openInspectionModal(window.currentPreviewCard, customAbilities);
-      }
+    window.inspectMiniPreview = () => {
+        const card = buildCardState();
+        openInspectionModal(card, allAbilities);
     };
 
-    function updateSelectedPills() {
-      const container = document.getElementById('selected-traits-pills');
-      const totalCount = selectedTraits.length + selectedAbilityIds.length;
-      document.getElementById('selected-traits-count').innerText = totalCount;
-
-      if (totalCount === 0) {
-        container.innerHTML = `<span class="text-slate-500 italic text-[11px]">No traits or abilities attached.</span>`;
-        return;
-      }
-
-      
-      const traitPills = selectedTraits.map(t => `<span class="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] px-2 py-0.5 rounded font-extrabold">${t}</span>`);
-      const abilityPills = selectedAbilityIds.map(id => customAbilities.find(abil => abil.abilityId == id).name).map(name => `<span class="bg-amber-950 text-amber-300 border border-amber-800 text-[10px] px-2 py-0.5 rounded font-extrabold">⚡ ${name}</span>`);
-      
-      container.innerHTML = [...traitPills, ...abilityPills].join('');
+    function updatePreview() {
+        const card = buildCardState();
+        const container = document.getElementById('card-preview-container');
+        container.innerHTML = renderCardHTML(card, { 
+            isPlayable: true,
+            onInspect: 'window.inspectMiniPreview()'
+        });
     }
 
-    function openTraitsModal() {
-      document.getElementById('traits-modal').classList.remove('hidden');
-      renderTraitsModalList();
+    async function saveCard() {
+        const card = buildCardState();
+        if (!card.name || card.name.trim() === 'Unnamed Card') {
+            showToast('Please provide a name for the card.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('save-card-btn');
+        const origText = btn.innerHTML;
+        btn.innerHTML = 'Saving...';
+        btn.disabled = true;
+
+        await saveCardToCatalog(card);
+        
+        // Update local catalog
+        allCards = [...allCards.filter(c => c.id !== card.id), card];
+        currentEditingId = card.id;
+        
+        document.getElementById('form-title').innerText = `⚡ Edit: ${card.name}`;
+        document.getElementById('clone-card-btn').classList.remove('hidden');
+        document.getElementById('delete-card-btn').classList.remove('hidden');
+
+        btn.innerHTML = origText;
+        btn.disabled = false;
+
+        showToast(`Card '${card.name}' saved successfully!`, 'success');
+        renderCatalog();
     }
 
-    function closeTraitsModal() {
-      document.getElementById('traits-modal').classList.add('hidden');
-      updateSelectedPills();
-      updatePreview();
+    function cloneCard() {
+        if (!currentEditingId) return;
+        currentEditingId = null;
+        document.getElementById('form-title').innerText = `⚡ Design New Card (Cloned)`;
+        document.getElementById('card-name').value += ' (Copy)';
+        document.getElementById('clone-card-btn').classList.add('hidden');
+        document.getElementById('delete-card-btn').classList.add('hidden');
+        updatePreview();
+        showToast('Card cloned! Save to keep it.', 'info');
     }
 
-    function renderTraitsModalList() {
-      const query = document.getElementById('traits-search-input').value.toLowerCase();
-      const list = document.getElementById('traits-options-list');
+    async function deleteCard() {
+        if (!currentEditingId) return;
+        const btn = document.getElementById('delete-card-btn');
+        
+        if (!btn.dataset.confirm) {
+            btn.dataset.confirm = 'true';
+            btn.innerHTML = '⚠️ Confirm Delete';
+            btn.classList.replace('bg-red-600/80', 'bg-red-700');
+            setTimeout(() => { if (btn.dataset.confirm) { delete btn.dataset.confirm; btn.innerHTML = '🗑️ Delete'; btn.classList.replace('bg-red-700', 'bg-red-600/80'); } }, 3000);
+            return;
+        }
 
-      const traitsFiltered = TRAITS.filter(t => t.toLowerCase().includes(query));
-      const abilitiesFiltered = customAbilities.filter(a => (a.name || a.abilityId).toLowerCase().includes(query));
+        await deleteCardFromCatalog(currentEditingId);
+        allCards = allCards.filter(c => c.id !== currentEditingId);
+        showToast('Card deleted.', 'success');
+        resetForm();
+        renderCatalog();
+    }
 
-      list.innerHTML = `
-        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 pt-1">Core Traits:</div>
-        ${traitsFiltered.map(t => `
-          <label class="flex items-center justify-between p-2 rounded bg-slate-900 border border-slate-800 text-xs cursor-pointer hover:bg-slate-800">
-            <span class="font-bold text-cyan-300">${t}</span>
-            <input type="checkbox" value="${t}" ${selectedTraits.includes(t) ? 'checked' : ''} onchange="window.toggleTrait('${t}')" />
-          </label>
-        `).join('')}
+    function renderCatalog() {
+        const list = document.getElementById('catalog-list');
+        const query = document.getElementById('catalog-search').value.toLowerCase();
+        
+        const filtered = allCards.filter(c => c.name.toLowerCase().includes(query) || (c.genus && c.genus.toLowerCase().includes(query)));
 
-        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 pt-2">Custom Studio Abilities:</div>
-        ${abilitiesFiltered.map(a => `
-          <label class="flex items-center justify-between p-2 rounded bg-slate-900 border border-slate-800 text-xs cursor-pointer hover:bg-slate-800">
-            <div>
-              <div class="font-bold text-amber-300">${a.name}</div>
-              <div class="text-[10px] text-slate-500">${a.trigger}</div>
+        if (filtered.length === 0) {
+            list.innerHTML = `<div class="text-xs text-slate-500 italic text-center p-3">No cards found.</div>`;
+            return;
+        }
+
+        list.innerHTML = filtered.map(c => `
+            <div onclick="window.loadCard('${c.id}')" class="p-2 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex justify-between items-center cursor-pointer transition">
+                <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[10px]">${c.cost || 0}</span>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-amber-300">${c.name}</span>
+                        <span class="text-[9px] text-slate-400 capitalize">${c.tribe} • ${c.type}</span>
+                    </div>
+                </div>
+                ${c.abilities && c.abilities.length > 0 ? `<span class="text-[9px] bg-indigo-950 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-900">${c.abilities.length} Abil</span>` : ''}
             </div>
-            <input type="checkbox" value="${a.abilityId}" ${selectedAbilityIds.includes(a.abilityId) ? 'checked' : ''} onchange="window.toggleAbility('${a.abilityId}')" />
-          </label>
-        `).join('')}
-      `;
-
-      window.toggleTrait = (t) => {
-        if (selectedTraits.includes(t)) selectedTraits = selectedTraits.filter(item => item !== t);
-        else selectedTraits.push(t);
-      };
-
-      window.toggleAbility = (id) => {
-        if (selectedAbilityIds.includes(id)) selectedAbilityIds = selectedAbilityIds.filter(item => item !== id);
-        else selectedAbilityIds.push(id);
-      };
+        `).join('');
     }
 
-    document.getElementById('card-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const fileInput = document.getElementById('card-art-file');
-      let artUrl = document.getElementById('card-art-url').value;
+    window.loadCard = (id) => {
+        const card = allCards.find(c => c.id === id);
+        if (!card) return;
 
-      if (fileInput.files.length > 0) {
-        const uploadedUrl = await uploadCardArt(fileInput.files[0]);
-        if (uploadedUrl) artUrl = uploadedUrl;
-      }
-
-      const card = getFormData();
-      card.artUrl = artUrl;
-
-      await saveCardToCatalog(card);
-      showToast(`Card '${card.name}' saved to catalog & Firestore!`, 'success');
-
-      fullCatalog = [...fullCatalog.filter(c => c.id !== card.id), card];
-      
-      window.loadCard(card.id);
-    });
+        currentEditingId = card.id;
+        document.getElementById('form-title').innerText = `⚡ Edit: ${card.name}`;
+        document.getElementById('card-name').value = card.name;
+        document.getElementById('card-tribe').value = card.tribe || 'Generic';
+        document.getElementById('card-type').value = card.type || 'unit';
+        document.getElementById('card-genus').value = card.genus || '';
+        document.getElementById('card-cost').value = card.cost || 0;
+        document.getElementById('card-health').value = card.maxHealth || card.health || 1;
+        document.getElementById('card-strength').value = card.strength || 0;
+        document.getElementById('card-art').value = card.artUrl || '';
+        document.getElementById('card-description').value = card.description || '';
+        
+        currentAbilities = (card.abilities || []).map(a => a.abilityId || a);
+        
+        document.getElementById('clone-card-btn').classList.remove('hidden');
+        document.getElementById('delete-card-btn').classList.remove('hidden');
+        
+        toggleStatFields();
+        renderAssignedAbilities();
+        updatePreview();
+    };
   </script>
 </body>
 </html>

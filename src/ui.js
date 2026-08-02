@@ -187,13 +187,28 @@ function extractGlossary(baseAbilities, allAbilitiesRegistry) {
 
         // Find deeply nested GRANT_ABILITY effects
         if (current.effects) {
-            current.effects.forEach(eff => {
-                if (eff.type === 'GRANT_ABILITY') {
-                    const found = allAbilitiesRegistry.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
-                    if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
-                        glossaryMap.set(found.abilityId, found);
-                        queue.push(found);
-                    }
+            current.effects.forEach(group => {
+                if (group.payloads) {
+                    group.payloads.forEach(eff => {
+                        if (eff.type === 'GRANT_ABILITY') {
+                            const found = allAbilitiesRegistry.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
+                            if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
+                                glossaryMap.set(found.abilityId, found);
+                                queue.push(found);
+                            }
+                        }
+                        if (eff.nestedGroup && eff.nestedGroup.payloads) {
+                            eff.nestedGroup.payloads.forEach(neff => {
+                                if (neff.type === 'GRANT_ABILITY') {
+                                    const found = allAbilitiesRegistry.find(a => a.abilityId === neff.grantedAbilityId || a.name === neff.grantedAbilityId);
+                                    if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
+                                        glossaryMap.set(found.abilityId, found);
+                                        queue.push(found);
+                                    }
+                                }
+                            });
+                        }
+                    });
                 }
             });
         }
@@ -298,6 +313,13 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
                     const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
                     const finalDesc = regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
                     
+                    const formattedDesc = finalDesc.replace(/@\[(.*?)\]/g, (match, p1) => {
+                        let displayName = p1;
+                        const foundAb = allAbilitiesRegistry.find(reg => reg.abilityId === p1 || reg.name.toLowerCase() === p1.toLowerCase());
+                        if (foundAb) displayName = foundAb.name;
+                        return `<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary">${displayName}</span>`;
+                    });
+                    
                     return `
                     <div class="bg-black/40 backdrop-blur-sm p-2.5 rounded-lg border border-white/10 shadow-sm flex flex-col gap-1">
                       <div class="flex justify-between items-start border-b border-white/5 pb-1 mb-0.5">
@@ -310,7 +332,7 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
                         </div>
                       </div>
                       <div class="text-slate-200 text-xs sm:text-sm leading-snug">
-                        ${finalDesc.replace(/@\[(.*?)\]/g, '<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary">$&</span>')}
+                        ${formattedDesc}
                       </div>
                     </div>
                   `}).join('')}
