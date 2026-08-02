@@ -116,10 +116,22 @@
                 <label class="font-bold text-slate-300 block mb-1">Ability Name</label>
                 <input type="text" id="ab-name" required value="" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500" />
               </div>
-              <div>
-                <label class="font-bold text-slate-300 block mb-1">Trigger Event</label>
-                <input list="trigger-list" id="ab-trigger" value="" placeholder="Search or type trigger event..." class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-full focus:outline-none focus:border-amber-500" />
-                <datalist id="trigger-list"></datalist>
+              <div class="flex flex-col gap-1.5">
+                <label class="font-bold text-slate-300 block">Trigger Event</label>
+                <select id="ab-base-trigger" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-full focus:outline-none focus:border-amber-500"></select>
+                <div class="flex gap-1.5">
+                    <select id="ab-trigger-phase" class="hidden bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-1/2 focus:outline-none focus:border-amber-500">
+                        <option value="ON">Reaction (After)</option>
+                        <option value="WOULD">Interrupt (Before)</option>
+                        <option value="MODIFY">Modifier (During)</option>
+                    </select>
+                    <select id="ab-trigger-role" class="hidden bg-slate-900 border border-slate-700 p-2 rounded text-amber-300 font-bold w-1/2 focus:outline-none focus:border-amber-500">
+                        <option value="ACTIVE">Subject (Doer)</option>
+                        <option value="PASSIVE">Object (Receiver)</option>
+                    </select>
+                </div>
+                <input type="hidden" id="ab-trigger" value="MANUAL" />
+                <div id="ab-trigger-preview" class="text-[10px] text-slate-400 font-mono px-1">Final Event: MANUAL</div>
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Trigger Frequency</label>
@@ -244,6 +256,7 @@
     import { CARD_CATALOG } from './src/engine.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { TRIGGER_EVENTS, EFFECT_TYPES, EFFECT_ZONE_MAP, getValidActionsForZones } from './src/abilities.js';
+    import { DUAL_PREDICATE_ACTIONS } from './src/actions.js';
 
     let allAbilities = [];
     let allCards = [];
@@ -279,9 +292,12 @@
     init();
 
     async function init() {
-      const triggerDatalist = document.getElementById('trigger-list');
-      if (triggerDatalist && typeof TRIGGER_EVENTS !== 'undefined') {
-        triggerDatalist.innerHTML = TRIGGER_EVENTS.map(t => `<option value="${t}"></option>`).join('');
+      const baseTriggerSelect = document.getElementById('ab-base-trigger');
+      if (baseTriggerSelect) {
+        const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+        let optionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+        optionsHtml += `<optgroup label="Game Actions">` + EFFECT_TYPES.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+        baseTriggerSelect.innerHTML = optionsHtml;
       }
 
       document.getElementById('add-effect-group-btn').addEventListener('click', handleAddEffectGroup);
@@ -295,8 +311,44 @@
       document.getElementById('ability-form').addEventListener('change', updateJSONPreview);
       document.getElementById('ability-search-input').addEventListener('input', renderCatalogList);
 
-      document.getElementById('ab-trigger').addEventListener('input', () => window.updateTargetingUI());
-      document.getElementById('ab-trigger').addEventListener('change', () => window.updateTargetingUI());
+      document.getElementById('ab-base-trigger').addEventListener('change', () => window.updateTriggerComposite());
+      document.getElementById('ab-trigger-phase').addEventListener('change', () => window.updateTriggerComposite());
+      document.getElementById('ab-trigger-role').addEventListener('change', () => window.updateTriggerComposite());
+
+      window.updateTriggerComposite = () => {
+          const base = document.getElementById('ab-base-trigger').value;
+          const phaseSelect = document.getElementById('ab-trigger-phase');
+          const roleSelect = document.getElementById('ab-trigger-role');
+          const hiddenTrigger = document.getElementById('ab-trigger');
+          const preview = document.getElementById('ab-trigger-preview');
+
+          const isAction = EFFECT_TYPES.includes(base);
+          const hasDual = isAction && DUAL_PREDICATE_ACTIONS[base];
+
+          if (isAction) {
+              phaseSelect.classList.remove('hidden');
+              if (hasDual) {
+                  roleSelect.classList.remove('hidden');
+              } else {
+                  roleSelect.classList.add('hidden');
+                  roleSelect.value = 'ACTIVE';
+              }
+
+              let verb = base;
+              if (roleSelect.value === 'PASSIVE' && hasDual) {
+                  verb = DUAL_PREDICATE_ACTIONS[base];
+              }
+
+              hiddenTrigger.value = `${phaseSelect.value}_${verb}`;
+          } else {
+              phaseSelect.classList.add('hidden');
+              roleSelect.classList.add('hidden');
+              hiddenTrigger.value = base;
+          }
+
+          preview.innerText = `Final Event: ${hiddenTrigger.value}`;
+          window.updateTargetingUI();
+      };
 
       const descInput = document.getElementById('ab-description');
       descInput.addEventListener('input', handleDescriptionInput);
@@ -305,19 +357,20 @@
 
       window.updateTargetingUI = () => {
         const triggerValue = document.getElementById('ab-trigger').value.toUpperCase();
+        const baseTrigger = document.getElementById('ab-base-trigger').value.toUpperCase();
         const actMethodSelect = document.getElementById('ab-act-method');
         const triggerLimitSelect = document.getElementById('ab-trigger-limit');
 
         if (triggerValue !== lastTriggerValue) {
-             if (triggerValue === 'PLAY' || triggerValue === 'PLAY_OPTIONAL') {
+             if (baseTrigger === 'PLAY' || baseTrigger === 'PLAY_OPTIONAL') {
                  activationQuickTargeting.ignoreBattlelines = true;
-             } else if (triggerValue === 'MANUAL') {
+             } else if (baseTrigger === 'MANUAL') {
                  activationQuickTargeting.ignoreBattlelines = false;
              }
              lastTriggerValue = triggerValue;
         }
 
-        if (triggerValue === 'UNTRIGGERABLE') {
+        if (baseTrigger === 'UNTRIGGERABLE') {
           triggerLimitSelect.disabled = true;
           triggerLimitSelect.title = "Not applicable for UNTRIGGERABLE abilities";
         } else {
@@ -326,7 +379,7 @@
         }
         
         const allowedTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL'];
-        const allowsPlayerChoice = allowedTriggers.includes(triggerValue);
+        const allowsPlayerChoice = allowedTriggers.includes(baseTrigger);
         const playerChoiceOption = actMethodSelect.querySelector('option[value="PLAYER_CHOICE"]');
         
         if (playerChoiceOption) {
@@ -1317,7 +1370,12 @@
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
       document.getElementById('ab-name').value = '';
       document.getElementById('ab-description').value = '';
-      document.getElementById('ab-trigger').value = '';
+      
+      document.getElementById('ab-base-trigger').value = 'MANUAL';
+      document.getElementById('ab-trigger-phase').value = 'ON';
+      document.getElementById('ab-trigger-role').value = 'ACTIVE';
+      window.updateTriggerComposite();
+      
       document.getElementById('ab-trigger-limit').value = 'UNLIMITED';
       
       document.getElementById('ab-cost-tribe-amt').value = '0';
@@ -1382,11 +1440,33 @@
       const ab = allAbilities.find(a => a.abilityId === id);
       if (!ab) return;
 
+      function parseTriggerToComposite(triggerString) {
+          const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+          if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
+
+          for (const effect of EFFECT_TYPES) {
+              const passive = DUAL_PREDICATE_ACTIONS[effect];
+              for (const phase of ['ON', 'WOULD', 'MODIFY']) {
+                  if (triggerString === `${phase}_${effect}`) return { base: effect, phase, role: 'ACTIVE' };
+                  if (passive && triggerString === `${phase}_${passive}`) return { base: effect, phase, role: 'PASSIVE' };
+              }
+              if (triggerString === effect) return { base: effect, phase: 'ON', role: 'ACTIVE' };
+              if (passive && triggerString === passive) return { base: effect, phase: 'ON', role: 'PASSIVE' };
+          }
+          return { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
+      }
+
       currentEditingId = ab.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ab.name}`;
       document.getElementById('ab-name').value = ab.name;
       document.getElementById('ab-description').value = ab.description || '';
-      document.getElementById('ab-trigger').value = ab.trigger;
+      
+      const comp = parseTriggerToComposite(ab.trigger);
+      document.getElementById('ab-base-trigger').value = comp.base;
+      document.getElementById('ab-trigger-phase').value = comp.phase;
+      document.getElementById('ab-trigger-role').value = comp.role;
+      window.updateTriggerComposite();
+      
       document.getElementById('ab-trigger-limit').value = ab.triggerLimit || 'UNLIMITED';
       
       const cost = ab.cost || {};

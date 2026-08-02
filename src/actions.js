@@ -1,4 +1,4 @@
-
+/**
  * Henchies 2 Actions Architecture
  * Standardizes the 4-Phase Action Pipeline for all engine state changes.
  */
@@ -141,8 +141,8 @@ export class TrashAction extends Action { execute(engine) { /* Move from hand/de
 export class BanishAction extends Action { execute(engine) { /* Move from board/discard to banish */ } }
 export class FieldAction extends Action { execute(engine) { /* Move from hand to board for free */ } }
 export class AttachAction extends Action { execute(engine) {} }
-export class AttachToAction extends Action { execute(engine) {} }
 export class UnattachAction extends Action { execute(engine) {} }
+export class UnfieldAction extends Action { execute(engine) {} }
 export class BlockActAction extends Action { execute(engine) {} }
 export class BlockAttackAction extends Action { execute(engine) {} }
 export class BlockRetaliateAction extends Action { execute(engine) {} }
@@ -176,8 +176,8 @@ export const ACTION_REGISTRY = {
     'RETURN': ReturnAction,
     'RECOVER': RecoverAction,
     'ATTACH': AttachAction,
-    'ATTACH_TO': AttachToAction,
     'UNATTACH': UnattachAction,
+    'UNFIELD': UnfieldAction,
     'TRASH': TrashAction,
     'KILL': KillAction,
     'FIELD': FieldAction,
@@ -205,8 +205,8 @@ export const DUAL_PREDICATE_ACTIONS = {
     'TRASH': 'BE_TRASHED',
     'BANISH': 'BE_BANISHED',
     'FIELD': 'BE_FIELDED',
+    'UNFIELD': 'BE_UNFIELDED',
     'ATTACH': 'BE_ATTACHED',
-    'ATTACH_TO': 'HAVE_ATTACHED',
     'UNATTACH': 'BE_UNATTACHED'
 };
 

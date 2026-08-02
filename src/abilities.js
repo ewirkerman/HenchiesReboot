@@ -37,7 +37,7 @@ export const EFFECT_ZONE_MAP = {
     'KILL': ['FIELD'],
     'ATTACH': ['FIELD'],
     'UNATTACH': ['FIELD'],
-    'ATTACH_TO': ['FIELD'],
+    'UNFIELD': ['FIELD'],
     'RETURN': ['FIELD'],
     'TRASH': ['FIELD'],
     'ATTACK': ['FIELD'],
@@ -63,7 +63,7 @@ export const EFFECT_ZONE_MAP = {
 
 export const SINGLE_ZONE_ACTIONS = {
     'DEAL_DAMAGE': 'FIELD', 'HEAL': 'FIELD', 'KILL': 'FIELD', 
-    'ATTACH': 'FIELD', 'UNATTACH': 'FIELD', 'ATTACH_TO': 'FIELD', 
+    'ATTACH': 'FIELD', 'UNATTACH': 'FIELD', 'UNFIELD': 'FIELD', 
     'RETURN': 'FIELD', 'TRASH': 'FIELD',
     'ATTACK': 'FIELD',
     'DRAW_CARD': 'DECK', 'RECOVER': 'DISCARD',
