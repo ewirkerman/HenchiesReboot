@@ -45,8 +45,60 @@ export class Action {
 }
 
 // ==========================================
+// ACTION HELPERS
+// ==========================================
+
+export function findEntityLocation(engine, target) {
+    if (!target) return null;
+    for (const pId of ['player1', 'player2']) {
+        const p = engine.state.players[pId];
+        if (p.avatar && p.avatar.instanceId === target.instanceId) return { playerId: pId, zone: 'avatar', array: null, index: -1 };
+        
+        const zones = ['hand', 'deck', 'discard', 'banish'];
+        for (const z of zones) {
+            const idx = p[z].findIndex(c => c.instanceId === target.instanceId);
+            if (idx > -1) return { playerId: pId, zone: z, array: p[z], index: idx };
+        }
+        
+        for (const line in p.lines) {
+            const idx = p.lines[line].findIndex(c => c.instanceId === target.instanceId);
+            if (idx > -1) return { playerId: pId, zone: line, array: p.lines[line], index: idx };
+        }
+    }
+    if (engine.state.equator) {
+        const idx = engine.state.equator.findIndex(c => c.instanceId === target.instanceId);
+        if (idx > -1) return { playerId: null, zone: 'equator', array: engine.state.equator, index: idx };
+    }
+    return null;
+}
+
+export function moveEntity(engine, target, destPlayerId, destZone) {
+    const loc = findEntityLocation(engine, target);
+    if (loc && loc.array) loc.array.splice(loc.index, 1);
+    
+    if (destZone === 'equator') {
+        if (!engine.state.equator) engine.state.equator = [];
+        engine.state.equator.push(target);
+        return;
+    }
+
+    const p = engine.state.players[destPlayerId];
+    if (!p) return;
+
+    if (['hand', 'deck', 'discard', 'banish'].includes(destZone)) {
+        p[destZone].push(target);
+    } else if (p.lines[destZone]) {
+        p.lines[destZone].push(target);
+    } else {
+        if (!p.lines['back']) p.lines['back'] = [];
+        p.lines['back'].push(target);
+    }
+}
+
+// ==========================================
 // ACTION SUBCLASSES
 // ==========================================
+import { CARD_CATALOG } from './engine.js';
 
 export class DealDamageAction extends Action {
     execute(engine) {
@@ -69,7 +121,6 @@ export class HealAction extends Action {
 
 export class KillAction extends Action {
     execute(engine) {
-        // Formal board removal logic will be hooked up here
         if (this.payload.target) {
             this.payload.target.health = 0; 
         }
@@ -105,47 +156,132 @@ export class GrantAbilityAction extends Action {
 
 export class DrawCardAction extends Action {
     execute(engine) {
-        // Logic to pop from player deck and push to hand
+        const p = engine.state.players[this.payload.target?.owner || engine.state.activePlayerId];
+        if (p && p.deck.length > 0) {
+            for(let i=0; i<(this.payload.amount || 1); i++) {
+                if(p.deck.length > 0) p.hand.push(p.deck.pop());
+            }
+        }
     }
 }
 
 export class PlayAction extends Action {
     execute(engine) {
-        // Logic to move card from hand to board/equator and pay costs
+        const instance = JSON.parse(JSON.stringify(this.payload.target));
+        instance.health = instance.health || 1;
+        instance.maxHealth = instance.health;
+        instance.readiness = 0;
+        
+        const destZone = instance.type === 'artifact' ? 'equator' : 'back';
+        const loc = findEntityLocation(engine, this.payload.target);
+        if (loc && loc.array) loc.array.splice(loc.index, 1); // Remove from hand
+        
+        const ownerId = loc ? loc.playerId : engine.state.activePlayerId;
+        moveEntity(engine, instance, ownerId, destZone);
+        
+        engine.state.history_log.push(`🃏 Played ${instance.name}.`);
     }
 }
 
 export class AttackAction extends Action {
     execute(engine) {
-        // Logic to resolve combat between attacker and defender
+        const attacker = this.payload.source;
+        const defender = this.payload.target;
+        
+        engine.state.history_log.push(`⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`);
+        
+        if (attacker.type !== 'avatar') attacker.readiness = 0; 
+        
+        const atkDmg = attacker.strength || 0;
+        const defDmg = defender.strength || 0;
+        
+        // Simplified simultaneous combat logic for execution (Speed checks will wrap this later)
+        if (atkDmg > 0) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg }).run(engine);
+        if (defDmg > 0) new DealDamageAction({ source: defender, target: attacker, amount: defDmg }).run(engine);
     }
 }
 
 export class HarvestAction extends Action {
     execute(engine) {
-        // Logic to discard a card and increase max tents/resources
+        const loc = findEntityLocation(engine, this.payload.target);
+        if (loc) {
+            const player = engine.state.players[loc.playerId];
+            moveEntity(engine, this.payload.target, loc.playerId, 'banish');
+            
+            let sTribe = this.payload.target.tribe || 'Generic';
+            let resKey = Object.keys(player.resources).find(k => k.toLowerCase() === sTribe.toLowerCase());
+            if (!resKey) {
+                resKey = sTribe.charAt(0).toUpperCase() + sTribe.slice(1).toLowerCase();
+                player.resources[resKey] = { current: 0, max: 0 };
+            }
+
+            if (sTribe.toLowerCase() === 'carnie') {
+                player.maxTents += 2;
+                player.tents += 2;
+                engine.state.history_log.push(`🔥 ${player.name} harvested '${this.payload.target.name}' (Carnie) for +2 Max Tents!`);
+            } else {
+                player.maxTents += 1;
+                player.tents += 1;
+                player.resources[resKey].max += 1;
+                player.resources[resKey].current += 1;
+                engine.state.history_log.push(`🔥 ${player.name} harvested '${this.payload.target.name}' for +1 Max Tent & +1 Max ${resKey} Res!`);
+            }
+        }
     }
 }
 
 export class SummonAction extends Action {
     execute(engine) {
-        // Logic to instantiate cardId and push to designated player zone
+        const card = CARD_CATALOG.find(c => c.id === this.payload.cardId);
+        if (!card) return;
+        
+        const destZone = this.payload.zone || 'back';
+        const ownerId = this.payload.zoneOwner === 'TARGET' && this.payload.target ? 
+            findEntityLocation(engine, this.payload.target)?.playerId || engine.state.activePlayerId : 
+            engine.state.activePlayerId;
+        
+        for (let i = 0; i < (this.payload.amount || 1); i++) {
+            const instance = JSON.parse(JSON.stringify(card));
+            instance.instanceId = 'sum_' + Math.random().toString(36).substr(2, 9);
+            instance.isToken = true;
+            instance.health = instance.health || 1;
+            instance.maxHealth = instance.health;
+            instance.readiness = 0;
+            
+            moveEntity(engine, instance, ownerId, destZone);
+        }
     }
 }
 
-export class DiscardAction extends Action { execute(engine) { /* Move from hand to discard */ } }
-export class ShuffleAction extends Action { execute(engine) { /* Move target to deck and shuffle */ } }
-export class ReturnAction extends Action { execute(engine) { /* Move from board to hand */ } }
-export class RecoverAction extends Action { execute(engine) { /* Move from discard to hand/deck */ } }
-export class TrashAction extends Action { execute(engine) { /* Move from hand/deck to banish */ } }
-export class BanishAction extends Action { execute(engine) { /* Move from board/discard to banish */ } }
-export class FieldAction extends Action { execute(engine) { /* Move from hand to board for free */ } }
-export class AttachAction extends Action { execute(engine) {} }
-export class UnattachAction extends Action { execute(engine) {} }
-export class UnfieldAction extends Action { execute(engine) {} }
-export class BlockActAction extends Action { execute(engine) {} }
-export class BlockAttackAction extends Action { execute(engine) {} }
-export class BlockRetaliateAction extends Action { execute(engine) {} }
+export class DiscardAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'discard'); } }
+export class ShuffleAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) { moveEntity(engine, this.payload.target, loc.playerId, 'deck'); /* Needs shuffle util */ } } }
+export class ReturnAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'hand'); } }
+export class RecoverAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'hand'); } }
+export class TrashAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'banish'); } }
+export class BanishAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'banish'); } }
+export class FieldAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'back'); } }
+export class AttachAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'equator'); } }
+export class UnattachAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'equator'); } }
+
+export class UnfieldAction extends Action {
+    execute(engine) {
+        const dest = this.payload.destination || 'discard';
+        const loc = findEntityLocation(engine, this.payload.target);
+        const ownerId = loc ? loc.playerId : engine.state.activePlayerId;
+        
+        if (this.payload.target.isToken) { 
+            if (loc && loc.array) loc.array.splice(loc.index, 1);
+            return;
+        }
+        
+        moveEntity(engine, this.payload.target, ownerId, dest);
+    }
+}
+
+export class BlockActAction extends Action { execute(engine) { if (!this.payload.target.statusEffects) this.payload.target.statusEffects = []; this.payload.target.statusEffects.push({ type: 'BLOCK_ACT', duration: this.payload.duration || 'TEMPORARY' }); } }
+export class BlockAttackAction extends Action { execute(engine) { if (!this.payload.target.statusEffects) this.payload.target.statusEffects = []; this.payload.target.statusEffects.push({ type: 'BLOCK_ATTACK', duration: this.payload.duration || 'TEMPORARY' }); } }
+export class BlockRetaliateAction extends Action { execute(engine) { if (!this.payload.target.statusEffects) this.payload.target.statusEffects = []; this.payload.target.statusEffects.push({ type: 'BLOCK_RETALIATE', duration: this.payload.duration || 'TEMPORARY' }); } }
+
 export class CustomScriptAction extends Action { 
     execute(engine) {
         // Execution of arbitrary user-defined script blocks

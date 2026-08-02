@@ -6,6 +6,8 @@
 
 export const CARD_CATALOG = []; // Will be hydrated by deckbuilder/firebase
 
+import { ACTION_REGISTRY, HarvestAction, PlayAction, AttackAction, DealDamageAction, KillAction, UnfieldAction } from './actions.js';
+
 export const TRAITS = [];
 export const LINES = ['taunt', 'bodyguard', 'avatar', 'front', 'mid', 'back', 'sheltered', 'sideline'];
 export class Card {}
@@ -59,16 +61,7 @@ export class GameEngine {
         const wouldEvent = `WOULD_${eventType}`;
         const hasWouldTriggers = this.queueTriggers(wouldEvent, payload);
         
-        // If a WOULD_ event is triggered, it PREVENTS the base event.
-        if (hasWouldTriggers) {
-            this.startStackProcessing();
-            return { cancelled: true };
-        }
-
-        // 2. If not prevented, execute the base game logic for the event
-        this.executeBaseLogic(eventType, payload);
-
-        // 3. Queue standard post-event triggers (e.g., DAMAGED, KILLED)
+        // 2. Queue standard post-event triggers
         const pastTenseEvent = this.getPastTenseEvent(eventType);
         if (pastTenseEvent) {
             this.queueTriggers(pastTenseEvent, payload);
@@ -76,80 +69,13 @@ export class GameEngine {
             this.queueTriggers(eventType, payload);
         }
 
-        // 4. Resolve the stack if we aren't already deep inside a chain
-        this.startStackProcessing();
-        
-        return { cancelled: false };
-    }
-
-    /**
-     * Executes the hardcoded base logic for specific core events.
-     */
-    executeBaseLogic(eventType, payload) {
-        switch (eventType) {
-            case 'DAMAGE':
-                if (payload.target && payload.amount) {
-                    payload.target.health -= payload.amount;
-                }
-                break;
-            case 'KILL':
-                if (!payload.target) break;
-                const targetId = payload.target.instanceId;
-                let foundOwner = null;
-                let foundLine = null;
-                let foundIndex = -1;
-                let deadUnit = null;
-
-                for (const pId of ['player1', 'player2']) {
-                    const p = this.state.players[pId];
-                    for (const line of LINES) {
-                        if (line === 'avatar') continue;
-                        if (p.lines[line]) {
-                            const idx = p.lines[line].findIndex(u => u.instanceId === targetId);
-                            if (idx > -1) {
-                                foundOwner = pId;
-                                foundLine = line;
-                                foundIndex = idx;
-                                deadUnit = p.lines[line][idx];
-                                break;
-                            }
-                        }
-                    }
-                    if (foundOwner) break;
-                }
-
-                if (foundOwner && foundIndex > -1) {
-                    // Remove from board
-                    this.state.players[foundOwner].lines[foundLine].splice(foundIndex, 1);
-                    delete deadUnit._isDying;
-                    
-                    // Trigger UNFIELD replacement effects before formal discard
-                    this.emit('UNFIELD', { target: deadUnit, ownerId: foundOwner });
-                    
-                    // Move to discard pile
-                    this.state.players[foundOwner].discard.push(deadUnit);
-                    this.state.history_log.push(`💀 ${deadUnit.name} died and was sent to discard.`);
-                }
-                break;
-            case 'HEAL':
-                if (payload.target && payload.amount) {
-                    payload.target.health += payload.amount;
-                    // Cap at max health if applicable
-                    if (payload.target.maxHealth && payload.target.health > payload.target.maxHealth) {
-                        payload.target.health = payload.target.maxHealth;
-                    }
-                }
-                break;
-            case 'DRAW_CARD':
-                const p = this.state.players[payload.playerId];
-                if (p && p.deck.length > 0) {
-                    for(let i=0; i<(payload.amount || 1); i++) {
-                        if(p.deck.length > 0) p.hand.push(p.deck.pop());
-                    }
-                }
-                break;
-            // ... additional base logic cases to be expanded as engine grows
+        // 3. Resolve the stack immediately if triggers were added 
+        // so WOULD_ and MODIFY_ apply synchronously to the active reference.
+        if (hasWouldTriggers || this.stack.length > 0) {
+            this.startStackProcessing();
         }
+        
+        return { cancelled: !!payload.cancelled };
     }
 
     /**
@@ -216,10 +142,9 @@ export class GameEngine {
             this.activeChainAbilities.add(frame.ability.abilityId);
             
             this.executeAbility(frame.ability, frame.source, frame.payload);
-            
-            this.sweepDeadEntities();
         }
         
+        // Only sweep when the ENTIRE nested chain has resolved
         this.sweepDeadEntities();
         
         // Chain complete. Clear the loop-prevention set for the next distinct action.
@@ -239,7 +164,8 @@ export class GameEngine {
                     const u = player.lines[line][i];
                     if (u.health <= 0 && !u._isDying) {
                         u._isDying = true;
-                        this.emit('KILL', { target: u, targetLine: line, ownerId: pId });
+                        new KillAction({ target: u }).run(this);
+                        new UnfieldAction({ target: u, destination: 'discard' }).run(this);
                     }
                 }
             }
@@ -250,21 +176,26 @@ export class GameEngine {
         // Log the execution
         this.state.history_log.push(`✨ ${source.name || 'Entity'} activated '${ability.name}'`);
         
-        // This is where we interpret the JSON effect payloads
         if (!ability.effects) return;
 
         for (const group of ability.effects) {
-            // Target acquisition logic goes here based on group.targetMethod and group.logicTree
-            // ...
+            // Target acquisition placeholder (to be expanded with Advanced Logic Tree parsing later)
+            let targets = [];
+            if (group.targetMethod === 'SELF') targets = [source];
+            else if (group.targetMethod === 'SAME_AS_ACTIVATION') targets = [eventPayload.target || source];
             
+            // Fallback safe defaults if no target acquired
+            if (targets.length === 0 && eventPayload.target) targets = [eventPayload.target];
+
             for (const payload of group.payloads) {
-                // Emitter translates the abstract JSON payload into actual game events
-                // E.g., if payload.type === 'DEAL_DAMAGE', we emit('DAMAGE', { amount: payload.amount })
-                // This recursive emit ensures nested triggers hit the stack appropriately
-                if (payload.type === 'DEAL_DAMAGE') {
-                    this.emit('DAMAGE', { source: source, target: null /* acquired target */, amount: payload.amount });
+                const ActionClass = ACTION_REGISTRY[payload.type];
+                if (ActionClass) {
+                    for (const target of targets) {
+                        const actionPayload = { ...payload, source, target };
+                        const action = new ActionClass(actionPayload);
+                        action.run(this);
+                    }
                 }
-                // ... map other payload types
             }
         }
     }
@@ -403,31 +334,10 @@ export function executeSacrificeDecision(state, option, cardId) {
     if (option === 'OPTION_A' && cardId) {
         const cardIndex = player.hand.findIndex(c => c.instanceId === cardId || c.id === cardId);
         if (cardIndex > -1) {
-            const sacCard = player.hand.splice(cardIndex, 1)[0];
-            player.banish.push(sacCard);
-            
-            if (!player.resources) player.resources = {};
-
-            let sTribe = sacCard.tribe || 'Generic';
-            let resKey = Object.keys(player.resources).find(k => k.toLowerCase() === sTribe.toLowerCase());
-            if (!resKey) {
-                resKey = sTribe.charAt(0).toUpperCase() + sTribe.slice(1).toLowerCase();
-                player.resources[resKey] = { current: 0, max: 0 };
-            }
-
-            if (sTribe.toLowerCase() === 'carnie') {
-                player.maxTents += 2;
-                player.tents += 2;
-                state.history_log.push(`🔥 ${player.name} harvested '${sacCard.name}' (Carnie) to gain +2 Max Tents!`);
-            } else {
-                player.maxTents += 1;
-                player.tents += 1;
-                
-                player.resources[resKey].max += 1;
-                player.resources[resKey].current += 1;
-                
-                state.history_log.push(`🔥 ${player.name} harvested '${sacCard.name}' to gain +1 Max Tent & +1 Max ${resKey} Res!`);
-            }
+            const sacCard = player.hand[cardIndex];
+            const engine = new GameEngine(state);
+            const harvest = new HarvestAction({ source: player.avatar, target: sacCard });
+            harvest.run(engine);
         }
     } else {
         state.history_log.push(`⏭️ ${player.name} skipped the Sacrifice Phase.`);
@@ -532,24 +442,9 @@ export function playCard(state, playerId, cardId) {
         }
     }
 
-    player.hand.splice(cardIdx, 1);
-
-    const instance = JSON.parse(JSON.stringify(card));
-    // DO NOT reassign instanceId! It retains its unique ID from the deck, securing action replays.
-    instance.health = instance.health || 1;
-    instance.maxHealth = instance.health;
-    instance.readiness = 0;
-
-    if (instance.type === 'artifact') {
-        if (!state.equator) state.equator = [];
-        state.equator.push(instance);
-        state.history_log.push(`🃏 ${player.name} deployed artifact ${instance.name} to the Equator.`);
-    } else {
-        let targetLine = 'back';
-        if (!player.lines[targetLine]) player.lines[targetLine] = [];
-        player.lines[targetLine].push(instance);
-        state.history_log.push(`🃏 ${player.name} played ${instance.name} into the BACK line.`);
-    }
+    const engine = new GameEngine(state);
+    const play = new PlayAction({ source: player.avatar, target: card });
+    play.run(engine);
 
     return { success: true };
 }
@@ -595,29 +490,8 @@ export function resolveCombat(state, attackerOwnerId, attackerId, targetLine, ta
     const atkDmg = attacker.strength || 0;
     const defDmg = defender.strength || 0;
 
-    state.history_log.push(`⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`);
-    
-    if (attacker.type !== 'avatar') {
-        attacker.readiness = 0; 
-    }
-    engine.emit('ATTACK', { source: attacker, target: defender });
-
-    // Phase 1 & 2: Speed Advantage Resolution
-    if (atkSpeed > defSpeed) {
-        if (atkDmg > 0) engine.emit('DAMAGE', { source: attacker, target: defender, amount: atkDmg });
-        if (defender.health > 0 && defDmg > 0) {
-            engine.emit('DAMAGE', { source: defender, target: attacker, amount: defDmg });
-        }
-    } else if (defSpeed > atkSpeed) {
-        if (defDmg > 0) engine.emit('DAMAGE', { source: defender, target: attacker, amount: defDmg });
-        if (attacker.health > 0 && atkDmg > 0) {
-            engine.emit('DAMAGE', { source: attacker, target: defender, amount: atkDmg });
-        }
-    } else {
-        // Simultaneous execution (Both same speed)
-        if (atkDmg > 0) engine.emit('DAMAGE', { source: attacker, target: defender, amount: atkDmg });
-        if (defDmg > 0) engine.emit('DAMAGE', { source: defender, target: attacker, amount: defDmg });
-    }
+    const attackAct = new AttackAction({ source: attacker, target: defender });
+    attackAct.run(engine);
     
     return { success: true };
 }
