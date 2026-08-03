@@ -217,12 +217,17 @@
 
       <!-- Phase 2: Action Phase -->
       <div id="phase3-action-controls" class="flex justify-between items-center gap-3 p-2 bg-slate-900/60 rounded-xl border border-slate-800 hidden">
-        <span class="text-xs text-slate-300 font-semibold">
+        <span class="text-xs text-slate-300 font-semibold transition-colors" id="action-phase-instruction">
           Phase 2: Play cards, attack targets, or equip items from Equator.
         </span>
-        <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-4 py-2 rounded-lg shadow-lg border border-emerald-400 transition">
-          Explicit End Turn 🏁
-        </button>
+        <div class="flex gap-2">
+            <button id="cancel-action-btn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg border border-slate-500 transition">
+              Cancel Target
+            </button>
+            <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-4 py-2 rounded-lg shadow-lg border border-emerald-400 transition">
+              Explicit End Turn 🏁
+            </button>
+        </div>
       </div>
     </div>
 
@@ -269,19 +274,34 @@
     import { 
       GameState, Card, UnitInstance, Avatar, CARD_CATALOG, LINES,
       initGame, joinGame, executeSacrificeDecision, canPlayCard,
-      playCard, resolveCombat, endTurn, getValidAttackTargets, cloneGameState, 
-      getEntityAvailableActions, executeEntityAction
+      playCard, endTurn, getValidAttackTargets, cloneGameState, 
+      getEntityAvailableActions, executeEntityAction, getValidAbilityTargets
     } from './src/engine.js';
     import { renderCardHTML, openInspectionModal, renderHistorySlider, showToast } from './src/ui.js';
-    import { createGameRoom, subscribeToGameRoom, pushActionToLog, fetchCustomAbilities } from './src/firebase.js';
+    import { createGameRoom, subscribeToGameRoom, pushActionToLog, fetchCustomAbilities, fetchCustomCards } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
+
+    // Global Fallback Error Handlers to catch silent hangs
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      console.error("[GLOBAL ERROR]", msg, url, lineNo, columnNo, error);
+      showToast("Fatal UI Error: " + msg, "error");
+      const btn = document.getElementById('launch-match-btn');
+      if (btn) { btn.innerHTML = '🚀 Launch Battleboard Tabletop'; btn.disabled = false; }
+      return false;
+    };
+    window.addEventListener("unhandledrejection", function(event) {
+      console.error("[GLOBAL PROMISE REJECTION]", event.reason);
+      showToast("Async Error: " + (event.reason?.message || "Unknown rejection"), "error");
+      const btn = document.getElementById('launch-match-btn');
+      if (btn) { btn.innerHTML = '🚀 Launch Battleboard Tabletop'; btn.disabled = false; }
+    });
 
     let currentGameState = null;
     let localPlayerRole = 'player1';
     let roomCode = 'ROOM_HENCHIES_1';
     let activeBattleDeck = null;
     let selectedCardId = null;
-    let selectedAttackerId = null;
+    let pendingAbility = null;
     let selectedEquatorItemIndex = null;
     let validTargets = [];
     let replayStepIndex = 0;
@@ -294,70 +314,36 @@
             ...ab,
             displayDescription: generateAbilityDescription(ab, abs)
         }));
-    }).catch(e => console.warn('Glossary fetch failed:', e));
+        console.log("[INIT] Abilities loaded for tooltips.");
+    }).catch(e => console.warn('[INIT] Glossary fetch failed:', e));
+
+    // Restore saved username immediately
+    const savedName = localStorage.getItem('henchies_last_username');
+    if (savedName) document.getElementById('setup-username').value = savedName;
 
     // Check for room in URL on page load to auto-rejoin match
     const urlParams = new URLSearchParams(window.location.search);
     const urlRoom = urlParams.get('room');
     
     if (urlRoom) {
-      // Immediately hide the setup screen while connecting
-      document.getElementById('match-setup-screen').classList.add('hidden');
-
-      // Small timeout ensures DOM elements are fully accessible
-      setTimeout(() => {
-        const savedName = localStorage.getItem('henchies_last_username');
-        if (savedName) document.getElementById('setup-username').value = savedName;
-        
-        const savedRole = localStorage.getItem('henchies_last_role');
-        if (savedRole) document.getElementById('setup-role').value = savedRole;
-
-        const savedDeck = localStorage.getItem('henchies_last_deck');
-        if (savedDeck) document.getElementById('setup-deck-select').value = savedDeck;
-
-        document.getElementById('setup-room-code').value = urlRoom;
-        
-        localPlayerRole = document.getElementById('setup-role').value;
-        roomCode = urlRoom;
-
-        document.getElementById('header-room-badge').innerText = `Lobby: ${roomCode}`;
-        
-        let hasLoadedState = false;
-        showToast('Connecting to match...', 'info');
-
-        // Fallback: If connection fails or room doesn't exist, return to setup
-        setTimeout(() => {
-          if (!hasLoadedState) {
-            document.getElementById('match-setup-screen').classList.remove('hidden');
-            showToast('Match not found or expired. Please create a new one.', 'error');
-            window.history.replaceState({}, '', window.location.pathname);
-          }
-        }, 4000);
-
-        // Immediately subscribe to the active game instead of overwriting it
-        subscribeToGameRoom(roomCode, (data) => {
-          if (data && data.turn_start_state) {
-            reconstructStateFromLog(data);
-            
-            // Only unhide the tabletop once the state is successfully loaded
-            if (!hasLoadedState && currentGameState) {
-              hasLoadedState = true;
-              document.getElementById('match-setup-screen').classList.add('hidden');
-              document.getElementById('match-tabletop-screen').classList.remove('hidden');
-    // Check for room in URL on page load
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlRoom = urlParams.get('room');
-    
-    if (urlRoom) {
+      console.log("[INIT] Room found in URL. Pre-filling lobby code:", urlRoom);
       document.getElementById('setup-room-code').value = urlRoom;
+      updateDeckDropdown();
+      const savedDeck = localStorage.getItem('henchies_last_deck');
+      if (savedDeck) document.getElementById('setup-deck-select').value = savedDeck;
     } else {
       document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      updateDeckDropdown();
+      const savedDeck = localStorage.getItem('henchies_last_deck');
+      if (savedDeck) document.getElementById('setup-deck-select').value = savedDeck;
     }
-    
-    const savedName = localStorage.getItem('henchies_last_username');
-    if (savedName) document.getElementById('setup-username').value = savedName;
 
     document.getElementById('setup-username').addEventListener('input', updateDeckDropdown);
+    document.getElementById('cancel-action-btn').addEventListener('click', () => {
+        pendingAbility = null;
+        validTargets = [];
+        updateUI();
+    });
 
     function updateDeckDropdown() {
       const username = document.getElementById('setup-username').value.trim();
@@ -379,7 +365,6 @@
       }
     }
 
-    // Initialize deck list once on load
     updateDeckDropdown();
 
     window.inspectCard = (cardJson) => {
@@ -392,14 +377,13 @@
     document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
 
     async function handleLaunchMatch() {
+      console.log("[LAUNCH] Button clicked.");
       const username = document.getElementById('setup-username').value.trim() || 'Player';
       roomCode = document.getElementById('setup-room-code').value.trim() || 'ROOM_HENCHIES_1';
       
-      // Save settings for refresh recovery
       localStorage.setItem('henchies_last_username', username);
       localStorage.setItem('henchies_last_deck', document.getElementById('setup-deck-select').value);
 
-      // Push room code to URL so refreshes remain in the match
       const newUrl = new URL(window.location);
       newUrl.searchParams.set('room', roomCode);
       window.history.pushState({}, '', newUrl);
@@ -418,49 +402,115 @@
         return;
       }
 
+      try {
+        const rawAbs = await fetchCustomAbilities();
+        const rawCards = await fetchCustomCards();
+        const combinedCatalog = [...CARD_CATALOG, ...rawCards];
+
+        activeBattleDeck = activeBattleDeck.map(savedCard => {
+            const fresh = combinedCatalog.find(c => c.id === savedCard.id);
+            if (!fresh) return savedCard;
+            const clone = JSON.parse(JSON.stringify(fresh));
+            if (clone.abilities) {
+                clone.abilities = clone.abilities.map(ab => {
+                    const abId = typeof ab === 'string' ? ab : ab.abilityId;
+                    const match = rawAbs.find(a => a.abilityId === abId);
+                    return match ? match : ab;
+                });
+            }
+            return clone;
+        });
+      } catch(e) {
+          console.warn("[LAUNCH] Failed to hydrate deck from cloud:", e);
+      }
+
       const launchBtn = document.getElementById('launch-match-btn');
       launchBtn.innerHTML = '⏳ Connecting to Room...';
       launchBtn.disabled = true;
 
       let isJoining = true;
-      subscribeToGameRoom(roomCode, async (data) => {
+      
+      const connectionTimeout = setTimeout(() => {
         if (isJoining) {
+          console.warn("[LAUNCH] 8000ms Timeout triggered. Firebase listener failed to fire.");
           isJoining = false;
-          if (!data || !data.turn_start_state) {
-            localPlayerRole = 'player1';
-            currentGameState = initGame(roomCode, username, activeBattleDeck);
-            await createGameRoom(roomCode, currentGameState);
-            enterTabletop();
-          } else {
-            const parsedState = JSON.parse(data.turn_start_state);
-            if (parsedState.players.player1.name === username) {
-                localPlayerRole = 'player1';
-                reconstructStateFromLog(data);
-                enterTabletop();
-            } else if (parsedState.players.player2.name === username) {
-                localPlayerRole = 'player2';
-                reconstructStateFromLog(data);
-                enterTabletop();
-            } else if (parsedState.players.player2.isDummy) {
-                localPlayerRole = 'player2';
-                reconstructStateFromLog(data);
-                currentGameState = joinGame(currentGameState, username, activeBattleDeck);
-                currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
-                const actionPayload = { type: 'PLAYER_JOINED', actionIndex: currentGameState.actionIndex };
-                await pushActionToLog(roomCode, actionPayload, JSON.stringify(currentGameState), currentGameState.history_log);
-                enterTabletop();
-            } else {
-                showToast("Room is already full!", "error");
-                launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
-                launchBtn.disabled = false;
-            }
-          }
-        } else {
-          if (data && data.turn_start_state) {
-            reconstructStateFromLog(data);
-          }
+          launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
+          launchBtn.disabled = false;
+          showToast('Connection timed out. Firebase may be unavailable or blocked.', 'error');
         }
-      });
+      }, 8000);
+
+      try {
+        console.log("[LAUNCH] Requesting subscribeToGameRoom...");
+        await subscribeToGameRoom(roomCode, async (data) => {
+          console.log("[LAUNCH] Snapshot callback fired! Data exists:", !!data);
+          try {
+            if (isJoining) {
+              clearTimeout(connectionTimeout);
+              isJoining = false;
+              
+              if (!data || !data.turn_start_state) {
+                console.log("[LAUNCH] Room is empty. Initializing new game state...");
+                localPlayerRole = 'player1';
+                currentGameState = initGame(roomCode, username, activeBattleDeck);
+                
+                console.log("[LAUNCH] State initialized. Pushing to Firebase...");
+                const createTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
+                await Promise.race([createGameRoom(roomCode, currentGameState), createTimeout]);
+                
+                console.log("[LAUNCH] Push successful. Entering tabletop.");
+                enterTabletop();
+              } else {
+                console.log("[LAUNCH] Room exists. Parsing state...");
+                const parsedState = JSON.parse(data.turn_start_state);
+                if (parsedState.players.player1.name === username) {
+                    localPlayerRole = 'player1';
+                    reconstructStateFromLog(data);
+                    enterTabletop();
+                } else if (parsedState.players.player2.name === username) {
+                    localPlayerRole = 'player2';
+                    reconstructStateFromLog(data);
+                    enterTabletop();
+                } else if (parsedState.players.player2.isDummy) {
+                    console.log("[LAUNCH] Room has dummy P2. Joining as P2...");
+                    localPlayerRole = 'player2';
+                    reconstructStateFromLog(data);
+                    currentGameState = joinGame(currentGameState, username, activeBattleDeck);
+                    currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
+                    const actionPayload = { type: 'PLAYER_JOINED', actionIndex: currentGameState.actionIndex };
+                    
+                    const joinTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
+                    await Promise.race([pushActionToLog(roomCode, actionPayload, JSON.stringify(currentGameState), currentGameState.history_log), joinTimeout]);
+                    
+                    enterTabletop();
+                } else {
+                    console.warn("[LAUNCH] Room is full!");
+                    showToast("Room is already full!", "error");
+                    launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
+                    launchBtn.disabled = false;
+                }
+              }
+            } else {
+              console.log("[UPDATE] Background snapshot received.");
+              if (data && data.turn_start_state) {
+                reconstructStateFromLog(data);
+              }
+            }
+          } catch (innerErr) {
+            console.error("[LAUNCH CRASH] Error inside snapshot callback:", innerErr);
+            showToast("Error joining match: " + (innerErr.message || "Unknown error"), "error");
+            launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
+            launchBtn.disabled = false;
+            isJoining = true; 
+          }
+        });
+      } catch (outerErr) {
+        clearTimeout(connectionTimeout);
+        console.error("[LAUNCH CRASH] Subscription error (likely ensureAuth failed):", outerErr);
+        showToast("Failed to connect to game servers: " + outerErr.message, "error");
+        launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
+        launchBtn.disabled = false;
+      }
     }
 
     function enterTabletop() {
@@ -492,8 +542,6 @@
               executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
             } else if (action.type === 'END_TURN') {
               endTurn(liveState);
-            } else if (action.type === 'PLAYER_JOINED') {
-              // Successfully skips joining action replay because snaphot is already mutated
             }
             liveState.actionIndex = action.actionIndex;
             localReplayStates.push(cloneGameState(liveState));
@@ -511,8 +559,6 @@
 
     function isMyTurn() {
       if (!currentGameState) return false;
-      // Removed the strict currentGameState.status === 'active' check 
-      // in case the engine initializes status differently.
       return currentGameState.activePlayerId === localPlayerRole;
     }
 
@@ -546,6 +592,16 @@
 
       const actionInputs = document.querySelectorAll('#action-panel button');
       actionInputs.forEach(btn => btn.disabled = isLocked);
+      
+      document.getElementById('cancel-action-btn').classList.toggle('hidden', !pendingAbility);
+      
+      if (pendingAbility) {
+          document.getElementById('action-phase-instruction').innerText = "Select a target on the board...";
+          document.getElementById('action-phase-instruction').classList.add('text-amber-400', 'animate-pulse');
+      } else {
+          document.getElementById('action-phase-instruction').innerText = "Phase 2: Play cards, attack targets, or equip items from Equator.";
+          document.getElementById('action-phase-instruction').classList.remove('text-amber-400', 'animate-pulse');
+      }
 
       document.getElementById('player-name').innerText = `${myP.name} (${localPlayerRole.toUpperCase()})`;
       
@@ -686,7 +742,7 @@
           }
           const json = encodeURIComponent(JSON.stringify(player.avatar));
           const isTargetable = validTargets.some(t => t.id === player.avatar.id);
-          const isAttacker = selectedAttackerId === player.avatar.id;
+          const isAttacker = pendingAbility && pendingAbility.entityId === player.avatar.id;
 
           lineEl.innerHTML = renderCardHTML(player.avatar, {
             readiness: player.avatar.readiness,
@@ -698,7 +754,7 @@
         } else {
           lineEl.innerHTML = units.map(u => {
             const json = encodeURIComponent(JSON.stringify(u));
-            const isAttacker = selectedAttackerId === u.instanceId;
+            const isAttacker = pendingAbility && pendingAbility.entityId === u.instanceId;
             const isTargetable = validTargets.some(t => t.id === u.instanceId);
 
             return renderCardHTML(u, {
@@ -721,12 +777,24 @@
         if (event) event.stopPropagation();
         if (!isMyTurn()) return;
 
+        if (pendingAbility) {
+            if (validTargets.some(t => t.id === entityId)) {
+                executeAndLogAbility(pendingAbility.entityId, pendingAbility.abilityId, entityId, line);
+            } else {
+                showToast("Invalid target. Ability cancelled.", "error");
+            }
+            pendingAbility = null;
+            validTargets = [];
+            updateUI();
+            return;
+        }
+
         if (prefix === 'player' || prefix === 'equator') {
           if (currentGameState.turnPhase === 'ACTION_PHASE') {
             const actions = getEntityAvailableActions(currentGameState, localPlayerRole, entityId);
             if (actions.length > 0) {
               if (actions.length === 1 && actions[0].type === 'ATTACK') {
-                window.selectAttacker(entityId);
+                window.activateAbility(entityId, actions[0].abilityId);
                 return;
               }
               // Find the entity name for the UI Modal
@@ -760,7 +828,7 @@
         
         actions.forEach((act) => {
           if (act.type === 'ATTACK') {
-            html += `<button onclick="window.selectAttacker('${entityId}')" class="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">⚔️ ${act.name}</button>`;
+            html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">⚔️ ${act.name}</button>`;
           } else if (act.type === 'ABILITY') {
             html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ ${act.name}</button>`;
           }
@@ -774,21 +842,37 @@
         document.getElementById('unit-action-modal').classList.add('hidden');
       };
 
-      window.selectAttacker = (instanceId) => {
-        window.closeUnitActionModal();
-        selectedAttackerId = selectedAttackerId === instanceId ? null : instanceId;
-        if (selectedAttackerId) {
-          validTargets = getValidAttackTargets(currentGameState, localPlayerRole);
-        } else {
-          validTargets = [];
-        }
-        updateUI();
-      };
-
       window.activateAbility = async (entityId, abilityId) => {
         window.closeUnitActionModal();
         if (!isMyTurn()) return;
         
+        let entity = null;
+        const eqItem = currentGameState.equator?.find(i => i.instanceId === entityId);
+        if (eqItem) entity = eqItem;
+        else if (currentGameState.players[localPlayerRole].avatar.id === entityId) entity = currentGameState.players[localPlayerRole].avatar;
+        else {
+            for (const l of LINES) {
+                if (l === 'avatar') continue;
+                const u = currentGameState.players[localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
+                if (u) { entity = u; break; }
+            }
+        }
+        
+        if (!entity) return;
+        const ability = entity.abilities?.find(a => a.abilityId === abilityId);
+        
+        if (ability?.activation?.method === 'PLAYER_CHOICE') {
+            validTargets = getValidAbilityTargets(currentGameState, localPlayerRole, entityId, abilityId);
+            pendingAbility = { entityId, abilityId };
+            showToast(`Select a target for ${ability.name}`, 'info');
+            updateUI();
+            return;
+        }
+        
+        executeAndLogAbility(entityId, abilityId, null, null);
+      };
+      
+      async function executeAndLogAbility(entityId, abilityId, targetId, targetLine) {
         currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
         const actionPayload = {
           type: 'ENTITY_ACTION',
@@ -796,10 +880,12 @@
           playerId: localPlayerRole,
           entityId: entityId,
           actionType: 'ABILITY',
-          abilityId: abilityId
+          abilityId: abilityId,
+          targetId: targetId,
+          targetLine: targetLine
         };
         
-        const result = executeEntityAction(currentGameState, localPlayerRole, entityId, 'ABILITY', abilityId);
+        const result = executeEntityAction(currentGameState, localPlayerRole, entityId, 'ABILITY', abilityId, targetId, targetLine);
         if (result && result.success) {
           showToast('Ability Activated!', 'success');
           await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
@@ -807,32 +893,7 @@
         } else {
           showToast(result?.reason || 'Failed to activate ability', 'error');
         }
-      };
-
-      window.handleTargetClick = async (line, targetId) => {
-        if (!isMyTurn() || !selectedAttackerId) return;
-
-        currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
-        const actionPayload = {
-          type: 'ENTITY_ACTION',
-          actionIndex: currentGameState.actionIndex,
-          playerId: localPlayerRole,
-          entityId: selectedAttackerId,
-          actionType: 'ATTACK',
-          targetLine: line,
-          targetId: targetId
-        };
-
-        const result = executeEntityAction(currentGameState, localPlayerRole, selectedAttackerId, 'ATTACK', null, targetId, line);
-        if (result.success) {
-          selectedAttackerId = null;
-          validTargets = [];
-          await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
-          updateUI();
-        } else {
-          showToast(result.reason || 'Attack failed', 'error');
-        }
-      };
+      }
     }
 
     function renderHand(handCards) {

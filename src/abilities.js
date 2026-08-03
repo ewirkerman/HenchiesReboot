@@ -5,7 +5,7 @@
 import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './firebase.js';
 import { CARD_CATALOG } from './engine.js';
 import { generateAbilityDescription } from './language_description.js';
-import { getActionTriggers } from './actions.js';
+import { getActionTriggers, EFFECT_TYPES } from './actions.js';
 
 // --- STATE MANAGEMENT ---
 const state = {
@@ -20,7 +20,7 @@ const state = {
 
 export const ZONES = ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'];
 
-export { EFFECT_TYPES } from './actions.js';
+export { EFFECT_TYPES };
 
 export const TRIGGER_EVENTS = [
     'MANUAL', 'UNTRIGGERABLE', 

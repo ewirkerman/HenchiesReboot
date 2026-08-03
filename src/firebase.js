@@ -122,9 +122,7 @@ export function subscribeToGameRoom(gameId, callback) {
     if (ready) {
       try {
         const firestoreUnsub = onSnapshot(doc(db, "games", gameId), (snapshot) => {
-          if (snapshot.exists()) {
-            callback(snapshot.data());
-          }
+          callback(snapshot.exists() ? snapshot.data() : null);
         });
         unsub = firestoreUnsub;
         return;
@@ -197,9 +195,9 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
 export async function saveCardToCatalog(cardData) {
   if (await isReadyForDB()) {
     try {
-      await setDoc(doc(db, "cards", cardData.id), cardData.toObject());
+      await setDoc(doc(db, "cards", cardData.id), cardData);
       console.log("Card saved to Firestore");
-      return;
+      return true;
     } catch (e) {
       console.warn("Firestore card save failed, saving to LocalStorage", e);
     }
@@ -210,6 +208,7 @@ export async function saveCardToCatalog(cardData) {
   if (idx !== -1) existing[idx] = cardData;
   else existing.push(cardData);
   localStorage.setItem('henchies_custom_cards', JSON.stringify(existing));
+  return false;
 }
 
 export async function fetchCustomCards() {
@@ -247,7 +246,7 @@ export async function saveAbilityToCatalog(abilityData) {
     try {
       await setDoc(doc(db, "abilities", abilityData.abilityId), abilityData);
       console.log("Ability saved to Firestore");
-      return;
+      return true;
     } catch (e) {
       console.warn("Firestore ability save failed, saving to LocalStorage", e);
     }
@@ -258,6 +257,7 @@ export async function saveAbilityToCatalog(abilityData) {
   if (idx !== -1) existing[idx] = abilityData;
   else existing.push(abilityData);
   localStorage.setItem('henchies_custom_abilities', JSON.stringify(existing));
+  return false;
 }
 
 export async function fetchCustomAbilities() {

@@ -75,9 +75,14 @@
       
       <!-- Preview JSON State -->
       <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 hidden md:flex">
-         <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-800 pb-1">
-          Data Structure Preview
-        </h2>
+         <div class="flex justify-between items-center border-b border-slate-800 pb-1">
+           <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+            Data Structure Preview
+           </h2>
+           <button type="button" onclick="window.copyJSONPreview()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition shadow font-bold">
+             📋 Copy JSON
+           </button>
+         </div>
         <pre id="json-preview" class="text-[9px] text-cyan-500 font-mono overflow-x-auto max-h-96"></pre>
       </div>
     </div>
@@ -1273,6 +1278,17 @@
       document.getElementById('ab-auto-description').innerText = autoDesc;
     }
 
+    window.copyJSONPreview = () => {
+      const state = getCurrentAbilityState();
+      navigator.clipboard.writeText(JSON.stringify(state, null, 2)).then(() => {
+        const toast = document.createElement('div');
+        toast.className = 'bg-emerald-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+        toast.innerText = 'JSON Copied to Clipboard!';
+        document.getElementById('toast-container').appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+      });
+    };
+
     async function handleSaveAbility() {
       const ability = getCurrentAbilityState();
 
@@ -1300,16 +1316,24 @@
       btn.innerHTML = 'Saving...';
       btn.disabled = true;
 
-      await saveAbilityToCatalog(ability);
+      const cloudSaveSuccess = await saveAbilityToCatalog(ability);
       
       btn.innerHTML = originalText;
       btn.disabled = false;
 
-      const toast = document.createElement('div');
-      toast.className = 'bg-emerald-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
-      toast.innerText = `Ability '${ability.name}' saved!`;
-      document.getElementById('toast-container').appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
+      if (cloudSaveSuccess) {
+          const toast = document.createElement('div');
+          toast.className = 'bg-emerald-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+          toast.innerText = `Ability '${ability.name}' saved!`;
+          document.getElementById('toast-container').appendChild(toast);
+          setTimeout(() => toast.remove(), 3000);
+      } else {
+          const toast = document.createElement('div');
+          toast.className = 'bg-red-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+          toast.innerText = `⚠️ Cloud save failed! '${ability.name}' saved locally.`;
+          document.getElementById('toast-container').appendChild(toast);
+          setTimeout(() => toast.remove(), 5000);
+      }
 
       let newDesc = '';
       try { newDesc = generateAbilityDescription(ability, allAbilities, allCards); } catch(e) {}

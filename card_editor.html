@@ -102,7 +102,7 @@
             </div>
             <div id="stat-strength-container">
               <label class="font-bold text-slate-300 block mb-1">Strength (Damage)</label>
-              <input type="number" id="card-strength" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" value="0" min="0" />
+              <input type="number" id="card-strength" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="Empty = None" min="0" />
             </div>
             <div class="col-span-2">
               <label class="font-bold text-slate-300 block mb-1">Art URL</label>
@@ -211,6 +211,15 @@
             hpContainer.classList.add('hidden');
             strContainer.classList.add('hidden');
         }
+
+        if (type === 'equipment') {
+            const attachAb = allAbilities.find(a => a.name.toLowerCase() === 'attach to a unit' || a.name.toLowerCase() === 'attach');
+            if (attachAb && !currentAbilities.includes(attachAb.abilityId)) {
+                currentAbilities.push(attachAb.abilityId);
+                renderAssignedAbilities();
+                updatePreview();
+            }
+        }
     }
 
     function renderAssignedAbilities() {
@@ -250,7 +259,7 @@
         document.getElementById('card-genus').value = '';
         document.getElementById('card-cost').value = '1';
         document.getElementById('card-health').value = '1';
-        document.getElementById('card-strength').value = '0';
+        document.getElementById('card-strength').value = '';
         document.getElementById('card-art').value = '';
         document.getElementById('card-description').value = '';
         
@@ -265,6 +274,7 @@
     }
 
     function buildCardState() {
+        const strVal = document.getElementById('card-strength').value;
         return {
             id: currentEditingId || ('card_' + Date.now()),
             name: document.getElementById('card-name').value || 'Unnamed Card',
@@ -274,7 +284,7 @@
             cost: parseInt(document.getElementById('card-cost').value) || 0,
             health: parseInt(document.getElementById('card-health').value) || 1,
             maxHealth: parseInt(document.getElementById('card-health').value) || 1,
-            strength: parseInt(document.getElementById('card-strength').value) || 0,
+            strength: strVal === '' ? null : parseInt(strVal),
             description: document.getElementById('card-description').value || '',
             artUrl: document.getElementById('card-art').value || '',
             abilities: (currentAbilities || []).map(id => allAbilities.find(a => a.abilityId === id)).filter(Boolean)
@@ -307,7 +317,7 @@
         btn.innerHTML = 'Saving...';
         btn.disabled = true;
 
-        await saveCardToCatalog(card);
+        const cloudSaveSuccess = await saveCardToCatalog(card);
         
         // Update local catalog
         allCards = [...allCards.filter(c => c.id !== card.id), card];
@@ -320,7 +330,11 @@
         btn.innerHTML = origText;
         btn.disabled = false;
 
-        showToast(`Card '${card.name}' saved successfully!`, 'success');
+        if (cloudSaveSuccess) {
+            showToast(`Card '${card.name}' saved successfully!`, 'success');
+        } else {
+            showToast(`⚠️ Cloud save failed! Card '${card.name}' saved locally.`, 'error');
+        }
         renderCatalog();
     }
 
@@ -391,7 +405,7 @@
         document.getElementById('card-genus').value = card.genus || '';
         document.getElementById('card-cost').value = card.cost || 0;
         document.getElementById('card-health').value = card.maxHealth || card.health || 1;
-        document.getElementById('card-strength').value = card.strength || 0;
+        document.getElementById('card-strength').value = (card.strength !== undefined && card.strength !== null) ? card.strength : '';
         document.getElementById('card-art').value = card.artUrl || '';
         document.getElementById('card-description').value = card.description || '';
         

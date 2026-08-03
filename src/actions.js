@@ -76,6 +76,14 @@ export function moveEntity(engine, target, destPlayerId, destZone) {
     const loc = findEntityLocation(engine, target);
     if (loc && loc.array) loc.array.splice(loc.index, 1);
     
+    // Clean up physical state when moving into a "living" zone
+    if (['hand', 'deck', 'back', 'front', 'mid', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'equator'].includes(destZone)) {
+        target._isDying = false;
+        if (target.health !== undefined && target.health <= 0) {
+            target.health = target.maxHealth || 1;
+        }
+    }
+    
     if (destZone === 'equator') {
         if (!engine.state.equator) engine.state.equator = [];
         engine.state.equator.push(target);
@@ -95,6 +103,72 @@ export function moveEntity(engine, target, destPlayerId, destZone) {
     }
 }
 
+export function registerEffect(engine, target, payload, extraData = {}) {
+    const { duration, type, source } = payload;
+    if (!duration || duration === 'INSTANT' || duration === 'PERMANENT') return;
+    
+    if (!target.activeEffects) target.activeEffects = [];
+    
+    let expiresAt = null;
+    if (duration === 'BRIEF') expiresAt = engine.state.activePlayerId;
+    if (duration === 'TEMPORARY') expiresAt = (engine.state.activePlayerId === 'player1' ? 'player2' : 'player1');
+    
+    target.activeEffects.push({
+        id: 'eff_' + Math.random().toString(36).substr(2, 9),
+        type, duration, expiresAt,
+        sourceId: source ? source.instanceId : null,
+        ...payload,
+        ...extraData
+    });
+}
+
+export function revertEffect(engine, target, effect) {
+    if (effect.type === 'MODIFY_STAT') {
+        target[effect.stat] -= effect.delta;
+    } else if (effect.type === 'SET_STAT') {
+        if (effect.stat === 'health') {
+            target.health = Math.min(target.health, effect.originalValue);
+        } else if (typeof effect.originalValue === 'number' && typeof effect.delta === 'number') {
+            target[effect.stat] -= effect.delta;
+        } else {
+            target[effect.stat] = effect.originalValue;
+        }
+    } else if (effect.type === 'GRANT_ABILITY') {
+        if (target.abilities) {
+            const idx = target.abilities.findIndex(a => a.abilityId === effect.grantedAbilityId);
+            if (idx > -1) target.abilities.splice(idx, 1);
+        }
+    } else if (effect.type === 'SUMMON') {
+        new UnfieldAction({ target: target }).run(engine);
+    } else if (effect.type === 'ATTACH') {
+        new UnattachAction({ target: target }).run(engine);
+    }
+}
+
+export function sweepTurnEffects(engine, endingPlayerId) {
+    const entities = [];
+    for (const pId of ['player1', 'player2']) {
+        const p = engine.state.players[pId];
+        if (p.avatar) entities.push(p.avatar);
+        for (const line in p.lines) {
+            if (line === 'avatar') continue;
+            if (p.lines[line]) entities.push(...p.lines[line]);
+        }
+    }
+    if (engine.state.equator) entities.push(...engine.state.equator);
+    
+    for (const target of entities) {
+        if (!target.activeEffects) continue;
+        for (let i = target.activeEffects.length - 1; i >= 0; i--) {
+            const eff = target.activeEffects[i];
+            if ((eff.duration === 'BRIEF' || eff.duration === 'TEMPORARY') && eff.expiresAt === endingPlayerId) {
+                revertEffect(engine, target, eff);
+                target.activeEffects.splice(i, 1);
+            }
+        }
+    }
+}
+
 // ==========================================
 // ACTION SUBCLASSES
 // ==========================================
@@ -102,7 +176,7 @@ import { CARD_CATALOG } from './engine.js';
 
 export class DealDamageAction extends Action {
     execute(engine) {
-        if (this.payload.target && this.payload.amount > 0) {
+        if (this.payload.target && this.payload.amount >= 0) {
             this.payload.target.health -= this.payload.amount;
         }
     }
@@ -123,6 +197,10 @@ export class KillAction extends Action {
     execute(engine) {
         if (this.payload.target) {
             this.payload.target.health = 0; 
+            if (!this.payload.target._isDying) {
+                this.payload.target._isDying = true;
+                new UnfieldAction({ target: this.payload.target, destination: 'discard' }).run(engine);
+            }
         }
     }
 }
@@ -132,6 +210,7 @@ export class ModifyStatAction extends Action {
         const { target, stat, amount } = this.payload;
         if (target && stat && amount) {
             target[stat] = (target[stat] || 0) + amount;
+            registerEffect(engine, target, this.payload, { delta: amount });
         }
     }
 }
@@ -140,7 +219,13 @@ export class SetStatAction extends Action {
     execute(engine) {
         const { target, stat, amount } = this.payload;
         if (target && stat && amount !== undefined) {
+            const oldVal = target[stat] !== undefined ? target[stat] : (typeof amount === 'number' ? 0 : null);
             target[stat] = amount;
+            let delta = 0;
+            if (typeof oldVal === 'number' && typeof amount === 'number') {
+                delta = amount - oldVal;
+            }
+            registerEffect(engine, target, this.payload, { originalValue: oldVal, delta: delta });
         }
     }
 }
@@ -150,6 +235,7 @@ export class GrantAbilityAction extends Action {
         if (this.payload.target && this.payload.grantedAbilityId) {
             if (!this.payload.target.abilities) this.payload.target.abilities = [];
             this.payload.target.abilities.push({ abilityId: this.payload.grantedAbilityId });
+            registerEffect(engine, this.payload.target, this.payload);
         }
     }
 }
@@ -192,12 +278,13 @@ export class AttackAction extends Action {
         
         if (attacker.type !== 'avatar') attacker.readiness = 0; 
         
-        const atkDmg = attacker.strength || 0;
-        const defDmg = defender.strength || 0;
+        const atkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
+        const defBlockRetaliate = defender.activeEffects?.some(e => e.type === 'BLOCK_RETALIATE' || e.type === 'BLOCK_ACT');
+        const defDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
         
         // Simplified simultaneous combat logic for execution (Speed checks will wrap this later)
-        if (atkDmg > 0) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg }).run(engine);
-        if (defDmg > 0) new DealDamageAction({ source: defender, target: attacker, amount: defDmg }).run(engine);
+        if (atkDmg !== null && atkDmg >= 0) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg }).run(engine);
+        if (defDmg !== null && defDmg >= 0) new DealDamageAction({ source: defender, target: attacker, amount: defDmg }).run(engine);
     }
 }
 
@@ -249,6 +336,7 @@ export class SummonAction extends Action {
             instance.readiness = 0;
             
             moveEntity(engine, instance, ownerId, destZone);
+            registerEffect(engine, instance, this.payload);
         }
     }
 }
@@ -260,7 +348,7 @@ export class RecoverAction extends Action { execute(engine) { const loc = findEn
 export class TrashAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'banish'); } }
 export class BanishAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'banish'); } }
 export class FieldAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'back'); } }
-export class AttachAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'equator'); } }
+export class AttachAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'equator'); registerEffect(engine, this.payload.target, this.payload); } }
 export class UnattachAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'equator'); } }
 
 export class UnfieldAction extends Action {
@@ -269,6 +357,13 @@ export class UnfieldAction extends Action {
         const loc = findEntityLocation(engine, this.payload.target);
         const ownerId = loc ? loc.playerId : engine.state.activePlayerId;
         
+        if (this.payload.target.activeEffects) {
+            for (let i = this.payload.target.activeEffects.length - 1; i >= 0; i--) {
+                revertEffect(engine, this.payload.target, this.payload.target.activeEffects[i]);
+            }
+            this.payload.target.activeEffects = [];
+        }
+
         if (this.payload.target.isToken) { 
             if (loc && loc.array) loc.array.splice(loc.index, 1);
             return;
@@ -278,9 +373,9 @@ export class UnfieldAction extends Action {
     }
 }
 
-export class BlockActAction extends Action { execute(engine) { if (!this.payload.target.statusEffects) this.payload.target.statusEffects = []; this.payload.target.statusEffects.push({ type: 'BLOCK_ACT', duration: this.payload.duration || 'TEMPORARY' }); } }
-export class BlockAttackAction extends Action { execute(engine) { if (!this.payload.target.statusEffects) this.payload.target.statusEffects = []; this.payload.target.statusEffects.push({ type: 'BLOCK_ATTACK', duration: this.payload.duration || 'TEMPORARY' }); } }
-export class BlockRetaliateAction extends Action { execute(engine) { if (!this.payload.target.statusEffects) this.payload.target.statusEffects = []; this.payload.target.statusEffects.push({ type: 'BLOCK_RETALIATE', duration: this.payload.duration || 'TEMPORARY' }); } }
+export class BlockActAction extends Action { execute(engine) { registerEffect(engine, this.payload.target, this.payload); } }
+export class BlockAttackAction extends Action { execute(engine) { registerEffect(engine, this.payload.target, this.payload); } }
+export class BlockRetaliateAction extends Action { execute(engine) { registerEffect(engine, this.payload.target, this.payload); } }
 
 export class CustomScriptAction extends Action { 
     execute(engine) {
