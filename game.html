@@ -80,177 +80,166 @@
   </div>
 
   <!-- ================= SCREEN 2: TABLETOP MATCH BOARD (HIDDEN INITIALLY) ================= -->
-  <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-2 sm:p-4 flex flex-col gap-3 hidden">
+  <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 flex flex-col gap-1 hidden">
 
-    <!-- Replay Scrubbing & Status Bar -->
-    <div id="replay-bar-container" class="w-full"></div>
-
-    <!-- Active Player Turn Indicator & Phase Bar -->
-    <div class="glass-panel rounded-xl p-3 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30">
+    <!-- Active Player Turn Indicator & Phase Bar (Now Top Level) -->
+    <div class="glass-panel rounded-lg p-1.5 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30 w-full shrink-0">
       <div class="flex items-center gap-2">
-        <div id="turn-badge" class="px-3 py-1 rounded-lg bg-amber-500 text-black font-extrabold text-xs uppercase shadow-md">
+        <div id="turn-badge" class="px-2 py-0.5 rounded bg-amber-500 text-black font-extrabold text-[10px] uppercase shadow-sm">
           Turn 1: Player 1
         </div>
-        <div id="phase-badge" class="px-2 py-1 rounded bg-slate-800 text-amber-300 font-semibold text-xs border border-slate-700">
+        <div id="phase-badge" class="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold text-[10px] border border-slate-700">
           DRAW DECISION
         </div>
+        <span class="text-[10px] text-slate-300 font-semibold transition-colors ml-2 hidden md:block" id="action-phase-instruction">
+          Phase 2: Play cards, attack targets, or equip items.
+        </span>
       </div>
-      <div id="active-lock-notice" class="text-xs font-bold text-yellow-400 hidden">
-        🔒 Opponent's Turn - Board Locked
+      <div class="flex items-center gap-2">
+        <div id="active-lock-notice" class="text-[10px] font-bold text-yellow-400 hidden">
+          🔒 Opponent's Turn - Locked
+        </div>
+        <div id="phase3-action-controls" class="flex items-center gap-1.5 hidden">
+            <button id="cancel-action-btn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-slate-500 transition">
+              Cancel Target
+            </button>
+            <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold px-3 py-1 rounded shadow border border-emerald-400 transition" title="Hotkey: E">
+              End Turn [E] 🏁
+            </button>
+        </div>
       </div>
     </div>
 
+    <!-- Replay Scrubbing & Status Bar (Hidden completely per layout request) -->
+    <div id="replay-bar-container" class="w-full hidden"></div>
+
     <!-- TABLETOP VERTICAL MIRROR BOARD -->
-    <div class="glass-panel rounded-2xl p-3 sm:p-4 flex flex-col gap-4 shadow-2xl relative border border-slate-800 w-full overflow-x-auto">
+    <div class="glass-panel rounded-xl p-1.5 flex flex-col gap-1.5 shadow-2xl relative border border-slate-800 w-full overflow-x-auto">
       
       <!-- ================= OPPONENT BOARD (TOP) ================= -->
-      <div class="flex flex-col gap-2 p-2 bg-slate-950/60 rounded-xl border border-red-950/40 min-w-[800px]" id="opponent-board">
-        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-          <div class="flex items-center gap-3">
-            <div>
-              <div class="font-extrabold text-sm text-red-400" id="opp-name">Opponent (P2)</div>
-              <div class="text-[10px] text-slate-400" id="opp-resources">Tents: 1/1 | Tribe Res: 0/0</div>
-            </div>
+      <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-red-950/40 min-w-[800px]" id="opponent-board">
+        <div class="flex justify-between items-end border-b border-slate-800/60 pb-1 px-1">
+          <div class="flex items-baseline gap-2">
+            <div class="font-extrabold text-xs text-red-400 leading-none" id="opp-name">Opponent (P2)</div>
+            <div class="text-[9px] text-slate-400 leading-none" id="opp-resources">Carnie: 2/2</div>
           </div>
-          <div class="text-right text-xs">
-            <span class="text-slate-400">Power: <strong id="opp-power" class="text-amber-400">0</strong></span>
-            <span class="ml-2 text-slate-400">Hand: <strong id="opp-hand-count" class="text-white">0</strong></span>
+          <div class="text-[9px] leading-none">
+            <span class="text-slate-400">Power: <strong id="opp-power" class="text-amber-400 text-xs">0</strong></span>
+            <span class="ml-2 text-slate-400">Hand: <strong id="opp-hand-count" class="text-white text-xs">0</strong></span>
           </div>
         </div>
 
-        <div class="flex flex-row gap-3 w-full mt-2">
+        <div class="flex flex-row gap-2 w-full mt-0.5">
             <!-- Deck -->
-            <div class="w-32 sm:w-36 shrink-0 flex flex-col justify-end" id="opp-deck-container"></div>
+            <div class="shrink-0 flex flex-col justify-end" id="opp-deck-container"></div>
             
-            <div class="flex-1 flex flex-col gap-2">
-                <div id="opp-lines-container" class="grid grid-cols-4 gap-2 w-full items-stretch">
-                    <div class="flex flex-col gap-2 col-span-1 h-full">
-                        <div id="opp-line-avatar" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
-                        <div id="opp-line-bodyguard" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
+            <div class="flex-1 flex flex-col gap-1">
+                <div id="opp-lines-container" class="grid grid-cols-4 gap-1 w-full items-stretch">
+                    <div class="flex flex-col gap-1 col-span-1 h-full">
+                        <div id="opp-line-avatar" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                        <div id="opp-line-bodyguard" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
                     </div>
-                    <div class="flex flex-col gap-2 col-span-2 h-full">
-                        <div id="opp-line-sheltered" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-back" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-mid" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-front" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                    <div class="flex flex-col gap-1 col-span-2 h-full">
+                        <div id="opp-line-sheltered" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-back" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-mid" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-front" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
                     </div>
-                    <div class="flex flex-col gap-2 col-span-1 h-full">
-                        <div id="opp-line-sideline" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
+                    <div class="flex flex-col gap-1 col-span-1 h-full">
+                        <div id="opp-line-sideline" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
                     </div>
                 </div>
-                <div id="opp-line-taunt" class="flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
+                <div id="opp-line-taunt" class="flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
             </div>
             
             <!-- Discard -->
-            <div class="w-32 sm:w-36 shrink-0 flex flex-col justify-end" id="opp-discard-container"></div>
+            <div class="shrink-0 flex flex-col justify-end" id="opp-discard-container"></div>
         </div>
       </div>
 
       <!-- ================= THE EQUATOR (CENTER NEUTRAL ZONE) ================= -->
-      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border-2 border-dashed border-amber-500/40 rounded-xl p-3 min-h-[70px] flex flex-col gap-1 min-w-[800px]">
-        <div class="flex justify-between items-center">
-          <span class="text-[10px] uppercase tracking-widest font-black text-amber-400">⚡ The Equator (Equipment & Artifacts Zone)</span>
-        </div>
-        <div id="equator-cards-container" class="flex flex-wrap gap-2 items-center">
-          <span class="text-xs text-slate-500 italic" id="equator-empty-msg">No unattached items in equator.</span>
+      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border border-dashed border-amber-500/40 rounded-lg p-1 min-h-[45px] flex items-center gap-2 min-w-[800px]">
+        <span class="text-[9px] uppercase tracking-widest font-black text-amber-400 whitespace-nowrap shrink-0 pl-1">⚡ Equator</span>
+        <div id="equator-cards-container" class="flex flex-wrap gap-1 items-center w-full">
+          <span class="text-[10px] text-slate-500 italic" id="equator-empty-msg">No unattached items.</span>
         </div>
       </div>
 
       <!-- ================= LOCAL PLAYER BOARD (BOTTOM) ================= -->
-      <div class="flex flex-col gap-2 p-2 bg-slate-950/60 rounded-xl border border-emerald-950/40 min-w-[800px]" id="player-board">
-        <div id="player-lines-container" class="flex flex-row gap-3 w-full mb-2">
+      <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-emerald-950/40 min-w-[800px] transition-all duration-300" id="player-board">
+        <div class="flex justify-between items-end border-b border-slate-800/60 pb-1 px-1 mb-1">
+          <div class="flex items-baseline gap-2">
+            <div class="font-extrabold text-xs text-emerald-400 leading-none" id="player-name">Local Player (P1)</div>
+            <div class="text-[9px] text-slate-400 leading-none" id="player-resources">Carnie: 2/2</div>
+          </div>
+        </div>
+
+        <div id="player-lines-container" class="flex flex-row gap-2 w-full">
             <!-- Deck -->
-            <div class="w-32 sm:w-36 shrink-0 flex flex-col justify-start" id="player-deck-container"></div>
+            <div class="shrink-0 flex flex-col justify-start" id="player-deck-container"></div>
             
-            <div class="flex-1 flex flex-col gap-2">
-                <div id="player-line-taunt" class="flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
-                <div class="grid grid-cols-4 gap-2 w-full items-stretch">
-                    <div class="flex flex-col gap-2 col-span-1 h-full">
-                        <div id="player-line-bodyguard" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
-                        <div id="player-line-avatar" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
+            <div class="flex-1 flex flex-col gap-1">
+                <div id="player-line-taunt" class="flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
+                <div class="grid grid-cols-4 gap-1 w-full items-stretch">
+                    <div class="flex flex-col gap-1 col-span-1 h-full">
+                        <div id="player-line-bodyguard" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
+                        <div id="player-line-avatar" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
                     </div>
-                    <div class="flex flex-col gap-2 col-span-2 h-full">
-                        <div id="player-line-front" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
-                        <div id="player-line-mid" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
-                        <div id="player-line-back" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
-                        <div id="player-line-sheltered" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
+                    <div class="flex flex-col gap-1 col-span-2 h-full">
+                        <div id="player-line-front" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
+                        <div id="player-line-mid" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
+                        <div id="player-line-back" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
+                        <div id="player-line-sheltered" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
                     </div>
-                    <div class="flex flex-col gap-2 col-span-1 h-full">
-                        <div id="player-line-sideline" class="flex-1 flex flex-wrap gap-2 min-h-[60px] p-1.5 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
+                    <div class="flex flex-col gap-1 col-span-1 h-full">
+                        <div id="player-line-sideline" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
                     </div>
                 </div>
             </div>
             
             <!-- Discard -->
-            <div class="w-32 sm:w-36 shrink-0 flex flex-col justify-start" id="player-discard-container"></div>
+            <div class="shrink-0 flex flex-col justify-start" id="player-discard-container"></div>
+        </div>
+      </div>
+
+      <!-- THE HAND (MERGED INTO BOARD, HEIGHT UNCONSTRAINED) -->
+      <div class="flex flex-col gap-1 pt-1 mt-0.5 border-t border-slate-800/60 transition-all duration-300 min-w-[800px]" id="player-hand-wrapper">
+        <div class="flex justify-between items-center px-1">
+          <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+            🎴 Hand (<span id="hand-card-count">0</span>)
+          </span>
+          <span class="text-[9px] text-slate-400 hidden sm:block">Click a card to play or sacrifice</span>
         </div>
 
-        <div class="flex justify-between items-center border-t border-slate-800 pt-2">
-          <div class="flex items-center gap-3">
-            <div>
-              <div class="font-extrabold text-sm text-emerald-400" id="player-name">Local Player (P1)</div>
-              <div class="text-[10px] text-slate-400" id="player-resources">Tents: 1/1 | Tribe Res: 0/0</div>
-            </div>
-          </div>
+        <div id="player-hand-container" class="flex flex-wrap gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[190px] items-start justify-start transition-all duration-300">
+          <span class="text-[10px] text-slate-500 italic mx-auto self-center">Your hand is empty.</span>
         </div>
       </div>
 
     </div>
 
-    <!-- DECISION & ACTION CONTROLS PANEL -->
-    <div class="glass-panel rounded-xl p-4 flex flex-col gap-3 shadow-xl border border-slate-800" id="action-panel">
-      <!-- Phase 1: Sacrifice Decision -->
-      <div id="phase2-sacrifice-controls" class="flex flex-wrap items-center justify-between gap-3 p-3 bg-indigo-950/30 border border-indigo-500/40 rounded-xl hidden">
-        <div class="text-xs">
-          <strong class="text-indigo-400 uppercase tracking-wider block mb-0.5">Phase 1: Harvest Decision</strong>
-          <span class="text-slate-300">Optionally harvest 1 card from hand to gain +1 Max Tent & +1 Max Tribe Resource.</span>
-        </div>
-        <div class="flex gap-2">
-          <button id="sacrifice-confirm-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black px-3 py-2 rounded-lg shadow-lg">
-            🔥 Harvest Selected Card
-          </button>
-          <button id="sacrifice-skip-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-3 py-2 rounded-lg border border-slate-700">
-            Skip Harvest
-          </button>
-        </div>
-      </div>
-
-      <!-- Phase 2: Action Phase -->
-      <div id="phase3-action-controls" class="flex justify-between items-center gap-3 p-2 bg-slate-900/60 rounded-xl border border-slate-800 hidden">
-        <span class="text-xs text-slate-300 font-semibold transition-colors" id="action-phase-instruction">
-          Phase 2: Play cards, attack targets, or equip items from Equator.
-        </span>
-        <div class="flex gap-2">
-            <button id="cancel-action-btn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg border border-slate-500 transition">
-              Cancel Target
-            </button>
-            <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-4 py-2 rounded-lg shadow-lg border border-emerald-400 transition">
-              Explicit End Turn 🏁
-            </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- THE HAND (HORIZONTAL AUTO-WRAPPING BULK CONTAINER) -->
-    <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800">
-      <div class="flex justify-between items-center">
-        <span class="text-xs font-extrabold uppercase tracking-wider text-amber-400">
-          🎴 Your Hand (<span id="hand-card-count">0</span> cards)
-        </span>
-        <span class="text-[10px] text-slate-400">Click a card to select for deployment or sacrifice</span>
-      </div>
-
-      <div id="player-hand-container" class="flex flex-wrap gap-2.5 p-2 bg-slate-950/80 rounded-xl border border-slate-800/80 min-h-[170px] items-center justify-start overflow-y-auto max-h-[300px]">
-        <span class="text-xs text-slate-500 italic mx-auto">Your hand is empty.</span>
-      </div>
-    </div>
-
-    <!-- HISTORY LOG DISPLAY -->
-    <div class="glass-panel rounded-xl p-3 flex flex-col gap-1 max-h-36 overflow-y-auto text-xs font-mono text-slate-300 border border-slate-800">
+    <!-- HISTORY LOG DISPLAY (Hidden completely per layout request) -->
+    <div class="hidden glass-panel rounded-xl p-3 flex-col gap-1 max-h-36 overflow-y-auto text-xs font-mono text-slate-300 border border-slate-800">
       <div class="font-extrabold text-[10px] uppercase text-amber-400 tracking-wider">📜 Action & Combat Log:</div>
       <div id="history-log-text" class="flex flex-col gap-0.5">
         <div class="text-slate-500 italic">Match tabletop initialized.</div>
       </div>
+    </div>
+
+    <!-- ================= HARVEST PHASE OVERLAY (FLOATING BANNER) ================= -->
+    <div id="harvest-overlay" class="fixed top-16 inset-x-0 z-50 hidden flex-col items-center justify-start pointer-events-none transition-opacity duration-300">
+        <div class="pointer-events-auto bg-slate-950/95 border-b-2 border-x-2 border-amber-500 p-4 rounded-b-2xl shadow-[0_15px_50px_rgba(245,158,11,0.4)] flex flex-col items-center gap-2 w-full max-w-2xl text-center backdrop-blur-md">
+            <h2 class="text-lg font-black text-amber-400 uppercase tracking-widest drop-shadow-md animate-pulse">🌾 Harvest Phase</h2>
+            <p class="text-xs text-slate-300">Select a card from your hand below to sacrifice for <strong class="text-amber-300">+1 Max Carnie</strong> and <strong class="text-emerald-300">+1 Max Tribe Resource</strong>.</p>
+            <div class="flex gap-3 w-full max-w-sm mt-1">
+                <button id="overlay-sacrifice-confirm-btn" class="flex-1 bg-amber-600 hover:bg-amber-500 text-black text-xs font-black px-4 py-2 rounded shadow-lg opacity-50 cursor-not-allowed transition-all" disabled title="Hotkey: C">
+                    Confirm Sacrifice [C]
+                </button>
+                <button id="overlay-sacrifice-skip-btn" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2 rounded border border-slate-600 transition-all" title="Hotkey: S">
+                    Skip Harvest [S]
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- ================= UNIT ACTION MODAL ================= -->
@@ -259,12 +248,12 @@
         <button onclick="window.closeUnitActionModal()" class="absolute top-3 right-3 text-slate-400 hover:text-white font-bold text-lg leading-none">&times;</button>
         <div class="text-center border-b border-slate-800 pb-3">
           <h2 id="modal-unit-name" class="text-xl font-black text-amber-400 tracking-wider">Unit Name</h2>
-          <p class="text-xs text-slate-400 mt-1">Select an action for this unit.</p>
+          <p class="text-xs text-slate-400 mt-1">Select an action for this unit (Press 1-9 to select).</p>
         </div>
         <div id="modal-abilities-container" class="flex flex-col gap-2">
           <!-- Buttons dynamically injected here -->
         </div>
-        <button onclick="window.closeUnitActionModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold p-3 rounded-xl border border-slate-700 mt-2 transition">Cancel</button>
+        <button onclick="window.closeUnitActionModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold p-3 rounded-xl border border-slate-700 mt-2 transition">Cancel [ESC]</button>
       </div>
     </div>
 
@@ -277,8 +266,8 @@
       playCard, endTurn, getValidAttackTargets, cloneGameState, 
       getEntityAvailableActions, executeEntityAction, getValidAbilityTargets
     } from './src/engine.js';
-    import { renderCardHTML, openInspectionModal, renderHistorySlider, showToast } from './src/ui.js';
-    import { createGameRoom, subscribeToGameRoom, pushActionToLog, fetchCustomAbilities, fetchCustomCards } from './src/firebase.js';
+    import { renderCardHTML, openInspectionModal, renderHistorySlider, showToast, CARD_BASE_CLASSES } from './src/ui.js';
+    import { createGameRoom, subscribeToGameRoom, pushActionToLog, fetchCustomAbilities, fetchCustomCards, fetchUserDecks } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
 
     // Global Fallback Error Handlers to catch silent hangs
@@ -307,6 +296,7 @@
     let replayStepIndex = 0;
     let localReplayStates = [];
     let allAbilitiesRegistry = [];
+    let loadedUserDecks = {};
 
     // Fetch abilities for glossary tooltips
     fetchCustomAbilities().then(abs => {
@@ -328,14 +318,8 @@
     if (urlRoom) {
       console.log("[INIT] Room found in URL. Pre-filling lobby code:", urlRoom);
       document.getElementById('setup-room-code').value = urlRoom;
-      updateDeckDropdown();
-      const savedDeck = localStorage.getItem('henchies_last_deck');
-      if (savedDeck) document.getElementById('setup-deck-select').value = savedDeck;
     } else {
       document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
-      updateDeckDropdown();
-      const savedDeck = localStorage.getItem('henchies_last_deck');
-      if (savedDeck) document.getElementById('setup-deck-select').value = savedDeck;
     }
 
     document.getElementById('setup-username').addEventListener('input', updateDeckDropdown);
@@ -345,23 +329,36 @@
         updateUI();
     });
 
-    function updateDeckDropdown() {
+    async function updateDeckDropdown() {
       const username = document.getElementById('setup-username').value.trim();
       const select = document.getElementById('setup-deck-select');
-      select.innerHTML = '';
       
-      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
-      const userDecks = allDecks[username] || {};
-      const deckNames = Object.keys(userDecks);
+      if (!username) {
+          select.innerHTML = '<option value="">-- Enter Username to Load Decks --</option>';
+          select.disabled = true;
+          return;
+      }
+      
+      select.innerHTML = '<option value="">-- Loading Decks from Cloud... --</option>';
+      select.disabled = true;
+      
+      loadedUserDecks = await fetchUserDecks(username);
+      const deckNames = Object.keys(loadedUserDecks);
       
       if (deckNames.length === 0) {
         select.innerHTML = '<option value="">No valid decks found for this username</option>';
         select.disabled = true;
       } else {
+        select.innerHTML = '';
         deckNames.forEach(name => {
           select.innerHTML += `<option value="${name}">${name}</option>`;
         });
         select.disabled = false;
+        
+        const savedDeck = localStorage.getItem('henchies_last_deck');
+        if (savedDeck && deckNames.includes(savedDeck)) {
+            select.value = savedDeck;
+        }
       }
     }
 
@@ -372,9 +369,42 @@
     };
 
     document.getElementById('launch-match-btn').addEventListener('click', handleLaunchMatch);
-    document.getElementById('sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
-    document.getElementById('sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
+    document.getElementById('overlay-sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
+    document.getElementById('overlay-sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
     document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
+
+    // Global Hotkeys Listener
+    document.addEventListener('keydown', (e) => {
+        // Ignore if user is typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        const modal = document.getElementById('unit-action-modal');
+        const isModalOpen = !modal.classList.contains('hidden');
+
+        if (isModalOpen) {
+            const num = parseInt(e.key);
+            if (!isNaN(num) && num >= 1 && num <= 9) {
+                const buttons = modal.querySelectorAll('#modal-abilities-container button');
+                if (buttons[num - 1]) {
+                    buttons[num - 1].click();
+                }
+            }
+            if (e.key === 'Escape') window.closeUnitActionModal();
+            return;
+        }
+
+        // Board hotkeys (only active if modal is closed)
+        if (e.key.toLowerCase() === 'e') {
+            const btn = document.getElementById('end-turn-btn');
+            if (btn && !btn.disabled && !btn.classList.contains('hidden')) btn.click();
+        } else if (e.key.toLowerCase() === 'c') {
+            const btn = document.getElementById('overlay-sacrifice-confirm-btn');
+            if (btn && !btn.disabled) btn.click();
+        } else if (e.key.toLowerCase() === 's') {
+            const btn = document.getElementById('overlay-sacrifice-skip-btn');
+            if (btn && !btn.disabled) btn.click();
+        }
+    });
 
     async function handleLaunchMatch() {
       console.log("[LAUNCH] Button clicked.");
@@ -394,10 +424,9 @@
         return;
       }
       
-      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
-      activeBattleDeck = (allDecks[username] || {})[deckOption];
+      const loadedData = loadedUserDecks[deckOption];
 
-      if (!activeBattleDeck || activeBattleDeck.length !== 41) {
+      if (!loadedData || loadedData.length !== 41) {
         showToast('The selected deck is invalid or corrupted!', 'error');
         return;
       }
@@ -407,19 +436,39 @@
         const rawCards = await fetchCustomCards();
         const combinedCatalog = [...CARD_CATALOG, ...rawCards];
 
-        activeBattleDeck = activeBattleDeck.map(savedCard => {
-            const fresh = combinedCatalog.find(c => c.id === savedCard.id);
-            if (!fresh) return savedCard;
+        const hydratedDeck = [];
+        let missingCards = 0;
+
+        for (const savedCard of loadedData) {
+            const cardId = savedCard.id || savedCard;
+            const fresh = combinedCatalog.find(c => c.id === cardId);
+            
+            if (!fresh) {
+                console.warn(`[LAUNCH] Card missing from catalog:`, cardId);
+                missingCards++;
+                continue;
+            }
+            
             const clone = JSON.parse(JSON.stringify(fresh));
             if (clone.abilities) {
                 clone.abilities = clone.abilities.map(ab => {
                     const abId = typeof ab === 'string' ? ab : ab.abilityId;
                     const match = rawAbs.find(a => a.abilityId === abId);
-                    return match ? match : ab;
-                });
+                    return match ? JSON.parse(JSON.stringify(match)) : null;
+                }).filter(Boolean);
             }
-            return clone;
-        });
+            hydratedDeck.push(clone);
+        }
+
+        if (missingCards > 0) {
+            showToast(`Error: Deck is missing ${missingCards} cards that were deleted from the studio. Please edit your deck.`, 'error');
+            const launchBtn = document.getElementById('launch-match-btn');
+            launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
+            launchBtn.disabled = false;
+            return;
+        }
+
+        activeBattleDeck = hydratedDeck;
       } catch(e) {
           console.warn("[LAUNCH] Failed to hydrate deck from cloud:", e);
       }
@@ -537,7 +586,7 @@
             if (action.type === 'SACRIFICE_DECISION') {
               executeSacrificeDecision(liveState, action.option, action.cardId);
             } else if (action.type === 'PLAY_CARD') {
-              playCard(liveState, action.playerId, action.cardId, action.targetLine);
+              playCard(liveState, action.playerId, action.cardId, action.targetLine, action.abilityTargetId);
             } else if (action.type === 'ENTITY_ACTION') {
               executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
             } else if (action.type === 'END_TURN') {
@@ -590,7 +639,7 @@
       const isLocked = !isMyTurn();
       document.getElementById('active-lock-notice').classList.toggle('hidden', !isLocked);
 
-      const actionInputs = document.querySelectorAll('#action-panel button');
+      const actionInputs = document.querySelectorAll('#phase3-action-controls button');
       actionInputs.forEach(btn => btn.disabled = isLocked);
       
       document.getElementById('cancel-action-btn').classList.toggle('hidden', !pendingAbility);
@@ -605,27 +654,49 @@
 
       document.getElementById('player-name').innerText = `${myP.name} (${localPlayerRole.toUpperCase()})`;
       
-      let myResStr = `Tents: ${myP.tents}/${myP.maxTents}`;
+      let myResStr = '';
       if (myP.resources) {
           for (const [tribe, res] of Object.entries(myP.resources)) {
-              myResStr += ` | ${tribe}: ${res.current}/${res.max}`;
+              myResStr += `${tribe}: ${res.current}/${res.max} | `;
           }
       }
-      document.getElementById('player-resources').innerText = myResStr;
+      document.getElementById('player-resources').innerText = myResStr.replace(/ \| $/, '');
 
       document.getElementById('opp-name').innerText = `${oppP.name} (${oppRole.toUpperCase()})`;
       document.getElementById('opp-power').innerText = oppP.avatar.power;
       document.getElementById('opp-hand-count').innerText = oppP.hand.length;
       
-      let oppResStr = `Tents: ${oppP.tents}/${oppP.maxTents}`;
+      let oppResStr = '';
       if (oppP.resources) {
           for (const [tribe, res] of Object.entries(oppP.resources)) {
-              oppResStr += ` | ${tribe}: ${res.current}/${res.max}`;
+              oppResStr += `${tribe}: ${res.current}/${res.max} | `;
           }
       }
-      document.getElementById('opp-resources').innerText = oppResStr;
+      document.getElementById('opp-resources').innerText = oppResStr.replace(/ \| $/, '');
 
-      document.getElementById('phase2-sacrifice-controls').classList.toggle('hidden', state.turnPhase !== 'SACRIFICE_DECISION');
+      const isHarvestPhase = state.turnPhase === 'SACRIFICE_DECISION' && isMyTurn();
+      document.getElementById('harvest-overlay').classList.toggle('hidden', !isHarvestPhase);
+      document.getElementById('harvest-overlay').classList.toggle('flex', isHarvestPhase);
+      
+      const handContainer = document.getElementById('player-hand-container');
+      if (handContainer) {
+          handContainer.classList.toggle('ring-2', isHarvestPhase);
+          handContainer.classList.toggle('ring-amber-500', isHarvestPhase);
+          handContainer.classList.toggle('shadow-[0_0_30px_rgba(245,158,11,0.3)]', isHarvestPhase);
+          handContainer.classList.toggle('bg-amber-950/20', isHarvestPhase);
+      }
+      
+      const confirmBtn = document.getElementById('overlay-sacrifice-confirm-btn');
+      if (confirmBtn) {
+          if (selectedCardId) {
+              confirmBtn.disabled = false;
+              confirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          } else {
+              confirmBtn.disabled = true;
+              confirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+          }
+      }
+
       document.getElementById('phase3-action-controls').classList.toggle('hidden', state.turnPhase !== 'ACTION_PHASE');
 
       renderEquator(state.equator);
@@ -642,14 +713,10 @@
 
     function renderEquator(equatorItems) {
       const container = document.getElementById('equator-cards-container');
-      const emptyMsg = document.getElementById('equator-empty-msg');
       if (!equatorItems || equatorItems.length === 0) {
-        emptyMsg.classList.remove('hidden');
-        container.innerHTML = '';
-        container.appendChild(emptyMsg);
+        container.innerHTML = '<span class="text-xs text-slate-500 italic" id="equator-empty-msg">No unattached items in equator.</span>';
         return;
       }
-      emptyMsg.classList.add('hidden');
 
       container.innerHTML = equatorItems.map((item, idx) => {
         const json = encodeURIComponent(JSON.stringify(item));
@@ -666,10 +733,10 @@
       
       if (deckEl) {
         deckEl.innerHTML = `
-          <div class="group relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52 aspect-[5/7] rounded-md bg-slate-800 border-2 border-slate-950 shadow-xl flex flex-col items-center justify-center overflow-hidden select-none">
+          <div class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-800 border-2 border-slate-950 shadow-xl flex flex-col items-center justify-center overflow-hidden select-none">
             <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 8px 8px;"></div>
-            <span class="text-4xl relative z-10 drop-shadow-lg">🎴</span>
-            <span class="text-[10px] font-black text-amber-400 mt-2 uppercase tracking-widest bg-slate-950/90 px-2 py-1 rounded border border-amber-900/50 relative z-10 shadow">Deck: ${player.deck.length}</span>
+            <span class="text-4xl sm:text-5xl relative z-10 drop-shadow-lg">🎴</span>
+            <span class="text-[10px] sm:text-[12px] font-black text-amber-400 mt-3 uppercase tracking-widest bg-slate-950/90 px-2 py-1 rounded border border-amber-900/50 relative z-10 shadow">Deck: ${player.deck.length}</span>
           </div>
         `;
       }
@@ -677,9 +744,9 @@
       if (discardEl) {
         if (!player.discard || player.discard.length === 0) {
           discardEl.innerHTML = `
-            <div class="group relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52 aspect-[5/7] rounded-md bg-slate-900/40 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center select-none text-slate-500 shadow-inner">
-              <span class="text-2xl opacity-50 mb-1">🗑️</span>
-              <span class="text-[10px] font-black uppercase tracking-widest">Discard</span>
+            <div class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-900/40 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center select-none text-slate-500 shadow-inner">
+              <span class="text-3xl sm:text-4xl opacity-50 mb-2">🗑️</span>
+              <span class="text-[10px] sm:text-[12px] font-black uppercase tracking-widest">Discard</span>
             </div>
           `;
         } else {
@@ -689,9 +756,9 @@
             onInspect: `window.inspectCard('${json}')`
           });
           discardEl.innerHTML = `
-            <div class="relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52">
+            <div class="relative flex-shrink-0 ${CARD_BASE_CLASSES}">
               ${cardHtml}
-              <div class="absolute -top-2 -right-2 bg-slate-950 text-white font-black text-xs w-6 h-6 rounded-full shadow-xl border border-slate-600 z-30 flex items-center justify-center">
+              <div class="absolute -top-2 -right-2 bg-slate-950 text-white font-black text-[12px] w-6 h-6 sm:w-7 sm:h-7 rounded-full shadow-xl border border-slate-600 z-30 flex items-center justify-center">
                 ${player.discard.length}
               </div>
             </div>
@@ -779,13 +846,51 @@
 
         if (pendingAbility) {
             if (validTargets.some(t => t.id === entityId)) {
-                executeAndLogAbility(pendingAbility.entityId, pendingAbility.abilityId, entityId, line);
+                if (pendingAbility.isHandCard) {
+                    console.log(`[UI] Executing targeted play for card ${pendingAbility.entityId} onto target ${entityId}`);
+                    const player = currentGameState.players[localPlayerRole];
+                    const handCard = player.hand.find(c => c.instanceId === pendingAbility.entityId);
+                    const theAb = handCard ? handCard.abilities?.find(a => a.abilityId === pendingAbility.abilityId) : null;
+                    
+                    currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
+                    const actionPayload = {
+                        type: 'PLAY_CARD',
+                        actionIndex: currentGameState.actionIndex,
+                        playerId: localPlayerRole,
+                        cardId: pendingAbility.entityId,
+                        targetLine: 'back',
+                        abilityTargetId: entityId
+                    };
+
+                    const playRes = playCard(currentGameState, localPlayerRole, pendingAbility.entityId, 'back', entityId);
+                    if (playRes.success) {
+                        // We ONLY trigger ability execution here if it's a MANUAL/ACTIVE ability.
+                        // Play triggers are handled by the engine inherently during PlayAction via the tunneled abilityTargetId!
+                        if (theAb) {
+                            const autoTriggers = ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'];
+                            if (!autoTriggers.includes(theAb.trigger)) {
+                                executeEntityAction(currentGameState, localPlayerRole, pendingAbility.entityId, 'ABILITY', pendingAbility.abilityId, entityId, line);
+                            }
+                        }
+                        pendingAbility = null;
+                        validTargets = [];
+                        pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+                        updateUI();
+                    } else {
+                        showToast(playRes.reason, 'error');
+                    }
+                } else {
+                    executeAndLogAbility(pendingAbility.entityId, pendingAbility.abilityId, entityId, line);
+                    pendingAbility = null;
+                    validTargets = [];
+                    updateUI();
+                }
             } else {
                 showToast("Invalid target. Ability cancelled.", "error");
+                pendingAbility = null;
+                validTargets = [];
+                updateUI();
             }
-            pendingAbility = null;
-            validTargets = [];
-            updateUI();
             return;
         }
 
@@ -797,6 +902,32 @@
                 window.activateAbility(entityId, actions[0].abilityId);
                 return;
               }
+              
+              if (actions.length === 1 && actions[0].type === 'ABILITY') {
+                  let entity = null;
+                  const eqItem = currentGameState.equator?.find(i => i.instanceId === entityId);
+                  if (eqItem) entity = eqItem;
+                  else if (currentGameState.players[localPlayerRole].avatar.id === entityId) entity = currentGameState.players[localPlayerRole].avatar;
+                  else {
+                      for (const l of LINES) {
+                          if (l === 'avatar') continue;
+                          const u = currentGameState.players[localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
+                          if (u) { entity = u; break; }
+                      }
+                  }
+                  
+                  if (entity) {
+                      const ability = entity.abilities?.find(a => a.abilityId === actions[0].abilityId);
+                      if (ability?.activation?.method === 'PLAYER_CHOICE') {
+                          // Bypass modal and transition directly to targeting mode
+                          window.activateAbility(entityId, actions[0].abilityId);
+                          return;
+                      } else {
+                          // Keep the modal for non-targeted abilities to prevent accidental activation
+                      }
+                  }
+              }
+
               // Find the entity name for the UI Modal
               let entityName = "Unknown Entity";
               if (prefix === 'equator') {
@@ -826,11 +957,12 @@
         
         let html = '';
         
-        actions.forEach((act) => {
+        actions.forEach((act, idx) => {
+          const hotkey = `[${idx + 1}]`;
           if (act.type === 'ATTACK') {
-            html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">⚔️ ${act.name}</button>`;
+            html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">⚔️ ${hotkey} ${act.name}</button>`;
           } else if (act.type === 'ABILITY') {
-            html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ ${act.name}</button>`;
+            html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ ${hotkey} ${act.name}</button>`;
           }
         });
         
@@ -840,6 +972,25 @@
 
       window.closeUnitActionModal = () => {
         document.getElementById('unit-action-modal').classList.add('hidden');
+      };
+
+      window.activateHandCardAbility = (cardId, abilityId) => {
+        window.closeUnitActionModal();
+        const player = currentGameState.players[localPlayerRole];
+        const card = player.hand.find(c => c.instanceId === cardId || c.id === cardId);
+        if (!card) return;
+
+        const ability = card.abilities.find(a => a.abilityId === abilityId);
+        
+        if (ability?.activation?.method === 'PLAYER_CHOICE') {
+            validTargets = getValidAbilityTargets(currentGameState, localPlayerRole, cardId, abilityId);
+            pendingAbility = { entityId: cardId, abilityId: abilityId, isHandCard: true };
+            showToast(`Select a target for ${ability.name}`, 'info');
+            updateUI();
+            return;
+        }
+
+        window.executeNormalPlay(cardId);
       };
 
       window.activateAbility = async (entityId, abilityId) => {
@@ -901,7 +1052,7 @@
       document.getElementById('hand-card-count').innerText = handCards.length;
 
       if (handCards.length === 0) {
-        container.innerHTML = `<span class="text-xs text-slate-500 italic mx-auto">Your hand is empty.</span>`;
+        container.innerHTML = `<span class="text-xs text-slate-500 italic mx-auto self-center">Your hand is empty.</span>`;
         return;
       }
 
@@ -920,6 +1071,28 @@
         });
       }).join('');
 
+      window.executeNormalPlay = async (cardId, abilityTargetId = null) => {
+          window.closeUnitActionModal();
+          currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
+          const actionPayload = {
+            type: 'PLAY_CARD',
+            actionIndex: currentGameState.actionIndex,
+            playerId: localPlayerRole,
+            cardId: cardId,
+            targetLine: 'back',
+            abilityTargetId: abilityTargetId
+          };
+
+          const result = playCard(currentGameState, localPlayerRole, cardId, 'back', abilityTargetId);
+          if (result.success) {
+            selectedCardId = null;
+            await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+            updateUI();
+          } else {
+            showToast(result.reason, 'error');
+          }
+      };
+
       window.handleHandCardClick = async (cardId) => {
         if (!isMyTurn()) return;
 
@@ -930,23 +1103,50 @@
         }
 
         if (currentGameState.turnPhase === 'ACTION_PHASE') {
-          currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
-          const actionPayload = {
-            type: 'PLAY_CARD',
-            actionIndex: currentGameState.actionIndex,
-            playerId: localPlayerRole,
-            cardId: cardId,
-            targetLine: 'back'
-          };
+          const player = currentGameState.players[localPlayerRole];
+          const c = player.hand.find(card => card.instanceId === cardId || card.id === cardId);
+          if (!c) return;
 
-          const result = playCard(currentGameState, localPlayerRole, cardId, 'back');
-          if (result.success) {
-            selectedCardId = null;
-            await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
-            updateUI();
-          } else {
-            showToast(result.reason, 'error');
+          if (!canPlayCard(currentGameState, localPlayerRole, c)) {
+              showToast("Cannot afford to play this card.", "error");
+              return;
           }
+
+          const playAbilities = c.abilities ? c.abilities.filter(ab => {
+              const t = ab.trigger || 'MANUAL';
+              const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
+              const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
+              return ab.trigger === 'PLAY_OPTIONAL' || (isPlayTrigger && requiresTarget);
+          }) : [];
+
+          // Fast-track targeting if there's exactly 1 play ability and it requires a target
+          if (playAbilities.length === 1 && playAbilities[0].activation?.method === 'PLAYER_CHOICE') {
+              window.activateHandCardAbility(cardId, playAbilities[0].abilityId);
+              return;
+          }
+
+          if (playAbilities.length > 0) {
+              document.getElementById('modal-unit-name').innerText = `Play: ${c.name}`;
+              const container = document.getElementById('modal-abilities-container');
+              let html = '';
+              let idx = 1;
+              
+              const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
+              
+              if (!hasMandatoryTarget) {
+                  html += `<button onclick="window.executeNormalPlay('${cardId}')" class="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">🃏 [${idx++}] Play Normally</button>`;
+              }
+
+              playAbilities.forEach(ab => {
+                  html += `<button onclick="window.activateHandCardAbility('${cardId}', '${ab.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ [${idx++}] ${ab.name}</button>`;
+              });
+              
+              container.innerHTML = html;
+              document.getElementById('unit-action-modal').classList.remove('hidden');
+              return;
+          }
+
+          window.executeNormalPlay(cardId);
         }
       };
     }

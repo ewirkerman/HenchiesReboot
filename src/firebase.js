@@ -302,3 +302,40 @@ export async function uploadCardArt(file) {
   }
   return null;
 }
+
+// =====================================
+// CUSTOM DECKS CATALOG (DECKBUILDER)
+// =====================================
+
+export async function fetchUserDecks(username) {
+    try {
+        const qSnapshot = await getDocs(collection(db, "custom_decks"));
+        const userDecks = {};
+        qSnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.username === username) {
+                userDecks[data.deckName] = data.deckData;
+            }
+        });
+        return userDecks;
+    } catch (e) {
+        console.error("Error fetching decks:", e);
+        return {};
+    }
+}
+
+export async function saveDeckToCatalog(username, deckName, deckData) {
+    try {
+        const deckId = `${username}_${deckName}`.replace(/[^a-zA-Z0-9_]/g, '_');
+        await setDoc(doc(db, "custom_decks", deckId), {
+            username,
+            deckName,
+            deckData,
+            updatedAt: Date.now()
+        });
+        return true;
+    } catch (e) {
+        console.error("Error saving deck:", e);
+        return false;
+    }
+}

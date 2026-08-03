@@ -49,8 +49,8 @@ function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, implied
                 } else {
                     suffixes.push(`that is ${opText} ${node.value}`.trim());
                 }
-            } else if (['health', 'strength', 'readiness', 'maxHealth'].includes(node.attribute)) {
-                let statName = node.attribute === 'maxHealth' ? 'max health' : node.attribute;
+            } else if (['health', 'strength', 'readiness', 'maxHealth', 'acts', 'maxActs'].includes(node.attribute)) {
+                let statName = node.attribute === 'maxHealth' ? 'max health' : (node.attribute === 'acts' ? 'available acts' : (node.attribute === 'maxActs' ? 'max acts' : node.attribute));
                 suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
             } else if (node.attribute === 'hasAbility') {
                 if (node.operator === '==') suffixes.push(`with ability '${node.value}'`);
@@ -192,7 +192,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
     };
 
     triggerText = triggerDict[trigger];
-    if (!triggerText) {
+    if (triggerText === undefined) {
         if (trigger.startsWith('ON_BE_')) triggerText = `After being ${trigger.replace('ON_BE_', '').toLowerCase().replace(/_/g, ' ')}`;
         else if (trigger.startsWith('ON_')) triggerText = `After performing ${trigger.replace('ON_', '').toLowerCase().replace(/_/g, ' ')}`;
         else if (trigger.startsWith('WOULD_BE_')) triggerText = `When it would be ${trigger.replace('WOULD_BE_', '').toLowerCase().replace(/_/g, ' ')}`;
@@ -209,8 +209,8 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
     if (cost.tribeAmount && cost.tribeAmount > 0) {
         costSymbols.push(`{Resource ${cost.tribeAmount}}`);
     }
-    if (cost.tent && cost.tent > 0) {
-        costSymbols.push(`{Tent ${cost.tent}}`);
+    if ((cost.carnie || cost.tent) > 0) {
+        costSymbols.push(`{Carnie ${(cost.carnie || cost.tent)}}`);
     }
     if (cost.power && cost.power > 0) {
         costSymbols.push(`{Power ${cost.power}}`);
@@ -308,45 +308,49 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
             const formatPayload = (eff) => {
                 let effText = '';
+                let tToken = eff.invertRoles ? '{CASTER}' : '{TARGET}';
+                let pToken = eff.invertRoles ? '{CASTER_POSS}' : '{POSS}';
                 
                 switch(eff.type) {
-                    case 'DEAL_DAMAGE': effText = `deal ${eff.amount || 1} damage to {TARGET}`; break;
-                    case 'HEAL': effText = `heal ${eff.amount || 1} health to {TARGET}`; break;
+                    case 'DEAL_DAMAGE': effText = `deal ${eff.amount || 1} damage to ${tToken}`; break;
+                    case 'HEAL': effText = `heal ${eff.amount || 1} health to ${tToken}`; break;
                     case 'DRAW_CARD': effText = `draw ${eff.amount || 1} card(s) for {TARGET}`; break;
                     case 'DISCARD': effText = `discard ${eff.amount || 1} card(s) from {POSS} hand`; break;
                     case 'TRASH': effText = `trash ${eff.amount || 1} card(s) from {POSS} hand or deck`; break;
-                    case 'RECOVER': effText = `recover ${eff.amount || 1} card(s) for {TARGET}`; break;
+                    case 'RECOVER': effText = `recover ${eff.amount || 1} card(s) from {POSS} discard pile`; break;
                     case 'MODIFY_STAT': 
                         let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        if (eff.amount < 0) effText = `decrease {POSS} ${modStat} by ${Math.abs(eff.amount)}`;
-                        else effText = `increase {POSS} ${modStat} by ${eff.amount || 1}`;
+                        if (eff.amount < 0) effText = `decrease ${pToken} ${modStat} by ${Math.abs(eff.amount)}`;
+                        else effText = `increase ${pToken} ${modStat} by ${eff.amount || 1}`;
                         break;
                     case 'SET_STAT': 
                         let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        effText = `set {POSS} ${setStat} to ${eff.amount || 1}`; break;
-                    case 'BLOCK_ACT': effText = `block {TARGET} from acting`; break;
-                    case 'BLOCK_ATTACK': effText = `block {TARGET} from attacking`; break;
-                    case 'BLOCK_RETALIATE': effText = `block {TARGET} from retaliating`; break;
-                    case 'SHUFFLE': effText = `shuffle {TARGET} into deck`; break;
+                        effText = `set ${pToken} ${setStat} to ${eff.amount || 1}`; break;
+                    case 'BLOCK_ACT': effText = `block ${tToken} from acting`; break;
+                    case 'BLOCK_ATTACK': effText = `block ${tToken} from attacking`; break;
+                    case 'BLOCK_RETALIATE': effText = `block ${tToken} from retaliating`; break;
+                    case 'SHUFFLE': effText = `shuffle ${tToken} into deck`; break;
                     case 'RETURN': effText = `return {TARGET} to hand`; break;
-                    case 'ATTACH': effText = `attach {TARGET}`; break;
+                    case 'ATTACH': 
+                        if (eff.invertRoles) effText = `attach {TARGET} to self`;
+                        else effText = `attach self to {TARGET}`;
+                        break;
                     case 'UNATTACH': effText = `unattach {TARGET}`; break;
                     case 'FIELD': effText = `field {TARGET} (play for free)`; break;
-                    case 'UNFIELD': effText = `unfield {TARGET}`; break;
-                    case 'BANISH': effText = `banish {TARGET}`; break;
-                    case 'KILL': effText = `kill {TARGET}`; break;
-                    case 'ATTACK': effText = `attack {TARGET}`; break;
-                    case 'CUSTOM_SCRIPT': effText = `execute custom script on {TARGET}`; break;
+                    case 'BANISH': effText = `banish ${tToken}`; break;
+                    case 'KILL': effText = `kill ${tToken}`; break;
+                    case 'ATTACK': effText = `attack ${tToken}`; break;
+                    case 'CUSTOM_SCRIPT': effText = `execute custom script on ${tToken}`; break;
                     case 'GRANT_ABILITY':
                         let abilityName = eff.grantedAbilityId;
                         if (allAbilities && Array.isArray(allAbilities)) {
-                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
+                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
                             if (match) abilityName = match.name;
                         } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
                              const grantedAb = getAbility(eff.grantedAbilityId);
                              if(grantedAb) abilityName = grantedAb.name;
                         }
-                        effText = `grant ability @[${abilityName}] to {TARGET}`;
+                        effText = `grant ability '${abilityName}' to ${tToken}`;
                         break;
                     case 'SUMMON':
                         let cardName = eff.cardId;
@@ -391,7 +395,11 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         }
                         break;
                     default:
-                        effText = `perform ${eff.type} on {TARGET}`;
+                        effText = `perform ${eff.type} on ${tToken}`;
+                }
+
+                if (eff.invertRoles && eff.type !== 'ATTACH') {
+                    effText = `force {TARGET} to ${effText}`;
                 }
 
                 if (eff.duration && eff.duration !== 'INSTANT') {
@@ -406,6 +414,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             const finalizeString = (arr) => {
                 if(arr.length === 0) return null;
                 let combined = joinWithAnd(arr);
+
+                combined = combined.replace(/\{CASTER_POSS\}/g, 'own').replace(/\{CASTER\}/g, 'self');
+
                 if (targetStr === 'self') {
                     combined = combined.replace(/\{POSS\}/g, 'own').replace(/\{TARGET\}/g, 'self');
                 } else {

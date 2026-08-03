@@ -42,6 +42,9 @@
             <div class="text-xs text-slate-500 italic text-center p-3">Loading catalog...</div>
         </div>
       </div>
+      
+      <!-- JSON Preview Container -->
+      <div id="json-preview-container" class="hidden md:block"></div>
     </div>
 
     <!-- Editor (Center/Right) -->
@@ -86,6 +89,18 @@
                 <option value="avatar">Avatar</option>
                 <option value="equipment">Equipment</option>
                 <option value="spell">Spell</option>
+              </select>
+            </div>
+            <div id="default-line-container">
+              <label class="font-bold text-slate-300 block mb-1">Default Line</label>
+              <select id="card-default-line" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none">
+                <option value="mid">Mid (Standard)</option>
+                <option value="front">Front</option>
+                <option value="back">Back</option>
+                <option value="sheltered">Sheltered</option>
+                <option value="sideline">Sideline</option>
+                <option value="taunt">Taunt</option>
+                <option value="bodyguard">Bodyguard</option>
               </select>
             </div>
             <div>
@@ -137,7 +152,7 @@
   
   <script type="module">
     import { CARD_CATALOG } from './src/engine.js';
-    import { renderCardHTML, showToast, openInspectionModal } from './src/ui.js';
+    import { renderCardHTML, showToast, openInspectionModal, renderJSONPreview } from './src/ui.js';
     import { fetchCustomAbilities, fetchCustomCards, saveCardToCatalog, deleteCardFromCatalog } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
 
@@ -154,7 +169,17 @@
       allAbilities = rawAbilities.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab) }));
       
       const customCards = await fetchCustomCards();
-      allCards = [...CARD_CATALOG, ...customCards];
+      const hydratedCustomCards = customCards.map(c => {
+          if (c.abilities) {
+              c.abilities = c.abilities.map(ab => {
+                  const abId = typeof ab === 'string' ? ab : ab.abilityId;
+                  const match = rawAbilities.find(a => a.abilityId === abId);
+                  return match ? JSON.parse(JSON.stringify(match)) : null;
+              }).filter(Boolean);
+          }
+          return c;
+      });
+      allCards = [...CARD_CATALOG, ...hydratedCustomCards];
 
       // 2. Populate Ability Datalist
       const abilityDatalist = document.getElementById('ability-options');
@@ -203,6 +228,7 @@
         const type = document.getElementById('card-type').value;
         const hpContainer = document.getElementById('stat-health-container');
         const strContainer = document.getElementById('stat-strength-container');
+        const lineContainer = document.getElementById('default-line-container');
         
         if (type === 'unit' || type === 'avatar') {
             hpContainer.classList.remove('hidden');
@@ -210,6 +236,12 @@
         } else {
             hpContainer.classList.add('hidden');
             strContainer.classList.add('hidden');
+        }
+
+        if (type === 'unit') {
+            lineContainer.classList.remove('hidden');
+        } else {
+            lineContainer.classList.add('hidden');
         }
 
         if (type === 'equipment') {
@@ -256,6 +288,7 @@
         document.getElementById('card-name').value = '';
         document.getElementById('card-tribe').value = 'Robot';
         document.getElementById('card-type').value = 'unit';
+        document.getElementById('card-default-line').value = 'mid';
         document.getElementById('card-genus').value = '';
         document.getElementById('card-cost').value = '1';
         document.getElementById('card-health').value = '1';
@@ -275,11 +308,13 @@
 
     function buildCardState() {
         const strVal = document.getElementById('card-strength').value;
-        return {
+        const cardType = document.getElementById('card-type').value;
+        
+        const state = {
             id: currentEditingId || ('card_' + Date.now()),
             name: document.getElementById('card-name').value || 'Unnamed Card',
             tribe: document.getElementById('card-tribe').value,
-            type: document.getElementById('card-type').value,
+            type: cardType,
             genus: document.getElementById('card-genus').value || 'Generic',
             cost: parseInt(document.getElementById('card-cost').value) || 0,
             health: parseInt(document.getElementById('card-health').value) || 1,
@@ -289,7 +324,20 @@
             artUrl: document.getElementById('card-art').value || '',
             abilities: (currentAbilities || []).map(id => allAbilities.find(a => a.abilityId === id)).filter(Boolean)
         };
+        
+        if (cardType === 'unit') {
+            state.defaultLine = document.getElementById('card-default-line').value;
+        }
+        
+        return state;
     }
+
+    window.copyCardJSON = () => {
+        const card = buildCardState();
+        navigator.clipboard.writeText(JSON.stringify(card, null, 2)).then(() => {
+            showToast('Card JSON Copied!', 'success');
+        });
+    };
 
     window.inspectMiniPreview = () => {
         const card = buildCardState();
@@ -303,6 +351,8 @@
             isPlayable: true,
             onInspect: 'window.inspectMiniPreview()'
         });
+        
+        renderJSONPreview('json-preview-container', card, 'copyCardJSON');
     }
 
     async function saveCard() {
@@ -402,6 +452,7 @@
         document.getElementById('card-name').value = card.name;
         document.getElementById('card-tribe').value = card.tribe || 'Generic';
         document.getElementById('card-type').value = card.type || 'unit';
+        document.getElementById('card-default-line').value = card.defaultLine || 'mid';
         document.getElementById('card-genus').value = card.genus || '';
         document.getElementById('card-cost').value = card.cost || 0;
         document.getElementById('card-health').value = card.maxHealth || card.health || 1;

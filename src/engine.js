@@ -1,4 +1,5 @@
 /**
+ * src/engine.js
  * Henchies 2 Game Engine Core
  * Implements a LIFO Event Bus with APNAP resolution, WOULD_ replacement effects, 
  * and infinite-loop self-trigger prevention.
@@ -26,14 +27,14 @@ export class GameState {
                 lines: { taunt: [], bodyguard: [], front: [], mid: [], back: [], sheltered: [], sideline: [] }, 
                 hand: [], deck: [], discard: [], banish: [], 
                 avatar: { id: 'p1_avatar', name: 'Warlord', health: 30, maxHealth: 30, power: 0, tribe: 'Mythic', type: 'avatar', readiness: 1 },
-                tents: 2, maxTents: 2, resources: { 'Mythic': { current: 1, max: 1 } }
+                resources: { 'Carnie': { current: 2, max: 2 }, 'Mythic': { current: 1, max: 1 } }
             },
             player2: { 
                 id: 'player2', name: 'Player 2', 
                 lines: { taunt: [], bodyguard: [], front: [], mid: [], back: [], sheltered: [], sideline: [] }, 
                 hand: [], deck: [], discard: [], banish: [], 
                 avatar: { id: 'p2_avatar', name: 'Opponent', health: 30, maxHealth: 30, power: 0, tribe: 'Robot', type: 'avatar', readiness: 1 },
-                tents: 2, maxTents: 2, resources: { 'Robot': { current: 1, max: 1 } }
+                resources: { 'Carnie': { current: 2, max: 2 }, 'Robot': { current: 1, max: 1 } }
             }
         };
         this.equator = [];
@@ -85,32 +86,45 @@ export class GameEngine {
     queueTriggers(eventType, payload) {
         let triggersFound = false;
         const triggers = [];
+        const checkedEntities = new Set();
         
-        // Scan all entities on the board for matching triggers
+        // Helper to guarantee we don't double-trigger and can safely scan any entity
+        const checkEntity = (ent, ownerId) => {
+            if (!ent || !ent.abilities || !ent.instanceId || checkedEntities.has(ent.instanceId)) return;
+            checkedEntities.add(ent.instanceId);
+            for (const ability of ent.abilities) {
+                if (ability.trigger === eventType && !this.activeChainAbilities.has(ability.abilityId)) {
+                    triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload });
+                }
+            }
+        };
+
+        // 1. Force-check transit entities in the payload (crucial for MODIFY_PLAY / ON_BE_PLAYED)
+        if (payload) {
+            if (payload.source) checkEntity(payload.source, payload.source.ownerId);
+            if (payload.target) checkEntity(payload.target, payload.target.ownerId);
+        }
+        
+        // 2. Scan all entities on the board for matching triggers
         for (const pId of ['player1', 'player2']) {
             const player = this.state.players[pId];
             
             // Check Avatar abilities
-            if (player.avatar && player.avatar.abilities) {
-                for (const ability of player.avatar.abilities) {
-                    if (ability.trigger === eventType && !this.activeChainAbilities.has(ability.abilityId)) {
-                        triggers.push({ owner: pId, source: player.avatar, ability, payload });
-                    }
-                }
-            }
+            if (player.avatar) checkEntity(player.avatar, pId);
 
             // Check Unit abilities
             for (const line of LINES) {
                 if (line === 'avatar' || !player.lines[line]) continue;
                 for (const unit of player.lines[line]) {
-                    if (!unit.abilities) continue;
-                    for (const ability of unit.abilities) {
-                        // Do not queue if this exact ability already fired in the current chain
-                        if (ability.trigger === eventType && !this.activeChainAbilities.has(ability.abilityId)) {
-                            triggers.push({ owner: pId, source: unit, ability, payload });
-                        }
-                    }
+                    checkEntity(unit, pId);
                 }
+            }
+        }
+        
+        // 3. Check Equator abilities (OUTSIDE the player loop to prevent duplication)
+        if (this.state.equator) {
+            for (const item of this.state.equator) {
+                checkEntity(item, item.ownerId || this.state.activePlayerId);
             }
         }
 
@@ -171,53 +185,120 @@ export class GameEngine {
     }
 
     executeAbility(ability, source, eventPayload, ownerId) {
-        // Log the execution
-        this.state.history_log.push(`✨ ${source.name || 'Entity'} activated '${ability.name}'`);
-        
-        if (!ability.effects) return;
-
-        ownerId = ownerId || this.state.activePlayerId;
-
-        // Phase 1: Target Acquisition (Lock in targets based on board state BEFORE costs/effects resolve)
-        const lockedTargets = ability.effects.map(group => {
-            let targets = [];
-            if (group.targetMethod === 'SELF') targets = [source];
-            else if (group.targetMethod === 'AVATAR') targets = [this.state.players[ownerId].avatar];
-            else if (group.targetMethod === 'ENEMY_AVATAR') targets = [this.state.players[ownerId === 'player1' ? 'player2' : 'player1'].avatar];
-            else if (group.targetMethod === 'SAME_AS_ACTIVATION') targets = [eventPayload.target || source];
-            else if (group.targetMethod && group.targetMethod.startsWith('AUTO_')) {
-                let pool = this.findEntitiesInScope(group.quickTargeting, ownerId);
-                pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source));
-                
-                if (group.targetMethod === 'AUTO_ALL') targets = pool;
-                else if (group.targetMethod === 'AUTO_RANDOM') {
-                    const shuffled = [...pool].sort(() => 0.5 - Math.random());
-                    targets = shuffled.slice(0, group.targetCount || 1);
-                }
-                else if (group.targetMethod === 'AUTO_FIRST') targets = pool.slice(0, group.targetCount || 1);
-                else if (group.targetMethod === 'AUTO_LAST') targets = pool.slice(-(group.targetCount || 1));
+        try {
+            // Log the execution
+            this.state.history_log.push(`✨ ${source.name || 'Entity'} activated '${ability.name}'`);
+            
+            if (!ability.effects || !Array.isArray(ability.effects)) {
+                console.warn(`[Engine] Ability '${ability.name}' (${ability.abilityId}) has no valid effects array. Skipping.`);
+                return;
             }
-            
-            // Fallback safe defaults if no target acquired
-            if (targets.length === 0 && group.targetMethod === 'SAME_AS_ACTIVATION' && eventPayload.target) targets = [eventPayload.target];
-            
-            return targets;
-        });
 
-        // Phase 2: Sequential Execution
-        ability.effects.forEach((group, index) => {
-            const targets = lockedTargets[index];
-            for (const payload of group.payloads) {
-                const ActionClass = ACTION_REGISTRY[payload.type];
-                if (ActionClass) {
-                    for (const target of targets) {
-                        const actionPayload = { ...payload, source, target };
-                        const action = new ActionClass(actionPayload);
-                        action.run(this);
+            ownerId = ownerId || this.state.activePlayerId;
+
+            // Phase 1: Target Acquisition (Lock in targets based on board state BEFORE costs/effects resolve)
+            const lockedTargets = ability.effects.map((group, index) => {
+                if (!group) {
+                    console.warn(`[Engine] Ability '${ability.name}' (${ability.abilityId}) has a null target group at index ${index}.`);
+                    return [];
+                }
+                let targets = [];
+                if (group.targetMethod === 'SELF') targets = [source];
+                else if (group.targetMethod === 'AVATAR') targets = [this.state.players[ownerId].avatar];
+                else if (group.targetMethod === 'ENEMY_AVATAR') targets = [this.state.players[ownerId === 'player1' ? 'player2' : 'player1'].avatar];
+                else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
+                    // Check if a specific target ID was tunneled through the payload (e.g. from PlayAction targeted equip)
+                    if (eventPayload && eventPayload.abilityTargetId) {
+                        const allEntities = [
+                            this.state.players.player1.avatar, this.state.players.player2.avatar,
+                            ...Object.values(this.state.players.player1.lines).flat(),
+                            ...Object.values(this.state.players.player2.lines).flat(),
+                            ...(this.state.equator || [])
+                        ].filter(Boolean);
+                        const resolvedTarget = allEntities.find(e => e.id === eventPayload.abilityTargetId || e.instanceId === eventPayload.abilityTargetId);
+                        
+                        if (!resolvedTarget) console.warn(`[Engine] SAME_AS_ACTIVATION could not find entity with ID: ${eventPayload.abilityTargetId}`);
+                        
+                        targets = [resolvedTarget || eventPayload.target || source];
+                    } else {
+                        targets = [eventPayload.target || source];
                     }
                 }
-            }
-        });
+                else if (group.targetMethod && group.targetMethod.startsWith('AUTO_')) {
+                    let pool = this.findEntitiesInScope(group.quickTargeting, ownerId);
+                    pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source));
+                    
+                    if (group.targetMethod === 'AUTO_ALL') targets = pool;
+                    else if (group.targetMethod === 'AUTO_RANDOM') {
+                        const shuffled = [...pool].sort(() => 0.5 - Math.random());
+                        targets = shuffled.slice(0, group.targetCount || 1);
+                    }
+                    else if (group.targetMethod === 'AUTO_FIRST') targets = pool.slice(0, group.targetCount || 1);
+                    else if (group.targetMethod === 'AUTO_LAST') targets = pool.slice(-(group.targetCount || 1));
+                }
+                
+                // Fallback safe defaults if no target acquired
+                if (targets.length === 0 && group.targetMethod === 'SAME_AS_ACTIVATION' && eventPayload.target) targets = [eventPayload.target];
+                
+                return targets;
+            });
+
+            // Phase 2: Sequential Execution
+            ability.effects.forEach((group, index) => {
+                if (!group) return;
+                if (!group.payloads || !Array.isArray(group.payloads)) {
+                    console.warn(`[Engine] Ability '${ability.name}' (${ability.abilityId}) - Target Group ${index} has missing or invalid payloads array. Skipping.`);
+                    return;
+                }
+                
+                const targets = lockedTargets[index] || [];
+                for (const payload of group.payloads) {
+                    const ActionClass = ACTION_REGISTRY[payload.type];
+                    if (ActionClass) {
+                        for (const target of targets) {
+                            let currentTarget = target;
+                            
+                            // Last-ditch interceptor to catch any failing self-attachments if a tunneled target exists
+                            if ((payload.type === 'ATTACH' || payload.type === 'ATTACH_TO') && currentTarget.instanceId === source.instanceId) {
+                                if (eventPayload && eventPayload.abilityTargetId) {
+                                    const allEntities = [
+                                        this.state.players.player1.avatar, this.state.players.player2.avatar,
+                                        ...Object.values(this.state.players.player1.lines).flat(),
+                                        ...Object.values(this.state.players.player2.lines).flat(),
+                                        ...(this.state.equator || [])
+                                    ].filter(Boolean);
+                                    const altTarget = allEntities.find(e => e.id === eventPayload.abilityTargetId || e.instanceId === eventPayload.abilityTargetId);
+                                    if (altTarget) {
+                                        console.log(`[Engine] Intercepted self-attachment, redirecting to tunneled target: ${altTarget.name}`);
+                                        currentTarget = altTarget;
+                                    }
+                                }
+                                
+                                if (currentTarget.instanceId === source.instanceId) {
+                                    console.warn(`[Engine] Aborted self-attachment for ${source.name}.`);
+                                    continue;
+                                }
+                            }
+                            
+                            const actionPayload = { ...payload };
+                            if (payload.invertRoles) {
+                                actionPayload.source = currentTarget;
+                                actionPayload.target = source;
+                            } else {
+                                actionPayload.source = source;
+                                actionPayload.target = currentTarget;
+                            }
+                            const action = new ActionClass(actionPayload);
+                            action.run(this);
+                        }
+                    } else {
+                        console.warn(`[Engine] Unknown action type '${payload.type}' in ability '${ability.name}' (${ability.abilityId}).`);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error(`[Engine] CRITICAL ERROR executing ability '${ability?.name}' (${ability?.abilityId}) from source '${source?.name}':`, error);
+        }
     }
 
     getPastTenseEvent(eventType) {
@@ -349,10 +430,20 @@ export function startTurn(state, engine) {
         if (player.avatar) player.avatar.isDeployed = true;
         
         if (pId === 'player2' && player.isDummy) {
-            const dummy = {
-                id: 'target_dummy', instanceId: 'inst_' + Math.random().toString(36).substr(2, 9),
-                name: 'Target Dummy', type: 'unit', tribe: 'Robot', health: 10, maxHealth: 10, strength: 0, readiness: 0, abilities: []
-            };
+            const catalogDummy = CARD_CATALOG.find(c => c.id === 'target_dummy' || c.name === 'Target Dummy');
+            let dummy;
+            
+            if (catalogDummy) {
+                dummy = JSON.parse(JSON.stringify(catalogDummy));
+                dummy.instanceId = 'inst_' + Math.random().toString(36).substr(2, 9);
+                dummy.readiness = 0;
+                if (dummy.health === undefined) dummy.health = dummy.maxHealth;
+            } else {
+                dummy = {
+                    id: 'target_dummy', instanceId: 'inst_' + Math.random().toString(36).substr(2, 9),
+                    name: 'Target Dummy', type: 'unit', tribe: 'Robot', health: 1, maxHealth: 1, strength: 1, readiness: 0, abilities: []
+                };
+            }
             if (!player.lines['front']) player.lines['front'] = [];
             player.lines['front'].push(dummy);
             state.history_log.push(`🤖 Dummy opponent deployed Avatar and summoned Target Dummy.`);
@@ -368,7 +459,6 @@ export function startTurn(state, engine) {
     }
 
     // 1. Harvesting: Replenish resources based on max caps
-    player.tents = player.maxTents;
     if (player.resources) {
         for (const tribe in player.resources) {
             player.resources[tribe].current = player.resources[tribe].max;
@@ -380,6 +470,16 @@ export function startTurn(state, engine) {
         let currentReadiness = Number(player.avatar.readiness);
         if (isNaN(currentReadiness)) currentReadiness = 0;
         if (currentReadiness < 1) player.avatar.readiness = currentReadiness + 1;
+        player.avatar.acts = player.avatar.maxActs !== undefined ? player.avatar.maxActs : 1;
+
+        if (player.avatar.attachments) {
+            player.avatar.attachments.forEach(item => {
+                let currentReadiness = Number(item.readiness);
+                if (isNaN(currentReadiness)) currentReadiness = 0;
+                if (currentReadiness < 1) item.readiness = currentReadiness + 1;
+                item.acts = item.maxActs !== undefined ? item.maxActs : 1;
+            });
+        }
     }
     for (const line of LINES) {
         if (line === 'avatar') continue;
@@ -388,6 +488,16 @@ export function startTurn(state, engine) {
                 let currentReadiness = Number(u.readiness);
                 if (isNaN(currentReadiness)) currentReadiness = 0;
                 if (currentReadiness < 1) u.readiness = currentReadiness + 1;
+                u.acts = u.maxActs !== undefined ? u.maxActs : 1;
+
+                if (u.attachments) {
+                    u.attachments.forEach(item => {
+                        let currentReadiness = Number(item.readiness);
+                        if (isNaN(currentReadiness)) currentReadiness = 0;
+                        if (currentReadiness < 1) item.readiness = currentReadiness + 1;
+                        item.acts = item.maxActs !== undefined ? item.maxActs : 1;
+                    });
+                }
             });
         }
     }
@@ -395,9 +505,12 @@ export function startTurn(state, engine) {
     // 2.5 Ready Equator items
     if (state.equator) {
         state.equator.forEach(item => {
-            let currentReadiness = Number(item.readiness);
-            if (isNaN(currentReadiness)) currentReadiness = 0;
-            if (currentReadiness < 1) item.readiness = currentReadiness + 1;
+            if (item.ownerId === pId) {
+                let currentReadiness = Number(item.readiness);
+                if (isNaN(currentReadiness)) currentReadiness = 0;
+                if (currentReadiness < 1) item.readiness = currentReadiness + 1;
+                item.acts = item.maxActs !== undefined ? item.maxActs : 1;
+            }
         });
     }
 
@@ -405,7 +518,9 @@ export function startTurn(state, engine) {
     let drawn = 0;
     for(let i=0; i<2; i++) {
         if (player.deck.length > 0) {
-            player.hand.push(player.deck.pop());
+            const card = player.deck.pop();
+            card.readiness = 0;
+            player.hand.push(card);
             drawn++;
         }
     }
@@ -451,29 +566,30 @@ export function canPlayCard(state, playerId, card) {
 
     let baseCost = 0;
     if (typeof card.cost === 'object') {
-        baseCost = card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.tents || 0);
+        baseCost = card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0);
     } else {
         baseCost = card.cost || 0;
     }
 
     let cTribe = card.tribe || 'Generic';
     let resKey = Object.keys(player.resources || {}).find(k => k.toLowerCase() === cTribe.toLowerCase());
+    let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
     if (baseCost > 0) {
         if (cTribe.toLowerCase() === 'carnie') {
-            if (player.tents < baseCost) return false;
+            if (carnieRes < baseCost) return false;
         } else {
             const tribeRes = resKey ? player.resources[resKey].current : 0;
             if (tribeRes < 1) return false;
             
-            const maxTentConversion = Math.floor(player.tents / 3);
-            if (tribeRes + maxTentConversion < baseCost) return false;
+            const maxCarnieConversion = Math.floor(carnieRes / 3);
+            if (tribeRes + maxCarnieConversion < baseCost) return false;
         }
     }
 
     if (card.abilities) {
         for (const ab of card.abilities) {
-            if ((ab.trigger === 'PLAY' || ab.trigger === 'PLAY_OPTIONAL') && ab.activation?.method === 'PLAYER_CHOICE') {
+            if ((ab.trigger === 'PLAY' || ab.trigger === 'PLAY_OPTIONAL' || ab.trigger === 'MODIFY_PLAY' || ab.trigger === 'ON_BE_PLAYED' || ab.trigger === 'PLAYED') && ab.activation?.method === 'PLAYER_CHOICE') {
                 const qt = ab.activation.quickTargeting;
                 if (qt && qt.zones && qt.zones.includes('FIELD')) {
                     const oppId = playerId === 'player1' ? 'player2' : 'player1';
@@ -499,7 +615,7 @@ export function canPlayCard(state, playerId, card) {
     return true;
 }
 
-export function playCard(state, playerId, cardId) {
+export function playCard(state, playerId, cardId, targetLine = 'back', abilityTargetId = null) {
     const player = state.players[playerId];
     const cardIdx = player.hand.findIndex(c => c.instanceId === cardId || c.id === cardId);
     if (cardIdx === -1) return { success: false, reason: "Card not in hand" };
@@ -507,38 +623,41 @@ export function playCard(state, playerId, cardId) {
 
     let baseCost = 0;
     if (typeof card.cost === 'object') {
-        baseCost = card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.tents || 0);
+        baseCost = card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0);
     } else {
         baseCost = card.cost || 0;
     }
 
     let cTribe = card.tribe || 'Generic';
     let resKey = Object.keys(player.resources || {}).find(k => k.toLowerCase() === cTribe.toLowerCase());
+    let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
     if (baseCost > 0) {
         if (cTribe.toLowerCase() === 'carnie') {
-            if (player.tents < baseCost) return { success: false, reason: `Not enough Tents (Cost: ${baseCost})` };
-            player.tents -= baseCost;
+            if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Cost: ${baseCost})` };
+            player.resources['Carnie'].current -= baseCost;
         } else {
             const tribeRes = resKey ? player.resources[resKey].current : 0;
             if (tribeRes < 1) return { success: false, reason: `Must use at least 1 ${cTribe} Resource` };
             
-            const maxTentConversion = Math.floor(player.tents / 3);
-            if (tribeRes + maxTentConversion < baseCost) return { success: false, reason: `Not enough resources (Cost: ${baseCost})` };
+            const maxCarnieConversion = Math.floor(carnieRes / 3);
+            if (tribeRes + maxCarnieConversion < baseCost) return { success: false, reason: `Not enough resources (Cost: ${baseCost})` };
             
             let costRemaining = baseCost;
             let tribeResToUse = Math.min(tribeRes, costRemaining);
             costRemaining -= tribeResToUse;
             
             if (costRemaining > 0) {
-                player.tents -= (costRemaining * 3);
+                player.resources['Carnie'].current -= (costRemaining * 3);
             }
-            player.resources[resKey].current -= tribeResToUse;
+            if (resKey) player.resources[resKey].current -= tribeResToUse;
         }
     }
 
+    console.log(`[Engine] Executing playCard. abilityTargetId: ${abilityTargetId}`);
     const engine = new GameEngine(state);
-    const play = new PlayAction({ source: player.avatar, target: card });
+    // Tunnel the explicit target down through the payload so ON_BE_PLAYED triggers can resolve it
+    const play = new PlayAction({ source: player.avatar, target: card, targetLine: targetLine, line: targetLine, abilityTargetId: abilityTargetId });
     play.run(engine);
 
     return { success: true };
@@ -596,13 +715,21 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
         }
     }
     
+    // Check hand for unplayed cards (crucial for targeted Play abilities)
+    if (!entity) {
+        const handCard = state.players[playerId].hand.find(c => c.instanceId === entityId || c.id === entityId);
+        if (handCard) entity = handCard;
+    }
+    
     if (!entity) return [];
 
     const ability = entity.abilities?.find(a => a.abilityId === abilityId);
     if (!ability) return [];
 
-    const qt = ability.activation?.quickTargeting;
-    if (!qt || ability.activation.method !== 'PLAYER_CHOICE') return [];
+    let qt = ability.activation?.quickTargeting;
+    let method = ability.activation?.method;
+
+    if (!qt || method !== 'PLAYER_CHOICE') return [];
 
     let targets = [];
     const oppId = playerId === 'player1' ? 'player2' : 'player1';
@@ -672,19 +799,17 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                         canAfford = false;
                     }
                     
-                    const reqCost = cost.tribeAmount > 0 ? cost.tribeAmount : (cost.tent || 0);
-                    if (canAfford && reqCost > 0) {
+                    if (canAfford) {
                         const player = state.players[playerId];
-                        const entityTribe = entity.tribe || 'Generic';
-                        const resKey = Object.keys(player.resources || {}).find(k => k.toLowerCase() === entityTribe.toLowerCase());
                         
-                        if (entityTribe.toLowerCase() === 'carnie') {
-                            if (player.tents < reqCost) canAfford = false;
-                        } else {
+                        if ((cost.carnie || cost.tent) > 0 && (player.resources['Carnie']?.current || 0) < (cost.carnie || cost.tent)) canAfford = false;
+                        if (cost.power > 0 && (player.avatar?.power || 0) < cost.power) canAfford = false;
+                        
+                        if (canAfford && cost.tribeAmount > 0) {
+                            const entityTribe = entity.tribe || 'Generic';
+                            const resKey = Object.keys(player.resources || {}).find(k => k.toLowerCase() === entityTribe.toLowerCase());
                             const tribeRes = resKey ? player.resources[resKey].current : 0;
-                            if (cost.tribeAmount > 0 && tribeRes < 1) canAfford = false;
-                            const maxTentConversion = Math.floor(player.tents / 3);
-                            if (tribeRes + maxTentConversion < reqCost) canAfford = false;
+                            if (tribeRes < cost.tribeAmount) canAfford = false;
                         }
                     }
                     
@@ -693,7 +818,18 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                         if (ab.effects) {
                             isAttack = ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
                         }
-                        actions.push({ type: isAttack ? 'ATTACK' : 'ABILITY', name: ab.name, abilityId: ab.abilityId });
+
+                        if (isAttack) {
+                            if (entity.activeEffects?.some(e => e.type === 'BLOCK_ATTACK')) canAfford = false;
+                        } else {
+                            let currentActs = Number(entity.acts);
+                            if (isNaN(currentActs)) currentActs = 0;
+                            if (currentActs < 1) canAfford = false;
+                        }
+
+                        if (canAfford) {
+                            actions.push({ type: isAttack ? 'ATTACK' : 'ABILITY', name: ab.name, abilityId: ab.abilityId });
+                        }
                     }
                 }
             });
@@ -730,21 +866,28 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         if (cost.readinessCost === 'EXHAUSTS' || cost.readinessCost === 'UNREADIES') {
             entity.readiness = 0;
         }
-        const reqCost = cost.tribeAmount > 0 ? cost.tribeAmount : (cost.tent || 0);
-        if (reqCost > 0) {
-            const p = state.players[playerId];
+
+        if (actionType === 'ABILITY') {
+            let currentActs = Number(entity.acts);
+            if (isNaN(currentActs)) currentActs = 0;
+            entity.acts = Math.max(0, currentActs - 1);
+        }
+
+        const p = state.players[playerId];
+        
+        let cCost = cost.carnie || cost.tent || 0;
+        if (cCost > 0 && p.resources['Carnie']) {
+            p.resources['Carnie'].current -= cCost;
+        }
+        if (cost.power > 0 && p.avatar) {
+            p.avatar.power -= cost.power;
+        }
+
+        if (cost.tribeAmount > 0) {
             const entityTribe = entity.tribe || 'Generic';
             const resKey = Object.keys(p.resources || {}).find(k => k.toLowerCase() === entityTribe.toLowerCase());
-            
-            if (entityTribe.toLowerCase() === 'carnie') {
-                p.tents -= reqCost;
-            } else {
-                let tribeRes = resKey ? p.resources[resKey].current : 0;
-                let costRemaining = reqCost;
-                let tribeResToUse = Math.min(tribeRes, costRemaining);
-                costRemaining -= tribeResToUse;
-                if (costRemaining > 0) p.tents -= (costRemaining * 3);
-                if (resKey) p.resources[resKey].current -= tribeResToUse;
+            if (resKey && p.resources[resKey]) {
+                p.resources[resKey].current -= cost.tribeAmount;
             }
         }
 
@@ -800,14 +943,22 @@ export function initGame(roomId, p1Name, p1Deck) {
         av.maxHealth = av.health;
         av.type = 'avatar';
         av.readiness = 1;
+        av.acts = 1;
+        av.maxActs = 1;
         state.players.player1.avatar = av;
     }
 
     state.players.player1.tents = 2;
     state.players.player1.maxTents = 2;
     
+    state.players.player1.resources = { 'Carnie': { current: 2, max: 2 } };
     let p1Tribe = state.players.player1.avatar?.tribe || 'Generic';
-    state.players.player1.resources = { [p1Tribe]: { current: 1, max: 1 } };
+    if (p1Tribe.toLowerCase() === 'carnie') {
+        state.players.player1.resources['Carnie'].current = 3;
+        state.players.player1.resources['Carnie'].max = 3;
+    } else {
+        state.players.player1.resources[p1Tribe] = { current: 1, max: 1 };
+    }
     
     // Setup dummy Player 2 for immediate local testing support
     state.players.player2.deck = [];
@@ -819,7 +970,15 @@ export function initGame(roomId, p1Name, p1Deck) {
 
     state.players.player2.tents = 2;
     state.players.player2.maxTents = 2;
-    state.players.player2.resources = { 'Robot': { current: 1, max: 1 } };
+    
+    state.players.player2.resources = { 'Carnie': { current: 2, max: 2 } };
+    let p2DummyTribe = state.players.player2.avatar?.tribe || 'Robot';
+    if (p2DummyTribe.toLowerCase() === 'carnie') {
+        state.players.player2.resources['Carnie'].current = 3;
+        state.players.player2.resources['Carnie'].max = 3;
+    } else {
+        state.players.player2.resources[p2DummyTribe] = { current: 1, max: 1 };
+    }
     state.players.player2.isDummy = true;
     
     // Shuffle decks before drawing
@@ -828,8 +987,16 @@ export function initGame(roomId, p1Name, p1Deck) {
     
     // Draw 4 starting cards for both players
     for(let i = 0; i < 4; i++) {
-        if (state.players.player1.deck.length > 0) state.players.player1.hand.push(state.players.player1.deck.pop());
-        if (state.players.player2.deck.length > 0) state.players.player2.hand.push(state.players.player2.deck.pop());
+        if (state.players.player1.deck.length > 0) {
+            const c = state.players.player1.deck.pop();
+            c.readiness = 0;
+            state.players.player1.hand.push(c);
+        }
+        if (state.players.player2.deck.length > 0) {
+            const c = state.players.player2.deck.pop();
+            c.readiness = 0;
+            state.players.player2.hand.push(c);
+        }
     }
     
     state.history_log.push(`Match initialized. Players drew starting hands.`);
@@ -863,14 +1030,22 @@ export function joinGame(state, p2Name, p2Deck) {
         av.maxHealth = av.health;
         av.type = 'avatar';
         av.readiness = 1;
+        av.acts = 1;
+        av.maxActs = 1;
         state.players.player2.avatar = av;
     }
 
     state.players.player2.tents = 2;
     state.players.player2.maxTents = 2;
     
+    state.players.player2.resources = { 'Carnie': { current: 2, max: 2 } };
     let p2Tribe = state.players.player2.avatar.tribe || 'Generic';
-    state.players.player2.resources = { [p2Tribe]: { current: 1, max: 1 } };
+    if (p2Tribe.toLowerCase() === 'carnie') {
+        state.players.player2.resources['Carnie'].current = 3;
+        state.players.player2.resources['Carnie'].max = 3;
+    } else {
+        state.players.player2.resources[p2Tribe] = { current: 1, max: 1 };
+    }
     
     // Shuffle joining player's deck
     shuffleArray(state.players.player2.deck);
@@ -878,7 +1053,11 @@ export function joinGame(state, p2Name, p2Deck) {
     // Replace dummy hand with actual starting hand for joining player
     state.players.player2.hand = [];
     for(let i = 0; i < 4; i++) {
-        if (state.players.player2.deck.length > 0) state.players.player2.hand.push(state.players.player2.deck.pop());
+        if (state.players.player2.deck.length > 0) {
+            const c = state.players.player2.deck.pop();
+            c.readiness = 0;
+            state.players.player2.hand.push(c);
+        }
     }
     
     state.history_log.push(`${p2Name} joined the match.`);

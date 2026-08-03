@@ -44,10 +44,10 @@
   <!-- Deckbuilder Content -->
   <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col md:flex-row gap-4">
     
-    <!-- LEFT: CATALOG EXPLORER -->
+    <!-- LEFT: CATALOG EXPLORER (HIDES AVATARS) -->
     <div class="flex-1 glass-panel rounded-2xl p-4 flex flex-col gap-4 shadow-2xl border border-slate-800">
       <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-3">
-        <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider">🎴 Card Catalog Explorer</h2>
+        <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider">🎴 Standard Card Catalog</h2>
         
         <!-- Filters (11 Tribes ONLY) -->
         <div class="flex flex-wrap gap-2 w-full md:w-auto">
@@ -85,14 +85,16 @@
 
     <!-- RIGHT: ACTIVE DECK PANEL -->
     <div class="w-full md:w-80 glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl border border-slate-800">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-        <h2 class="text-base font-black text-amber-400 uppercase tracking-wider">🛡️ Your Deck</h2>
-        <span class="text-xs px-2 py-1 rounded bg-amber-500 text-black font-extrabold" id="deck-count-badge">0 / 41</span>
-      </div>
-
+      
+      <!-- Account & Cloud Save -->
       <div class="flex flex-col gap-2 border-b border-slate-800 pb-3 mb-1">
-        <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Deck Owner (Username)</label>
-        <input type="text" id="deck-owner-input" placeholder="Your Username" class="bg-slate-900 border border-slate-700 text-xs font-bold px-3 py-1.5 rounded text-amber-300 w-full focus:outline-none focus:border-amber-500" />
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Cloud Account (Username)</label>
+        <div class="flex gap-2">
+            <input type="text" id="deck-owner-input" placeholder="Your Username" class="bg-slate-900 border border-slate-700 text-xs font-bold px-3 py-1.5 rounded text-cyan-300 w-full focus:outline-none focus:border-cyan-500" />
+            <button id="refresh-cloud-btn" class="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-2 rounded shadow">
+              🔄
+            </button>
+        </div>
       </div>
 
       <div class="flex items-center gap-2 mb-1">
@@ -116,13 +118,29 @@
         </button>
       </div>
 
-      <!-- Rule Guidelines & Validation Banner -->
-      <div id="validation-banner" class="text-[11px] p-2.5 rounded-lg bg-yellow-950/60 border border-yellow-500/40 text-yellow-300 font-semibold leading-snug">
-        ⚠️ Deck Rules: Exactly 1 Avatar & 40 normal cards (41 total). Max 3 copies per card, EXCEPT exactly 1 card may have 4 copies!
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2 pt-2">
+        <h2 class="text-base font-black text-amber-400 uppercase tracking-wider">🛡️ Your Deck</h2>
+        <span class="text-xs px-2 py-1 rounded bg-amber-500 text-black font-extrabold" id="deck-count-badge">0 / 40</span>
       </div>
 
-      <!-- Deck List -->
-      <div id="deck-list-container" class="flex-1 flex flex-col gap-1.5 overflow-y-auto max-h-[450px] p-1 bg-slate-950/60 rounded-xl border border-slate-800">
+      <!-- Dedicated Avatar Slot -->
+      <div class="flex flex-col gap-1 border-b border-slate-800 pb-3">
+          <label class="text-[10px] font-black text-amber-500 uppercase tracking-wider flex justify-between">
+              <span>Commander Avatar</span>
+              <span id="avatar-status-text" class="text-red-400">Missing</span>
+          </label>
+          <div id="avatar-slot-ui" onclick="window.openAvatarSelector()" class="h-12 border-2 border-dashed border-amber-700/50 rounded-lg bg-amber-950/20 hover:bg-amber-900/30 flex items-center justify-center cursor-pointer transition-colors text-amber-500/50 font-bold text-xs shadow-inner relative overflow-hidden">
+             Click to Select Avatar
+          </div>
+      </div>
+
+      <!-- Rule Guidelines & Validation Banner -->
+      <div id="validation-banner" class="text-[11px] p-2.5 rounded-lg bg-yellow-950/60 border border-yellow-500/40 text-yellow-300 font-semibold leading-snug">
+        ⚠️ Deck Rules: 1 Avatar & exactly 40 standard cards. Max 3 copies per card, EXCEPT exactly 1 card may have 4 copies.
+      </div>
+
+      <!-- Deck List (No Avatars) -->
+      <div id="deck-list-container" class="flex-1 flex flex-col gap-1.5 overflow-y-auto max-h-[400px] p-1 bg-slate-950/60 rounded-xl border border-slate-800">
         <div class="text-xs text-slate-500 italic p-3 text-center">Click cards from the catalog to add them to your deck.</div>
       </div>
 
@@ -133,18 +151,56 @@
 
   </main>
 
+  <!-- Avatar Selection Modal -->
+  <div id="avatar-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+          <div class="flex justify-between items-center p-4 border-b border-slate-800">
+              <h3 class="text-lg font-black text-amber-400 uppercase tracking-wider">👑 Select Your Avatar</h3>
+              <button onclick="document.getElementById('avatar-modal').classList.add('hidden')" class="text-slate-400 hover:text-white font-bold text-xl">&times;</button>
+          </div>
+          <div id="avatar-modal-catalog" class="flex-1 overflow-y-auto p-4 flex flex-wrap gap-4 justify-center bg-slate-950">
+              <!-- Avatars injected here -->
+          </div>
+      </div>
+  </div>
+
   <script type="module">
     import { CARD_CATALOG } from './src/engine.js';
     import { renderCardHTML, openInspectionModal, showToast, TRIBE_STYLES } from './src/ui.js';
-    import { fetchCustomCards, fetchCustomAbilities } from './src/firebase.js';
+    import { fetchCustomCards, fetchCustomAbilities, saveDeckToCatalog, fetchUserDecks } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
 
     let fullCatalog = [...CARD_CATALOG];
     let currentDeck = [];
+    let currentAvatar = null;
     let allAbilitiesRegistry = [];
 
     window.inspectCard = (cardJson) => {
       openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry);
+    };
+
+    window.openAvatarSelector = () => {
+        const avatars = fullCatalog.filter(c => c.type === 'avatar');
+        const container = document.getElementById('avatar-modal-catalog');
+        
+        container.innerHTML = avatars.map(card => {
+            const json = encodeURIComponent(JSON.stringify(card));
+            return renderCardHTML(card, {
+              onClick: `window.selectAvatar('${card.id}')`,
+              onInspect: `window.inspectCard('${json}')`,
+              isSelected: currentAvatar && currentAvatar.id === card.id
+            });
+        }).join('');
+        
+        document.getElementById('avatar-modal').classList.remove('hidden');
+        document.getElementById('avatar-modal').classList.add('flex');
+    };
+
+    window.selectAvatar = (cardId) => {
+        currentAvatar = fullCatalog.find(c => c.id === cardId);
+        document.getElementById('avatar-modal').classList.add('hidden');
+        document.getElementById('avatar-modal').classList.remove('flex');
+        updateDeckUI();
     };
 
     init();
@@ -159,15 +215,20 @@
 
         const customCards = await fetchCustomCards();
         if (customCards && customCards.length > 0) {
-           fullCatalog = [...CARD_CATALOG, ...customCards];
+           const hydratedCustomCards = customCards.map(c => {
+               if (c.abilities) {
+                   c.abilities = c.abilities.map(ab => {
+                       const abId = typeof ab === 'string' ? ab : ab.abilityId;
+                       const match = rawAbs.find(a => a.abilityId === abId);
+                       return match ? JSON.parse(JSON.stringify(match)) : null;
+                   }).filter(Boolean);
+               }
+               return c;
+           });
+           fullCatalog = [...CARD_CATALOG, ...hydratedCustomCards];
         }
       } catch (e) {
         console.error("Failed to load custom cards:", e);
-      }
-
-      const saved = localStorage.getItem('henchies_active_deck');
-      if (saved) {
-        try { currentDeck = JSON.parse(saved); } catch (e) {}
       }
       
       const savedOwner = localStorage.getItem('henchies_deck_owner');
@@ -179,11 +240,13 @@
       document.getElementById('filter-tribe').addEventListener('change', renderCatalog);
       document.getElementById('filter-type').addEventListener('change', renderCatalog);
       document.getElementById('filter-search').addEventListener('input', renderCatalog);
-      document.getElementById('deck-owner-input').addEventListener('input', refreshLoadDropdown);
+      document.getElementById('deck-owner-input').addEventListener('input', () => localStorage.setItem('henchies_deck_owner', document.getElementById('deck-owner-input').value));
+      document.getElementById('refresh-cloud-btn').addEventListener('click', refreshLoadDropdown);
       document.getElementById('save-deck-btn').addEventListener('click', saveDeck);
       document.getElementById('load-deck-btn').addEventListener('click', loadDeck);
       document.getElementById('clear-deck-btn').addEventListener('click', () => {
         currentDeck = [];
+        currentAvatar = null;
         updateDeckUI();
       });
 
@@ -196,7 +259,9 @@
       const typeVal = document.getElementById('filter-type').value;
       const searchVal = document.getElementById('filter-search').value.toLowerCase();
 
+      // IMPORTANT: Hide Avatars from main catalog
       const filtered = fullCatalog.filter(c => {
+        if (c.type === 'avatar') return false; 
         const matchTribe = tribeVal === 'ALL' || c.tribe === tribeVal;
         const matchType = typeVal === 'ALL' || c.type === typeVal;
         const matchSearch = c.name.toLowerCase().includes(searchVal) || (c.genus && c.genus.toLowerCase().includes(searchVal));
@@ -223,24 +288,19 @@
           return;
         }
 
-        if (existingCount === 3 && card.type !== 'avatar') {
+        if (existingCount === 3) {
           const counts = {};
-          currentDeck.filter(c => c.type !== 'avatar').forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
+          currentDeck.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
           const fourCopyCards = Object.keys(counts).filter(id => counts[id] === 4);
 
           if (fourCopyCards.length >= 1) {
-            showToast('Rule Violation: Exactly ONE non-avatar card may have 4 copies!', 'error');
+            showToast('Rule Violation: Exactly ONE card may have 4 copies!', 'error');
             return;
           }
         }
 
-        if (card.type === 'avatar' && currentDeck.some(c => c.type === 'avatar')) {
-          showToast('Rule Violation: Your deck may only contain ONE Avatar!', 'error');
-          return;
-        }
-
-        if (currentDeck.length >= 41) {
-          showToast('Deck already has 41 cards!', 'error');
+        if (currentDeck.length >= 40) {
+          showToast('Deck already has 40 standard cards!', 'error');
           return;
         }
 
@@ -249,15 +309,12 @@
       };
     }
 
-    function validateDeckRules(deck) {
-      const avatars = deck.filter(c => c.type === 'avatar');
-      const others = deck.filter(c => c.type !== 'avatar');
-
-      if (avatars.length !== 1) return { valid: false, reason: `Deck must have exactly 1 Avatar (Currently ${avatars.length}).` };
-      if (others.length !== 40) return { valid: false, reason: `Deck must have exactly 40 non-avatar cards (Currently ${others.length}).` };
+    function validateDeckRules() {
+      if (!currentAvatar) return { valid: false, reason: `Missing Avatar. Please select a Commander.` };
+      if (currentDeck.length !== 40) return { valid: false, reason: `Deck must have exactly 40 cards (Currently ${currentDeck.length}).` };
 
       const counts = {};
-      others.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
+      currentDeck.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
 
       const fourCopyCards = Object.keys(counts).filter(id => counts[id] === 4);
       const overFourCards = Object.keys(counts).filter(id => counts[id] > 4);
@@ -274,30 +331,50 @@
     }
 
     function updateDeckUI() {
-      // Pin avatar to top, then tribe, then cost
+      // Pin tribe, then cost
       currentDeck.sort((a, b) => {
-          if (a.type === 'avatar' && b.type !== 'avatar') return -1;
-          if (a.type !== 'avatar' && b.type === 'avatar') return 1;
-          
           const tribeA = a.tribe || '';
           const tribeB = b.tribe || '';
           if (tribeA !== tribeB) return tribeA.localeCompare(tribeB);
-          
           return (a.cost || 0) - (b.cost || 0);
       });
 
       const badge = document.getElementById('deck-count-badge');
       const container = document.getElementById('deck-list-container');
       const banner = document.getElementById('validation-banner');
+      const avatarSlot = document.getElementById('avatar-slot-ui');
+      const avatarStatus = document.getElementById('avatar-status-text');
 
-      badge.innerText = `${currentDeck.length} / 41`;
+      badge.innerText = `${currentDeck.length} / 40`;
 
-      const check = validateDeckRules(currentDeck);
+      if (currentAvatar) {
+          const style = TRIBE_STYLES[currentAvatar.tribe] || { bg: 'bg-slate-900', border: 'border-black' };
+          avatarStatus.innerText = "Assigned";
+          avatarStatus.className = "text-emerald-400";
+          avatarSlot.className = `h-14 rounded-lg flex items-center justify-between p-2 cursor-pointer shadow-lg border-2 border-amber-500/50 ${style.bg}`;
+          avatarSlot.innerHTML = `
+              <div class="flex items-center gap-3">
+                  <span class="text-2xl drop-shadow-md">👑</span>
+                  <div class="flex flex-col">
+                      <span class="font-black text-white text-sm drop-shadow-md tracking-wider">${currentAvatar.name}</span>
+                      <span class="text-[9px] text-slate-300 capitalize font-bold">${currentAvatar.tribe} Avatar</span>
+                  </div>
+              </div>
+              <span class="text-xs text-amber-300 font-bold bg-black/40 px-2 py-1 rounded">Change</span>
+          `;
+      } else {
+          avatarStatus.innerText = "Missing";
+          avatarStatus.className = "text-red-400 font-bold animate-pulse";
+          avatarSlot.className = `h-12 border-2 border-dashed border-amber-700/50 rounded-lg bg-amber-950/20 hover:bg-amber-900/30 flex items-center justify-center cursor-pointer transition-colors text-amber-500/50 font-bold text-xs shadow-inner relative overflow-hidden`;
+          avatarSlot.innerHTML = `Click to Select Avatar`;
+      }
+
+      const check = validateDeckRules();
       if (check.valid) {
-        banner.className = 'text-[11px] p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-bold';
+        banner.className = 'text-[11px] p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-bold shadow-lg';
         banner.innerText = check.reason;
       } else {
-        banner.className = 'text-[11px] p-2.5 rounded-lg bg-yellow-950/80 border border-yellow-500/50 text-yellow-300 font-bold';
+        banner.className = 'text-[11px] p-2.5 rounded-lg bg-yellow-950/80 border border-yellow-500/50 text-yellow-300 font-bold shadow-lg';
         banner.innerText = `⚠️ ${check.reason}`;
       }
 
@@ -314,16 +391,16 @@
 
       container.innerHTML = Object.values(cardMap).map(entry => {
         const style = TRIBE_STYLES[entry.card.tribe] || { bg: 'bg-slate-900' };
-        const costVal = typeof entry.card.cost === 'object' ? (entry.card.cost.tribeAmount || entry.card.cost.tent || 0) : (entry.card.cost ?? 0);
+        const costVal = typeof entry.card.cost === 'object' ? (entry.card.cost.tribeAmount || entry.card.cost.carnie || entry.card.cost.tent || 0) : (entry.card.cost ?? 0);
         return `
-        <div class="flex justify-between items-center p-2 rounded-lg ${style.bg} border border-black/40 text-xs shadow-sm">
-          <div class="flex items-center gap-2">
-            <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold text-[10px] flex items-center justify-center shadow-sm border border-amber-700">${costVal}</span>
-            <span class="font-bold text-white drop-shadow-md">${entry.card.name}</span>
+        <div class="flex justify-between items-center p-2 rounded-lg ${style.bg} border border-black/40 text-xs shadow-sm group hover:border-amber-500/50 transition-colors">
+          <div class="flex items-center gap-2 flex-1 overflow-hidden" title="${entry.card.name}">
+            <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold text-[10px] flex items-center justify-center shadow-sm border border-amber-700 shrink-0">${costVal}</span>
+            <span class="font-bold text-white drop-shadow-md truncate">${entry.card.name}</span>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="${entry.count === 4 ? 'text-amber-300 font-black ring-1 ring-amber-300 px-1 rounded bg-black/40' : 'text-slate-100 font-bold bg-black/20 px-1.5 rounded'}">x${entry.count}</span>
-            <button onclick="window.removeFromDeck('${entry.card.id}')" class="text-red-300 hover:text-white hover:bg-red-900/80 rounded px-1.5 py-0.5 font-bold transition">✕</button>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="${entry.count === 4 ? 'text-amber-300 font-black ring-1 ring-amber-300 px-1 rounded bg-black/40 shadow-inner' : 'text-slate-100 font-bold bg-black/20 px-1.5 rounded'}">x${entry.count}</span>
+            <button onclick="window.removeFromDeck('${entry.card.id}')" class="text-red-400 hover:text-white hover:bg-red-900/80 rounded px-1.5 py-0.5 font-bold transition">✕</button>
           </div>
         </div>
       `}).join('');
@@ -337,7 +414,7 @@
       };
     }
 
-    function saveDeck() {
+    async function saveDeck() {
       const owner = document.getElementById('deck-owner-input').value.trim();
       const deckName = document.getElementById('deck-name-input').value.trim();
       
@@ -346,51 +423,93 @@
         return;
       }
 
-      const check = validateDeckRules(currentDeck);
+      const check = validateDeckRules();
       if (!check.valid) {
         showToast(`Cannot save invalid deck: ${check.reason}`, 'error');
         return;
       }
 
-      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
-      if (!allDecks[owner]) allDecks[owner] = {};
+      const btn = document.getElementById('save-deck-btn');
+      btn.innerText = '...';
+      btn.disabled = true;
+
+      // Construct final deck payload as pure ID references
+      const fullDeckData = [currentAvatar, ...currentDeck].map(c => ({ id: c.id }));
       
-      allDecks[owner][deckName] = currentDeck;
-      localStorage.setItem('henchies_user_decks', JSON.stringify(allDecks));
-      localStorage.setItem('henchies_deck_owner', owner);
+      const success = await saveDeckToCatalog(owner, deckName, fullDeckData);
       
-      refreshLoadDropdown();
-      showToast('Deck saved successfully to your library!', 'success');
+      btn.innerText = 'Save';
+      btn.disabled = false;
+
+      if (success) {
+          refreshLoadDropdown();
+          showToast('Deck saved successfully to cloud!', 'success');
+      } else {
+          showToast('Failed to save deck to cloud.', 'error');
+      }
     }
 
-    function refreshLoadDropdown() {
+    async function refreshLoadDropdown() {
       const owner = document.getElementById('deck-owner-input').value.trim();
       const select = document.getElementById('load-deck-select');
-      select.innerHTML = '<option value="">-- Select to Load --</option>';
+      const btn = document.getElementById('refresh-cloud-btn');
       
+      select.innerHTML = '<option value="">-- Select to Load --</option>';
       if (!owner) return;
       
-      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
-      const userDecks = allDecks[owner] || {};
+      btn.classList.add('animate-spin');
       
+      const userDecks = await fetchUserDecks(owner);
+      
+      btn.classList.remove('animate-spin');
+      
+      if (Object.keys(userDecks).length === 0) {
+          select.innerHTML = '<option value="">No decks found</option>';
+          return;
+      }
+
       Object.keys(userDecks).forEach(name => {
           select.innerHTML += `<option value="${name}">${name}</option>`;
       });
+      
+      // Store in memory for quick loading
+      window._cachedUserDecks = userDecks;
     }
 
     function loadDeck() {
-      const owner = document.getElementById('deck-owner-input').value.trim();
       const deckName = document.getElementById('load-deck-select').value;
-      
-      if (!owner || !deckName) return;
+      if (!deckName || !window._cachedUserDecks || !window._cachedUserDecks[deckName]) return;
 
-      const allDecks = JSON.parse(localStorage.getItem('henchies_user_decks') || '{}');
-      if (allDecks[owner] && allDecks[owner][deckName]) {
-          currentDeck = allDecks[owner][deckName];
-          document.getElementById('deck-name-input').value = deckName;
-          updateDeckUI();
-          showToast(`Loaded deck: ${deckName}`, 'success');
+      const loadedData = window._cachedUserDecks[deckName];
+      
+      if (!Array.isArray(loadedData) || loadedData.length === 0) {
+          showToast('Corrupted deck data.', 'error');
+          return;
       }
+
+      // Map ID references back to full catalog cards
+      const hydratedDeck = loadedData.map(ref => {
+          const cardId = ref.id || ref; // Support legacy full objects
+          const fullCard = fullCatalog.find(c => c.id === cardId);
+          return fullCard ? JSON.parse(JSON.stringify(fullCard)) : null;
+      }).filter(Boolean);
+
+      if (hydratedDeck.length < loadedData.length) {
+          showToast(`Warning: ${loadedData.length - hydratedDeck.length} cards were removed because they no longer exist in the catalog.`, 'error');
+      }
+
+      const potentialAvatar = hydratedDeck[0];
+      if (potentialAvatar && potentialAvatar.type === 'avatar') {
+          currentAvatar = potentialAvatar;
+          currentDeck = hydratedDeck.slice(1);
+      } else {
+          currentAvatar = null;
+          currentDeck = hydratedDeck;
+      }
+
+      document.getElementById('deck-name-input').value = deckName;
+      updateDeckUI();
+      showToast(`Loaded deck: ${deckName}`, 'success');
     }
   </script>
 </body>

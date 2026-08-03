@@ -17,6 +17,8 @@ export const TRIBE_STYLES = {
   Luchador: { bg: 'bg-yellow-900', lightBg: 'bg-yellow-950/90', border: 'border-black', text: 'text-yellow-300' }
 };
 
+export const CARD_BASE_CLASSES = "w-[128px] sm:w-[144px] aspect-[5/7]";
+
 export function showToast(message, type = 'info') {
   let container = document.getElementById('toast-container');
   if (!container) {
@@ -67,7 +69,7 @@ function formatAbilityCostBadge(cost, cardTribe) {
   if (cost.readinessCost === 'EXHAUSTS') badgeStr += `🔄 `;
   if (cost.readinessCost === 'UNREADIES') badgeStr += `⤵️ `;
   
-  return badgeStr.trim() ? `<span class="text-[8px] bg-slate-900 text-amber-300 px-1 rounded border border-slate-700 ml-1 font-bold whitespace-nowrap">${badgeStr.trim()}</span>` : '';
+  return badgeStr.trim() ? `<span class="text-[8px] bg-slate-900 text-amber-300 px-1 py-[1px] rounded border border-slate-700 ml-1 font-bold whitespace-nowrap leading-none">${badgeStr.trim()}</span>` : '';
 }
 
 export function renderCardHTML(card, options = {}) {
@@ -77,7 +79,7 @@ export function renderCardHTML(card, options = {}) {
   const isAvatar = card.type === 'avatar';
 
   const readinessBadge = readiness !== null ? `
-    <div class="absolute top-1 right-1 text-[8px] px-1 py-0.5 rounded font-black uppercase tracking-wider z-20 ${
+    <div class="absolute top-1 right-1 text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider z-20 ${
       readiness === 1 ? 'bg-emerald-500 text-black' : 
       readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border border-red-700'
     }">
@@ -88,11 +90,17 @@ export function renderCardHTML(card, options = {}) {
   const inspectButton = onInspect ? `
     <button 
       onclick="event.stopPropagation(); ${onInspect}"
-      class="absolute ${readiness !== null ? 'top-8' : 'top-1'} right-1 w-6 h-6 rounded-full bg-slate-900/80 hover:bg-slate-700 text-white font-black text-[10px] flex items-center justify-center border border-slate-500 shadow-lg z-30 transition-colors backdrop-blur-sm"
+      class="absolute ${readiness !== null ? 'top-6' : 'top-1'} right-1 w-6 h-6 rounded-full bg-slate-900/80 hover:bg-slate-700 text-white font-black text-[10px] flex items-center justify-center border border-slate-500 shadow-lg z-30 transition-colors backdrop-blur-sm"
       title="Inspect Card"
     >
       🔍
     </button>
+  ` : '';
+
+  const attachmentsBadge = (card.attachments && card.attachments.length > 0) ? `
+    <div class="absolute -top-1.5 -left-1.5 w-6 h-6 rounded bg-fuchsia-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow-lg z-30" title="Attachments">
+      🔗${card.attachments.length}
+    </div>
   ` : '';
 
   const rightClickAttr = onInspect ? `oncontextmenu="event.preventDefault(); event.stopPropagation(); ${onInspect}"` : '';
@@ -100,7 +108,7 @@ export function renderCardHTML(card, options = {}) {
   let abilitiesHTML = '';
   if (card.abilities && card.abilities.length > 0) {
       abilitiesHTML = card.abilities.map(ab => `
-          <div class="text-[8px] text-slate-200 font-bold leading-tight truncate flex items-center justify-center gap-0.5">
+          <div class="text-[9px] sm:text-[10px] text-slate-200 font-bold leading-tight truncate flex items-center justify-center gap-1 w-full">
             <span class="truncate">⚡ ${ab.name}</span>
             ${formatAbilityCostBadge(ab.cost, card.tribe)}
           </div>
@@ -112,46 +120,47 @@ export function renderCardHTML(card, options = {}) {
       onclick="${onClick}"
       ${rightClickAttr}
       title="Right-click or tap 🔍 to inspect"
-      class="group relative flex-shrink-0 w-32 h-44 sm:w-36 sm:h-52 aspect-[5/7] rounded-md ${style.bg} border-2 border-black ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-red-500 animate-bounce z-20 cursor-pointer' : ''} cursor-pointer hover:scale-105 transition-all duration-200 shadow-md flex flex-col justify-between select-none overflow-hidden"
+      class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md ${style.bg} border border-black ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 shadow-md flex flex-col justify-between select-none overflow-hidden"
     >
       <div class="relative w-full h-[52%] overflow-hidden bg-slate-900 border-b border-black">
         ${card.artUrl ? `<img src="${card.artUrl}" alt="${card.name}" class="w-full h-full object-cover" />` : `
-          <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-2xl font-bold">
+          <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold">
             ${card.type === 'unit' ? '⚔️' : card.type === 'avatar' ? '👑' : card.type === 'boon' ? '✨' : card.type === 'buff' ? '🛡️' : '📜'}
           </div>
         `}
         ${!isAvatar ? `
-          <div class="absolute top-1 left-1 w-6 h-6 rounded-full bg-amber-500 text-black font-black text-xs flex items-center justify-center border border-black shadow z-10" title="Cost">
+          <div class="absolute top-1 left-1 w-7 h-7 rounded-full bg-amber-500 text-black font-black text-[12px] flex items-center justify-center border border-black shadow z-10" title="Cost">
             ${card.cost ?? 0}
           </div>
         ` : ''}
         ${readinessBadge}
+        ${attachmentsBadge}
         ${inspectButton}
       </div>
 
-      <div class="w-full h-[48%] ${style.lightBg} p-1.5 flex flex-col justify-between">
+      <div class="w-full h-[48%] ${style.lightBg} p-1 flex flex-col justify-between">
         <div class="flex flex-col items-center justify-center text-center">
-          <div class="text-[10px] font-black text-white leading-tight break-words text-center min-h-[22px] flex items-center justify-center">
+          <div class="text-[11px] sm:text-[12px] font-black text-white leading-tight break-words text-center min-h-[16px] flex items-center justify-center px-0.5">
             ${card.name}
           </div>
-          <div class="text-[8px] font-bold text-slate-300 capitalize tracking-tighter truncate max-w-full">
+          <div class="text-[8px] sm:text-[9px] font-bold text-slate-300 capitalize tracking-tighter truncate max-w-full">
             ${card.type} • ${card.genus || 'Generic'}
           </div>
         </div>
 
-        <div class="flex-1 flex flex-col gap-0.5 mt-1 overflow-hidden">
+        <div class="flex-1 flex flex-col gap-0.5 mt-0.5 overflow-hidden justify-start items-center">
             ${abilitiesHTML}
         </div>
 
         ${isUnit ? `
-          <div class="flex justify-between items-end w-full pt-1">
+          <div class="flex justify-between items-end w-full pt-1 px-1 pb-0.5">
             ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `
-              <div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${card.strength}</div>
+              <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${card.strength}</div>
             ` : '<div></div>'}
             ${(card.armor > 0) ? `
-              <div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow" title="Armor: ${card.armor}">🛡️${card.armor}</div>
+              <div class="w-6 h-6 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow" title="Armor: ${card.armor}">🛡️${card.armor}</div>
             ` : '<div></div>'}
-            <div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[11px] flex items-center justify-center shadow" title="Health">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
+            <div class="w-6 h-6 rounded-full bg-red-600 border border-black text-white font-black text-[11px] flex items-center justify-center shadow" title="Health">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
           </div>
         ` : ''}
       </div>
@@ -306,6 +315,13 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
                 </div>
               ` : ''}
 
+              <!-- Attachments -->
+              ${cardOrUnit.attachments && cardOrUnit.attachments.length > 0 ? `
+                <div class="flex flex-wrap justify-center gap-1.5 mt-1">
+                  ${cardOrUnit.attachments.map(a => `<span class="text-[10px] bg-fuchsia-950/80 text-fuchsia-200 px-2 py-1 rounded border border-fuchsia-800 font-extrabold uppercase tracking-wider shadow-sm">🔗 ${a.name}</span>`).join('')}
+                </div>
+              ` : ''}
+
               <!-- Full Abilities with Registry Lookup -->
               ${cardOrUnit.abilities && cardOrUnit.abilities.length > 0 ? `
                 <div class="flex flex-col gap-2 mt-1">
@@ -410,4 +426,23 @@ export function renderHistorySlider(container, historyLog, currentStep, onStepCh
       <span class="text-xs text-slate-300 font-mono font-bold whitespace-nowrap">${currentStep} / ${Math.max(0, historyLog.length - 1)}</span>
     </div>
   `;
+}
+
+export function renderJSONPreview(containerId, jsonObject, copyCallbackName) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = `
+      <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 h-full max-h-full overflow-hidden">
+         <div class="flex justify-between items-center border-b border-slate-800 pb-1">
+           <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+            Data Structure Preview
+           </h2>
+           <button type="button" onclick="window.${copyCallbackName}()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition shadow font-bold">
+             📋 Copy JSON
+           </button>
+         </div>
+        <pre class="text-[9px] text-cyan-500 font-mono overflow-y-auto overflow-x-auto h-full pb-6 custom-scrollbar">${JSON.stringify(jsonObject, null, 2)}</pre>
+      </div>
+    `;
 }

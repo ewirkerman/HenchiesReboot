@@ -52,6 +52,7 @@ export const EFFECT_ZONE_MAP = {
     'BLOCK_RETALIATE': ZONES,
     'GRANT_ABILITY': ZONES,
     'MODIFY_STAT': ZONES,
+    'MODIFY_RESOURCE': ZONES,
     'SET_STAT': ZONES,
     'SUMMON': ZONES,
     'CUSTOM_SCRIPT': ZONES,
@@ -206,13 +207,15 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
         const type = value;
         // Centralized logic for sanitizing parameterized effects based on type
         if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone;
+            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource;
         } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
-            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone;
+            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource;
+        } else if (type === 'MODIFY_RESOURCE') { 
+            payload.amount = 1; payload.resource = 'Carnie'; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
         } else if (type === 'GRANT_ABILITY') { 
-            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
+            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
         } else if (type === 'SUMMON') { 
-            payload.cardId = ''; payload.amount = 1; payload.zone = 'FIELD'; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.stat; 
+            payload.cardId = ''; payload.amount = 1; payload.zone = 'FIELD'; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.stat; delete payload.resource;
             // Initialize a nested group specifically for SUMMON
             payload.nestedGroup = {
                 targetMethod: 'AUTO_ALL',
@@ -222,9 +225,9 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
                 payloads: []
             };
         } else if (type === 'CUSTOM_SCRIPT') { 
-            payload.script = 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
+            payload.script = 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
         } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST'].includes(type)) { 
-            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
+            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
         }
     }
 }
@@ -239,7 +242,7 @@ export function exportCurrentState(formData) {
         triggerLimit: formData.triggerLimit || 'UNLIMITED',
         cost: {
             tribeAmount: parseInt(formData.tribeAmount) || 0,
-            tent: parseInt(formData.tent) || 0,
+            carnie: parseInt(formData.carnie) || parseInt(formData.tent) || 0,
             power: parseInt(formData.power) || 0,
             readinessCost: formData.readinessCost || 'NONE',
             reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness
