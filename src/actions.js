@@ -300,8 +300,14 @@ export class SetStatAction extends Action {
 export class GrantAbilityAction extends Action {
     execute(engine) {
         if (this.payload.target && this.payload.grantedAbilityId) {
+            let fullAb = null;
+            if (engine.state.abilityCatalog) {
+                fullAb = engine.state.abilityCatalog.find(a => a.abilityId === this.payload.grantedAbilityId);
+            }
+            if (!fullAb) fullAb = { abilityId: this.payload.grantedAbilityId };
+            
             if (!this.payload.target.abilities) this.payload.target.abilities = [];
-            this.payload.target.abilities.push({ abilityId: this.payload.grantedAbilityId });
+            this.payload.target.abilities.push(JSON.parse(JSON.stringify(fullAb)));
             registerEffect(engine, this.payload.target, this.payload);
         }
     }
@@ -436,7 +442,15 @@ export class SummonAction extends Action {
 export class DiscardAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'discard'); } }
 export class ShuffleAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) { moveEntity(engine, this.payload.target, loc.playerId, 'deck'); } } }
 export class ReturnAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'hand'); } }
-export class RecoverAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'hand'); } }
+export class RecoverAction extends Action { 
+    execute(engine) { 
+        const loc = findEntityLocation(engine, this.payload.target); 
+        if (loc) {
+            moveEntity(engine, this.payload.target, loc.playerId, 'hand'); 
+            engine.state.history_log.push(`♻️ Recovered '${this.payload.target.name}' from discard to hand.`);
+        }
+    } 
+}
 export class TrashAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'discard'); } }
 export class BanishAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'banish'); } }
 export class FieldAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'back'); } }
@@ -476,7 +490,19 @@ export class UnattachAction extends Action {
     execute(engine) { 
         const loc = findEntityLocation(engine, this.payload.target);
         if (loc && loc.zone === 'attachment') {
+            const host = loc.host;
             loc.array.splice(loc.index, 1);
+            
+            // CLEANUP WHILE_ATTACHED EFFECTS ON HOST
+            if (host && host.activeEffects) {
+                for (let i = host.activeEffects.length - 1; i >= 0; i--) {
+                    const eff = host.activeEffects[i];
+                    if (eff.duration === 'WHILE_ATTACHED' && eff.sourceId === this.payload.target.instanceId) {
+                        revertEffect(engine, host, eff);
+                        host.activeEffects.splice(i, 1);
+                    }
+                }
+            }
             
             const target = this.payload.target;
             const ownerId = loc.playerId || engine.state.activePlayerId;
@@ -512,19 +538,9 @@ export class UnfieldAction extends Action {
         }
 
         if (this.payload.target.attachments) {
-            while (this.payload.target.attachments.length > 0) {
-                const att = this.payload.target.attachments.pop();
-                if (att.type === 'buff') {
-                     moveEntity(engine, att, ownerId, 'discard');
-                     engine.state.history_log.push(`🔓 '${att.name}' was trashed to discard after its host left the field.`);
-                } else if (att.type === 'unit') {
-                     const destLine = att.line || att.defaultLine || 'mid';
-                     moveEntity(engine, att, ownerId, destLine);
-                     engine.state.history_log.push(`🔓 '${att.name}' fell to the ${destLine} line after its host left the field.`);
-                } else {
-                     moveEntity(engine, att, ownerId, 'equator');
-                     engine.state.history_log.push(`🔓 '${att.name}' fell to the Equator after its host left the field.`);
-                }
+            const atts = [...this.payload.target.attachments];
+            for (const att of atts) {
+                new UnattachAction({ target: att }).run(engine);
             }
         }
 

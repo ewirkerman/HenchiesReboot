@@ -296,8 +296,10 @@
     let replayStepIndex = 0;
     let localReplayStates = [];
     let allAbilitiesRegistry = [];
+    let allCardsRegistry = [];
     let loadedUserDecks = {};
 
+    // Fetch abilities for glossary tooltips
     // Fetch abilities for glossary tooltips
     fetchCustomAbilities().then(abs => {
         allAbilitiesRegistry = abs.map(ab => ({
@@ -306,6 +308,11 @@
         }));
         console.log("[INIT] Abilities loaded for tooltips.");
     }).catch(e => console.warn('[INIT] Glossary fetch failed:', e));
+
+    fetchCustomCards().then(cards => {
+        allCardsRegistry = [...CARD_CATALOG, ...cards];
+        console.log("[INIT] Catalog loaded for engine.");
+    }).catch(e => console.warn('[INIT] Catalog fetch failed:', e));
 
     // Restore saved username immediately
     const savedName = localStorage.getItem('henchies_last_username');
@@ -502,6 +509,8 @@
                 console.log("[LAUNCH] Room is empty. Initializing new game state...");
                 localPlayerRole = 'player1';
                 currentGameState = initGame(roomCode, username, activeBattleDeck);
+                Object.defineProperty(currentGameState, 'abilityCatalog', { value: allAbilitiesRegistry, enumerable: false, configurable: true });
+                Object.defineProperty(currentGameState, 'catalog', { value: allCardsRegistry, enumerable: false, configurable: true });
                 
                 console.log("[LAUNCH] State initialized. Pushing to Firebase...");
                 const createTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
@@ -525,6 +534,8 @@
                     localPlayerRole = 'player2';
                     reconstructStateFromLog(data);
                     currentGameState = joinGame(currentGameState, username, activeBattleDeck);
+                    Object.defineProperty(currentGameState, 'abilityCatalog', { value: allAbilitiesRegistry, enumerable: false, configurable: true });
+                    Object.defineProperty(currentGameState, 'catalog', { value: allCardsRegistry, enumerable: false, configurable: true });
                     currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
                     const actionPayload = { type: 'PLAYER_JOINED', actionIndex: currentGameState.actionIndex };
                     
@@ -575,6 +586,11 @@
       
       try {
         const baseState = JSON.parse(data.turn_start_state);
+        
+        // Inject non-enumerable catalogs BEFORE cloning or applying action log!
+        Object.defineProperty(baseState, 'abilityCatalog', { value: allAbilitiesRegistry, enumerable: false, configurable: true });
+        Object.defineProperty(baseState, 'catalog', { value: allCardsRegistry, enumerable: false, configurable: true });
+        
         localReplayStates = [cloneGameState(baseState)];
         let liveState = cloneGameState(baseState);
         
@@ -598,6 +614,8 @@
         }
 
         currentGameState = liveState;
+        Object.defineProperty(currentGameState, 'abilityCatalog', { value: allAbilitiesRegistry, enumerable: false, configurable: true });
+        Object.defineProperty(currentGameState, 'catalog', { value: allCardsRegistry, enumerable: false, configurable: true });
         replayStepIndex = localReplayStates.length - 1;
         updateUI();
       } catch (err) {
@@ -629,6 +647,8 @@
         replayStepIndex = parseInt(step);
         if (localReplayStates[replayStepIndex]) {
           currentGameState = cloneGameState(localReplayStates[replayStepIndex]);
+          Object.defineProperty(currentGameState, 'abilityCatalog', { value: allAbilitiesRegistry, enumerable: false, configurable: true });
+          Object.defineProperty(currentGameState, 'catalog', { value: allCardsRegistry, enumerable: false, configurable: true });
           updateUI();
         }
       };
@@ -719,7 +739,7 @@
       }
 
       container.innerHTML = equatorItems.map((item, idx) => {
-        const json = encodeURIComponent(JSON.stringify(item));
+        const json = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
         return renderCardHTML(item, {
           onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
           onInspect: `window.inspectCard('${json}')`
@@ -751,7 +771,7 @@
           `;
         } else {
           const topCard = player.discard[player.discard.length - 1];
-          const json = encodeURIComponent(JSON.stringify(topCard));
+          const json = encodeURIComponent(JSON.stringify(topCard)).replace(/'/g, "%27");
           const cardHtml = renderCardHTML(topCard, {
             onInspect: `window.inspectCard('${json}')`
           });
@@ -807,7 +827,7 @@
             lineEl.innerHTML = '';
             continue;
           }
-          const json = encodeURIComponent(JSON.stringify(player.avatar));
+          const json = encodeURIComponent(JSON.stringify(player.avatar)).replace(/'/g, "%27");
           const isTargetable = validTargets.some(t => t.id === player.avatar.id);
           const isAttacker = pendingAbility && pendingAbility.entityId === player.avatar.id;
 
@@ -820,7 +840,7 @@
           });
         } else {
           lineEl.innerHTML = units.map(u => {
-            const json = encodeURIComponent(JSON.stringify(u));
+            const json = encodeURIComponent(JSON.stringify(u)).replace(/'/g, "%27");
             const isAttacker = pendingAbility && pendingAbility.entityId === u.instanceId;
             const isTargetable = validTargets.some(t => t.id === u.instanceId);
 
@@ -885,13 +905,14 @@
                     validTargets = [];
                     updateUI();
                 }
+                return;
             } else {
-                showToast("Invalid target. Ability cancelled.", "error");
+                showToast("Targeting cancelled.", "info");
                 pendingAbility = null;
                 validTargets = [];
                 updateUI();
+                // Allow fall-through to trigger the newly clicked entity
             }
-            return;
         }
 
         if (prefix === 'player' || prefix === 'equator') {
@@ -1057,7 +1078,7 @@
       }
 
       container.innerHTML = handCards.map(c => {
-        const json = encodeURIComponent(JSON.stringify(c));
+        const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
         const cardRefId = c.instanceId || c.id;
         const isSelected = selectedCardId === cardRefId;
         const playable = currentGameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(currentGameState, localPlayerRole, c) : false;
@@ -1100,6 +1121,55 @@
           selectedCardId = selectedCardId === cardId ? null : cardId;
           updateUI();
           return;
+        }
+
+        if (pendingAbility) {
+            if (validTargets.some(t => t.id === cardId)) {
+                if (pendingAbility.isHandCard) {
+                    console.log(`[UI] Executing targeted play for card ${pendingAbility.entityId} onto target ${cardId}`);
+                    const player = currentGameState.players[localPlayerRole];
+                    const handCard = player.hand.find(c => c.instanceId === pendingAbility.entityId);
+                    const theAb = handCard ? handCard.abilities?.find(a => a.abilityId === pendingAbility.abilityId) : null;
+                    
+                    currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
+                    const actionPayload = {
+                        type: 'PLAY_CARD',
+                        actionIndex: currentGameState.actionIndex,
+                        playerId: localPlayerRole,
+                        cardId: pendingAbility.entityId,
+                        targetLine: 'back',
+                        abilityTargetId: cardId
+                    };
+
+                    const playRes = playCard(currentGameState, localPlayerRole, pendingAbility.entityId, 'back', cardId);
+                    if (playRes.success) {
+                        if (theAb) {
+                            const autoTriggers = ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'];
+                            if (!autoTriggers.includes(theAb.trigger)) {
+                                executeEntityAction(currentGameState, localPlayerRole, pendingAbility.entityId, 'ABILITY', pendingAbility.abilityId, cardId, 'hand');
+                            }
+                        }
+                        pendingAbility = null;
+                        validTargets = [];
+                        pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+                        updateUI();
+                    } else {
+                        showToast(playRes.reason, 'error');
+                    }
+                } else {
+                    executeAndLogAbility(pendingAbility.entityId, pendingAbility.abilityId, cardId, 'hand');
+                    pendingAbility = null;
+                    validTargets = [];
+                    updateUI();
+                }
+                return;
+            } else {
+                showToast("Targeting cancelled.", "info");
+                pendingAbility = null;
+                validTargets = [];
+                updateUI();
+                // Allow fall through to evaluate the newly clicked hand card
+            }
         }
 
         if (currentGameState.turnPhase === 'ACTION_PHASE') {

@@ -184,7 +184,7 @@
         const container = document.getElementById('avatar-modal-catalog');
         
         container.innerHTML = avatars.map(card => {
-            const json = encodeURIComponent(JSON.stringify(card));
+            const json = encodeURIComponent(JSON.stringify(card)).replace(/'/g, "%27");
             return renderCardHTML(card, {
               onClick: `window.selectAvatar('${card.id}')`,
               onInspect: `window.inspectCard('${json}')`,
@@ -270,7 +270,7 @@
 
       const container = document.getElementById('catalog-container');
       container.innerHTML = filtered.map(card => {
-        const json = encodeURIComponent(JSON.stringify(card));
+        const json = encodeURIComponent(JSON.stringify(card)).replace(/'/g, "%27");
         return renderCardHTML(card, {
           onClick: `window.addToDeck('${card.id}')`,
           onInspect: `window.inspectCard('${json}')`

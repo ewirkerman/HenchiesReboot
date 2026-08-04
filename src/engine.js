@@ -220,8 +220,15 @@ export class GameEngine {
                         if (!resolvedTarget) console.warn(`[Engine] SAME_AS_ACTIVATION could not find entity with ID: ${eventPayload.abilityTargetId}`);
                         
                         targets = [resolvedTarget || eventPayload.target || source];
+                    } else if (eventPayload) {
+                        // Smart Reaction Targeting: If the event payload's target is ME, return the source of the event (the instigator)
+                        if (eventPayload.target && eventPayload.target.instanceId === source.instanceId && eventPayload.source) {
+                            targets = [eventPayload.source];
+                        } else {
+                            targets = [eventPayload.target || source];
+                        }
                     } else {
-                        targets = [eventPayload.target || source];
+                        targets = [source];
                     }
                 }
                 else if (group.targetMethod && group.targetMethod.startsWith('AUTO_')) {
@@ -321,7 +328,7 @@ export class GameEngine {
         
         const alignments = qt?.alignment || ['ENEMY'];
         const zones = qt?.zones || ['FIELD'];
-        const types = qt?.entityType || ['UNIT'];
+        const types = qt?.entityType || [];
         
         const playersToCheck = [];
         if (alignments.includes('FRIENDLY')) playersToCheck.push(callingPlayerId);
@@ -346,7 +353,11 @@ export class GameEngine {
         });
         
         return pool.filter(ent => {
-            const entType = ent.type === 'avatar' ? 'AVATAR' : (ent.type === 'equipment' || ent.type === 'artifact' ? 'EQUIPMENT' : 'UNIT');
+            if (!types || types.length === 0) return true;
+            let entType = 'UNIT';
+            if (ent.type === 'avatar') entType = 'AVATAR';
+            else if (ent.type === 'equipment' || ent.type === 'artifact') entType = 'EQUIPMENT';
+            else if (ent.type === 'spell') entType = 'SPELL';
             return types.includes(entType);
         });
     }
@@ -698,7 +709,12 @@ export function getValidAttackTargets(state, attackerOwnerId) {
     return targets;
 }
 
-export function cloneGameState(state) { return JSON.parse(JSON.stringify(state)); }
+export function cloneGameState(state) {
+    const clone = JSON.parse(JSON.stringify(state));
+    if (state.abilityCatalog) Object.defineProperty(clone, 'abilityCatalog', { value: state.abilityCatalog, enumerable: false, configurable: true });
+    if (state.catalog) Object.defineProperty(clone, 'catalog', { value: state.catalog, enumerable: false, configurable: true });
+    return clone;
+}
 
 export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     let entity = null;
