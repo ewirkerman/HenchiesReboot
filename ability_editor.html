@@ -245,7 +245,7 @@
     import { CARD_CATALOG } from './src/engine.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { TRIGGER_EVENTS, getValidActionsForZones } from './src/abilities.js';
-    import { ACTION_MANIFEST, EFFECT_TYPES } from './src/actions.js';
+    import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from './src/actions.js';
     import { renderJSONPreview } from './src/ui.js';
     import './src/catalog_component.js'; // Import custom element
 
@@ -287,7 +287,11 @@
       if (baseTriggerSelect) {
         const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
         let optionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
-        optionsHtml += `<optgroup label="Game Actions">` + EFFECT_TYPES.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+        
+        Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
+            optionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+        });
+        
         baseTriggerSelect.innerHTML = optionsHtml;
       }
 
@@ -335,7 +339,10 @@
           
           const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
           let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
-          baseOptionsHtml += `<optgroup label="Game Actions">` + EFFECT_TYPES.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+          
+          Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
+              baseOptionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+          });
 
           container.innerHTML = window.additionalTriggers.map((trigStr, idx) => {
               const comp = window.parseTriggerToComposite(trigStr);
@@ -1118,7 +1125,11 @@
                 ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(actualZones))
                 : EFFECT_TYPES;
 
-            const typeOptions = validEffectTypes.map(t => `<option value="${t}" ${payload.type === t ? 'selected' : ''}>${t}</option>`).join('');
+            const typeOptions = Object.entries(ACTION_CATEGORIES).map(([cat, actions]) => {
+                const validActions = actions.filter(a => validEffectTypes.includes(a));
+                if (validActions.length === 0) return '';
+                return `<optgroup label="${cat}">${validActions.map(t => `<option value="${t}" ${payload.type === t ? 'selected' : ''}>${t.replace(/_/g, ' ')}</option>`).join('')}</optgroup>`;
+            }).join('');
 
             const manifest = ACTION_MANIFEST[payload.type] || { canInvert: true, canBeCost: true, validDurations: ['INSTANT'] };
             
@@ -1279,7 +1290,7 @@
                         <button type="button" onclick="window.removeNestedPayload(${gIdx}, ${pIdx}, ${nIdx})" class="absolute top-1/2 -translate-y-1/2 right-2 text-slate-500 hover:text-red-400 font-bold px-1 text-[12px]">&times;</button>
                         <div class="w-1/3 min-w-[120px]">
                             <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'type', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold text-[10px] w-full">
-                               ${EFFECT_TYPES.map(t => `<option value="${t}" ${np.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+                               ${typeOptions.replace(/selected/g, '').replace(new RegExp(`value="${np.type}"`), `value="${np.type}" selected`)}
                             </select>
                         </div>
                         ${npParamsHtml}

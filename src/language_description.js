@@ -185,6 +185,10 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'ON_BE_HEALED': 'When healed',
         'WOULD_HEAL': 'When it would heal',
         'WOULD_BE_HEALED': 'When it would be healed',
+        'ON_REBEL': 'When it takes control of an enemy',
+        'ON_BE_REBELLED': 'When it changes sides',
+        'WOULD_REBEL': 'When it would take control',
+        'WOULD_BE_REBELLED': 'When it would change sides',
         'ON_DRAW_CARD': 'When it draws a card',
         'ON_BE_DRAWN': 'When drawn',
         'WOULD_DRAW_CARD': 'When it would draw a card',
@@ -374,6 +378,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         if (eff.invertRoles) effText = `attach {TARGET} to self`;
                         else effText = `attach self to {TARGET}`;
                         break;
+                    case 'REBEL': effText = `take control of {TARGET}`; break;
                     case 'UNATTACH': effText = `unattach {TARGET}`; break;
                     case 'FIELD': effText = `field {TARGET} (play for free)`; break;
                     case 'BANISH': effText = `banish {TARGET}`; break;

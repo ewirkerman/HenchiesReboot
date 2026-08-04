@@ -30,6 +30,7 @@ export const ACTION_MANIFEST = {
     'RECOVER': { passiveType: 'BE_RECOVERED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], validDurations: ['INSTANT'] },
     'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACH_TO': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
+    'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'UNFIELD': { passiveType: 'BE_UNFIELDED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'TRASH': { passiveType: 'BE_TRASHED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['FIELD', 'HAND', 'DECK'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -206,6 +207,13 @@ export function revertEffect(engine, target, effect) {
                 const att = target.attachments[attIdx];
                 new UnattachAction({ target: att }).run(engine);
             }
+        }
+    } else if (effect.type === 'REBEL') {
+        const loc = findEntityLocation(engine, target);
+        if (loc && effect.originalOwnerId && loc.playerId !== effect.originalOwnerId) {
+            moveEntity(engine, target, effect.originalOwnerId, loc.zone);
+            target.ownerId = effect.originalOwnerId;
+            engine.state.history_log.push(`🔄 '${target.name}' returned to its original owner.`);
         }
     }
 }
@@ -595,6 +603,26 @@ export class UnattachAction extends Action {
     } 
 }
 
+export class RebelAction extends Action {
+    execute(engine) {
+        const { target } = this.payload;
+        const loc = findEntityLocation(engine, target);
+        
+        if (loc && loc.playerId) {
+            const newOwnerId = loc.playerId === 'player1' ? 'player2' : 'player1';
+            
+            // Move physically across arrays to the opponent's side
+            moveEntity(engine, target, newOwnerId, loc.zone);
+            target.ownerId = newOwnerId;
+            
+            engine.state.history_log.push(`🤝 '${target.name}' rebelled and joined ${engine.state.players[newOwnerId].name}!`);
+            
+            // Register duration-based reversions
+            registerEffect(engine, target, this.payload, { originalOwnerId: loc.playerId });
+        }
+    }
+}
+
 export class UnfieldAction extends Action {
     execute(engine) {
         const dest = this.payload.destination || 'discard';
@@ -681,12 +709,20 @@ export const ACTION_REGISTRY = {
     'RECOVER': RecoverAction,
     'ATTACH': AttachAction,
     'ATTACH_TO': AttachAction, // Safety fallback for legacy databases
+    'REBEL': RebelAction,
     'UNATTACH': UnattachAction,
     'UNFIELD': UnfieldAction,
     'TRASH': TrashAction,
     'KILL': KillAction,
     'FIELD': FieldAction,
     'BANISH': BanishAction
+};
+
+export const ACTION_CATEGORIES = {
+    'Combat & Stats': ['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACK', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE'],
+    'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'TRASH', 'BANISH', 'FIELD', 'UNFIELD', 'CHANGE_DESTINATION'],
+    'Attachments & Control': ['ATTACH', 'ATTACH_TO', 'UNATTACH', 'REBEL'],
+    'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'CANCEL_EVENT', 'GRANT_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST']
 };
 
 export const EFFECT_TYPES = Object.keys(ACTION_MANIFEST);
