@@ -3,7 +3,7 @@
  * Converts a structured Ability JSON payload into human-readable text.
  */
 
-import { SINGLE_ZONE_ACTIONS } from './abilities.js';
+import { ACTION_MANIFEST } from './actions.js';
 
 // --- UTILITY METHODS ---
 function formatResourceAmount(amount) {
@@ -32,6 +32,8 @@ function formatArrayToString(arr, fallback = 'any') {
 function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural) {
     if (!qt) return isPlural ? 'targets' : 'target';
     
+    let isCardZone = qt && qt.zones && qt.zones.length > 0 && qt.zones.every(z => ['HAND', 'DECK', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'].includes(z));
+
     let adjectives = [];
     let suffixes = [];
 
@@ -49,7 +51,7 @@ function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, implied
                 } else {
                     suffixes.push(`that is ${opText} ${node.value}`.trim());
                 }
-            } else if (['health', 'strength', 'readiness', 'maxHealth', 'acts', 'maxActs'].includes(node.attribute)) {
+            } else if (['health', 'strength', 'readiness', 'maxHealth', 'acts', 'maxActs', 'power', 'fast', 'slow'].includes(node.attribute)) {
                 let statName = node.attribute === 'maxHealth' ? 'max health' : (node.attribute === 'acts' ? 'available acts' : (node.attribute === 'maxActs' ? 'max acts' : node.attribute));
                 suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
             } else if (node.attribute === 'hasAbility') {
@@ -67,27 +69,50 @@ function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, implied
     let scopeAlignments = formatArrayToString(validAlignments, 'any');
     if (scopeAlignments === 'friendly') scopeAlignments = isPlural ? 'allies' : 'ally';
     else if (scopeAlignments === 'enemy') scopeAlignments = isPlural ? 'enemies' : 'enemy';
-    else if (scopeAlignments === 'enemy or friendly' || scopeAlignments === 'friendly or enemy') scopeAlignments = isPlural ? 'characters' : 'character';
+    else if (scopeAlignments === 'enemy or friendly' || scopeAlignments === 'friendly or enemy') {
+         if (isCardZone) scopeAlignments = isPlural ? 'cards' : 'card';
+         else scopeAlignments = isPlural ? 'characters' : 'character';
+    }
     
     let validTypes = (qt.entityType || []).filter(e => e !== 'ANY' && e !== 'ALL');
     let scopeTypes = formatArrayToString(validTypes, 'entity');
     if (isPlural) {
         scopeTypes = validTypes.map(s => {
             let l = s.toLowerCase();
+            if (isCardZone) return l === 'entity' ? 'cards' : l + ' cards';
             return l === 'entity' ? 'entities' : l + 's';
         }).join(' or ');
     } else {
-        scopeTypes = validTypes.map(s => s.toLowerCase()).join(' or ');
+        scopeTypes = validTypes.map(s => {
+            let l = s.toLowerCase();
+            if (isCardZone) return l === 'entity' ? 'card' : l + ' card';
+            return l;
+        }).join(' or ');
     }
-    if (scopeTypes === '') scopeTypes = isPlural ? 'entities' : 'entity';
+    if (scopeTypes === '') {
+         if (isCardZone) scopeTypes = isPlural ? 'cards' : 'card';
+         else scopeTypes = isPlural ? 'entities' : 'entity';
+    }
     
     let noun = scopeTypes;
-    if (['ally', 'allies', 'enemy', 'enemies', 'character', 'characters'].includes(scopeAlignments)) {
-        let adjAlign = validAlignments.length === 1 ? validAlignments[0].toLowerCase() : 'character';
-        if (adjAlign === 'friendly') adjAlign = 'ally';
+    if (['ally', 'allies', 'enemy', 'enemies', 'character', 'characters', 'card', 'cards'].includes(scopeAlignments)) {
+        let adjAlign = '';
+        if (validAlignments.length === 1) {
+            adjAlign = validAlignments[0].toLowerCase();
+            if (adjAlign === 'friendly') adjAlign = 'ally';
+        }
         
-        if (validTypes.length === 0) noun = scopeAlignments;
-        else noun = `${adjAlign} ${scopeTypes}`;
+        let canDropUnit = validTypes.length === 1 && validTypes[0] === 'UNIT' && !isCardZone;
+        
+        if (validTypes.length === 0 || canDropUnit) {
+            if (adjAlign) {
+                 noun = isCardZone ? `${adjAlign} ${isPlural ? 'cards' : 'card'}` : scopeAlignments;
+            } else {
+                 noun = scopeAlignments;
+            }
+        } else {
+            noun = adjAlign ? `${adjAlign} ${scopeTypes}` : scopeTypes;
+        }
     } else if (scopeAlignments !== 'any') {
         noun = `${scopeAlignments} ${scopeTypes}`;
     }
@@ -125,7 +150,8 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
     let descriptionParts = [];
 
     // 1. TRIGGER
-    const trigger = ability.trigger || 'MANUAL';
+    const allTriggers = [ability.trigger || 'MANUAL', ...(ability.additionalTriggers || [])].filter(Boolean);
+    const trigger = allTriggers[0] || 'MANUAL'; // Added back fallback for subsequent checks
     let triggerText = '';
     
     const triggerDict = {
@@ -133,73 +159,86 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'UNTRIGGERABLE': 'Cannot be triggered. (Passive/Status)',
         'TURN_STARTING': 'At the start of the turn',
         'TURN_STARTED': 'After the turn starts',
-        'PLAY': '',
-        'PLAY_OPTIONAL': '',
-        'SUMMON': 'When summoned',
-        'KILL': 'When it kills an enemy',
-        'UNFIELD': 'When unfielded',
-        'TRASH': 'When trashed',
-        'RETURN': 'When returned to hand',
-        'SHUFFLE': 'When shuffled into deck',
-        'ATTACK': 'When attacking',
-        'DAMAGE': 'When dealing damage',
-        'FIELD': 'When entering the field',
-        'ATTACH': 'When attaching',
-        'UNATTACH': 'When unattaching',
-        'DISCARDED': 'When discarded',
-        'HARVESTED': 'When harvested',
-
-        'PLAYED': 'After being played',
-        'SUMMONED': 'After being summoned',
-        'KILLED': 'When killed',
-        'UNFIELDED': 'When unfielded',
-        'TRASHED': 'When trashed',
-        'RETURNED': 'When returned to hand',
-        'SHUFFLED': 'When shuffled into deck',
-        'ATTACKED': 'When attacked',
-        'DAMAGED': 'When taking damage',
-        'FIELDED': 'After entering the field',
-        'ATTACHED': 'After being attached',
-        'UNATTACHED': 'After being unattached',
-
+        'PLAY': 'When played',
+        'PLAY_OPTIONAL': 'When played',
+        'ON_PLAY': 'When it plays a card',
+        'ON_BE_PLAYED': 'When played',
         'WOULD_PLAY': 'When it would play a card',
-        'WOULD_SUMMON': 'When it would summon',
-        'WOULD_KILL': 'When it would kill an enemy',
-        'WOULD_UNFIELD': 'When it would unfield a unit',
-        'WOULD_TRASH': 'When it would trash a card',
-        'WOULD_RETURN': 'When it would return a card',
-        'WOULD_SHUFFLE': 'When it would shuffle a card',
-        'WOULD_ATTACK': 'When it would attack',
-        'WOULD_DAMAGE': 'When it would deal damage',
-        'WOULD_FIELD': 'When it would enter the field',
-        'WOULD_ATTACH': 'When it would attach',
-        'WOULD_UNATTACH': 'When it would unattach',
-
         'WOULD_BE_PLAYED': 'When it would be played',
+        'ON_SUMMON': 'When it summons',
+        'ON_BE_SUMMONED': 'When summoned',
+        'WOULD_SUMMON': 'When it would summon',
         'WOULD_BE_SUMMONED': 'When it would be summoned',
+        'ON_KILL': 'When it kills an enemy',
+        'ON_BE_KILLED': 'When killed',
+        'WOULD_KILL': 'When it would kill an enemy',
         'WOULD_BE_KILLED': 'When it would be killed',
-        'WOULD_BE_UNFIELDED': 'When it would be unfielded',
-        'WOULD_BE_TRASHED': 'When it would be trashed',
-        'WOULD_BE_RETURNED': 'When it would be returned to hand',
-        'WOULD_BE_SHUFFLED': 'When it would be shuffled into deck',
+        'ON_ATTACK': 'When attacking',
+        'ON_BE_ATTACKED': 'When attacked',
+        'WOULD_ATTACK': 'When it would attack',
         'WOULD_BE_ATTACKED': 'When it would be attacked',
+        'ON_DEAL_DAMAGE': 'When it deals damage',
+        'ON_BE_DAMAGED': 'When it takes damage',
+        'WOULD_DEAL_DAMAGE': 'When it would deal damage',
         'WOULD_BE_DAMAGED': 'When it would take damage',
-        'WOULD_BE_FIELDED': 'When it would enter the field',
-        'WOULD_BE_ATTACHED': 'When it would be attached',
-        'WOULD_BE_UNATTACHED': 'When it would be unattached',
+        'ON_HEAL': 'When it heals',
+        'ON_BE_HEALED': 'When healed',
+        'WOULD_HEAL': 'When it would heal',
+        'WOULD_BE_HEALED': 'When it would be healed',
+        'ON_DRAW_CARD': 'When it draws a card',
+        'ON_BE_DRAWN': 'When drawn',
+        'WOULD_DRAW_CARD': 'When it would draw a card',
+        'WOULD_BE_DRAWN': 'When it would be drawn',
+        'ON_DISCARD': 'When it discards',
+        'ON_BE_DISCARDED': 'When discarded',
+        'WOULD_DISCARD': 'When it would discard',
         'WOULD_BE_DISCARDED': 'When it would be discarded',
-        'WOULD_BE_HARVESTED': 'When it would be harvested'
+        'WOULD_BE_HARVESTED': 'When it would be harvested',
+        'ON_RECOVER': 'When it recovers a card',
+        'ON_BE_RECOVERED': 'When recovered',
+        'WOULD_RECOVER': 'When it would recover a card',
+        'WOULD_BE_RECOVERED': 'When it would be recovered'
     };
 
-    triggerText = triggerDict[trigger];
-    if (triggerText === undefined) {
-        if (trigger.startsWith('ON_BE_')) triggerText = `After being ${trigger.replace('ON_BE_', '').toLowerCase().replace(/_/g, ' ')}`;
-        else if (trigger.startsWith('ON_')) triggerText = `After performing ${trigger.replace('ON_', '').toLowerCase().replace(/_/g, ' ')}`;
-        else if (trigger.startsWith('WOULD_BE_')) triggerText = `When it would be ${trigger.replace('WOULD_BE_', '').toLowerCase().replace(/_/g, ' ')}`;
-        else if (trigger.startsWith('WOULD_')) triggerText = `When it would perform ${trigger.replace('WOULD_', '').toLowerCase().replace(/_/g, ' ')}`;
-        else if (trigger.startsWith('MODIFY_BE_')) triggerText = `When modifying it being ${trigger.replace('MODIFY_BE_', '').toLowerCase().replace(/_/g, ' ')}`;
-        else if (trigger.startsWith('MODIFY_')) triggerText = `When modifying its ${trigger.replace('MODIFY_', '').toLowerCase().replace(/_/g, ' ')}`;
-        else triggerText = `On ${trigger.toLowerCase().replace(/_/g, ' ')}`;
+    let processedTriggers = allTriggers.map(t => {
+        let txt = triggerDict[t];
+        if (txt === undefined) {
+            let readable = t.toLowerCase().replace(/_/g, ' ');
+            if (readable.startsWith('on be ')) txt = `When ${readable.substring(6)}`;
+            else if (readable.startsWith('on ')) txt = `When it ${readable.substring(3)}`;
+            else if (readable.startsWith('would be ')) txt = `When it would be ${readable.substring(9)}`;
+            else if (readable.startsWith('would ')) txt = `When it would ${readable.substring(6)}`;
+            else txt = `On ${readable}`;
+        }
+        
+        if (ability.triggerScope === 'GLOBAL') {
+            let lowerTxt = txt.toLowerCase();
+            const qt = ability.activation?.quickTargeting;
+            const lt = ability.activation?.logicTree;
+            const targetDesc = buildTargetDesc(qt, lt, t, true, 'FIELD', false);
+
+            if (lowerTxt.startsWith('when it would be ')) lowerTxt = lowerTxt.replace('when it would be ', `whenever ${targetDesc} would be `);
+            else if (lowerTxt.startsWith('when it would ')) lowerTxt = lowerTxt.replace('when it would ', `whenever ${targetDesc} would `);
+            else if (lowerTxt.startsWith('when it ')) lowerTxt = lowerTxt.replace('when it ', `whenever ${targetDesc} `);
+            else if (lowerTxt.startsWith('after being ')) lowerTxt = lowerTxt.replace('after being ', `after ${targetDesc} is `);
+            else if (lowerTxt.startsWith('when ')) lowerTxt = lowerTxt.replace('when ', `whenever ${targetDesc} is `);
+            
+            return lowerTxt.charAt(0).toUpperCase() + lowerTxt.slice(1);
+        }
+        return txt;
+    });
+
+    if (processedTriggers.length === 1) {
+        triggerText = processedTriggers[0];
+    } else {
+        let first = processedTriggers[0];
+        let rest = processedTriggers.slice(1).map(s => s.charAt(0).toLowerCase() + s.slice(1));
+        
+        if (rest.length === 1) {
+            triggerText = `${first} or ${rest[0]}`;
+        } else {
+            triggerText = `${first}, ${rest.slice(0, -1).join(', ')}, or ${rest[rest.length - 1]}`;
+        }
     }
     
     // 1b. Symbol String Prefix Cost Block
@@ -265,7 +304,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             let allHaveSameImpliedZone = group.payloads.length > 0;
             let impliedZone = null;
             for (const p of group.payloads) {
-                const z = SINGLE_ZONE_ACTIONS[p.type];
+                const man = ACTION_MANIFEST[p.type];
+                const z = (man && man.validZones && man.validZones.length === 1 && man.validZones[0] !== 'ALL') ? man.validZones[0] : null;
+                
                 if (!z) { allHaveSameImpliedZone = false; break; }
                 if (!impliedZone) impliedZone = z;
                 else if (impliedZone !== z) { allHaveSameImpliedZone = false; break; }
@@ -275,8 +316,8 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             let possessiveStr = 'their';
 
             if (group.targetMethod === 'SELF') {
-                targetStr = 'self';
-                possessiveStr = 'own';
+                targetStr = 'itself';
+                possessiveStr = 'its';
             } else if (group.targetMethod === 'AVATAR') {
                 targetStr = 'your avatar';
                 possessiveStr = "your avatar's";
@@ -308,28 +349,26 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
             const formatPayload = (eff) => {
                 let effText = '';
-                let tToken = eff.invertRoles ? '{CASTER}' : '{TARGET}';
-                let pToken = eff.invertRoles ? '{CASTER_POSS}' : '{POSS}';
                 
                 switch(eff.type) {
-                    case 'DEAL_DAMAGE': effText = `deal ${eff.amount || 1} damage to ${tToken}`; break;
-                    case 'HEAL': effText = `heal ${eff.amount || 1} health to ${tToken}`; break;
+                    case 'DEAL_DAMAGE': effText = `deal ${eff.amount || 1} damage to {TARGET}`; break;
+                    case 'HEAL': effText = `heal {TARGET} for ${eff.amount || 1}`; break;
                     case 'DRAW_CARD': effText = `draw ${eff.amount || 1} card(s) for {TARGET}`; break;
                     case 'DISCARD': effText = `discard ${eff.amount || 1} card(s) from {POSS} hand`; break;
                     case 'TRASH': effText = `trash ${eff.amount || 1} card(s) from {POSS} hand or deck`; break;
-                    case 'RECOVER': effText = `recover ${eff.amount || 1} card(s) from {POSS} discard pile`; break;
+                    case 'RECOVER': effText = `recover {TARGET}`; break;
                     case 'MODIFY_STAT': 
                         let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        if (eff.amount < 0) effText = `decrease ${pToken} ${modStat} by ${Math.abs(eff.amount)}`;
-                        else effText = `increase ${pToken} ${modStat} by ${eff.amount || 1}`;
+                        if (eff.amount < 0) effText = `decrease {POSS} ${modStat} by ${Math.abs(eff.amount)}`;
+                        else effText = `increase {POSS} ${modStat} by ${eff.amount || 1}`;
                         break;
                     case 'SET_STAT': 
                         let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        effText = `set ${pToken} ${setStat} to ${eff.amount || 1}`; break;
-                    case 'BLOCK_ACT': effText = `block ${tToken} from acting`; break;
-                    case 'BLOCK_ATTACK': effText = `block ${tToken} from attacking`; break;
-                    case 'BLOCK_RETALIATE': effText = `block ${tToken} from retaliating`; break;
-                    case 'SHUFFLE': effText = `shuffle ${tToken} into deck`; break;
+                        effText = `set {POSS} ${setStat} to ${eff.amount || 1}`; break;
+                    case 'BLOCK_ACT': effText = `block {TARGET} from acting`; break;
+                    case 'BLOCK_ATTACK': effText = `block {TARGET} from attacking`; break;
+                    case 'BLOCK_RETALIATE': effText = `block {TARGET} from retaliating`; break;
+                    case 'SHUFFLE': effText = `shuffle {TARGET} into deck`; break;
                     case 'RETURN': effText = `return {TARGET} to hand`; break;
                     case 'ATTACH': 
                         if (eff.invertRoles) effText = `attach {TARGET} to self`;
@@ -337,10 +376,12 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         break;
                     case 'UNATTACH': effText = `unattach {TARGET}`; break;
                     case 'FIELD': effText = `field {TARGET} (play for free)`; break;
-                    case 'BANISH': effText = `banish ${tToken}`; break;
-                    case 'KILL': effText = `kill ${tToken}`; break;
-                    case 'ATTACK': effText = `attack ${tToken}`; break;
-                    case 'CUSTOM_SCRIPT': effText = `execute custom script on ${tToken}`; break;
+                    case 'BANISH': effText = `banish {TARGET}`; break;
+                    case 'KILL': effText = `kill {TARGET}`; break;
+                    case 'ATTACK': effText = `attack {TARGET}`; break;
+                    case 'CANCEL_EVENT': effText = `cancel the triggering event`; break;
+                    case 'CHANGE_DESTINATION': effText = `change destination to ${eff.zone || 'DECK'}`; break;
+                    case 'CUSTOM_SCRIPT': effText = `execute custom script on {TARGET}`; break;
                     case 'GRANT_ABILITY':
                         let abilityName = eff.grantedAbilityId;
                         if (allAbilities && Array.isArray(allAbilities)) {
@@ -350,7 +391,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                              const grantedAb = getAbility(eff.grantedAbilityId);
                              if(grantedAb) abilityName = grantedAb.name;
                         }
-                        effText = `grant ability '${abilityName}' to ${tToken}`;
+                        effText = `grant ability '${abilityName}' to {TARGET}`;
                         break;
                     case 'SUMMON':
                         let cardName = eff.cardId;
@@ -395,7 +436,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         }
                         break;
                     default:
-                        effText = `perform ${eff.type} on ${tToken}`;
+                        effText = `perform ${eff.type} on {TARGET}`;
                 }
 
                 if (eff.invertRoles && eff.type !== 'ATTACH') {
@@ -413,17 +454,31 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
             const finalizeString = (arr) => {
                 if(arr.length === 0) return null;
-                let combined = joinWithAnd(arr);
-
-                combined = combined.replace(/\{CASTER_POSS\}/g, 'own').replace(/\{CASTER\}/g, 'self');
-
-                if (targetStr === 'self') {
-                    combined = combined.replace(/\{POSS\}/g, 'own').replace(/\{TARGET\}/g, 'self');
-                } else {
-                    combined = combined.replace(/\{POSS\}/g, possessiveStr).replace(/\{TARGET\}/g, targetStr);
-                }
                 
-                if (!combined.includes(targetStr) && !combined.includes('own') && !combined.includes('self') && !combined.includes(possessiveStr)) {
+                let mentioned = false;
+                let processedArr = arr.map(str => {
+                    let t, p;
+                    if (targetStr === 'itself') {
+                        t = 'itself';
+                        p = 'its';
+                    } else if (targetStr === 'your avatar' || targetStr === 'the enemy avatar') {
+                        t = mentioned ? 'it' : targetStr;
+                        p = mentioned ? 'its' : possessiveStr;
+                    } else {
+                        let isPlural = group.targetMethod === 'AUTO_ALL' || group.targetCount > 1 || group.targetMethod === 'AUTO_RANDOM' || group.targetMethod === 'AUTO_FIRST' || group.targetMethod === 'AUTO_LAST' || targetStr.endsWith('s');
+                        t = mentioned ? (isPlural ? 'them' : 'it') : targetStr;
+                        p = mentioned ? (isPlural ? 'their' : 'its') : possessiveStr;
+                    }
+
+                    if (str.includes('{TARGET}') || str.includes('{POSS}')) {
+                        mentioned = true;
+                    }
+                    
+                    return str.replace(/\{POSS\}/g, p).replace(/\{TARGET\}/g, t);
+                });
+
+                let combined = joinWithAnd(processedArr);
+                if (!mentioned && targetStr !== 'itself' && !combined.includes(targetStr) && !combined.includes(possessiveStr)) {
                     combined += ` to ${targetStr}`;
                 }
                 return combined;

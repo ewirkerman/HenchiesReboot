@@ -136,20 +136,20 @@
             <div class="flex-1 flex flex-col gap-1">
                 <div id="opp-lines-container" class="grid grid-cols-4 gap-1 w-full items-stretch">
                     <div class="flex flex-col gap-1 col-span-1 h-full">
-                        <div id="opp-line-avatar" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
-                        <div id="opp-line-bodyguard" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
+                        <div id="opp-line-avatar" class="flex-1 flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                        <div id="opp-line-bodyguard" class="flex-1 flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
                     </div>
                     <div class="flex flex-col gap-1 col-span-2 h-full">
-                        <div id="opp-line-sheltered" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-back" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-mid" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-front" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                        <div id="opp-line-sheltered" class="flex-1 flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-back" class="flex-1 flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-mid" class="flex-1 flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-front" class="flex-1 flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
                     </div>
                     <div class="flex flex-col gap-1 col-span-1 h-full">
-                        <div id="opp-line-sideline" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
+                        <div id="opp-line-sideline" class="flex-1 flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
                     </div>
                 </div>
-                <div id="opp-line-taunt" class="flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
+                <div id="opp-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
             </div>
             
             <!-- Discard -->
@@ -160,7 +160,7 @@
       <!-- ================= THE EQUATOR (CENTER NEUTRAL ZONE) ================= -->
       <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border border-dashed border-amber-500/40 rounded-lg p-1 min-h-[45px] flex items-center gap-2 min-w-[800px]">
         <span class="text-[9px] uppercase tracking-widest font-black text-amber-400 whitespace-nowrap shrink-0 pl-1">⚡ Equator</span>
-        <div id="equator-cards-container" class="flex flex-wrap gap-1 items-center w-full">
+        <div id="equator-cards-container" class="flex flex-wrap justify-center gap-1 items-center w-full">
           <span class="text-[10px] text-slate-500 italic" id="equator-empty-msg">No unattached items.</span>
         </div>
       </div>
@@ -179,20 +179,20 @@
             <div class="shrink-0 flex flex-col justify-start" id="player-deck-container"></div>
             
             <div class="flex-1 flex flex-col gap-1">
-                <div id="player-line-taunt" class="flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
+                <div id="player-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
                 <div class="grid grid-cols-4 gap-1 w-full items-stretch">
                     <div class="flex flex-col gap-1 col-span-1 h-full">
-                        <div id="player-line-bodyguard" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
-                        <div id="player-line-avatar" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
+                        <div id="player-line-bodyguard" class="flex-1 flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
+                        <div id="player-line-avatar" class="flex-1 flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
                     </div>
                     <div class="flex flex-col gap-1 col-span-2 h-full">
-                        <div id="player-line-front" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
-                        <div id="player-line-mid" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
-                        <div id="player-line-back" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
-                        <div id="player-line-sheltered" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
+                        <div id="player-line-front" class="flex-1 flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
+                        <div id="player-line-mid" class="flex-1 flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
+                        <div id="player-line-back" class="flex-1 flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
+                        <div id="player-line-sheltered" class="flex-1 flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
                     </div>
                     <div class="flex flex-col gap-1 col-span-1 h-full">
-                        <div id="player-line-sideline" class="flex-1 flex flex-wrap gap-1 min-h-[45px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
+                        <div id="player-line-sideline" class="flex-1 flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
                     </div>
                 </div>
             </div>
@@ -211,7 +211,7 @@
           <span class="text-[9px] text-slate-400 hidden sm:block">Click a card to play or sacrifice</span>
         </div>
 
-        <div id="player-hand-container" class="flex flex-wrap gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[190px] items-start justify-start transition-all duration-300">
+        <div id="player-hand-container" class="flex flex-wrap justify-center gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[190px] items-start transition-all duration-300">
           <span class="text-[10px] text-slate-500 italic mx-auto self-center">Your hand is empty.</span>
         </div>
       </div>
@@ -440,8 +440,12 @@
 
       try {
         const rawAbs = await fetchCustomAbilities();
+        allAbilitiesRegistry = rawAbs.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab, rawAbs) }));
+        
         const rawCards = await fetchCustomCards();
-        const combinedCatalog = [...CARD_CATALOG, ...rawCards];
+        allCardsRegistry = [...CARD_CATALOG, ...rawCards];
+
+        const combinedCatalog = allCardsRegistry;
 
         const hydratedDeck = [];
         let missingCards = 0;
@@ -508,9 +512,7 @@
               if (!data || !data.turn_start_state) {
                 console.log("[LAUNCH] Room is empty. Initializing new game state...");
                 localPlayerRole = 'player1';
-                currentGameState = initGame(roomCode, username, activeBattleDeck);
-                Object.defineProperty(currentGameState, 'abilityCatalog', { value: allAbilitiesRegistry, enumerable: false, configurable: true });
-                Object.defineProperty(currentGameState, 'catalog', { value: allCardsRegistry, enumerable: false, configurable: true });
+                currentGameState = initGame(roomCode, username, activeBattleDeck, allAbilitiesRegistry, allCardsRegistry);
                 
                 console.log("[LAUNCH] State initialized. Pushing to Firebase...");
                 const createTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
@@ -682,8 +684,14 @@
       }
       document.getElementById('player-resources').innerText = myResStr.replace(/ \| $/, '');
 
+      let oppAvatar = null;
+      for (const line in oppP.lines) {
+          oppAvatar = oppP.lines[line]?.find(u => u.type === 'avatar');
+          if (oppAvatar) break;
+      }
+
       document.getElementById('opp-name').innerText = `${oppP.name} (${oppRole.toUpperCase()})`;
-      document.getElementById('opp-power').innerText = oppP.avatar.power;
+      document.getElementById('opp-power').innerText = oppAvatar?.power || 0;
       document.getElementById('opp-hand-count').innerText = oppP.hand.length;
       
       let oppResStr = '';
@@ -789,7 +797,6 @@
 
     function renderPlayerBattlelines(player, prefix) {
       const checkOccupied = (line) => {
-        if (line === 'avatar') return player.setupComplete; 
         return player.lines[line] && player.lines[line].length > 0;
       };
 
@@ -800,7 +807,7 @@
 
       // Dynamic Column Visibility Rules
       toggleLine('taunt', checkOccupied('taunt'));
-      toggleLine('avatar', checkOccupied('avatar')); 
+      toggleLine('avatar', true); // Always show the center left slot for visual layout stability
       toggleLine('bodyguard', checkOccupied('bodyguard'));
       toggleLine('sideline', true);
 
@@ -822,37 +829,19 @@
 
         const units = player.lines[line] || [];
 
-        if (line === 'avatar') {
-          if (!player.setupComplete) {
-            lineEl.innerHTML = '';
-            continue;
-          }
-          const json = encodeURIComponent(JSON.stringify(player.avatar)).replace(/'/g, "%27");
-          const isTargetable = validTargets.some(t => t.id === player.avatar.id);
-          const isAttacker = pendingAbility && pendingAbility.entityId === player.avatar.id;
+        lineEl.innerHTML = units.map(u => {
+          const json = encodeURIComponent(JSON.stringify(u)).replace(/'/g, "%27");
+          const isAttacker = pendingAbility && pendingAbility.entityId === u.instanceId;
+          const isTargetable = validTargets.some(t => t.id === u.instanceId);
 
-          lineEl.innerHTML = renderCardHTML(player.avatar, {
-            readiness: player.avatar.readiness,
+          return renderCardHTML(u, {
+            readiness: u.readiness,
             isSelected: isAttacker,
             isTargetable: isTargetable,
-            onClick: `window.handleEntityClick('${prefix}', 'avatar', '${player.avatar.id}')`,
+            onClick: `window.handleEntityClick('${prefix}', '${line}', '${u.instanceId}')`,
             onInspect: `window.inspectCard('${json}')`
           });
-        } else {
-          lineEl.innerHTML = units.map(u => {
-            const json = encodeURIComponent(JSON.stringify(u)).replace(/'/g, "%27");
-            const isAttacker = pendingAbility && pendingAbility.entityId === u.instanceId;
-            const isTargetable = validTargets.some(t => t.id === u.instanceId);
-
-            return renderCardHTML(u, {
-              readiness: u.readiness,
-              isSelected: isAttacker,
-              isTargetable: isTargetable,
-              onClick: `window.handleEntityClick('${prefix}', '${line}', '${u.instanceId}')`,
-              onInspect: `window.inspectCard('${json}')`
-            });
-          }).join('');
-        }
+        }).join('');
       }
 
       window.handleLineClick = async (clickedPrefix, line) => {
@@ -928,10 +917,8 @@
                   let entity = null;
                   const eqItem = currentGameState.equator?.find(i => i.instanceId === entityId);
                   if (eqItem) entity = eqItem;
-                  else if (currentGameState.players[localPlayerRole].avatar.id === entityId) entity = currentGameState.players[localPlayerRole].avatar;
                   else {
                       for (const l of LINES) {
-                          if (l === 'avatar') continue;
                           const u = currentGameState.players[localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
                           if (u) { entity = u; break; }
                       }
@@ -954,8 +941,6 @@
               if (prefix === 'equator') {
                   const eq = currentGameState.equator.find(i => i.instanceId === entityId);
                   if (eq) entityName = eq.name;
-              } else if (currentGameState.players[localPlayerRole].avatar.id === entityId) {
-                entityName = currentGameState.players[localPlayerRole].avatar.name;
               } else {
                 for (const l of LINES) {
                   const u = currentGameState.players[localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
@@ -1021,10 +1006,8 @@
         let entity = null;
         const eqItem = currentGameState.equator?.find(i => i.instanceId === entityId);
         if (eqItem) entity = eqItem;
-        else if (currentGameState.players[localPlayerRole].avatar.id === entityId) entity = currentGameState.players[localPlayerRole].avatar;
         else {
             for (const l of LINES) {
-                if (l === 'avatar') continue;
                 const u = currentGameState.players[localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
                 if (u) { entity = u; break; }
             }

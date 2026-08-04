@@ -5,7 +5,7 @@
 import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './firebase.js';
 import { CARD_CATALOG } from './engine.js';
 import { generateAbilityDescription } from './language_description.js';
-import { getActionTriggers, EFFECT_TYPES } from './actions.js';
+import { getActionTriggers, EFFECT_TYPES, ACTION_MANIFEST } from './actions.js';
 
 // --- STATE MANAGEMENT ---
 const state = {
@@ -31,50 +31,11 @@ export const TRIGGER_EVENTS = [
     ...getActionTriggers()
 ];
 
-export const EFFECT_ZONE_MAP = {
-    'DEAL_DAMAGE': ['FIELD'],
-    'HEAL': ['FIELD'],
-    'KILL': ['FIELD'],
-    'ATTACH': ['FIELD'],
-    'UNATTACH': ['FIELD'],
-    'UNFIELD': ['FIELD'],
-    'RETURN': ['FIELD'],
-    'TRASH': ['FIELD'],
-    'ATTACK': ['FIELD'],
-    'DRAW_CARD': ['DECK'],
-    'DISCARD': ['DECK', 'HAND'],
-    'RECOVER': ['DISCARD'],
-    'BANISH': ZONES,
-    // Global Actions valid anywhere
-    'SHUFFLE': ZONES,
-    'BLOCK_ACT': ZONES,
-    'BLOCK_ATTACK': ZONES,
-    'BLOCK_RETALIATE': ZONES,
-    'GRANT_ABILITY': ZONES,
-    'MODIFY_STAT': ZONES,
-    'MODIFY_RESOURCE': ZONES,
-    'SET_STAT': ZONES,
-    'SUMMON': ZONES,
-    'CUSTOM_SCRIPT': ZONES,
-    'DISCARD_CARD': ['DECK', 'HAND'],
-    'FIELD': ['HAND', 'DISCARD'],
-    'PLAY': ['HAND'],
-    'HARVEST': ['HAND']
-};
-
-export const SINGLE_ZONE_ACTIONS = {
-    'DEAL_DAMAGE': 'FIELD', 'HEAL': 'FIELD', 'KILL': 'FIELD', 
-    'ATTACH': 'FIELD', 'UNATTACH': 'FIELD', 'UNFIELD': 'FIELD', 
-    'RETURN': 'FIELD', 'TRASH': 'FIELD',
-    'ATTACK': 'FIELD',
-    'DRAW_CARD': 'DECK', 'RECOVER': 'DISCARD',
-    'PLAY': 'HAND', 'HARVEST': 'HAND'
-};
-
 export function getValidActionsForZones(selectedZones) {
     if (!selectedZones || selectedZones.length === 0) return []; 
-    return EFFECT_TYPES.filter(action => {
-        const validZones = EFFECT_ZONE_MAP[action] || ZONES; 
+    return Object.keys(ACTION_MANIFEST).filter(action => {
+        const validZones = ACTION_MANIFEST[action].validZones; 
+        if (validZones === 'ALL') return true;
         // INTERSECTION LOGIC: The action must be valid in ALL selected zones
         return selectedZones.every(z => validZones.includes(z));
     });
@@ -88,6 +49,9 @@ const ATTRIBUTE_TYPES = {
     'genus': { label: 'Genus', type: 'text' },
     'health': { label: 'Current Health', type: 'number' },
     'strength': { label: 'Strength', type: 'number' },
+    'power': { label: 'Power', type: 'number' },
+    'fast': { label: 'Fast Charges', type: 'number' },
+    'slow': { label: 'Slow Charges', type: 'number' },
     'hasAbility': { label: 'Has Ability', type: 'text' }
 };
 
@@ -224,9 +188,11 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
                 logicTree: { type: 'group', logicalOperator: 'AND', children: [] },
                 payloads: []
             };
+        } else if (type === 'CHANGE_DESTINATION') {
+            payload.zone = 'DECK'; delete payload.amount; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.resource; delete payload.zoneOwner;
         } else if (type === 'CUSTOM_SCRIPT') { 
             payload.script = 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
-        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST'].includes(type)) { 
+        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST', 'CANCEL_EVENT'].includes(type)) { 
             delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
         }
     }
@@ -234,11 +200,29 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
 
 // --- DATA EXPORT & MIGRATION ---
 export function exportCurrentState(formData) {
+    const scope = formData.triggerScope || 'PERSONAL';
+    const actMethod = formData.actMethod || 'NONE';
+    
+    let activationData = { 
+        method: actMethod, 
+        quickTargeting: formData.actQuickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false }, 
+        logicTree: JSON.parse(JSON.stringify(state.activationRoot)) 
+    };
+
+    if (scope === 'PERSONAL' && actMethod === 'NONE') {
+         delete activationData.quickTargeting;
+         delete activationData.logicTree;
+    } else if (scope === 'GLOBAL') {
+         activationData.method = 'NONE';
+    }
+
     return {
         abilityId: state.currentEditingId || ('ability_' + Date.now()),
         name: formData.name,
         description: formData.description || '',
         trigger: formData.trigger,
+        additionalTriggers: formData.additionalTriggers || [],
+        triggerScope: scope,
         triggerLimit: formData.triggerLimit || 'UNLIMITED',
         cost: {
             tribeAmount: parseInt(formData.tribeAmount) || 0,
@@ -247,11 +231,7 @@ export function exportCurrentState(formData) {
             readinessCost: formData.readinessCost || 'NONE',
             reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness
         },
-        activation: { 
-            method: formData.actMethod, 
-            quickTargeting: formData.actQuickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false }, 
-            logicTree: JSON.parse(JSON.stringify(state.activationRoot)) 
-        },
+        activation: activationData,
         effects: JSON.parse(JSON.stringify(state.targetGroups))
     };
 }

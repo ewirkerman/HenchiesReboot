@@ -21,19 +21,18 @@ export class GameState {
         this.activePlayerId = 'player1';
         this.turnNumber = 1;
         this.turnPhase = 'SACRIFICE_DECISION'; // SACRIFICE_DECISION, ACTION_PHASE
+        this.abilityUses = {};
         this.players = {
             player1: { 
                 id: 'player1', name: 'Player 1', 
-                lines: { taunt: [], bodyguard: [], front: [], mid: [], back: [], sheltered: [], sideline: [] }, 
+                lines: { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] }, 
                 hand: [], deck: [], discard: [], banish: [], 
-                avatar: { id: 'p1_avatar', name: 'Warlord', health: 30, maxHealth: 30, power: 0, tribe: 'Mythic', type: 'avatar', readiness: 1 },
                 resources: { 'Carnie': { current: 2, max: 2 }, 'Mythic': { current: 1, max: 1 } }
             },
             player2: { 
                 id: 'player2', name: 'Player 2', 
-                lines: { taunt: [], bodyguard: [], front: [], mid: [], back: [], sheltered: [], sideline: [] }, 
+                lines: { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] }, 
                 hand: [], deck: [], discard: [], banish: [], 
-                avatar: { id: 'p2_avatar', name: 'Opponent', health: 30, maxHealth: 30, power: 0, tribe: 'Robot', type: 'avatar', readiness: 1 },
                 resources: { 'Carnie': { current: 2, max: 2 }, 'Robot': { current: 1, max: 1 } }
             }
         };
@@ -93,8 +92,49 @@ export class GameEngine {
             if (!ent || !ent.abilities || !ent.instanceId || checkedEntities.has(ent.instanceId)) return;
             checkedEntities.add(ent.instanceId);
             for (const ability of ent.abilities) {
-                if (ability.trigger === eventType && !this.activeChainAbilities.has(ability.abilityId)) {
-                    triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload });
+                const allTriggers = [ability.trigger, ...(ability.additionalTriggers || [])];
+                if (allTriggers.includes(eventType) && !this.activeChainAbilities.has(ability.abilityId)) {
+                    
+                    let isValid = true;
+                    if (payload) {
+                        const passiveStrings = ['BE_DAMAGED', 'BE_HEALED', 'BE_KILLED', 'BE_GRANTED_ABILITY', 'BE_STAT_MODIFIED', 'BE_RESOURCE_MODIFIED', 'BE_STAT_SET', 'BE_DRAWN', 'BE_SUMMONED', 'BE_PLAYED', 'BE_ATTACKED', 'BE_HARVESTED', 'BE_DISCARDED', 'BE_SHUFFLED', 'BE_RETURNED', 'BE_RECOVERED', 'BE_TRASHED', 'BE_BANISHED', 'BE_FIELDED', 'BE_UNFIELDED', 'BE_ATTACHED', 'BE_UNATTACHED'];
+                        const activeStrings = ['DEAL_DAMAGE', 'HEAL', 'KILL', 'GRANT_ABILITY', 'MODIFY_STAT', 'MODIFY_RESOURCE', 'SET_STAT', 'DRAW_CARD', 'SUMMON', 'PLAY', 'ATTACK', 'HARVEST', 'DISCARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'TRASH', 'BANISH', 'FIELD', 'UNFIELD', 'ATTACH', 'UNATTACH'];
+                        
+                        const isPassive = passiveStrings.some(p => eventType.includes(p));
+                        if (isPassive) {
+                            if (payload.target && payload.target.instanceId !== ent.instanceId) isValid = false;
+                        } else {
+                            const isActive = activeStrings.some(a => eventType.includes(a));
+                            if (isActive) {
+                                if (payload.source && payload.source.instanceId !== ent.instanceId) isValid = false;
+                            }
+                        }
+                    } else if (scope === 'GLOBAL') {
+                        let eventEntity = null;
+                        if (isPassive) eventEntity = payload.target;
+                        else {
+                            const isActive = activeStrings.some(a => eventType.includes(a));
+                            if (isActive) eventEntity = payload.source;
+                        }
+
+                        if (!eventEntity) {
+                            isValid = false;
+                        } else {
+                            const qt = ability.activation?.quickTargeting;
+                            const lt = ability.activation?.logicTree;
+                            const pool = this.findEntitiesInScope(qt, ownerId);
+                            
+                            if (!pool.some(p => p.instanceId === eventEntity.instanceId)) {
+                                isValid = false;
+                            } else if (!this.evaluateLogicTree(lt, eventEntity, ent)) {
+                                isValid = false;
+                            }
+                        }
+                    }
+
+                    if (isValid) {
+                        triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload });
+                    }
                 }
             }
         };
@@ -109,14 +149,14 @@ export class GameEngine {
         for (const pId of ['player1', 'player2']) {
             const player = this.state.players[pId];
             
-            // Check Avatar abilities
-            if (player.avatar) checkEntity(player.avatar, pId);
-
             // Check Unit abilities
             for (const line of LINES) {
-                if (line === 'avatar' || !player.lines[line]) continue;
+                if (!player.lines[line]) continue;
                 for (const unit of player.lines[line]) {
                     checkEntity(unit, pId);
+                    if (unit.attachments) {
+                        unit.attachments.forEach(att => checkEntity(att, pId));
+                    }
                 }
             }
         }
@@ -170,12 +210,12 @@ export class GameEngine {
         for (const pId of ['player1', 'player2']) {
             const player = this.state.players[pId];
             for (const line of LINES) {
-                if (line === 'avatar') continue;
                 if (!player.lines[line]) continue;
                 
                 // Iterate backwards for safe splicing
                 for (let i = player.lines[line].length - 1; i >= 0; i--) {
                     const u = player.lines[line][i];
+                    if (u.type === 'avatar') continue; // Avatars end the game, they don't die via normal sweep
                     if (u.health <= 0 && !u._isDying) {
                         new KillAction({ target: u }).run(this);
                     }
@@ -195,6 +235,59 @@ export class GameEngine {
             }
 
             ownerId = ownerId || this.state.activePlayerId;
+            const p = this.state.players[ownerId];
+
+            const abilityKey = `${source.instanceId}_${ability.abilityId}`;
+            const limit = ability.triggerLimit || 'UNLIMITED';
+            
+            if (limit === 'ONCE_PER_ROUND' && (this.state.abilityUses?.[abilityKey] || 0) >= 1) return;
+            if (limit === 'TWICE_PER_ROUND' && (this.state.abilityUses?.[abilityKey] || 0) >= 2) return;
+
+            const cost = ability.cost || {};
+            let canAfford = true;
+            
+            let currentReadiness = Number(source.readiness);
+            if (isNaN(currentReadiness)) currentReadiness = 0;
+            
+            let requiresReadiness = cost.readinessCost && cost.readinessCost !== 'NONE';
+            if (requiresReadiness && cost.reuseIgnoresReadiness && (this.state.abilityUses?.[abilityKey] || 0) > 0) {
+                requiresReadiness = false;
+            }
+            if (requiresReadiness && currentReadiness < 1) canAfford = false;
+            
+            let avatar = null;
+            for (const line in p.lines) {
+                avatar = p.lines[line]?.find(u => u.type === 'avatar');
+                if (avatar) break;
+            }
+
+            let cCost = cost.carnie || cost.tent || 0;
+            if (cCost > 0 && (p.resources['Carnie']?.current || 0) < cCost) canAfford = false;
+            if (cost.power > 0 && (avatar?.power || 0) < cost.power) canAfford = false;
+            
+            let tribeResKey = null;
+            if (cost.tribeAmount > 0) {
+                const entityTribe = source.tribe || 'Generic';
+                tribeResKey = Object.keys(p.resources || {}).find(k => k.toLowerCase() === entityTribe.toLowerCase());
+                if (!tribeResKey || p.resources[tribeResKey].current < cost.tribeAmount) canAfford = false;
+            }
+
+            if (!canAfford) {
+                console.log(`[Engine] Could not afford trigger cost for '${ability.name}'.`);
+                return;
+            }
+
+            if (!this.state.abilityUses) this.state.abilityUses = {};
+            this.state.abilityUses[abilityKey] = (this.state.abilityUses[abilityKey] || 0) + 1;
+
+            if (requiresReadiness) {
+                if (cost.readinessCost === 'EXHAUSTS') source.readiness = -1;
+                else if (cost.readinessCost === 'UNREADIES') source.readiness = 0;
+            }
+            
+            if (cCost > 0 && p.resources['Carnie']) p.resources['Carnie'].current -= cCost;
+            if (cost.power > 0 && avatar) avatar.power -= cost.power;
+            if (cost.tribeAmount > 0 && tribeResKey) p.resources[tribeResKey].current -= cost.tribeAmount;
 
             // Phase 1: Target Acquisition (Lock in targets based on board state BEFORE costs/effects resolve)
             const lockedTargets = ability.effects.map((group, index) => {
@@ -204,13 +297,21 @@ export class GameEngine {
                 }
                 let targets = [];
                 if (group.targetMethod === 'SELF') targets = [source];
-                else if (group.targetMethod === 'AVATAR') targets = [this.state.players[ownerId].avatar];
-                else if (group.targetMethod === 'ENEMY_AVATAR') targets = [this.state.players[ownerId === 'player1' ? 'player2' : 'player1'].avatar];
+                else if (group.targetMethod === 'EVENT_SOURCE') targets = eventPayload?.source ? [eventPayload.source] : [];
+                else if (group.targetMethod === 'EVENT_TARGET') targets = eventPayload?.target ? [eventPayload.target] : [];
+                else if (group.targetMethod === 'AVATAR') {
+                    const av = Object.values(this.state.players[ownerId].lines).flat().find(u => u.type === 'avatar');
+                    targets = av ? [av] : [];
+                }
+                else if (group.targetMethod === 'ENEMY_AVATAR') {
+                    const oppId = ownerId === 'player1' ? 'player2' : 'player1';
+                    const av = Object.values(this.state.players[oppId].lines).flat().find(u => u.type === 'avatar');
+                    targets = av ? [av] : [];
+                }
                 else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
                     // Check if a specific target ID was tunneled through the payload (e.g. from PlayAction targeted equip)
                     if (eventPayload && eventPayload.abilityTargetId) {
                         const allEntities = [
-                            this.state.players.player1.avatar, this.state.players.player2.avatar,
                             ...Object.values(this.state.players.player1.lines).flat(),
                             ...Object.values(this.state.players.player2.lines).flat(),
                             ...(this.state.equator || [])
@@ -295,6 +396,7 @@ export class GameEngine {
                                 actionPayload.source = source;
                                 actionPayload.target = currentTarget;
                             }
+                            actionPayload.eventContext = eventPayload; // Inject context for replacement effects
                             const action = new ActionClass(actionPayload);
                             action.run(this);
                         }
@@ -338,11 +440,12 @@ export class GameEngine {
             const p = this.state.players[pId];
             
             if (zones.includes('FIELD')) {
-                if (types.includes('AVATAR') && p.avatar && p.setupComplete) pool.push(p.avatar);
-                if (types.includes('UNIT')) {
-                    for (const line of LINES) {
-                        if (line === 'avatar') continue;
-                        if (p.lines[line]) pool.push(...p.lines[line]);
+                for (const line of LINES) {
+                    if (p.lines[line]) {
+                        pool.push(...p.lines[line]);
+                        p.lines[line].forEach(u => {
+                            if (u.attachments) pool.push(...u.attachments);
+                        });
                     }
                 }
             }
@@ -351,6 +454,10 @@ export class GameEngine {
             if (zones.includes('DISCARD')) pool.push(...p.discard);
             if (zones.includes('BANISH')) pool.push(...p.banish);
         });
+
+        if (zones.includes('FIELD') && this.state.equator) {
+            pool.push(...this.state.equator);
+        }
         
         return pool.filter(ent => {
             if (!types || types.length === 0) return true;
@@ -436,9 +543,17 @@ export function startTurn(state, engine) {
     const pId = state.activePlayerId;
     const player = state.players[pId];
     
+    state.abilityUses = {}; // Clear round limits
+    
     if (!player.setupComplete) {
         player.setupComplete = true;
-        if (player.avatar) player.avatar.isDeployed = true;
+        
+        let avatar = null;
+        for (const line in player.lines) {
+            avatar = player.lines[line]?.find(u => u.type === 'avatar');
+            if (avatar) break;
+        }
+        if (avatar) avatar.isDeployed = true;
         
         if (pId === 'player2' && player.isDummy) {
             const catalogDummy = CARD_CATALOG.find(c => c.id === 'target_dummy' || c.name === 'Target Dummy');
@@ -477,23 +592,7 @@ export function startTurn(state, engine) {
     }
     
     // 2. Ready all entities
-    if (player.avatar) {
-        let currentReadiness = Number(player.avatar.readiness);
-        if (isNaN(currentReadiness)) currentReadiness = 0;
-        if (currentReadiness < 1) player.avatar.readiness = currentReadiness + 1;
-        player.avatar.acts = player.avatar.maxActs !== undefined ? player.avatar.maxActs : 1;
-
-        if (player.avatar.attachments) {
-            player.avatar.attachments.forEach(item => {
-                let currentReadiness = Number(item.readiness);
-                if (isNaN(currentReadiness)) currentReadiness = 0;
-                if (currentReadiness < 1) item.readiness = currentReadiness + 1;
-                item.acts = item.maxActs !== undefined ? item.maxActs : 1;
-            });
-        }
-    }
     for (const line of LINES) {
-        if (line === 'avatar') continue;
         if (player.lines[line]) {
             player.lines[line].forEach(u => {
                 let currentReadiness = Number(u.readiness);
@@ -557,7 +656,14 @@ export function executeSacrificeDecision(state, option, cardId) {
         if (cardIndex > -1) {
             const sacCard = player.hand[cardIndex];
             const engine = new GameEngine(state);
-            const harvest = new HarvestAction({ source: player.avatar, target: sacCard });
+            
+            let avatar = null;
+            for (const line in player.lines) {
+                avatar = player.lines[line]?.find(u => u.type === 'avatar');
+                if (avatar) break;
+            }
+
+            const harvest = new HarvestAction({ source: avatar, target: sacCard });
             harvest.run(engine);
         }
     } else {
@@ -609,12 +715,10 @@ export function canPlayCard(state, playerId, card) {
                     let targetFound = false;
                     
                     if (alignments.includes('FRIENDLY')) {
-                        if (types.includes('AVATAR')) targetFound = true;
-                        else if (types.includes('UNIT') && LINES.some(l => l !== 'hero' && state.players[playerId].lines[l]?.length > 0)) targetFound = true;
+                        if (LINES.some(l => state.players[playerId].lines[l]?.length > 0)) targetFound = true;
                     }
                     if (alignments.includes('ENEMY') && !targetFound) {
-                        if (types.includes('AVATAR')) targetFound = true;
-                        else if (types.includes('UNIT') && LINES.some(l => l !== 'hero' && state.players[oppId].lines[l]?.length > 0)) targetFound = true;
+                        if (LINES.some(l => state.players[oppId].lines[l]?.length > 0)) targetFound = true;
                     }
                     
                     if (!targetFound) return false;
@@ -667,8 +771,15 @@ export function playCard(state, playerId, cardId, targetLine = 'back', abilityTa
 
     console.log(`[Engine] Executing playCard. abilityTargetId: ${abilityTargetId}`);
     const engine = new GameEngine(state);
+    
+    let avatar = null;
+    for (const line in player.lines) {
+        avatar = player.lines[line]?.find(u => u.type === 'avatar');
+        if (avatar) break;
+    }
+
     // Tunnel the explicit target down through the payload so ON_BE_PLAYED triggers can resolve it
-    const play = new PlayAction({ source: player.avatar, target: card, targetLine: targetLine, line: targetLine, abilityTargetId: abilityTargetId });
+    const play = new PlayAction({ source: avatar, target: card, targetLine: targetLine, line: targetLine, abilityTargetId: abilityTargetId });
     play.run(engine);
 
     return { success: true };
@@ -688,8 +799,8 @@ export function getValidAttackTargets(state, attackerOwnerId) {
     // 2. Left Column
     if (defPlayer.lines['bodyguard'] && defPlayer.lines['bodyguard'].length > 0) {
         defPlayer.lines['bodyguard'].forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
-    } else if (defPlayer.avatar && defPlayer.setupComplete) {
-        targets.push({ id: defPlayer.avatar.id, line: 'avatar' });
+    } else if (defPlayer.lines['avatar'] && defPlayer.lines['avatar'].length > 0) {
+        defPlayer.lines['avatar'].forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
     }
 
     // 3. Center Column
@@ -721,11 +832,8 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     const eqItem = state.equator?.find(i => i.instanceId === entityId);
     if (eqItem) {
         entity = eqItem;
-    } else if (state.players[playerId].avatar.id === entityId) {
-        entity = state.players[playerId].avatar;
     } else {
         for (const line of LINES) {
-            if (line === 'avatar') continue;
             const u = state.players[playerId].lines[line]?.find(u => u.instanceId === entityId);
             if (u) { entity = u; break; }
         }
@@ -777,7 +885,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
         }
     }
     
-    return targets;
+    return targets.filter((t, index, self) => index === self.findIndex(o => o.id === t.id));
 }
 
 export function getEntityAvailableActions(state, playerId, entityId) {
@@ -787,11 +895,8 @@ export function getEntityAvailableActions(state, playerId, entityId) {
     const eqItem = state.equator?.find(i => i.instanceId === entityId);
     if (eqItem) {
         entity = eqItem;
-    } else if (state.players[playerId].avatar.id === entityId) {
-        entity = state.players[playerId].avatar;
     } else {
         for (const line of LINES) {
-            if (line === 'avatar') continue;
             const u = state.players[playerId].lines[line]?.find(u => u.instanceId === entityId);
             if (u) { entity = u; break; }
         }
@@ -811,15 +916,27 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                     let currentReadiness = Number(entity.readiness);
                     if (isNaN(currentReadiness)) currentReadiness = 0;
                     
-                    if (cost.readinessCost && cost.readinessCost !== 'NONE' && currentReadiness < 1) {
+                    const abilityKey = `${entity.instanceId}_${ab.abilityId}`;
+                    let requiresReadiness = cost.readinessCost && cost.readinessCost !== 'NONE';
+                    if (requiresReadiness && cost.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0) {
+                        requiresReadiness = false;
+                    }
+                    
+                    if (requiresReadiness && currentReadiness < 1) {
                         canAfford = false;
                     }
                     
                     if (canAfford) {
                         const player = state.players[playerId];
                         
+                        let avatar = null;
+                        for (const line in player.lines) {
+                            avatar = player.lines[line]?.find(u => u.type === 'avatar');
+                            if (avatar) break;
+                        }
+
                         if ((cost.carnie || cost.tent) > 0 && (player.resources['Carnie']?.current || 0) < (cost.carnie || cost.tent)) canAfford = false;
-                        if (cost.power > 0 && (player.avatar?.power || 0) < cost.power) canAfford = false;
+                        if (cost.power > 0 && (avatar?.power || 0) < cost.power) canAfford = false;
                         
                         if (canAfford && cost.tribeAmount > 0) {
                             const entityTribe = entity.tribe || 'Generic';
@@ -862,11 +979,8 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         const eqItem = state.equator?.find(i => i.instanceId === entityId);
         if (eqItem) {
             entity = eqItem;
-        } else if (state.players[playerId].avatar.id === entityId) {
-            entity = state.players[playerId].avatar;
         } else {
             for (const line of LINES) {
-                if (line === 'avatar') continue;
                 const u = state.players[playerId].lines[line]?.find(u => u.instanceId === entityId);
                 if (u) { entity = u; break; }
             }
@@ -877,41 +991,16 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         const ability = entity.abilities?.find(a => a.abilityId === abilityId);
         if (!ability) return { success: false, reason: "Ability not found" };
 
-        // 1. Deduct Cost
-        const cost = ability.cost || {};
-        if (cost.readinessCost === 'EXHAUSTS' || cost.readinessCost === 'UNREADIES') {
-            entity.readiness = 0;
-        }
-
         if (actionType === 'ABILITY') {
             let currentActs = Number(entity.acts);
             if (isNaN(currentActs)) currentActs = 0;
             entity.acts = Math.max(0, currentActs - 1);
         }
 
-        const p = state.players[playerId];
-        
-        let cCost = cost.carnie || cost.tent || 0;
-        if (cCost > 0 && p.resources['Carnie']) {
-            p.resources['Carnie'].current -= cCost;
-        }
-        if (cost.power > 0 && p.avatar) {
-            p.avatar.power -= cost.power;
-        }
-
-        if (cost.tribeAmount > 0) {
-            const entityTribe = entity.tribe || 'Generic';
-            const resKey = Object.keys(p.resources || {}).find(k => k.toLowerCase() === entityTribe.toLowerCase());
-            if (resKey && p.resources[resKey]) {
-                p.resources[resKey].current -= cost.tribeAmount;
-            }
-        }
-
         // 2. Resolve Target Reference
         let targetEntity = null;
         if (targetId) {
             const allEntities = [
-                state.players.player1.avatar, state.players.player2.avatar,
                 ...Object.values(state.players.player1.lines).flat(),
                 ...Object.values(state.players.player2.lines).flat(),
                 ...(state.equator || [])
@@ -936,8 +1025,10 @@ export function shuffleArray(array) {
     }
 }
 
-export function initGame(roomId, p1Name, p1Deck) {
+export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCatalog = null) {
     const state = new GameState();
+    if (abilityCatalog) Object.defineProperty(state, 'abilityCatalog', { value: abilityCatalog, enumerable: false, configurable: true });
+    if (cardCatalog) Object.defineProperty(state, 'catalog', { value: cardCatalog, enumerable: false, configurable: true });
     state.gameId = roomId;
     state.roomId = roomId;
     state.players.player1.name = p1Name;
@@ -958,17 +1049,19 @@ export function initGame(roomId, p1Name, p1Deck) {
         av.health = av.health || 30;
         av.maxHealth = av.health;
         av.type = 'avatar';
+        av.defaultLine = 'avatar';
+        av.line = 'avatar';
         av.readiness = 1;
         av.acts = 1;
         av.maxActs = 1;
-        state.players.player1.avatar = av;
+        state.players.player1.lines.avatar = [av];
     }
 
     state.players.player1.tents = 2;
     state.players.player1.maxTents = 2;
     
     state.players.player1.resources = { 'Carnie': { current: 2, max: 2 } };
-    let p1Tribe = state.players.player1.avatar?.tribe || 'Generic';
+    let p1Tribe = state.players.player1.lines.avatar[0]?.tribe || 'Generic';
     if (p1Tribe.toLowerCase() === 'carnie') {
         state.players.player1.resources['Carnie'].current = 3;
         state.players.player1.resources['Carnie'].max = 3;
@@ -978,17 +1071,17 @@ export function initGame(roomId, p1Name, p1Deck) {
     
     // Setup dummy Player 2 for immediate local testing support
     state.players.player2.deck = [];
-    state.players.player2.avatar = {
+    state.players.player2.lines.avatar = [{
         id: 'p2_dummy_avatar', instanceId: 'p2_dummy_avatar',
         name: 'Waiting for Player 2...', health: 30, maxHealth: 30,
-        type: 'avatar', tribe: 'Robot', readiness: 1
-    };
+        type: 'avatar', tribe: 'Robot', defaultLine: 'avatar', line: 'avatar', readiness: 1
+    }];
 
     state.players.player2.tents = 2;
     state.players.player2.maxTents = 2;
     
     state.players.player2.resources = { 'Carnie': { current: 2, max: 2 } };
-    let p2DummyTribe = state.players.player2.avatar?.tribe || 'Robot';
+    let p2DummyTribe = state.players.player2.lines.avatar[0]?.tribe || 'Robot';
     if (p2DummyTribe.toLowerCase() === 'carnie') {
         state.players.player2.resources['Carnie'].current = 3;
         state.players.player2.resources['Carnie'].max = 3;
@@ -1045,17 +1138,19 @@ export function joinGame(state, p2Name, p2Deck) {
         av.health = av.health || 30;
         av.maxHealth = av.health;
         av.type = 'avatar';
+        av.defaultLine = 'avatar';
+        av.line = 'avatar';
         av.readiness = 1;
         av.acts = 1;
         av.maxActs = 1;
-        state.players.player2.avatar = av;
+        state.players.player2.lines.avatar = [av];
     }
 
     state.players.player2.tents = 2;
     state.players.player2.maxTents = 2;
     
     state.players.player2.resources = { 'Carnie': { current: 2, max: 2 } };
-    let p2Tribe = state.players.player2.avatar.tribe || 'Generic';
+    let p2Tribe = state.players.player2.lines.avatar[0]?.tribe || 'Generic';
     if (p2Tribe.toLowerCase() === 'carnie') {
         state.players.player2.resources['Carnie'].current = 3;
         state.players.player2.resources['Carnie'].max = 3;

@@ -56,27 +56,59 @@ export function showToast(message, type = 'info') {
 function formatAbilityCostBadge(cost, cardTribe) {
   if (!cost) return '';
   let badgeStr = '';
-  if (cost.tent > 0) badgeStr += `${cost.tent}⛺ `;
-  if (cost.power > 0) badgeStr += `${cost.power}⚡ `;
+  const carnieCost = cost.carnie || cost.tent || 0;
+  if (carnieCost > 0) badgeStr += `${carnieCost}🎪`;
+  if (cost.power > 0) badgeStr += `${cost.power}⚡`;
   if (cost.tribeAmount > 0) {
-      const tType = cost.tribeType || cardTribe;
-      if (tType && tType !== 'NONE') {
-          badgeStr += `${cost.tribeAmount} ${tType.charAt(0)} `;
+      const tType = cost.tribeType || cardTribe || 'Generic';
+      if (tType && tType !== 'NONE' && tType !== 'Generic') {
+          badgeStr += `${cost.tribeAmount}${tType.charAt(0)}`;
       } else {
-          badgeStr += `${cost.tribeAmount}💎 `;
+          badgeStr += `${cost.tribeAmount}💎`;
       }
   }
-  if (cost.readinessCost === 'EXHAUSTS') badgeStr += `🔄 `;
-  if (cost.readinessCost === 'UNREADIES') badgeStr += `⤵️ `;
+  if (cost.readinessCost === 'EXHAUSTS') badgeStr += `🔄`;
+  if (cost.readinessCost === 'UNREADIES') badgeStr += `⤵️`;
   
-  return badgeStr.trim() ? `<span class="text-[8px] bg-slate-900 text-amber-300 px-1 py-[1px] rounded border border-slate-700 ml-1 font-bold whitespace-nowrap leading-none">${badgeStr.trim()}</span>` : '';
+  return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-1 tracking-tighter whitespace-nowrap opacity-90">[${badgeStr}]</span>` : '';
+}
+
+function getLineIconSvg(line) {
+    const svgs = {
+        avatar: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
+        bodyguard: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12 1L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4zm4.5 14h-9l-1-4 3 1.5L12 9l2.5 3.5L17.5 11l-1 4z"/></svg>`,
+        front: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12 1L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4z"/></svg>`,
+        mid: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12 2l-2 4v10H7v2h4v4h2v-4h4v-2h-3V6l-2-4z"/></svg>`,
+        back: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M21 12.8c-1.3.8-2.8 1.2-4.5 1.2-5 0-9-4-9-9 0-1.7.4-3.2 1.2-4.5C4.2 1.8 1 5.5 1 10c0 6.1 4.9 11 11 11 4.5 0 8.2-3.2 9-7.2z"/></svg>`,
+        sheltered: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><circle cx="12" cy="12" r="10"/></svg>`,
+        sideline: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M4 2v20h2v-8h14l-4-5 4-5H6V2H4z"/></svg>`,
+        taunt: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M4 21h16V9h-3v3h-2V9h-2v3h-2V9h-2v3H9V9H7v3H5V9H4v12zm6-6h4v6h-4v-6z"/></svg>`
+    };
+    return svgs[line.toLowerCase()] || svgs.mid;
 }
 
 export function renderCardHTML(card, options = {}) {
-  const { isSelected = false, isTargetable = false, readiness = null, onClick = '', onInspect = '' } = options;
+  const { isHand = false, isSelected = false, isTargetable = false, readiness = null, onClick = '', onInspect = '' } = options;
   const style = TRIBE_STYLES[card.tribe] || TRIBE_STYLES.Mythic;
   const isUnit = card.type === 'unit' || card.type === 'avatar';
   const isAvatar = card.type === 'avatar';
+  const activeLine = card.line || card.defaultLine || (isAvatar ? 'avatar' : 'mid');
+  const isTempLine = card.line && card.defaultLine && card.line !== card.defaultLine;
+
+  const isFieldUnready = !isHand && isUnit && readiness !== null && readiness === 0;
+  const isFieldExhausted = !isHand && isUnit && readiness !== null && readiness < 0;
+  const fieldDimmingClass = (isFieldUnready || isFieldExhausted) ? 'saturate-[0.25] opacity-90' : '';
+
+  const unreadySvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M9 3v8.29a3.71 3.71 0 0 0 3.71 3.71h8.29"/><path d="m16 10 5 5-5 5"/></svg>`;
+  const exhaustedSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>`;
+
+  const overlayHTML = (isFieldUnready || isFieldExhausted) ? `
+    <div class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none bg-black/30 rounded-md">
+      <div class="w-16 h-16 text-white opacity-80 drop-shadow-[0_2px_8px_rgba(0,0,0,1)]">
+        ${isFieldUnready ? unreadySvg : exhaustedSvg}
+      </div>
+    </div>
+  ` : '';
 
   const readinessBadge = readiness !== null ? `
     <div class="absolute top-1 right-1 text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider z-20 ${
@@ -97,6 +129,12 @@ export function renderCardHTML(card, options = {}) {
     </button>
   ` : '';
 
+  const fastBadge = (card.fast > 0) ? `
+    <div class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-yellow-400 border border-black text-black font-black text-[10px] flex items-center justify-center shadow-lg z-30" title="Fast Charges">
+      ⚡${card.fast}
+    </div>
+  ` : '';
+
   const attachmentsBadge = (card.attachments && card.attachments.length > 0) ? `
     <div class="absolute -top-1.5 -left-1.5 w-6 h-6 rounded bg-fuchsia-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow-lg z-30" title="Attachments">
       🔗${card.attachments.length}
@@ -108,9 +146,8 @@ export function renderCardHTML(card, options = {}) {
   let abilitiesHTML = '';
   if (card.abilities && card.abilities.length > 0) {
       abilitiesHTML = card.abilities.map(ab => `
-          <div class="text-[9px] sm:text-[10px] text-slate-200 font-bold leading-tight truncate flex items-center justify-center gap-1 w-full">
-            <span class="truncate">⚡ ${ab.name}</span>
-            ${formatAbilityCostBadge(ab.cost, card.tribe)}
+          <div class="text-[9px] text-slate-200 font-bold leading-tight truncate w-full text-center">
+            <span>⚡ ${ab.name || 'Unknown'}</span>${formatAbilityCostBadge(ab.cost, card.tribe)}
           </div>
       `).join('');
   }
@@ -123,37 +160,25 @@ export function renderCardHTML(card, options = {}) {
       class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md ${style.bg} border border-black ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 shadow-md flex flex-col justify-between select-none overflow-hidden"
     >
       <div class="relative w-full h-[52%] overflow-hidden bg-slate-900 border-b border-black">
-        ${card.artUrl ? `<img src="${card.artUrl}" alt="${card.name}" class="w-full h-full object-cover" />` : `
-          <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold">
+        ${card.artUrl ? `<img src="${card.artUrl}" alt="${card.name}" class="w-full h-full object-cover ${fieldDimmingClass}" />` : `
+          <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold ${fieldDimmingClass}">
             ${card.type === 'unit' ? '⚔️' : card.type === 'avatar' ? '👑' : card.type === 'boon' ? '✨' : card.type === 'buff' ? '🛡️' : '📜'}
           </div>
         `}
-        ${!isAvatar ? `
-          <div class="absolute top-1 left-1 w-7 h-7 rounded-full bg-amber-500 text-black font-black text-[12px] flex items-center justify-center border border-black shadow z-10" title="Cost">
-            ${card.cost ?? 0}
-          </div>
-        ` : ''}
-        ${readinessBadge}
-        ${attachmentsBadge}
-        ${inspectButton}
-      </div>
-
-      <div class="w-full h-[48%] ${style.lightBg} p-1 flex flex-col justify-between">
-        <div class="flex flex-col items-center justify-center text-center">
-          <div class="text-[11px] sm:text-[12px] font-black text-white leading-tight break-words text-center min-h-[16px] flex items-center justify-center px-0.5">
+        <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-[92%] flex justify-center z-10 pointer-events-none">
+          <div class="bg-black/50 backdrop-blur-sm text-white text-[11px] font-black px-2 py-0.5 rounded-full truncate text-center w-full shadow-md leading-tight border-none">
             ${card.name}
           </div>
-          <div class="text-[8px] sm:text-[9px] font-bold text-slate-300 capitalize tracking-tighter truncate max-w-full">
-            ${card.type} • ${card.genus || 'Generic'}
-          </div>
         </div>
+      </div>
 
-        <div class="flex-1 flex flex-col gap-0.5 mt-0.5 overflow-hidden justify-start items-center">
+      <div class="w-full h-[48%] ${style.lightBg} p-1 flex flex-col justify-between ${fieldDimmingClass}">
+        <div class="flex-1 flex flex-col gap-0 overflow-hidden justify-start items-center pt-0.5">
             ${abilitiesHTML}
         </div>
 
         ${isUnit ? `
-          <div class="flex justify-between items-end w-full pt-1 px-1 pb-0.5">
+          <div class="flex justify-between items-end w-full pt-1 px-1 pb-0.5 shrink-0">
             ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `
               <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${card.strength}</div>
             ` : '<div></div>'}
@@ -164,6 +189,24 @@ export function renderCardHTML(card, options = {}) {
           </div>
         ` : ''}
       </div>
+
+      <div class="absolute top-1 left-1 flex flex-col items-center gap-1.5 z-10 pointer-events-none">
+        ${!isAvatar ? `
+          <div class="w-7 h-7 rounded-full bg-amber-500 text-black font-black text-[12px] flex items-center justify-center border border-black shadow pointer-events-auto" title="Cost">
+            ${card.cost ?? 0}
+          </div>
+        ` : ''}
+        ${isUnit ? `
+          <div class="w-5 h-5 flex items-center justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_6px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
+            ${getLineIconSvg(activeLine)}
+          </div>
+        ` : ''}
+      </div>
+      ${readinessBadge}
+      ${attachmentsBadge}
+      ${fastBadge}
+      ${inspectButton}
+      ${overlayHTML}
     </div>
   `;
 }
@@ -248,6 +291,8 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
   const isUnit = cardOrUnit.type === 'unit' || cardOrUnit.type === 'avatar' || cardOrUnit.currentHealth !== undefined;
   const isAvatar = cardOrUnit.type === 'avatar';
   const style = TRIBE_STYLES[cardOrUnit.tribe] || TRIBE_STYLES.Mythic;
+  const activeLine = cardOrUnit.line || cardOrUnit.defaultLine || (isAvatar ? 'avatar' : 'mid');
+  const isTempLine = cardOrUnit.line && cardOrUnit.defaultLine && cardOrUnit.line !== cardOrUnit.defaultLine;
   
   // Extract Glossary
   const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry);
@@ -276,11 +321,29 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
               </div>
             `}
             
-            ${!isAvatar ? `
-              <div class="absolute top-3 left-3 w-12 h-12 rounded-full bg-amber-500 text-black font-black text-2xl flex items-center justify-center border-2 border-black shadow-lg z-10" title="Cost">
-                ${cardOrUnit.cost ?? 0}
-              </div>
-            ` : ''}
+            <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-[90%] flex justify-center z-30 pointer-events-none">
+               <div class="bg-black/50 backdrop-blur-md text-white text-xl sm:text-2xl font-black px-4 py-1 rounded-full truncate text-center w-full shadow-[0_4px_12px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide border-none">
+                  ${cardOrUnit.name}
+               </div>
+            </div>
+
+            <div class="absolute top-3 left-3 flex flex-col items-center gap-2 z-10">
+              ${!isAvatar ? `
+                <div class="w-12 h-12 rounded-full bg-amber-500 text-black font-black text-2xl flex items-center justify-center border-2 border-black shadow-lg" title="Cost">
+                  ${cardOrUnit.cost ?? 0}
+                </div>
+              ` : ''}
+              ${isUnit ? `
+                <div class="w-8 h-8 flex items-center justify-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)]' : 'text-white'}" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
+                  ${getLineIconSvg(activeLine)}
+                </div>
+              ` : ''}
+              ${(cardOrUnit.fast > 0) ? `
+                <div class="w-8 h-8 rounded-full bg-yellow-400 text-black font-black text-sm flex items-center justify-center border-2 border-black shadow-lg mt-1" title="Fast Charges">
+                  ⚡${cardOrUnit.fast}
+                </div>
+              ` : ''}
+            </div>
 
             ${cardOrUnit.readiness !== undefined && cardOrUnit.readiness !== null ? `
               <div class="absolute top-3 right-3 text-sm px-2.5 py-1 rounded-md font-black uppercase tracking-wider z-20 border-2 border-black shadow-lg ${
@@ -293,20 +356,17 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
           </div>
 
           <!-- Bottom Half: Details & Abilities (50%) -->
-          <div class="w-full h-[50%] ${style.lightBg} p-3 sm:p-5 flex flex-col relative overflow-hidden">
+          <div class="w-full h-[50%] ${style.lightBg} p-2 sm:p-3 flex flex-col relative overflow-hidden">
             
-            <!-- Name & Type Band -->
-            <div class="flex flex-col items-center justify-center text-center pb-2 shrink-0 border-b border-black/10 mb-2">
-              <h3 class="text-2xl sm:text-3xl font-black text-white leading-tight drop-shadow-md uppercase tracking-wide break-words w-full px-1">
-                ${cardOrUnit.name}
-              </h3>
-              <div class="text-[11px] sm:text-xs font-bold text-slate-200 capitalize tracking-wider mt-1 bg-black/20 px-3 py-0.5 rounded-full border border-black/10 shadow-inner">
+            <!-- Type Band -->
+            <div class="flex justify-center pb-1 shrink-0 mb-1 z-10 pointer-events-none">
+              <div class="text-[10px] font-bold text-slate-200 capitalize tracking-wider bg-black/40 px-3 py-0.5 rounded-full shadow-inner">
                 ${cardOrUnit.tribe} • ${cardOrUnit.type} ${cardOrUnit.genus ? `• ${cardOrUnit.genus}` : ''}
               </div>
             </div>
 
             <!-- Scrollable Traits & Abilities Box -->
-            <div class="flex-1 flex flex-col gap-3 overflow-y-auto pb-20 minimal-scrollbar pr-1">
+            <div class="flex-1 flex flex-col gap-1.5 overflow-y-auto pb-16 minimal-scrollbar pr-1 pointer-events-auto">
 
               <!-- Traits -->
               ${cardOrUnit.traits && cardOrUnit.traits.length > 0 ? `
@@ -324,7 +384,7 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
 
               <!-- Full Abilities with Registry Lookup -->
               ${cardOrUnit.abilities && cardOrUnit.abilities.length > 0 ? `
-                <div class="flex flex-col gap-2 mt-1">
+                <div class="flex flex-col gap-1 mt-1">
                   ${cardOrUnit.abilities.map(a => {
                     const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
                     const finalDesc = regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
@@ -337,19 +397,8 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
                     });
                     
                     return `
-                    <div class="bg-black/40 backdrop-blur-sm p-2.5 rounded-lg border border-white/10 shadow-sm flex flex-col gap-1">
-                      <div class="flex justify-between items-start border-b border-white/5 pb-1 mb-0.5">
-                        <div class="font-black text-amber-400 text-sm sm:text-base drop-shadow-sm flex items-center gap-1 leading-none">
-                          ⚡ ${a.name || a.abilityId}
-                        </div>
-                        <div class="flex items-center gap-1">
-                            ${formatAbilityCostBadge(a.cost, cardOrUnit.tribe)}
-                            <span class="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-600 font-bold uppercase tracking-widest shadow-inner">${a.trigger || 'MANUAL'}</span>
-                        </div>
-                      </div>
-                      <div class="text-slate-200 text-xs sm:text-sm leading-snug">
-                        ${formattedDesc}
-                      </div>
+                    <div class="bg-black/30 backdrop-blur-sm p-1.5 rounded border border-white/5 shadow-sm text-[10px] sm:text-[11px] text-slate-200 leading-snug">
+                      <span class="font-black text-amber-400 drop-shadow-sm">⚡ ${regMatch.name || a.name || a.abilityId}</span>${formatAbilityCostBadge(a.cost, cardOrUnit.tribe)}<span class="text-[8px] bg-slate-800 text-slate-300 px-1 py-px rounded font-bold uppercase tracking-widest mx-1.5 shadow-inner opacity-90">${a.trigger || 'MANUAL'}</span><span>${formattedDesc}</span>
                     </div>
                   `}).join('')}
                 </div>

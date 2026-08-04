@@ -53,24 +53,11 @@
     </nav>
   </header>
 
-  <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
+  <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
 
     <!-- LEFT: ABILITY CATALOG -->
     <div class="w-full md:w-80 flex flex-col gap-4">
-      <div class="glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl border border-slate-800">
-        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-          <h2 class="text-sm font-black text-amber-400 uppercase tracking-wider">
-            📦 Abilities Catalog
-          </h2>
-          <button id="create-new-ability-btn" class="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black px-2.5 py-1 rounded shadow">
-            + New
-          </button>
-        </div>
-        <input type="text" id="ability-search-input" placeholder="🔍 Search abilities by name..." class="bg-slate-900 border border-slate-700 p-2 rounded text-xs text-amber-300 w-full focus:outline-none focus:border-amber-500" />
-        <div id="abilities-catalog-list" class="flex flex-col gap-2 overflow-y-auto max-h-[400px]">
-          <div class="text-xs text-slate-500 italic text-center p-3">Loading abilities...</div>
-        </div>
-      </div>
+      <studio-catalog id="ability-catalog" title="Abilities Catalog"></studio-catalog>
       
       <!-- JSON Preview Container -->
       <div id="json-preview-container" class="hidden md:block"></div>
@@ -124,8 +111,16 @@
                         <option value="PASSIVE">Object (Receiver)</option>
                     </select>
                 </div>
+                <div id="trigger-scope-container" class="hidden">
+                    <select id="ab-trigger-scope" onchange="window.updateTargetingUI()" class="bg-slate-900 border border-slate-700 p-2 rounded text-sky-300 font-bold w-full focus:outline-none focus:border-sky-500 mt-1.5">
+                        <option value="PERSONAL">Personal (Self only)</option>
+                        <option value="GLOBAL">Global (Board-wide)</option>
+                    </select>
+                </div>
                 <input type="hidden" id="ab-trigger" value="MANUAL" />
                 <div id="ab-trigger-preview" class="text-[10px] text-slate-400 font-mono px-1">Final Event: MANUAL</div>
+                <div id="additional-triggers-container" class="flex flex-col gap-1.5 mt-1"></div>
+                <button type="button" onclick="window.addAdditionalTrigger()" class="text-[9px] font-bold text-amber-400 hover:text-amber-300 w-max px-1 transition-colors">+ Add Alternative Trigger</button>
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Trigger Frequency</label>
@@ -188,11 +183,11 @@
 
           <!-- 3. PLAYER ACTIVATION TARGETING -->
           <div class="flex flex-col gap-3 p-4 bg-indigo-950/20 rounded-xl border border-indigo-900/40 transition-all duration-300">
-            <h3 class="text-xs font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-900/50 pb-1 mb-1">
+            <h3 id="section3-header" class="text-xs font-black text-indigo-400 uppercase tracking-widest border-b border-indigo-900/50 pb-1 mb-1">
               3. Player Activation Targets (Input)
             </h3>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+            <div id="act-method-container" class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Activation Method</label>
                 <select id="ab-act-method" onchange="window.updateTargetingUI()" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full">
@@ -249,9 +244,10 @@
     import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './src/firebase.js';
     import { CARD_CATALOG } from './src/engine.js';
     import { generateAbilityDescription } from './src/language_description.js';
-    import { TRIGGER_EVENTS, EFFECT_TYPES, EFFECT_ZONE_MAP, getValidActionsForZones } from './src/abilities.js';
-    import { DUAL_PREDICATE_ACTIONS } from './src/actions.js';
+    import { TRIGGER_EVENTS, getValidActionsForZones } from './src/abilities.js';
+    import { ACTION_MANIFEST, EFFECT_TYPES } from './src/actions.js';
     import { renderJSONPreview } from './src/ui.js';
+    import './src/catalog_component.js'; // Import custom element
 
     let allAbilities = [];
     let allCards = [];
@@ -299,16 +295,115 @@
       document.getElementById('save-ability-btn').addEventListener('click', handleSaveAbility);
       document.getElementById('save-ability-btn-top').addEventListener('click', handleSaveAbility);
       document.getElementById('delete-ability-btn').addEventListener('click', handleDeleteAbility);
-      document.getElementById('create-new-ability-btn').addEventListener('click', resetForm);
       document.getElementById('clone-ability-btn').addEventListener('click', handleCloneAbility);
+      
+      // Catalog hooks
+      const catalogEl = document.getElementById('ability-catalog');
+      catalogEl.addEventListener('new-item', resetForm);
       
       document.getElementById('ability-form').addEventListener('input', updateJSONPreview);
       document.getElementById('ability-form').addEventListener('change', updateJSONPreview);
-      document.getElementById('ability-search-input').addEventListener('input', renderCatalogList);
 
       document.getElementById('ab-base-trigger').addEventListener('change', () => window.updateTriggerComposite());
       document.getElementById('ab-trigger-phase').addEventListener('change', () => window.updateTriggerComposite());
       document.getElementById('ab-trigger-role').addEventListener('change', () => window.updateTriggerComposite());
+
+      window.parseTriggerToComposite = function(triggerString) {
+          const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+          if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
+
+          for (const effect in ACTION_MANIFEST) {
+              const passive = ACTION_MANIFEST[effect].passiveType;
+              for (const phase of ['ON', 'WOULD', 'MODIFY']) {
+                  if (triggerString === `${phase}_${effect}`) return { base: effect, phase, role: 'ACTIVE' };
+                  if (passive && triggerString === `${phase}_${passive}`) return { base: effect, phase, role: 'PASSIVE' };
+              }
+              if (triggerString === effect) return { base: effect, phase: 'ON', role: 'ACTIVE' };
+              if (passive && triggerString === passive) return { base: effect, phase: 'ON', role: 'PASSIVE' };
+          }
+          return { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
+      };
+
+      window.additionalTriggers = [];
+
+      window.renderAdditionalTriggers = () => {
+          const container = document.getElementById('additional-triggers-container');
+          if(window.additionalTriggers.length === 0) {
+              container.innerHTML = '';
+              return;
+          }
+          
+          const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+          let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+          baseOptionsHtml += `<optgroup label="Game Actions">` + EFFECT_TYPES.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+
+          container.innerHTML = window.additionalTriggers.map((trigStr, idx) => {
+              const comp = window.parseTriggerToComposite(trigStr);
+              const manifest = ACTION_MANIFEST[comp.base] || {};
+              const isAction = !!manifest.validDurations;
+              const hasDual = isAction && manifest.passiveType;
+              
+              return `
+              <div class="flex items-center gap-1.5 bg-slate-900/60 p-1.5 rounded border border-slate-700/80">
+                  <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest px-1">OR</span>
+                  <select onchange="window.updateAdditionalTrigger(${idx}, 'base', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-amber-300 text-[10px] font-bold flex-1 w-full min-w-[80px]">
+                      ${baseOptionsHtml.replace(`value="${comp.base}"`, `value="${comp.base}" selected`)}
+                  </select>
+                  ${isAction ? `
+                  <select onchange="window.updateAdditionalTrigger(${idx}, 'phase', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-amber-300 text-[10px] font-bold w-20 shrink-0">
+                      <option value="ON" ${comp.phase==='ON'?'selected':''}>React</option>
+                      <option value="WOULD" ${comp.phase==='WOULD'?'selected':''}>Int</option>
+                      <option value="MODIFY" ${comp.phase==='MODIFY'?'selected':''}>Mod</option>
+                  </select>
+                  ` : ''}
+                  ${hasDual ? `
+                  <select onchange="window.updateAdditionalTrigger(${idx}, 'role', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-amber-300 text-[10px] font-bold w-20 shrink-0">
+                      <option value="ACTIVE" ${comp.role==='ACTIVE'?'selected':''}>Subj</option>
+                      <option value="PASSIVE" ${comp.role==='PASSIVE'?'selected':''}>Obj</option>
+                  </select>
+                  ` : ''}
+                  <button type="button" onclick="window.removeAdditionalTrigger(${idx})" class="text-red-400 hover:text-red-300 font-black px-1.5">&times;</button>
+              </div>
+              `;
+          }).join('');
+      };
+      
+      window.addAdditionalTrigger = () => {
+          window.additionalTriggers.push('TURN_STARTING');
+          window.renderAdditionalTriggers();
+          updateJSONPreview();
+      };
+      
+      window.removeAdditionalTrigger = (idx) => {
+          window.additionalTriggers.splice(idx, 1);
+          window.renderAdditionalTriggers();
+          updateJSONPreview();
+      };
+      
+      window.updateAdditionalTrigger = (idx, field, value) => {
+          const comp = window.parseTriggerToComposite(window.additionalTriggers[idx]);
+          comp[field] = value;
+          
+          const manifest = ACTION_MANIFEST[comp.base] || {};
+          const isAction = !!manifest.validDurations;
+          const hasDual = isAction && manifest.passiveType;
+          
+          if (field === 'base') {
+              comp.phase = 'ON';
+              comp.role = 'ACTIVE';
+          }
+
+          let finalStr = comp.base;
+          if (isAction) {
+              let verb = comp.base;
+              if (comp.role === 'PASSIVE' && hasDual) verb = manifest.passiveType;
+              finalStr = `${comp.phase}_${verb}`;
+          }
+          
+          window.additionalTriggers[idx] = finalStr;
+          window.renderAdditionalTriggers();
+          updateJSONPreview();
+      };
 
       window.updateTriggerComposite = () => {
           const base = document.getElementById('ab-base-trigger').value;
@@ -317,8 +412,9 @@
           const hiddenTrigger = document.getElementById('ab-trigger');
           const preview = document.getElementById('ab-trigger-preview');
 
-          const isAction = EFFECT_TYPES.includes(base);
-          const hasDual = isAction && DUAL_PREDICATE_ACTIONS[base];
+          const manifest = ACTION_MANIFEST[base];
+          const isAction = !!manifest;
+          const hasDual = isAction && manifest.passiveType;
 
           if (isAction) {
               phaseSelect.classList.remove('hidden');
@@ -331,7 +427,7 @@
 
               let verb = base;
               if (roleSelect.value === 'PASSIVE' && hasDual) {
-                  verb = DUAL_PREDICATE_ACTIONS[base];
+                  verb = manifest.passiveType;
               }
 
               hiddenTrigger.value = `${phaseSelect.value}_${verb}`;
@@ -355,6 +451,17 @@
         const baseTrigger = document.getElementById('ab-base-trigger').value.toUpperCase();
         const actMethodSelect = document.getElementById('ab-act-method');
         const triggerLimitSelect = document.getElementById('ab-trigger-limit');
+
+        const isEvent = EFFECT_TYPES.includes(baseTrigger) || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(baseTrigger);
+        const scopeContainer = document.getElementById('trigger-scope-container');
+        if (isEvent && !['MANUAL', 'UNTRIGGERABLE', 'PLAY', 'PLAY_OPTIONAL'].includes(baseTrigger)) {
+             scopeContainer.classList.remove('hidden');
+        } else {
+             scopeContainer.classList.add('hidden');
+             document.getElementById('ab-trigger-scope').value = 'PERSONAL';
+        }
+        
+        const scope = document.getElementById('ab-trigger-scope').value;
 
         if (triggerValue !== lastTriggerValue) {
              if (baseTrigger === 'PLAY' || baseTrigger === 'PLAY_OPTIONAL') {
@@ -395,22 +502,45 @@
         const advancedTreeWrapper = document.getElementById('act-logic-tree-wrapper');
         const advancedIcon = document.getElementById('act-advanced-icon');
         
-        if (actMethodSelect.value === 'PLAYER_CHOICE') {
-          matrixContainer.classList.remove('hidden');
-          advancedToggleContainer.classList.remove('hidden');
-          matrixContainer.innerHTML = generateQuickMatrixHTML('activation', activationQuickTargeting);
-          
-          if (showAdvancedActivation) {
-            advancedTreeWrapper.classList.remove('hidden');
-            advancedIcon.style.transform = 'rotate(90deg)';
-          } else {
-            advancedTreeWrapper.classList.add('hidden');
-            advancedIcon.style.transform = 'rotate(0deg)';
-          }
+        const section3Header = document.getElementById('section3-header');
+        const actMethodContainer = document.getElementById('act-method-container');
+        
+        if (scope === 'GLOBAL') {
+             actMethodContainer.classList.add('hidden');
+             matrixContainer.classList.remove('hidden');
+             advancedToggleContainer.classList.remove('hidden');
+             section3Header.innerText = "3. Global Event Filter (Who triggered this?)";
+             
+             matrixContainer.innerHTML = generateQuickMatrixHTML('activation', activationQuickTargeting);
+             
+             if (showAdvancedActivation) {
+                 advancedTreeWrapper.classList.remove('hidden');
+                 advancedIcon.style.transform = 'rotate(90deg)';
+             } else {
+                 advancedTreeWrapper.classList.add('hidden');
+                 advancedIcon.style.transform = 'rotate(0deg)';
+             }
         } else {
-          matrixContainer.classList.add('hidden');
-          advancedToggleContainer.classList.add('hidden');
-          advancedTreeWrapper.classList.add('hidden');
+             actMethodContainer.classList.remove('hidden');
+             section3Header.innerText = "3. Player Activation Targets (Input)";
+             
+             if (actMethodSelect.value === 'PLAYER_CHOICE') {
+               matrixContainer.classList.remove('hidden');
+               advancedToggleContainer.classList.remove('hidden');
+               matrixContainer.innerHTML = generateQuickMatrixHTML('activation', activationQuickTargeting);
+               
+               if (showAdvancedActivation) {
+                 advancedTreeWrapper.classList.remove('hidden');
+                 advancedIcon.style.transform = 'rotate(90deg)';
+               } else {
+                 advancedTreeWrapper.classList.add('hidden');
+                 advancedIcon.style.transform = 'rotate(0deg)';
+               }
+             } else {
+               matrixContainer.classList.add('hidden');
+               advancedToggleContainer.classList.add('hidden');
+               advancedTreeWrapper.classList.add('hidden');
+             }
         }
         
         updateJSONPreview();
@@ -438,37 +568,44 @@
       
       renderCatalogList();
       resetForm();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const loadId = urlParams.get('id');
+      if (loadId) {
+          window.loadAbility(loadId);
+      }
     }
 
     window.revalidatePayloadTypes = () => {
         if (typeof getValidActionsForZones === 'undefined') return;
-        effectGroups.forEach((group) => {
+        effectGroups.forEach((group, gIdx) => {
             let actualZones = group.quickTargeting.zones;
             if (group.targetMethod === 'SAME_AS_ACTIVATION') actualZones = activationQuickTargeting.zones;
             
             const validActions = group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(actualZones);
             
-            group.payloads.forEach((payload) => {
+            group.payloads.forEach((payload, pIdx) => {
                 if (!validActions.includes(payload.type)) {
                     const fallback = validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT';
                     payload.type = fallback;
                     
-                    // Reset properties based on new fallback type
-                    const type = fallback;
-                    if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-                        payload.amount = payload.amount || 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.zoneOwner;
-                    } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
-                        payload.amount = payload.amount || 1; payload.stat = payload.stat || 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.zoneOwner;
-                    } else if (type === 'MODIFY_RESOURCE') { 
-                        payload.amount = payload.amount || 1; payload.resource = payload.resource || 'Carnie'; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.zoneOwner;
-                    } else if (type === 'GRANT_ABILITY') { 
-                        payload.grantedAbilityId = payload.grantedAbilityId || ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.zoneOwner;
-                    } else if (type === 'SUMMON') { 
-                        payload.cardId = payload.cardId || ''; payload.amount = payload.amount || 1; payload.zoneOwner = payload.zoneOwner || 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.stat; 
-                    } else if (type === 'CUSTOM_SCRIPT') { 
-                        payload.script = payload.script || 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.zoneOwner;
-                    } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD'].includes(type)) { 
-                        delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.zoneOwner;
+                    const manifest = ACTION_MANIFEST[fallback];
+                    if (manifest) {
+                        if (manifest.requiresAmount) payload.amount = 1; else delete payload.amount;
+                        if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
+                        if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
+                        if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+                        if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
+                        if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
+                        if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
+                        if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
+                        if (manifest.hasNestedGroup) {
+                            payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
+                        } else { delete payload.nestedGroup; }
+                        
+                        if (!manifest.validDurations.includes(payload.duration)) {
+                            payload.duration = manifest.validDurations[0] || 'INSTANT';
+                        }
                     }
                 }
             });
@@ -858,32 +995,36 @@
 
     window.updatePayload = (groupIndex, payloadIndex, field, value) => {
       const payload = effectGroups[groupIndex].payloads[payloadIndex];
+      
+      if (field === 'stat') {
+          if (value === 'line') payload.amount = 'mid';
+          else if (payload.stat === 'line' && value !== 'line') payload.amount = 1;
+      }
+
       payload[field] = value;
       
       if (field === 'type') {
-        const type = value;
-        if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zoneOwner;
-        } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
-            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zoneOwner;
-        } else if (type === 'MODIFY_RESOURCE') { 
-            payload.amount = 1; payload.resource = 'Carnie'; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zoneOwner;
-        } else if (type === 'GRANT_ABILITY') { 
-            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zoneOwner; delete payload.resource;
-        } else if (type === 'SUMMON') { 
-            payload.cardId = ''; payload.amount = 1; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.stat; delete payload.resource;
-            payload.nestedGroup = {
-                targetMethod: 'AUTO_ALL',
-                targetCount: 1,
-                quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false },
-                logicTree: { type: 'group', logicalOperator: 'AND', children: [] },
-                payloads: []
-            };
-        } else if (type === 'CUSTOM_SCRIPT') { 
-            payload.script = 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zoneOwner; delete payload.resource;
-        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD'].includes(type)) { 
-            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zoneOwner; delete payload.resource;
-        }
+          const manifest = ACTION_MANIFEST[value];
+          if (!manifest) return;
+          
+          if (manifest.requiresAmount) payload.amount = 1; else delete payload.amount;
+          if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
+          if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
+          if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+          if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
+          if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
+          if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
+          if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
+          
+          if (manifest.hasNestedGroup) {
+              payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
+          } else {
+              delete payload.nestedGroup;
+          }
+          
+          if (!manifest.validDurations.includes(payload.duration)) {
+              payload.duration = manifest.validDurations[0] || 'INSTANT';
+          }
       }
       renderEffects();
       updateJSONPreview();
@@ -896,11 +1037,17 @@
     };
 
     window.updateSummonCard = (gIdx, pIdx, value) => {
-      const match = allCards.find(c => c.name.toLowerCase() === value.toLowerCase() && c.type === 'unit');
+      const match = allCards.find(c => c.name.toLowerCase() === value.toLowerCase());
       effectGroups[gIdx].payloads[pIdx].cardId = match ? match.id : value;
       renderEffects(); updateJSONPreview();
     };
     
+    window.updateNestedSummonCard = (gIdx, pIdx, nIdx, value) => {
+      const match = allCards.find(c => c.name.toLowerCase() === value.toLowerCase());
+      effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx].cardId = match ? match.id : value;
+      renderEffects(); updateJSONPreview();
+    };
+
     // Nested Payload Handlers
     window.addNestedPayload = (gIdx, pIdx) => {
         effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads.push({ type: 'MODIFY_STAT', amount: 1, stat: 'strength', duration: 'INSTANT' });
@@ -919,18 +1066,21 @@
       payload[field] = value;
       
       if (field === 'type') {
-        const type = value;
-        if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script;
-        } else if (['MODIFY_STAT', 'SET_STAT'].includes(type)) { 
-            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script;
-        } else if (type === 'GRANT_ABILITY') { 
-            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script;
-        } else if (type === 'CUSTOM_SCRIPT') { 
-            payload.script = ''; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat;
-        } else { 
-            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat;
-        }
+          const manifest = ACTION_MANIFEST[value];
+          if (!manifest) return;
+          
+          if (manifest.requiresAmount) payload.amount = 1; else delete payload.amount;
+          if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
+          if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
+          if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+          if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
+          if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
+          if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
+          if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
+          
+          if (!manifest.validDurations.includes(payload.duration)) {
+              payload.duration = manifest.validDurations[0] || 'INSTANT';
+          }
       }
       
       renderEffects();
@@ -970,48 +1120,47 @@
 
             const typeOptions = validEffectTypes.map(t => `<option value="${t}" ${payload.type === t ? 'selected' : ''}>${t}</option>`).join('');
 
-            let paramsHtml = '';
+            const manifest = ACTION_MANIFEST[payload.type] || { canInvert: true, canBeCost: true, validDurations: ['INSTANT'] };
             
-            // Branch 1: Actions with an Amount AND a Target Stat (Modify Stat, Set Stat)
-            if (['MODIFY_STAT', 'SET_STAT'].includes(payload.type)) {
-              paramsHtml = `
-                <div class="flex-1 flex gap-3">
-                <div class="flex-1">
-                  <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude / Value</label>
-                  <input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" />
-                </div>
-                <div class="flex-1">
-                  <label class="block text-[10px] font-bold text-amber-400 mb-0.5">Target Stat</label>
-                  <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'stat', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">
-                    <option value="strength" ${payload.stat === 'strength' ? 'selected' : ''}>Strength</option>
-                    <option value="health" ${payload.stat === 'health' ? 'selected' : ''}>Current Health</option>
-                    <option value="maxHealth" ${payload.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
-                    <option value="readiness" ${payload.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
-                    <option value="acts" ${payload.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
-                    <option value="maxActs" ${payload.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
-                  </select>
-                </div>
-              </div>`;
-              
-            // Branch 2: Actions with ONLY an Amount (Deal Damage, Heal, Draw, Discard, Trash, Recover)
-            } else if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER', 'DISCARD_CARD'].includes(payload.type)) {
-              paramsHtml = `
-                <div class="flex-1">
-                  <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude / Value</label>
-                  <input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" />
-                </div>`;
-                
-            // Branch 3: Resource Modification
-            } else if (payload.type === 'MODIFY_RESOURCE') {
-            paramsHtml = `
-              <div class="flex-1 flex gap-3">
-                <div class="flex-1">
-                  <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Amount</label>
-                  <input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" />
-                </div>
-                <div class="flex-1">
-                  <label class="block text-[10px] font-bold text-amber-400 mb-0.5">Resource Type</label>
-                  <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'resource', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">
+            // Build Parameter Blocks Dynamically from Manifest
+            let basicParamsHtml = '';
+            
+            if (manifest.requiresAmount) {
+                if (payload.type === 'SET_STAT' && payload.stat === 'line') {
+                  basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Line</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full">
+                      <option value="front" ${payload.amount === 'front' ? 'selected' : ''}>Front</option>
+                      <option value="mid" ${payload.amount === 'mid' ? 'selected' : ''}>Mid</option>
+                      <option value="back" ${payload.amount === 'back' ? 'selected' : ''}>Back</option>
+                      <option value="sheltered" ${payload.amount === 'sheltered' ? 'selected' : ''}>Sheltered</option>
+                      <option value="sideline" ${payload.amount === 'sideline' ? 'selected' : ''}>Sideline</option>
+                      <option value="taunt" ${payload.amount === 'taunt' ? 'selected' : ''}>Taunt</option>
+                      <option value="bodyguard" ${payload.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
+                  </select></div>`;
+                } else {
+                  basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude/Amt</label><input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
+                }
+            }
+
+            if (manifest.requiresStat) {
+              let statOptions = `
+                  <option value="strength" ${payload.stat === 'strength' ? 'selected' : ''}>Strength</option>
+                  <option value="health" ${payload.stat === 'health' ? 'selected' : ''}>Current Health</option>
+                  <option value="maxHealth" ${payload.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
+                  <option value="readiness" ${payload.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
+                  <option value="acts" ${payload.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
+                  <option value="maxActs" ${payload.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
+                  <option value="power" ${payload.stat === 'power' ? 'selected' : ''}>Power</option>
+                  <option value="fast" ${payload.stat === 'fast' ? 'selected' : ''}>Fast (Charges)</option>
+                  <option value="slow" ${payload.stat === 'slow' ? 'selected' : ''}>Slow (Charges)</option>
+              `;
+              if (payload.type === 'SET_STAT') {
+                  statOptions += `<option value="line" ${payload.stat === 'line' ? 'selected' : ''}>Battleline</option>`;
+              }
+              basicParamsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[10px] font-bold text-amber-400 mb-0.5">Target Stat</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'stat', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">${statOptions}</select></div>`;
+            }
+
+            if (manifest.requiresResource) {
+                basicParamsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[10px] font-bold text-amber-400 mb-0.5">Resource Type</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'resource', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">
                     <option value="Carnie" ${payload.resource === 'Carnie' ? 'selected' : ''}>Carnie (Current)</option>
                     <option value="maxCarnie" ${payload.resource === 'maxCarnie' ? 'selected' : ''}>Max Carnie</option>
                     <option value="Mythic" ${payload.resource === 'Mythic' ? 'selected' : ''}>Mythic</option>
@@ -1019,45 +1168,59 @@
                     <option value="Elemental" ${payload.resource === 'Elemental' ? 'selected' : ''}>Elemental</option>
                     <option value="Pirate" ${payload.resource === 'Pirate' ? 'selected' : ''}>Pirate</option>
                     <option value="Undead" ${payload.resource === 'Undead' ? 'selected' : ''}>Undead</option>
-                    <option value="Carnie" ${payload.resource === 'Carnie' ? 'selected' : ''}>Carnie</option>
                     <option value="Viking" ${payload.resource === 'Viking' ? 'selected' : ''}>Viking</option>
                     <option value="Ninja" ${payload.resource === 'Ninja' ? 'selected' : ''}>Ninja</option>
                     <option value="Stalker" ${payload.resource === 'Stalker' ? 'selected' : ''}>Stalker</option>
                     <option value="Alien" ${payload.resource === 'Alien' ? 'selected' : ''}>Alien</option>
                     <option value="Luchador" ${payload.resource === 'Luchador' ? 'selected' : ''}>Luchador</option>
-                  </select>
-                </div>
-              </div>`;
-              
-            // Branch 4: Grant Ability
-            } else if (payload.type === 'GRANT_ABILITY') {
-            const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
-              let displayValue = payload.grantedAbilityId || '';
-              const foundAb = allAbilities.find(a => a.abilityId === displayValue);
-              if (foundAb) displayValue = foundAb.name;
-              paramsHtml = `
-                <div class="flex-1">
-                  <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Ability to Grant</label>
-                  <input list="ability-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateGrantedAbility(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
-                  <datalist id="ability-list-${gIdx}-${pIdx}">${customOptions}</datalist>
-                </div>`;
-                
-            // Branch 5: Summon
-            } else if (payload.type === 'SUMMON') {
-              const cardOptions = allCards.filter(c => c.type === 'unit').map(c => `<option value="${c.name}"></option>`).join('');
-              let displayValue = payload.cardId || '';
-              const foundCard = allCards.find(c => c.id === displayValue);
-              if (foundCard) displayValue = foundCard.name;
-              
-              let nestedGroupHtml = '';
-              if (payload.nestedGroup) {
+                </select></div>`;
+            }
+
+            if (manifest.requiresGrantedAbility) {
+                const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
+                let displayValue = payload.grantedAbilityId || '';
+                const foundAb = allAbilities.find(a => a.abilityId === displayValue);
+                if (foundAb) displayValue = foundAb.name;
+                basicParamsHtml += `<div class="flex-1 min-w-[150px] pb-0.5"><label class="block text-[10px] font-bold text-cyan-400 mb-0.5">Ability to Grant</label><input list="ability-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateGrantedAbility(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
+                <datalist id="ability-list-${gIdx}-${pIdx}">${customOptions}</datalist></div>`;
+            }
+
+            if (manifest.requiresCardId) {
+                const cardOptions = allCards.map(c => `<option value="${c.name}"></option>`).join('');
+                let displayValue = payload.cardId || '';
+                const foundCard = allCards.find(c => c.id === displayValue);
+                if (foundCard) displayValue = foundCard.name;
+                basicParamsHtml += `<div class="flex-1 min-w-[150px] pb-0.5"><label class="block text-[10px] font-bold text-fuchsia-400 mb-0.5">Card to Summon</label><input list="card-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateSummonCard(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type card name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full" />
+                <datalist id="card-list-${gIdx}-${pIdx}">${cardOptions}</datalist></div>`;
+            }
+
+            if (manifest.requiresZone) {
+                basicParamsHtml += `<div class="w-32 pb-0.5"><label class="block text-[10px] font-bold text-sky-400 mb-0.5">Destination Zone</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'zone', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full">
+                    ${['FIELD', 'HAND', 'DECK', 'DISCARD', 'BANISH'].map(z => `<option value="${z}" ${payload.zone === z ? 'selected' : ''}>${z}</option>`).join('')}
+                </select></div>`;
+            }
+            
+            if (manifest.requiresZoneOwner) {
+                basicParamsHtml += `<div class="w-28 pb-0.5"><label class="block text-[10px] font-bold text-sky-400 mb-0.5">Zone Owner</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'zoneOwner', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full">
+                    <option value="CASTER" ${payload.zoneOwner === 'CASTER' || !payload.zoneOwner ? 'selected' : ''}>Caster</option>
+                    <option value="TARGET" ${payload.zoneOwner === 'TARGET' ? 'selected' : ''}>Target</option>
+                </select></div>`;
+            }
+
+            let fullWidthHtml = '';
+            if (manifest.requiresScript) {
+                fullWidthHtml += `<div class="w-full mt-2 border-t border-slate-700/50 pt-2"><label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end"><span>⚡ Execution Script</span><span class="text-slate-500 font-normal">Signature: (state, target, params)</span></label><textarea onchange="window.updatePayload(${gIdx}, ${pIdx}, 'script', this.value)" rows="3" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea></div>`;
+            }
+            
+            // Generate Nested Group Content
+            if (manifest.hasNestedGroup && payload.nestedGroup) {
                   const ng = payload.nestedGroup;
                   const nestedPayloadsHtml = ng.payloads.map((np, nIdx) => {
+                    const nMan = ACTION_MANIFEST[np.type] || { validDurations: ['INSTANT'] };
                     let npParamsHtml = '';
-                    if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(np.type)) {
-                       npParamsHtml = `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
-                    } else if (['MODIFY_STAT', 'SET_STAT'].includes(np.type)) {
-                       npParamsHtml = `
+                    
+                    if (nMan.requiresAmount && nMan.requiresStat) {
+                       npParamsHtml += `
                           <div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>
                           <div class="w-24">
                               <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'stat', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-bold text-[10px] w-full">
@@ -1065,22 +1228,40 @@
                                 <option value="health" ${np.stat === 'health' ? 'selected' : ''}>Health</option>
                                 <option value="maxHealth" ${np.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
                                 <option value="readiness" ${np.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
+                                <option value="acts" ${np.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
+                                <option value="maxActs" ${np.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
+                                <option value="power" ${np.stat === 'power' ? 'selected' : ''}>Power</option>
+                                <option value="fast" ${np.stat === 'fast' ? 'selected' : ''}>Fast (Charges)</option>
+                                <option value="slow" ${np.stat === 'slow' ? 'selected' : ''}>Slow (Charges)</option>
                               </select>
                           </div>
                        `;
-                    } else if (np.type === 'GRANT_ABILITY') {
+                    } else if (nMan.requiresAmount) {
+                       npParamsHtml += `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                    } 
+                    
+                    if (nMan.requiresGrantedAbility) {
                        const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
                        let displayValue = np.grantedAbilityId || '';
                        const foundAb = allAbilities.find(a => a.abilityId === displayValue);
                        if (foundAb) displayValue = foundAb.name;
-                       npParamsHtml = `<div class="flex-1 min-w-[120px]"><input list="nest-ability-list-${gIdx}-${pIdx}-${nIdx}" value="${displayValue}" onchange="window.updateNestedGrantedAbility(${gIdx}, ${pIdx}, ${nIdx}, this.value)" placeholder="Ability name..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full text-[10px]" /><datalist id="nest-ability-list-${gIdx}-${pIdx}-${nIdx}">${customOptions}</datalist></div>`;
-                    } else if (np.type === 'CUSTOM_SCRIPT') {
-                       npParamsHtml = `<div class="flex-1 min-w-[150px]"><input type="text" value="${np.script || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'script', this.value)" placeholder="state.players..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-mono w-full text-[10px]" /></div>`;
+                       npParamsHtml += `<div class="flex-1 min-w-[120px]"><input list="nest-ability-list-${gIdx}-${pIdx}-${nIdx}" value="${displayValue}" onchange="window.updateNestedGrantedAbility(${gIdx}, ${pIdx}, ${nIdx}, this.value)" placeholder="Ability name..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full text-[10px]" /><datalist id="nest-ability-list-${gIdx}-${pIdx}-${nIdx}">${customOptions}</datalist></div>`;
+                    } 
+                    
+                    if (nMan.requiresCardId) {
+                       const cardOptions = allCards.map(c => `<option value="${c.name}"></option>`).join('');
+                       let displayValue = np.cardId || '';
+                       const foundCard = allCards.find(c => c.id === displayValue);
+                       if (foundCard) displayValue = foundCard.name;
+                       npParamsHtml += `<div class="flex-1 min-w-[120px]"><input list="nest-card-list-${gIdx}-${pIdx}-${nIdx}" value="${displayValue}" onchange="window.updateNestedSummonCard(${gIdx}, ${pIdx}, ${nIdx}, this.value)" placeholder="Card name..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full text-[10px]" /><datalist id="nest-card-list-${gIdx}-${pIdx}-${nIdx}">${cardOptions}</datalist></div>`;
+                    }
+                    
+                    if (nMan.requiresScript) {
+                       npParamsHtml += `<div class="flex-1 min-w-[150px]"><input type="text" value="${np.script || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'script', this.value)" placeholder="state.players..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-mono w-full text-[10px]" /></div>`;
                     }
 
-                    // Dynamically hide duration for nested instant actions
                     let nestedDurHtml = '';
-                    if (!['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'RECOVER', 'DISCARD', 'TRASH', 'KILL', 'BANISH', 'SHUFFLE', 'RETURN', 'CUSTOM_SCRIPT'].includes(np.type)) {
+                    if (nMan.validDurations && nMan.validDurations.length > 1) {
                        nestedDurHtml = `
                           <div class="w-24">
                               <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'duration', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-sky-300 font-bold text-[10px] w-full">
@@ -1107,10 +1288,10 @@
                   `;
                   }).join('');
 
-                  nestedGroupHtml = `
+                  const nestedGroupHtml = `
                     <div class="w-full mt-4 bg-slate-900/80 p-3 rounded-lg border border-fuchsia-700/50 shadow-inner">
                         <div class="flex justify-between items-center mb-3 border-b border-fuchsia-900/50 pb-2">
-                           <label class="block text-[11px] font-black text-fuchsia-400 tracking-wider">🎯 POST-SUMMON ACTIONS ON SUMMONED UNIT(S)</label>
+                           <label class="block text-[11px] font-black text-fuchsia-400 tracking-wider">🎯 POST-SUMMON ACTIONS</label>
                            <button type="button" onclick="window.addNestedPayload(${gIdx}, ${pIdx})" class="text-[10px] bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-3 py-1 rounded shadow transition">+ Add Nested Action</button>
                         </div>
                         <div class="flex gap-3 mb-3 w-full">
@@ -1135,73 +1316,32 @@
                         ${ng.payloads.length === 0 ? `<div class="text-[10px] text-slate-500 italic mt-2 text-center p-2 border border-dashed border-slate-700 rounded">No post-summon actions defined.</div>` : ''}
                     </div>
                   `;
+                  fullWidthHtml += nestedGroupHtml;
               }
-
-              paramsHtml = `
-                <div class="w-full flex flex-col gap-3 mt-3 border-t border-slate-700/50 pt-3">
-                    <div class="flex flex-wrap gap-3 items-end">
-                      <div class="w-24">
-                        <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Amount</label>
-                        <input type="number" value="${payload.amount || 1}" min="1" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" />
-                      </div>
-                      <div class="flex-1 min-w-[150px]">
-                        <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Unit to Summon</label>
-                        <input list="card-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateSummonCard(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type unit name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full" />
-                        <datalist id="card-list-${gIdx}-${pIdx}">${cardOptions}</datalist>
-                      </div>
-                      <div class="w-32">
-                        <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Destination Zone</label>
-                        <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'zone', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full">
-                            ${['FIELD', 'HAND', 'DECK', 'DISCARD', 'BANISH'].map(z => `<option value="${z}" ${payload.zone === z ? 'selected' : ''}>${z}</option>`).join('')}
-                        </select>
-                      </div>
-                      <div class="w-28">
-                        <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Zone Owner</label>
-                        <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'zoneOwner', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full">
-                            <option value="CASTER" ${payload.zoneOwner === 'CASTER' || !payload.zoneOwner ? 'selected' : ''}>Caster</option>
-                            <option value="TARGET" ${payload.zoneOwner === 'TARGET' ? 'selected' : ''}>Target</option>
-                        </select>
-                      </div>
-                    </div>
-                    ${nestedGroupHtml}
-                </div>`;
-                
-            // Branch 6: Custom Script
-            } else if (payload.type === 'CUSTOM_SCRIPT') {
-              paramsHtml = `
-                <div class="w-full mt-3 border-t border-slate-700/50 pt-3">
-                  <label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end">
-                    <span>⚡ Execution Script</span>
-                    <span class="text-slate-500 font-normal">Signature: (state, target, params)</span>
-                  </label>
-                  <textarea onchange="window.updatePayload(${gIdx}, ${pIdx}, 'script', this.value)" rows="3" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea>
-                </div>`;
-            }
-            
+              
             // Determine if Duration dropdown should be shown
-            let showDuration = true;
-            if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'RECOVER', 'DISCARD', 'DISCARD_CARD', 'TRASH', 'KILL', 'BANISH', 'SHUFFLE', 'RETURN', 'CUSTOM_SCRIPT', 'SUMMON'].includes(payload.type)) {
-                showDuration = false;
-            }
+            const showDuration = manifest.validDurations && manifest.validDurations.length > 1;
             
             return `
               <div class="flex flex-col gap-2 bg-slate-950 p-3 rounded-lg border border-slate-800 relative shadow-md">
                   <button type="button" onclick="window.removePayload(${gIdx}, ${pIdx})" class="absolute top-2 right-2 text-slate-600 hover:text-red-400 font-black px-1.5 leading-none transition-colors">&times;</button>
                   <div class="w-full flex flex-wrap items-end gap-3 pr-6">
-                      <div class="flex-1 min-w-[250px] flex flex-col">
+                      <div class="flex-1 min-w-[250px] flex flex-col pb-0.5">
                         <label class="block text-[10px] font-bold text-emerald-500 mb-0.5">Action Effect</label>
                         <div class="flex items-center gap-2 w-full">
                             <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'type', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold flex-1 focus:outline-none focus:border-emerald-500">
                               ${typeOptions}
                             </select>
+                            ${manifest.canInvert ? `
                             <label class="flex items-center gap-1.5 bg-indigo-950/40 border border-indigo-900/50 px-2 py-1.5 rounded cursor-pointer hover:bg-indigo-900/40 transition whitespace-nowrap" title="Swap Source and Target roles for this action.">
                                 <input type="checkbox" ${payload.invertRoles ? 'checked' : ''} onchange="window.updatePayload(${gIdx}, ${pIdx}, 'invertRoles', this.checked)" class="accent-indigo-500 w-3 h-3" />
                                 <span class="text-[9px] font-black text-indigo-400 uppercase tracking-wider">Invert Roles</span>
-                            </label>
+                            </label>` : ''}
+                            ${manifest.canBeCost ? `
                             <label class="flex items-center gap-1.5 bg-rose-950/40 border border-rose-900/50 px-2 py-1.5 rounded cursor-pointer hover:bg-rose-900/40 transition whitespace-nowrap" title="Require this action to execute for the ability to resolve.">
                                 <input type="checkbox" ${payload.isCost ? 'checked' : ''} onchange="window.updatePayload(${gIdx}, ${pIdx}, 'isCost', this.checked)" class="accent-rose-500 w-3 h-3" />
                                 <span class="text-[9px] font-black text-rose-400 uppercase tracking-wider">Is Cost</span>
-                            </label>
+                            </label>` : ''}
                         </div>
                       </div>
                       ${showDuration ? `
@@ -1217,9 +1357,9 @@
                         </select>
                       </div>
                       ` : ''}
-                      ${!['SUMMON', 'CUSTOM_SCRIPT'].includes(payload.type) ? paramsHtml : ''}
+                      ${basicParamsHtml}
                   </div>
-                  ${['SUMMON', 'CUSTOM_SCRIPT'].includes(payload.type) ? paramsHtml : ''}
+                  ${fullWidthHtml}
               </div>
             `;
         }).join('');
@@ -1239,10 +1379,12 @@
               <h4 class="text-[11px] font-black text-fuchsia-400 uppercase tracking-widest flex items-center gap-1">
                 <span>🎯 Target Group ${gIdx + 1}</span>
               </h4>
-              <div class="flex gap-2 w-full md:w-2/3">
-                <select onchange="window.updateEffectGroup(${gIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1 font-bold">
-                  <option value="SAME_AS_ACTIVATION" ${group.targetMethod === 'SAME_AS_ACTIVATION' ? 'selected' : ''}>Run on Activated Target(s)</option>
-                  <option value="SELF" ${group.targetMethod === 'SELF' ? 'selected' : ''}>Run on Self (Caster)</option>
+              <div class="flex flex-wrap gap-2 w-full md:w-5/6">
+                <select onchange="window.updateEffectGroup(${gIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1 font-bold min-w-[200px]">
+                  <option value="SAME_AS_ACTIVATION" ${group.targetMethod === 'SAME_AS_ACTIVATION' ? 'selected' : ''}>Run on Activated Target(s) / Event Trigger</option>
+                  <option value="EVENT_SOURCE" ${group.targetMethod === 'EVENT_SOURCE' ? 'selected' : ''}>Run on Event Source (e.g. Attacker, Caster)</option>
+                  <option value="EVENT_TARGET" ${group.targetMethod === 'EVENT_TARGET' ? 'selected' : ''}>Run on Event Target (e.g. Defender, Victim)</option>
+                  <option value="SELF" ${group.targetMethod === 'SELF' ? 'selected' : ''}>Run on Self (Card with ability)</option>
                   <option value="AVATAR" ${group.targetMethod === 'AVATAR' ? 'selected' : ''}>Run on Your Avatar</option>
                   <option value="ENEMY_AVATAR" ${group.targetMethod === 'ENEMY_AVATAR' ? 'selected' : ''}>Run on Enemy Avatar</option>
                   <option value="AUTO_ALL" ${group.targetMethod === 'AUTO_ALL' ? 'selected' : ''}>Auto-Target ALL Valid Below</option>
@@ -1291,11 +1433,30 @@
     }
 
     function getCurrentAbilityState() {
+      const scope = document.getElementById('ab-trigger-scope').value;
+      const actMethod = document.getElementById('ab-act-method').value;
+      
+      let activationData = {
+        method: actMethod,
+        quickTargeting: JSON.parse(JSON.stringify(activationQuickTargeting)),
+        logicTree: JSON.parse(JSON.stringify(activationRoot)) 
+      };
+
+      if (scope === 'PERSONAL' && actMethod === 'NONE') {
+          delete activationData.quickTargeting;
+          delete activationData.logicTree;
+      } else if (scope === 'GLOBAL') {
+          activationData.method = 'NONE';
+      }
+
       return {
         abilityId: currentEditingId || ('ability_' + Date.now()),
+        updatedAt: Date.now(),
         name: document.getElementById('ab-name').value,
         description: document.getElementById('ab-description').value,
         trigger: document.getElementById('ab-trigger').value,
+        additionalTriggers: window.additionalTriggers || [],
+        triggerScope: scope,
         triggerLimit: document.getElementById('ab-trigger-limit').value,
         cost: {
           tribeAmount: parseInt(document.getElementById('ab-cost-tribe-amt').value) || 0,
@@ -1303,11 +1464,7 @@
           readinessCost: document.getElementById('ab-cost-readiness').value,
           reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked
         },
-        activation: {
-          method: document.getElementById('ab-act-method').value,
-          quickTargeting: JSON.parse(JSON.stringify(activationQuickTargeting)),
-          logicTree: JSON.parse(JSON.stringify(activationRoot)) 
-        },
+        activation: activationData,
         effects: JSON.parse(JSON.stringify(effectGroups)).map(e => {
             delete e.showAdvanced; // Clean ephemeral UI state
             return e;
@@ -1393,6 +1550,11 @@
       
       allAbilities = [...allAbilities.filter(a => a.abilityId !== ability.abilityId), processedAbility];
       renderCatalogList();
+
+      currentEditingId = ability.abilityId;
+      document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
+      document.getElementById('clone-ability-btn').classList.remove('hidden');
+      document.getElementById('delete-ability-btn').classList.remove('hidden');
     }
 
     async function handleDeleteAbility(e) {
@@ -1452,6 +1614,9 @@
       document.getElementById('ab-trigger-role').value = 'ACTIVE';
       window.updateTriggerComposite();
       
+      window.additionalTriggers = [];
+      window.renderAdditionalTriggers();
+      
       document.getElementById('ab-trigger-limit').value = 'UNLIMITED';
       
       document.getElementById('ab-cost-tribe-amt').value = '0';
@@ -1476,16 +1641,10 @@
     }
 
     function renderCatalogList() {
-      const list = document.getElementById('abilities-catalog-list');
-      const query = document.getElementById('ability-search-input').value.toLowerCase();
-      const filtered = allAbilities.filter(a => a.name.toLowerCase().includes(query));
-      
-      if (filtered.length === 0) {
-        list.innerHTML = `<div class="text-xs text-slate-500 italic text-center p-3">No abilities found.</div>`;
-        return;
-      }
+      const catalogEl = document.getElementById('ability-catalog');
+      if (!catalogEl) return;
 
-      list.innerHTML = filtered.map(ab => {
+      catalogEl.setItems(allAbilities, (ab) => {
         let conditionCount = 0;
         const countConditions = (node) => {
           if (!node) return;
@@ -1508,40 +1667,27 @@
             <div class="text-[10px] text-emerald-400">${ab.effects?.length || 0} Targets, ${effectsCount} Actions</div>
             ${conditionCount > 0 ? `<div class="text-[9px] text-indigo-400 mt-1">${conditionCount} Nested Filters</div>` : ''}
           </div>
-        `
-      }).join('');
+        `;
+      });
     }
 
     window.loadAbility = (id) => {
       const ab = allAbilities.find(a => a.abilityId === id);
       if (!ab) return;
 
-      function parseTriggerToComposite(triggerString) {
-          const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
-          if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
-
-          for (const effect of EFFECT_TYPES) {
-              const passive = DUAL_PREDICATE_ACTIONS[effect];
-              for (const phase of ['ON', 'WOULD', 'MODIFY']) {
-                  if (triggerString === `${phase}_${effect}`) return { base: effect, phase, role: 'ACTIVE' };
-                  if (passive && triggerString === `${phase}_${passive}`) return { base: effect, phase, role: 'PASSIVE' };
-              }
-              if (triggerString === effect) return { base: effect, phase: 'ON', role: 'ACTIVE' };
-              if (passive && triggerString === passive) return { base: effect, phase: 'ON', role: 'PASSIVE' };
-          }
-          return { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
-      }
-
       currentEditingId = ab.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ab.name}`;
       document.getElementById('ab-name').value = ab.name;
       document.getElementById('ab-description').value = ab.description || '';
       
-      const comp = parseTriggerToComposite(ab.trigger);
+      const comp = window.parseTriggerToComposite(ab.trigger);
       document.getElementById('ab-base-trigger').value = comp.base;
       document.getElementById('ab-trigger-phase').value = comp.phase;
       document.getElementById('ab-trigger-role').value = comp.role;
       window.updateTriggerComposite();
+      
+      window.additionalTriggers = ab.additionalTriggers || [];
+      window.renderAdditionalTriggers();
       
       document.getElementById('ab-trigger-limit').value = ab.triggerLimit || 'UNLIMITED';
       
@@ -1551,10 +1697,10 @@
       
       if (cost.readinessCost) document.getElementById('ab-cost-readiness').value = cost.readinessCost;
       else if (cost.exhausts) document.getElementById('ab-cost-readiness').value = 'EXHAUSTS';
-      else if (cost.requiresReady) document.getElementById('ab-cost-readiness').value = 'UNREADIES';
-      else document.getElementById('ab-cost-readiness').value = 'NONE';
-      
+        document.getElementById('ab-cost-readiness').value = 'NONE';
       document.getElementById('ab-cost-reuse-exempt').checked = !!cost.reuseIgnoresReadiness;
+
+      document.getElementById('ab-trigger-scope').value = ab.triggerScope || 'PERSONAL';
 
       document.getElementById('delete-ability-btn').classList.remove('hidden');
       document.getElementById('clone-ability-btn').classList.remove('hidden');
