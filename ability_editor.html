@@ -74,20 +74,7 @@
             </h2>
             <p class="text-[10px] text-slate-400 mt-1">Configure Triggers, Costs, Target Groups, and Nested Actions.</p>
           </div>
-          <div class="flex items-center gap-2 mt-1">
-            <button type="button" id="save-ability-btn-top" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider whitespace-nowrap">
-              💾 Save
-            </button>
-            <button type="button" id="clone-ability-btn" class="hidden bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-cyan-500/30 whitespace-nowrap">
-              👯 Clone
-            </button>
-            <button type="button" id="test-ability-btn" class="hidden bg-purple-600/80 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-purple-500/30 whitespace-nowrap">
-              🧪 Test
-            </button>
-            <button type="button" id="delete-ability-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap">
-              🗑️ Delete Ability
-            </button>
-          </div>
+          <studio-topbar id="studio-topbar"></studio-topbar>
         </div>
 
         <form id="ability-form" class="flex flex-col gap-6 text-xs">
@@ -267,7 +254,8 @@
     import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from './src/actions.js';
     import { renderJSONPreview } from './src/ui.js';
     import { launchSandboxMatch } from './src/testing.js';
-    import './src/catalog_component.js'; // Import custom element
+    import './src/catalog_component.js'; 
+    import './src/studio_topbar.js';
 
     let allAbilities = [];
     let allCards = [];
@@ -295,6 +283,8 @@
       'genus': { label: 'Genus (Text)', type: 'text' },
       'health': { label: 'Current Health', type: 'number' },
       'strength': { label: 'Strength', type: 'number' },
+      'armor': { label: 'Armor', type: 'number' },
+      'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
       'hasAbility': { label: 'Has Ability ID', type: 'text' }
     };
 
@@ -326,10 +316,20 @@
 
       document.getElementById('add-effect-group-btn').addEventListener('click', handleAddEffectGroup);
       document.getElementById('save-ability-btn').addEventListener('click', handleSaveAbility);
-      document.getElementById('save-ability-btn-top').addEventListener('click', handleSaveAbility);
-      document.getElementById('delete-ability-btn').addEventListener('click', handleDeleteAbility);
-      document.getElementById('clone-ability-btn').addEventListener('click', handleCloneAbility);
-      document.getElementById('test-ability-btn').addEventListener('click', window.launchTestMatch);
+      
+      const topbar = document.getElementById('studio-topbar');
+      topbar.addEventListener('save', handleSaveAbility);
+      topbar.addEventListener('clone', handleCloneAbility);
+      topbar.addEventListener('test', window.launchTestMatch);
+      topbar.addEventListener('delete', handleDeleteAbility);
+      topbar.addEventListener('import', (e) => {
+          const data = e.detail;
+          data.abilityId = 'ability_' + Date.now();
+          allAbilities.push(data);
+          window.loadAbility(data.abilityId);
+          document.getElementById('ab-name').value += ' (Imported)';
+          updateJSONPreview();
+      });
       
       // Catalog hooks
       const catalogEl = document.getElementById('ability-catalog');
@@ -568,9 +568,9 @@
              }
         } else {
              actMethodContainer.classList.remove('hidden');
-             section3Header.innerText = "3. Player Activation Targets (Input)";
              
              if (actMethodSelect.value === 'PLAYER_CHOICE') {
+               section3Header.innerText = "3. Player Activation Targets (Input)";
                matrixContainer.classList.remove('hidden');
                advancedToggleContainer.classList.remove('hidden');
                matrixContainer.innerHTML = generateQuickMatrixHTML('activation', activationQuickTargeting);
@@ -583,9 +583,17 @@
                  advancedIcon.style.transform = 'rotate(0deg)';
                }
              } else {
+               section3Header.innerText = "3. Event Conditions (Optional)";
                matrixContainer.classList.add('hidden');
-               advancedToggleContainer.classList.add('hidden');
-               advancedTreeWrapper.classList.add('hidden');
+               advancedToggleContainer.classList.remove('hidden');
+               
+               if (showAdvancedActivation) {
+                 advancedTreeWrapper.classList.remove('hidden');
+                 advancedIcon.style.transform = 'rotate(90deg)';
+               } else {
+                 advancedTreeWrapper.classList.add('hidden');
+                 advancedIcon.style.transform = 'rotate(0deg)';
+               }
              }
         }
         
@@ -612,12 +620,13 @@
         return { ...ab, abilityId: ab.abilityId || ab.id, displayDescription: desc };
       });
       
-      renderCatalogList();
-      resetForm();
-
       const urlParams = new URLSearchParams(window.location.search);
       const hashId = window.location.hash.replace('#', '');
       const loadId = urlParams.get('id') || hashId;
+
+      renderCatalogList();
+      resetForm();
+
       if (loadId) {
           setTimeout(() => window.loadAbility(loadId), 50);
       }
@@ -1130,6 +1139,12 @@
 
     window.updateNestedPayload = (gIdx, pIdx, nIdx, field, value) => {
       const payload = effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx];
+      
+      if (field === 'stat') {
+          if (value === 'line') payload.amount = 'mid';
+          else if (payload.stat === 'line' && value !== 'line') payload.amount = 1;
+      }
+
       payload[field] = value;
       
       if (field === 'type') {
@@ -1231,6 +1246,8 @@
                   <option value="strength" ${payload.stat === 'strength' ? 'selected' : ''}>Strength</option>
                   <option value="health" ${payload.stat === 'health' ? 'selected' : ''}>Current Health</option>
                   <option value="maxHealth" ${payload.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
+                  <option value="armor" ${payload.stat === 'armor' ? 'selected' : ''}>Armor</option>
+                  <option value="amount" ${payload.stat === 'amount' ? 'selected' : ''}>Event Amount</option>
                   <option value="readiness" ${payload.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
                   <option value="acts" ${payload.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
                   <option value="maxActs" ${payload.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
@@ -1306,19 +1323,43 @@
                     let npParamsHtml = '';
                     
                     if (nMan.requiresAmount && nMan.requiresStat) {
-                       npParamsHtml += `
-                          <div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>
-                          <div class="w-24">
-                              <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'stat', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-bold text-[10px] w-full">
+                       let amountHtml = '';
+                       if (np.type === 'SET_STAT' && np.stat === 'line') {
+                           amountHtml = `<div class="w-20"><select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]">
+                               <option value="front" ${np.amount === 'front' ? 'selected' : ''}>Front</option>
+                               <option value="mid" ${np.amount === 'mid' ? 'selected' : ''}>Mid</option>
+                               <option value="back" ${np.amount === 'back' ? 'selected' : ''}>Back</option>
+                               <option value="sheltered" ${np.amount === 'sheltered' ? 'selected' : ''}>Sheltered</option>
+                               <option value="sideline" ${np.amount === 'sideline' ? 'selected' : ''}>Sideline</option>
+                               <option value="taunt" ${np.amount === 'taunt' ? 'selected' : ''}>Taunt</option>
+                               <option value="bodyguard" ${np.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
+                           </select></div>`;
+                       } else {
+                           amountHtml = `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                       }
+                       
+                       let nestedStatOptions = `
                                 <option value="strength" ${np.stat === 'strength' ? 'selected' : ''}>Strength</option>
                                 <option value="health" ${np.stat === 'health' ? 'selected' : ''}>Health</option>
                                 <option value="maxHealth" ${np.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
+                                <option value="armor" ${np.stat === 'armor' ? 'selected' : ''}>Armor</option>
+                                <option value="amount" ${np.stat === 'amount' ? 'selected' : ''}>Event Amount</option>
                                 <option value="readiness" ${np.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
                                 <option value="acts" ${np.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
                                 <option value="maxActs" ${np.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
                                 <option value="power" ${np.stat === 'power' ? 'selected' : ''}>Power</option>
                                 <option value="fast" ${np.stat === 'fast' ? 'selected' : ''}>Fast (Charges)</option>
                                 <option value="slow" ${np.stat === 'slow' ? 'selected' : ''}>Slow (Charges)</option>
+                       `;
+                       if (np.type === 'SET_STAT') {
+                           nestedStatOptions += `<option value="line" ${np.stat === 'line' ? 'selected' : ''}>Battleline</option>`;
+                       }
+
+                       npParamsHtml += `
+                          ${amountHtml}
+                          <div class="w-24">
+                              <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'stat', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-bold text-[10px] w-full">
+                                ${nestedStatOptions}
                               </select>
                           </div>
                        `;
@@ -1418,8 +1459,8 @@
                   <div class="w-full flex flex-wrap items-end gap-3 pr-6">
                       <div class="flex-1 min-w-[250px] flex flex-col pb-0.5">
                         <label class="block text-[10px] font-bold text-emerald-500 mb-0.5">Action Effect</label>
-                        <div class="flex items-center gap-2 w-full">
-                            <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'type', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold flex-1 focus:outline-none focus:border-emerald-500">
+                        <div class="flex flex-wrap items-center gap-2 w-full">
+                            <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'type', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold flex-1 min-w-[150px] focus:outline-none focus:border-emerald-500">
                               ${typeOptions}
                             </select>
                             ${manifest.canInvert ? `
@@ -1486,24 +1527,24 @@
               </div>
               
               ${group.targetMethod.startsWith('AUTO_') ? `
-              <div class="flex flex-col gap-2 mt-1">
+              <div class="flex flex-col gap-2 mt-2">
                 ${generateQuickMatrixHTML('effect', group.quickTargeting, gIdx)}
-                
-                <div class="mt-1">
-                   <button type="button" onclick="window.toggleAdvancedLogic('effect', ${gIdx})" class="text-[10px] font-bold text-slate-400 hover:text-fuchsia-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
-                     <span style="transform: rotate(${group.showAdvanced ? '90deg' : '0deg'});" class="transition-transform duration-200">▶</span>
-                     <span>⚙️ Advanced Filters</span>
-                   </button>
-                </div>
+              </div>
+              ` : ''}
+              
+              <div class="mt-2">
+                 <button type="button" onclick="window.toggleAdvancedLogic('effect', ${gIdx})" class="text-[10px] font-bold text-slate-400 hover:text-fuchsia-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 w-max">
+                   <span style="transform: rotate(${group.showAdvanced ? '90deg' : '0deg'});" class="transition-transform duration-200">▶</span>
+                   <span>⚙️ Advanced Filters (Conditions & Scope)</span>
+                 </button>
+              </div>
 
-                ${group.showAdvanced ? `
-                <div class="flex flex-col gap-2 mt-2 pl-3 border-l-2 border-fuchsia-500/30">
-                  <label class="font-bold text-fuchsia-300 block mb-1 text-[9px]">Advanced Scope Filters</label>
-                  <div class="flex flex-col gap-2 min-h-[40px]">
-                    ${generateGroupHTML(`effect_${gIdx}`, group.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
-                  </div>
+              ${group.showAdvanced ? `
+              <div class="flex flex-col gap-2 mt-2 pl-3 border-l-2 border-fuchsia-500/30">
+                <label class="font-bold text-fuchsia-300 block mb-1 text-[9px]">Advanced Execution Conditions</label>
+                <div class="flex flex-col gap-2 min-h-[40px]">
+                  ${generateGroupHTML(`effect_${gIdx}`, group.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
                 </div>
-                ` : ''}
               </div>
               ` : ''}
             </div>
@@ -1534,7 +1575,7 @@
 
       if (scope === 'PERSONAL' && actMethod === 'NONE') {
           delete activationData.quickTargeting;
-          delete activationData.logicTree;
+          // Retain logicTree so users can configure Event Conditions like isCombat
       } else if (scope === 'GLOBAL') {
           activationData.method = 'NONE';
       }
@@ -1615,25 +1656,20 @@
       }
       
       const btn = document.getElementById('save-ability-btn');
-      const topBtn = document.getElementById('save-ability-btn-top');
       const originalText = btn.innerHTML;
-      const originalTopText = topBtn ? topBtn.innerHTML : '💾 Save';
       
       btn.innerHTML = 'Saving...';
       btn.disabled = true;
-      if (topBtn) {
-          topBtn.innerHTML = 'Saving...';
-          topBtn.disabled = true;
-      }
+      
+      const topbar = document.getElementById('studio-topbar');
+      if (topbar && topbar.setLoading) topbar.setLoading('save', true);
 
       const cloudSaveSuccess = await saveAbilityToCatalog(ability);
       
       btn.innerHTML = originalText;
       btn.disabled = false;
-      if (topBtn) {
-          topBtn.innerHTML = originalTopText;
-          topBtn.disabled = false;
-      }
+      
+      if (topbar && topbar.setLoading) topbar.setLoading('save', false);
 
       if (cloudSaveSuccess) {
           const toast = document.createElement('div');
@@ -1658,24 +1694,10 @@
 
       currentEditingId = ability.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
-      document.getElementById('clone-ability-btn').classList.remove('hidden');
-      document.getElementById('test-ability-btn').classList.remove('hidden');
-      document.getElementById('delete-ability-btn').classList.remove('hidden');
+      document.getElementById('studio-topbar').showButtons(true);
     }
 
-    async function handleDeleteAbility(e) {
-      const btn = e.currentTarget;
-      if (!btn.dataset.confirm) {
-        btn.dataset.confirm = 'true';
-        btn.innerHTML = '⚠️ Click again to delete';
-        btn.classList.replace('bg-red-600/80', 'bg-red-700');
-        setTimeout(() => { if (btn.dataset.confirm) { delete btn.dataset.confirm; btn.innerHTML = '🗑️ Delete Ability'; btn.classList.replace('bg-red-700', 'bg-red-600/80'); } }, 3000);
-        return;
-      }
-      delete btn.dataset.confirm;
-      btn.innerHTML = '🗑️ Delete Ability';
-      btn.classList.replace('bg-red-700', 'bg-red-600/80');
-
+    async function handleDeleteAbility() {
       if (currentEditingId) {
         await deleteAbilityFromCatalog(currentEditingId);
         allAbilities = allAbilities.filter(a => a.abilityId !== currentEditingId);
@@ -1693,13 +1715,12 @@
       
       // Clear the ID so it saves as a new entity
       currentEditingId = null; 
+      window.location.hash = '';
       
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
       document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
       
-      document.getElementById('delete-ability-btn').classList.add('hidden');
-      document.getElementById('clone-ability-btn').classList.add('hidden');
-      document.getElementById('test-ability-btn').classList.add('hidden');
+      document.getElementById('studio-topbar').showButtons(false);
       
       updateJSONPreview();
       
@@ -1712,6 +1733,7 @@
 
     function resetForm() {
       currentEditingId = null;
+      window.location.hash = '';
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
       document.getElementById('ab-name').value = '';
       document.getElementById('ab-description').value = '';
@@ -1738,9 +1760,7 @@
       activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
       effectGroups = [];
       
-      document.getElementById('delete-ability-btn').classList.add('hidden');
-      document.getElementById('clone-ability-btn').classList.add('hidden');
-      document.getElementById('test-ability-btn').classList.add('hidden');
+      document.getElementById('studio-topbar').showButtons(false);
       
       renderLogicTrees();
       renderEffects();
@@ -1785,6 +1805,7 @@
       if (!ab) return;
 
       currentEditingId = ab.abilityId;
+      window.location.hash = id;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ab.name}`;
       document.getElementById('ab-name').value = ab.name;
       document.getElementById('ab-description').value = ab.description || '';
@@ -1811,9 +1832,7 @@
 
       document.getElementById('ab-trigger-scope').value = ab.triggerScope || 'PERSONAL';
 
-      document.getElementById('delete-ability-btn').classList.remove('hidden');
-      document.getElementById('clone-ability-btn').classList.remove('hidden');
-      document.getElementById('test-ability-btn').classList.remove('hidden');
+      document.getElementById('studio-topbar').showButtons(true);
 
       const srcAct = ab.activation || ab.targeting || {};
       document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
@@ -1912,15 +1931,12 @@
 
     window.launchTestMatch = async () => {
         const ability = getCurrentAbilityState();
-        const btn = document.getElementById('test-ability-btn');
-        const orig = btn.innerText;
-        btn.innerText = '...';
-        btn.disabled = true;
+        const topbar = document.getElementById('studio-topbar');
+        if (topbar && topbar.setLoading) topbar.setLoading('test', true);
 
         await launchSandboxMatch(ability, 'ability');
         
-        btn.innerText = orig;
-        btn.disabled = false;
+        if (topbar && topbar.setLoading) topbar.setLoading('test', false);
     };
 
     function renderAssociatedCards() {

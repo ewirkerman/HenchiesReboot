@@ -25,6 +25,7 @@ export const ACTION_MANIFEST = {
     'CHANGE_DESTINATION': { passiveType: null, canInvert: false, canBeCost: false, requiresZone: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'GRANT_ABILITY': { passiveType: 'BE_GRANTED_ABILITY', canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'REMOVE_ABILITY': { passiveType: null, canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT'] },
+    'MODIFY_EVENT': { passiveType: null, canInvert: false, canBeCost: false, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -40,6 +41,8 @@ export const ACTION_MANIFEST = {
     'FIELD': { passiveType: 'BE_FIELDED', canInvert: true, canBeCost: false, validZones: ['HAND', 'DISCARD'], validDurations: ['INSTANT'] },
     'BANISH': { passiveType: 'BE_BANISHED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT'], isLeavesPlay: true }
 };
+
+import { shuffleArray, generateId } from './prandom.js';
 
 export class Action {
     constructor(payload) {
@@ -265,8 +268,16 @@ export function sweepTurnEffects(engine, endingPlayerId) {
 
 export class DealDamageAction extends Action {
     execute(engine) {
-        const { target, amount, source } = this.payload;
-        if (target && amount) {
+        const { target, source, isCombat } = this.payload;
+        let amount = this.payload.amount;
+        if (target && amount !== undefined) {
+            if (isCombat && target.armor && target.armor > 0 && amount > 0) {
+                const blocked = Math.min(target.armor, amount);
+                target.armor -= blocked;
+                amount -= blocked;
+                engine.state.history_log.push(`🛡️ ${target.name}'s Armor absorbed ${blocked} combat damage!`);
+            }
+            
             target.health = Math.max(0, (target.health || 0) - amount);
             engine.state.history_log.push(`💥 ${target.name || 'Target'} took ${amount} damage.`);
             
@@ -545,8 +556,8 @@ export class AttackAction extends Action {
             const atkStrikes = atkSpeed === phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0;
             const defStrikes = defSpeed === phase && defDmg !== null && defDmg >= 0 && defender.health > 0;
 
-            if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg }).run(engine);
-            if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: defDmg }).run(engine);
+            if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg, isCombat: true }).run(engine);
+            if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: defDmg, isCombat: true }).run(engine);
         }
     }
 }
@@ -735,7 +746,7 @@ export class SummonAction extends Action {
         
         for (let i = 0; i < (this.payload.amount || 1); i++) {
             const instance = JSON.parse(JSON.stringify(card));
-            instance.instanceId = 'sum_' + engine.state.history_log.length + '_' + i;
+            instance.instanceId = 'sum_' + generateId(engine.state, 8) + '_' + i;
             instance.isToken = true;
             instance.health = instance.health || 1;
             instance.maxHealth = instance.health;
@@ -752,7 +763,7 @@ export class SummonAction extends Action {
             let targets = [];
             if (ng.targetMethod === 'AUTO_ALL') targets = summonedInstances;
             else if (ng.targetMethod === 'AUTO_RANDOM') {
-                targets = [...summonedInstances].sort(() => 0.5 - Math.random()).slice(0, ng.targetCount || 1);
+                targets = shuffleArray(engine.state, [...summonedInstances]).slice(0, ng.targetCount || 1);
             } else if (ng.targetMethod === 'AUTO_FIRST') {
                 targets = summonedInstances.slice(0, ng.targetCount || 1);
             } else if (ng.targetMethod === 'AUTO_LAST') {
@@ -825,6 +836,15 @@ export class ChangeDestinationAction extends Action {
     }
 }
 
+export class ModifyEventAction extends Action {
+    execute(engine) {
+        if (this.payload.eventContext && this.payload.stat && this.payload.amount !== undefined) {
+            this.payload.eventContext[this.payload.stat] = (this.payload.eventContext[this.payload.stat] || 0) + this.payload.amount;
+            engine.state.history_log.push(`⚡ Event ${this.payload.stat} modified by ${this.payload.amount > 0 ? '+' : ''}${this.payload.amount}.`);
+        }
+    }
+}
+
 export class CustomScriptAction extends Action { 
     execute(engine) {
         if (this.payload.script) {
@@ -857,6 +877,7 @@ export const ACTION_REGISTRY = {
     'CANCEL_EVENT': CancelEventAction,
     'CLEANSE': CleanseAction,
     'CHANGE_DESTINATION': ChangeDestinationAction,
+    'MODIFY_EVENT': ModifyEventAction,
     'CUSTOM_SCRIPT': CustomScriptAction,
     'DISCARD': DiscardAction,
     'SHUFFLE': ShuffleAction,
@@ -877,7 +898,7 @@ export const ACTION_CATEGORIES = {
     'Combat & Stats': ['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACK', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE'],
     'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'TRASH', 'BANISH', 'FIELD', 'UNFIELD', 'CHANGE_DESTINATION'],
     'Attachments & Control': ['ATTACH', 'ATTACH_TO', 'UNATTACH', 'REBEL'],
-    'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'CANCEL_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST']
+    'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST']
 };
 
 export const EFFECT_TYPES = Object.keys(ACTION_MANIFEST);

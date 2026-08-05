@@ -7,6 +7,7 @@
 
 export const CARD_CATALOG = []; // Will be hydrated by deckbuilder/firebase
 
+import { nextRandom, randomInt, generateId, shuffleArray as prandomShuffle } from './prandom.js';
 import { ACTION_REGISTRY, HarvestAction, PlayAction, AttackAction, DealDamageAction, KillAction, UnfieldAction, sweepTurnEffects } from './actions.js';
 
 export const TRAITS = [];
@@ -126,7 +127,7 @@ export class GameEngine {
                             
                             if (!pool.some(p => p.instanceId === eventEntity.instanceId)) {
                                 isValid = false;
-                            } else if (!this.evaluateLogicTree(lt, eventEntity, ent)) {
+                            } else if (!this.evaluateLogicTree(lt, eventEntity, ent, payload)) {
                                 isValid = false;
                             }
                         }
@@ -341,13 +342,13 @@ export class GameEngine {
                 }
                 else if (group.targetMethod && group.targetMethod.startsWith('AUTO_')) {
                     let pool = this.findEntitiesInScope(group.quickTargeting, ownerId);
-                    pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source));
+                    pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source, eventPayload));
                     
                     if (group.targetMethod === 'AUTO_ALL') targets = pool;
-                    else if (group.targetMethod === 'AUTO_RANDOM') {
-                        targets = [...pool].sort(() => 0.5 - Math.random()).slice(0, group.targetCount || 1);
-                    } else if (group.targetMethod === 'AUTO_FIRST') {
-                        targets = pool.slice(0, group.targetCount || 1);
+                else if (group.targetMethod === 'AUTO_RANDOM') {
+                    targets = prandomShuffle(this.state, [...pool]).slice(0, group.targetCount || 1);
+                } else if (group.targetMethod === 'AUTO_FIRST') {
+                    targets = pool.slice(0, group.targetCount || 1);
                     } else if (group.targetMethod === 'AUTO_LAST') {
                         targets = pool.slice(-(group.targetCount || 1));
                     }
@@ -481,14 +482,14 @@ export class GameEngine {
         });
     }
 
-    evaluateLogicTree(node, entity, source) {
+    evaluateLogicTree(node, entity, source, eventPayload) {
         if (!node) return true;
         if (node.type === 'group') {
             if (!node.children || node.children.length === 0) return true;
             if (node.logicalOperator === 'OR') {
-                return node.children.some(child => this.evaluateLogicTree(child, entity, source));
+                return node.children.some(child => this.evaluateLogicTree(child, entity, source, eventPayload));
             } else {
-                return node.children.every(child => this.evaluateLogicTree(child, entity, source));
+                return node.children.every(child => this.evaluateLogicTree(child, entity, source, eventPayload));
             }
         } else if (node.type === 'condition') {
             let entVal;
@@ -503,6 +504,8 @@ export class GameEngine {
             else if (node.attribute === 'genus') entVal = entity.genus || '';
             else if (node.attribute === 'health') entVal = entity.health || 0;
             else if (node.attribute === 'strength') entVal = entity.strength || 0;
+            else if (node.attribute === 'armor') entVal = entity.armor || 0;
+            else if (node.attribute === 'isCombat') entVal = eventPayload?.isCombat ? 'true' : 'false';
             else if (node.attribute === 'hasAbility') {
                 entVal = entity.abilities ? entity.abilities.some(a => a.abilityId === node.value) : false;
                 return node.operator === '==' ? entVal : !entVal;
@@ -573,12 +576,12 @@ export function startTurn(state, engine) {
             
             if (catalogDummy) {
                 dummy = JSON.parse(JSON.stringify(catalogDummy));
-                dummy.instanceId = 'inst_' + Math.random().toString(36).substr(2, 9);
+                dummy.instanceId = 'inst_' + generateId(state, 9);
                 dummy.readiness = 0;
                 if (dummy.health === undefined) dummy.health = dummy.maxHealth;
             } else {
                 dummy = {
-                    id: 'target_dummy', instanceId: 'inst_' + Math.random().toString(36).substr(2, 9),
+                    id: 'target_dummy', instanceId: 'inst_' + generateId(state, 9),
                     name: 'Target Dummy', type: 'unit', tribe: 'Robot', health: 1, maxHealth: 1, strength: 1, readiness: 0, abilities: []
                 };
             }
@@ -1034,15 +1037,13 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
     return { success: false, reason: "Unknown action" };
 }
 
-export function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
+export function shuffleArray(state, array) {
+    return prandomShuffle(state, array);
 }
 
 export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCatalog = null) {
     const state = new GameState();
+    state.rngSeed = Math.floor(Math.random() * 4294967296);
     if (abilityCatalog) Object.defineProperty(state, 'abilityCatalog', { value: abilityCatalog, enumerable: false, configurable: true });
     if (cardCatalog) Object.defineProperty(state, 'catalog', { value: cardCatalog, enumerable: false, configurable: true });
     state.gameId = roomId;
@@ -1054,7 +1055,7 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCata
     state.players.player1.deck = JSON.parse(JSON.stringify(rawP1Deck));
     state.players.player1.deck.forEach((c, idx) => {
         // Unconditionally overwrite to destroy any fixed IDs inadvertently saved in custom cards
-        c.instanceId = 'inst_p1_' + Math.random().toString(36).substr(2, 9) + '_' + idx;
+        c.instanceId = 'inst_p1_' + generateId(state, 9) + '_' + idx;
     });
     
     const p1AvatarIdx = state.players.player1.deck.findIndex(c => c.type === 'avatar');
@@ -1107,8 +1108,8 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCata
     state.players.player2.isDummy = true;
     
     // Shuffle decks before drawing
-    shuffleArray(state.players.player1.deck);
-    shuffleArray(state.players.player2.deck);
+    shuffleArray(state, state.players.player1.deck);
+    shuffleArray(state, state.players.player2.deck);
     
     // Draw 4 starting cards for both players
     for(let i = 0; i < 4; i++) {
@@ -1143,7 +1144,7 @@ export function joinGame(state, p2Name, p2Deck) {
     state.players.player2.deck = JSON.parse(JSON.stringify(rawP2Deck));
     state.players.player2.deck.forEach((c, idx) => {
         // Unconditionally overwrite to destroy any fixed IDs inadvertently saved in custom cards
-        c.instanceId = 'inst_p2_' + Math.random().toString(36).substr(2, 9) + '_' + idx;
+        c.instanceId = 'inst_p2_' + generateId(state, 9) + '_' + idx;
     });
     
     const p2AvatarIdx = state.players.player2.deck.findIndex(c => c.type === 'avatar');
@@ -1175,7 +1176,7 @@ export function joinGame(state, p2Name, p2Deck) {
     }
     
     // Shuffle joining player's deck
-    shuffleArray(state.players.player2.deck);
+    shuffleArray(state, state.players.player2.deck);
     
     // Replace dummy hand with actual starting hand for joining player
     state.players.player2.hand = [];

@@ -501,7 +501,44 @@ export function renderJSONPreview(containerId, jsonObject, copyCallbackName) {
              📋 Copy JSON
            </button>
          </div>
-        <pre class="text-[9px] text-cyan-500 font-mono overflow-y-auto overflow-x-auto h-full pb-6 custom-scrollbar">${JSON.stringify(jsonObject, null, 2)}</pre>
+    <pre class="text-[9px] text-cyan-500 font-mono overflow-y-auto overflow-x-auto h-full pb-6 custom-scrollbar">${JSON.stringify(jsonObject, null, 2)}</pre>
+  </div>
+`;
+}
+
+export function openJSONImportModal(onImport) {
+  let modal = document.getElementById('json-import-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'json-import-modal';
+    modal.className = 'fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4';
+    document.body.appendChild(modal);
+  }
+  
+  modal.innerHTML = `
+    <div class="glass-panel rounded-2xl p-6 shadow-2xl border border-slate-700 max-w-lg w-full flex flex-col gap-4 relative">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+        <h3 class="text-lg font-black text-emerald-400 uppercase tracking-wider">📥 Import JSON</h3>
+        <button onclick="document.getElementById('json-import-modal').classList.add('hidden')" class="text-slate-400 hover:text-white font-bold text-xl leading-none">&times;</button>
       </div>
-    `;
+      <p class="text-xs text-slate-400">Paste your JSON data below to import it into the editor. It will be loaded as an unsaved draft.</p>
+      <textarea id="import-json-textarea" rows="10" class="bg-slate-900 border border-slate-700 p-2 rounded text-emerald-300 font-mono text-[10px] w-full focus:outline-none focus:border-emerald-500 custom-scrollbar" placeholder="{...}"></textarea>
+      <div class="flex justify-end gap-3 mt-2">
+        <button onclick="document.getElementById('json-import-modal').classList.add('hidden')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2 rounded transition">Cancel</button>
+        <button id="confirm-import-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded shadow transition">Import Data</button>
+      </div>
+    </div>
+  `;
+  modal.classList.remove('hidden');
+
+  document.getElementById('confirm-import-btn').onclick = () => {
+    const val = document.getElementById('import-json-textarea').value;
+    try {
+      const parsed = JSON.parse(val);
+      onImport(parsed);
+      modal.classList.add('hidden');
+    } catch (e) {
+      showToast('Invalid JSON format', 'error');
+    }
+  };
 }

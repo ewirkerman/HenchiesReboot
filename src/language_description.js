@@ -51,9 +51,12 @@ function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, implied
                 } else {
                     suffixes.push(`that is ${opText} ${node.value}`.trim());
                 }
-            } else if (['health', 'strength', 'readiness', 'maxHealth', 'acts', 'maxActs', 'power', 'fast', 'slow'].includes(node.attribute)) {
+            } else if (['health', 'strength', 'armor', 'readiness', 'maxHealth', 'acts', 'maxActs', 'power', 'fast', 'slow'].includes(node.attribute)) {
                 let statName = node.attribute === 'maxHealth' ? 'max health' : (node.attribute === 'acts' ? 'available acts' : (node.attribute === 'maxActs' ? 'max acts' : node.attribute));
                 suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
+            } else if (node.attribute === 'isCombat') {
+                if (String(node.value) === 'true') suffixes.push(`during combat`);
+                else suffixes.push(`outside of combat`);
             } else if (node.attribute === 'hasAbility') {
                 if (node.operator === '==') suffixes.push(`with ability '${node.value}'`);
                 else suffixes.push(`without ability '${node.value}'`);
@@ -201,7 +204,11 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'ON_RECOVER': 'When it recovers a card',
         'ON_BE_RECOVERED': 'When recovered',
         'WOULD_RECOVER': 'When it would recover a card',
-        'WOULD_BE_RECOVERED': 'When it would be recovered'
+        'WOULD_BE_RECOVERED': 'When it would be recovered',
+        'MODIFY_DEAL_DAMAGE': 'When dealing damage',
+        'MODIFY_BE_DAMAGED': 'When taking damage',
+        'MODIFY_HEAL': 'When healing',
+        'MODIFY_BE_HEALED': 'When being healed'
     };
 
     let processedTriggers = allTriggers.map(t => {
@@ -228,8 +235,17 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             else if (lowerTxt.startsWith('when ')) lowerTxt = lowerTxt.replace('when ', `whenever ${targetDesc} is `);
             
             return lowerTxt.charAt(0).toUpperCase() + lowerTxt.slice(1);
+        } else {
+            let combatSuffix = '';
+            const scan = (node) => {
+                if (!node) return;
+                if (node.type === 'condition' && node.attribute === 'isCombat') {
+                    combatSuffix = String(node.value) === 'true' ? ' during combat' : ' outside of combat';
+                } else if (node.children) node.children.forEach(scan);
+            };
+            scan(ability.activation?.logicTree);
+            return txt + combatSuffix;
         }
-        return txt;
     });
 
     if (processedTriggers.length === 1) {
@@ -266,10 +282,11 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
     }
 
     // 3. LIMITS
+    let limitSuffix = '';
     if (ability.triggerLimit === 'ONCE_PER_ROUND') {
-        descriptionParts.push("(Once per round)");
+        limitSuffix = ", once per round";
     } else if (ability.triggerLimit === 'TWICE_PER_ROUND') {
-         descriptionParts.push("(Twice per round)");
+         limitSuffix = ", twice per round";
     }
 
     // 4. EFFECTS (Parsed by Target Groups)
@@ -380,11 +397,18 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     case 'KILL': effText = `kill {TARGET}`; break;
                     case 'ATTACK': effText = `attack {TARGET}`; break;
                     case 'CANCEL_EVENT': effText = `cancel the triggering event`; break;
-                    case 'CLEANSE': effText = `cleanse temporary effects from {TARGET}`; break;
-                    case 'CHANGE_DESTINATION': effText = `change destination to ${eff.zone || 'DECK'}`; break;
-                    case 'CUSTOM_SCRIPT': effText = `execute custom script on {TARGET}`; break;
-                case 'GRANT_ABILITY':
-                    let abilityName = eff.grantedAbilityId;
+                case 'CLEANSE': effText = `cleanse temporary effects from {TARGET}`; break;
+                case 'CHANGE_DESTINATION': effText = `change destination to ${eff.zone || 'DECK'}`; break;
+                case 'MODIFY_EVENT': 
+                    if (eff.stat === 'amount') {
+                        effText = eff.amount < 0 ? `decrease the amount by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the amount by ${eff.amount}{OMIT_TARGET}`;
+                    } else {
+                        effText = `modify event ${eff.stat} by ${eff.amount > 0 ? '+' : ''}${eff.amount}{OMIT_TARGET}`;
+                    }
+                    break;
+                case 'CUSTOM_SCRIPT': effText = `execute custom script on {TARGET}`; break;
+            case 'GRANT_ABILITY':
+                let abilityName = eff.grantedAbilityId;
                     if (allAbilities && Array.isArray(allAbilities)) {
                         const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId || a.id === eff.grantedAbilityId);
                         if (match) abilityName = match.name;
@@ -526,6 +550,10 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
     let finalStr = descriptionParts.join(' ').trim();
     if (finalStr.length > 0) {
+        if (limitSuffix) {
+            if (finalStr.endsWith('.')) finalStr = finalStr.slice(0, -1);
+            finalStr += limitSuffix + '.';
+        }
         // Find the first alphabetical character after any symbols/brackets and capitalize it
         finalStr = finalStr.replace(/^([^a-zA-Z]*)([a-zA-Z])/i, (match, p1, p2) => p1 + p2.toUpperCase());
     }

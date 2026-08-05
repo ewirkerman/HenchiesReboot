@@ -49,9 +49,11 @@ const ATTRIBUTE_TYPES = {
     'genus': { label: 'Genus', type: 'text' },
     'health': { label: 'Current Health', type: 'number' },
     'strength': { label: 'Strength', type: 'number' },
+    'armor': { label: 'Armor', type: 'number' },
     'power': { label: 'Power', type: 'number' },
     'fast': { label: 'Fast Charges', type: 'number' },
     'slow': { label: 'Slow Charges', type: 'number' },
+    'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
     'hasAbility': { label: 'Has Ability', type: 'text' }
 };
 
@@ -211,7 +213,7 @@ export function exportCurrentState(formData) {
 
     if (scope === 'PERSONAL' && actMethod === 'NONE') {
          delete activationData.quickTargeting;
-         delete activationData.logicTree;
+         // IMPORTANT: Kept logicTree to preserve Event Filtering
     } else if (scope === 'GLOBAL') {
          activationData.method = 'NONE';
     }

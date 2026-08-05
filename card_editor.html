@@ -45,12 +45,7 @@
         <div class="flex-1 flex flex-col gap-4">
           <div class="flex justify-between items-end border-b border-slate-800 pb-2">
             <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider" id="form-title">⚡ Design Card</h2>
-            <div class="flex gap-2">
-              <button id="save-card-btn-top" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider whitespace-nowrap">💾 Save</button>
-              <button id="clone-card-btn" class="hidden bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-cyan-500/30 whitespace-nowrap">👯 Clone</button>
-              <button id="test-card-btn" class="hidden bg-purple-600/80 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-purple-500/30 whitespace-nowrap">🧪 Test</button>
-              <button id="delete-card-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap">🗑️ Delete</button>
-            </div>
+            <studio-topbar id="studio-topbar"></studio-topbar>
           </div>
 
           <div class="grid grid-cols-2 gap-3 text-xs">
@@ -149,7 +144,8 @@
     import { fetchCustomAbilities, fetchCustomCards, saveCardToCatalog, deleteCardFromCatalog, createGameRoom } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { launchSandboxMatch } from './src/testing.js';
-    import './src/catalog_component.js'; // Import custom element
+    import './src/catalog_component.js'; 
+    import './src/studio_topbar.js';
 
     let allCards = [];
     let allAbilities = [];
@@ -216,17 +212,28 @@
       catalogEl.addEventListener('new-item', resetForm);
 
       document.getElementById('save-card-btn').addEventListener('click', saveCard);
-      document.getElementById('save-card-btn-top').addEventListener('click', saveCard);
-      document.getElementById('clone-card-btn').addEventListener('click', cloneCard);
-      document.getElementById('test-card-btn').addEventListener('click', window.launchTestMatch);
-      document.getElementById('delete-card-btn').addEventListener('click', deleteCard);
-
-      renderCatalog();
-      resetForm();
+      
+      const topbar = document.getElementById('studio-topbar');
+      topbar.addEventListener('save', saveCard);
+      topbar.addEventListener('clone', cloneCard);
+      topbar.addEventListener('test', window.launchTestMatch);
+      topbar.addEventListener('delete', deleteCard);
+      topbar.addEventListener('import', (e) => {
+          const data = e.detail;
+          data.id = 'card_' + Date.now();
+          allCards.push(data);
+          window.loadCard(data.id);
+          document.getElementById('card-name').value += ' (Imported)';
+          updatePreview();
+      });
 
       const urlParams = new URLSearchParams(window.location.search);
       const hashId = window.location.hash.replace('#', '');
       const loadId = urlParams.get('id') || hashId;
+
+      renderCatalog();
+      resetForm();
+
       if (loadId) {
           setTimeout(() => window.loadCard(loadId), 50);
       }
@@ -329,6 +336,7 @@
 
     function resetForm() {
         currentEditingId = null;
+        window.location.hash = '';
         document.getElementById('form-title').innerText = '⚡ Design New Card';
         document.getElementById('card-name').value = '';
         document.getElementById('card-tribe').value = 'Robot';
@@ -343,9 +351,7 @@
         
         currentAbilities = [];
         
-        document.getElementById('clone-card-btn').classList.add('hidden');
-        document.getElementById('test-card-btn').classList.add('hidden');
-        document.getElementById('delete-card-btn').classList.add('hidden');
+        document.getElementById('studio-topbar').showButtons(false);
         
         toggleStatFields();
         renderAssignedAbilities();
@@ -413,6 +419,9 @@
         const origText = btn.innerHTML;
         btn.innerHTML = 'Saving...';
         btn.disabled = true;
+        
+        const topbar = document.getElementById('studio-topbar');
+        if (topbar && topbar.setLoading) topbar.setLoading('save', true);
 
         const cloudSaveSuccess = await saveCardToCatalog(card);
         
@@ -421,12 +430,12 @@
         currentEditingId = card.id;
         
         document.getElementById('form-title').innerText = `⚡ Edit: ${card.name}`;
-        document.getElementById('clone-card-btn').classList.remove('hidden');
-        document.getElementById('test-card-btn').classList.remove('hidden');
-        document.getElementById('delete-card-btn').classList.remove('hidden');
+        document.getElementById('studio-topbar').showButtons(true);
 
         btn.innerHTML = origText;
         btn.disabled = false;
+        
+        if (topbar && topbar.setLoading) topbar.setLoading('save', false);
 
         if (cloudSaveSuccess) {
             showToast(`Card '${card.name}' saved successfully!`, 'success');
@@ -441,25 +450,13 @@
         currentEditingId = null;
         document.getElementById('form-title').innerText = `⚡ Design New Card (Cloned)`;
         document.getElementById('card-name').value += ' (Copy)';
-        document.getElementById('clone-card-btn').classList.add('hidden');
-        document.getElementById('test-card-btn').classList.add('hidden');
-        document.getElementById('delete-card-btn').classList.add('hidden');
+        document.getElementById('studio-topbar').showButtons(false);
         updatePreview();
         showToast('Card cloned! Save to keep it.', 'info');
     }
 
     async function deleteCard() {
         if (!currentEditingId) return;
-        const btn = document.getElementById('delete-card-btn');
-        
-        if (!btn.dataset.confirm) {
-            btn.dataset.confirm = 'true';
-            btn.innerHTML = '⚠️ Confirm Delete';
-            btn.classList.replace('bg-red-600/80', 'bg-red-700');
-            setTimeout(() => { if (btn.dataset.confirm) { delete btn.dataset.confirm; btn.innerHTML = '🗑️ Delete'; btn.classList.replace('bg-red-700', 'bg-red-600/80'); } }, 3000);
-            return;
-        }
-
         await deleteCardFromCatalog(currentEditingId);
         allCards = allCards.filter(c => c.id !== currentEditingId);
         showToast('Card deleted.', 'success');
@@ -469,15 +466,12 @@
 
     window.launchTestMatch = async () => {
         const card = buildCardState();
-        const btn = document.getElementById('test-card-btn');
-        const orig = btn.innerText;
-        btn.innerText = '...';
-        btn.disabled = true;
+        const topbar = document.getElementById('studio-topbar');
+        if (topbar && topbar.setLoading) topbar.setLoading('test', true);
 
         await launchSandboxMatch(card, 'card');
         
-        btn.innerText = orig;
-        btn.disabled = false;
+        if (topbar && topbar.setLoading) topbar.setLoading('test', false);
     };
 
     function renderCatalog() {
@@ -505,6 +499,7 @@
         if (!card) return;
 
         currentEditingId = card.id;
+        window.location.hash = id;
         document.getElementById('form-title').innerText = `⚡ Edit: ${card.name}`;
         document.getElementById('card-name').value = card.name;
         document.getElementById('card-tribe').value = card.tribe || 'Generic';
@@ -519,9 +514,7 @@
         
         currentAbilities = (card.abilities || []).map(a => a.abilityId || a);
         
-        document.getElementById('clone-card-btn').classList.remove('hidden');
-        document.getElementById('test-card-btn').classList.remove('hidden');
-        document.getElementById('delete-card-btn').classList.remove('hidden');
+        document.getElementById('studio-topbar').showButtons(true);
         
         toggleStatFields();
         renderAssignedAbilities();
