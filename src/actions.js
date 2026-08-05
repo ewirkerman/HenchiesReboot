@@ -21,7 +21,10 @@ export const ACTION_MANIFEST = {
     'BLOCK_ATTACK': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'BLOCK_RETALIATE': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'CANCEL_EVENT': { passiveType: null, canInvert: false, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
+    'CLEANSE': { passiveType: 'BE_CLEANSED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CHANGE_DESTINATION': { passiveType: null, canInvert: false, canBeCost: false, requiresZone: true, validZones: 'ALL', validDurations: ['INSTANT'] },
+    'GRANT_ABILITY': { passiveType: 'BE_GRANTED_ABILITY', canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'REMOVE_ABILITY': { passiveType: null, canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -221,23 +224,18 @@ export function revertEffect(engine, target, effect) {
 export function sweepTurnEffects(engine, endingPlayerId) {
     for (const pId of ['player1', 'player2']) {
         const p = engine.state.players[pId];
-        const sweepList = (entity) => {
-            if (!entity || !entity.activeEffects) return;
-            for (let i = entity.activeEffects.length - 1; i >= 0; i--) {
-                const eff = entity.activeEffects[i];
-                if (eff.expiresAt === endingPlayerId) {
-                    revertEffect(engine, entity, eff);
-                    entity.activeEffects.splice(i, 1);
-                }
-            }
-        };
         for (const line in p.lines) {
             if (p.lines[line]) {
                 [...p.lines[line]].forEach(u => {
-                    sweepList(u);
+                    new CleanseAction({ target: u, endingPlayerId }).run(engine);
                 });
             }
         }
+    }
+    if (engine.state.equator) {
+        engine.state.equator.forEach(u => {
+            new CleanseAction({ target: u, endingPlayerId }).run(engine);
+        });
     }
 }
 
@@ -368,6 +366,20 @@ export class GrantAbilityAction extends Action {
             if (!this.payload.target.abilities) this.payload.target.abilities = [];
             this.payload.target.abilities.push(JSON.parse(JSON.stringify(fullAb)));
             registerEffect(engine, this.payload.target, this.payload);
+        }
+    }
+}
+
+export class RemoveAbilityAction extends Action {
+    execute(engine) {
+        if (this.payload.target && this.payload.grantedAbilityId) {
+            const targetId = this.payload.grantedAbilityId;
+            if (this.payload.target.abilities) {
+                this.payload.target.abilities = this.payload.target.abilities.filter(a => a.abilityId !== targetId && a.name !== targetId);
+            }
+            if (this.payload.target.activeEffects) {
+                this.payload.target.activeEffects = this.payload.target.activeEffects.filter(e => !(e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === targetId || e.traitId === targetId)));
+            }
         }
     }
 }
@@ -664,6 +676,37 @@ export class CancelEventAction extends Action {
     }
 }
 
+export class CleanseAction extends Action {
+    execute(engine) {
+        const { target, endingPlayerId } = this.payload;
+        if (!target || !target.activeEffects) return;
+
+        let cleansedCount = 0;
+        for (let i = target.activeEffects.length - 1; i >= 0; i--) {
+            const eff = target.activeEffects[i];
+            let shouldRemove = false;
+
+            if (endingPlayerId) {
+                // Natural turn-based sweep
+                if (eff.expiresAt === endingPlayerId) shouldRemove = true;
+            } else {
+                // Manual dispel (from a card ability) clears transient buffs
+                if (['TEMPORARY', 'BRIEF'].includes(eff.duration)) shouldRemove = true;
+            }
+
+            if (shouldRemove) {
+                revertEffect(engine, target, eff);
+                target.activeEffects.splice(i, 1);
+                cleansedCount++;
+            }
+        }
+        
+        if (cleansedCount > 0 && !endingPlayerId) {
+            engine.state.history_log.push(`✨ '${target.name || 'Target'}' was cleansed of temporary effects.`);
+        }
+    }
+}
+
 export class ChangeDestinationAction extends Action {
     execute(engine) {
         if (this.payload.eventContext && this.payload.eventContext.destination !== undefined) {
@@ -689,6 +732,7 @@ export const ACTION_REGISTRY = {
     'DEAL_DAMAGE': DealDamageAction,
     'HEAL': HealAction,
     'GRANT_ABILITY': GrantAbilityAction,
+    'REMOVE_ABILITY': RemoveAbilityAction,
     'MODIFY_STAT': ModifyStatAction,
     'MODIFY_RESOURCE': ModifyResourceAction,
     'SET_STAT': SetStatAction,
@@ -701,6 +745,7 @@ export const ACTION_REGISTRY = {
     'BLOCK_ATTACK': BlockAttackAction,
     'BLOCK_RETALIATE': BlockRetaliateAction,
     'CANCEL_EVENT': CancelEventAction,
+    'CLEANSE': CleanseAction,
     'CHANGE_DESTINATION': ChangeDestinationAction,
     'CUSTOM_SCRIPT': CustomScriptAction,
     'DISCARD': DiscardAction,
@@ -722,7 +767,7 @@ export const ACTION_CATEGORIES = {
     'Combat & Stats': ['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACK', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE'],
     'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'TRASH', 'BANISH', 'FIELD', 'UNFIELD', 'CHANGE_DESTINATION'],
     'Attachments & Control': ['ATTACH', 'ATTACH_TO', 'UNATTACH', 'REBEL'],
-    'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'CANCEL_EVENT', 'GRANT_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST']
+    'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'CANCEL_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST']
 };
 
 export const EFFECT_TYPES = Object.keys(ACTION_MANIFEST);

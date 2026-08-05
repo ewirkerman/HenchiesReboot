@@ -385,6 +385,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     case 'KILL': effText = `kill {TARGET}`; break;
                     case 'ATTACK': effText = `attack {TARGET}`; break;
                     case 'CANCEL_EVENT': effText = `cancel the triggering event`; break;
+                    case 'CLEANSE': effText = `cleanse temporary effects from {TARGET}`; break;
                     case 'CHANGE_DESTINATION': effText = `change destination to ${eff.zone || 'DECK'}`; break;
                     case 'CUSTOM_SCRIPT': effText = `execute custom script on {TARGET}`; break;
                     case 'GRANT_ABILITY':
@@ -397,6 +398,17 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                              if(grantedAb) abilityName = grantedAb.name;
                         }
                         effText = `grant ability '${abilityName}' to {TARGET}`;
+                        break;
+                    case 'REMOVE_ABILITY':
+                        let rmAbilityName = eff.grantedAbilityId;
+                        if (allAbilities && Array.isArray(allAbilities)) {
+                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
+                            if (match) rmAbilityName = match.name;
+                        } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
+                             const grantedAb = getAbility(eff.grantedAbilityId);
+                             if(grantedAb) rmAbilityName = grantedAb.name;
+                        }
+                        effText = `remove ability '${rmAbilityName}' from {TARGET}`;
                         break;
                     case 'SUMMON':
                         let cardName = eff.cardId;
