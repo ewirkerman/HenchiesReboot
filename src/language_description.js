@@ -160,10 +160,10 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'TURN_STARTING': 'At the start of the turn',
         'TURN_STARTED': 'After the turn starts',
         'PLAY': 'When played',
-        'PLAY_OPTIONAL': 'When played',
-        'ON_PLAY': 'When it plays a card',
-        'ON_BE_PLAYED': 'When played',
-        'WOULD_PLAY': 'When it would play a card',
+        'PLAY_OPTIONAL': 'When played (Optional)',
+        'SUMMON': 'When summoned',
+        'KILL': 'When it kills an enemy',
+        'UNFIELD': 'When unfielded',
         'WOULD_BE_PLAYED': 'When it would be played',
         'ON_SUMMON': 'When it summons',
         'ON_BE_SUMMONED': 'When summoned',
@@ -245,37 +245,15 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         }
     }
     
-    // 1b. Symbol String Prefix Cost Block
     const cost = ability.cost || {};
-    let costSymbols = [];
-
-    if (cost.tribeAmount && cost.tribeAmount > 0) {
-        costSymbols.push(`{Resource ${cost.tribeAmount}}`);
-    }
-    if ((cost.carnie || cost.tent) > 0) {
-        costSymbols.push(`{Carnie ${(cost.carnie || cost.tent)}}`);
-    }
-    if (cost.power && cost.power > 0) {
-        costSymbols.push(`{Power ${cost.power}}`);
-    }
-    if (cost.readinessCost === 'UNREADIES') {
-        costSymbols.push(`{Unready}`);
-    } else if (cost.readinessCost === 'EXHAUSTS') {
-        costSymbols.push(`{Exhaust}`);
-    }
-
-    let symbolPrefix = costSymbols.join(' ');
     
     if (trigger === 'UNTRIGGERABLE') {
         descriptionParts.push(triggerText);
     } else {
         let triggerAndCostStr = "";
         
-        if (symbolPrefix) {
-             triggerAndCostStr += symbolPrefix + " ";
-             if (cost.reuseIgnoresReadiness && cost.readinessCost !== 'NONE') {
-                  triggerAndCostStr += `(Subsequent uses this round ignore readiness cost) `;
-             }
+        if (cost.reuseIgnoresReadiness && cost.readinessCost !== 'NONE') {
+             triggerAndCostStr += `(Subsequent uses this round ignore readiness cost) `;
         }
         
         if (triggerText) {
@@ -343,9 +321,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                 let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural);
                 
                 if (group.targetMethod === 'AUTO_ALL') targetStr = `all ${baseDesc}`;
-                else if (group.targetMethod === 'AUTO_RANDOM') targetStr = `${group.targetCount || 1} random ${baseDesc}`;
-                else if (group.targetMethod === 'AUTO_FIRST') targetStr = `the first ${group.targetCount || 1} ${baseDesc}`;
-                else if (group.targetMethod === 'AUTO_LAST') targetStr = `the last ${group.targetCount || 1} ${baseDesc}`;
+                else if (group.targetMethod === 'AUTO_RANDOM') targetStr = group.targetCount === 1 ? `a random ${baseDesc}` : `${group.targetCount || 1} random ${baseDesc}`;
+                else if (group.targetMethod === 'AUTO_FIRST') targetStr = group.targetCount === 1 ? `the first ${baseDesc}` : `the first ${group.targetCount || 1} ${baseDesc}`;
+                else if (group.targetMethod === 'AUTO_LAST') targetStr = group.targetCount === 1 ? `the last ${baseDesc}` : `the last ${group.targetCount || 1} ${baseDesc}`;
                 
                 if (targetStr.endsWith('s')) possessiveStr = `${targetStr}'`;
                 else possessiveStr = `${targetStr}'s`;
@@ -356,15 +334,32 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                 
                 switch(eff.type) {
                     case 'DEAL_DAMAGE': effText = `deal ${eff.amount || 1} damage to {TARGET}`; break;
-                    case 'HEAL': effText = `heal {TARGET} for ${eff.amount || 1}`; break;
-                    case 'DRAW_CARD': effText = `draw ${eff.amount || 1} card(s) for {TARGET}`; break;
-                    case 'DISCARD': effText = `discard ${eff.amount || 1} card(s) from {POSS} hand`; break;
-                    case 'TRASH': effText = `trash ${eff.amount || 1} card(s) from {POSS} hand or deck`; break;
+                    case 'HEAL': effText = `heal ${eff.amount || 1} health on {TARGET}`; break;
+                    case 'DRAW_CARD': 
+                        let isNormalDraw = group.targetMethod === 'AUTO_FIRST' && (!group.quickTargeting || !group.quickTargeting.alignment || group.quickTargeting.alignment.length === 0 || (group.quickTargeting.alignment.length === 1 && group.quickTargeting.alignment[0] === 'FRIENDLY'));
+                        if (isNormalDraw) {
+                            let drawAmt = group.targetCount || eff.amount || 1;
+                            effText = `draw ${drawAmt === 1 ? 'a card' : drawAmt + ' cards'}{OMIT_TARGET}`;
+                        } else {
+                            effText = `draw {TARGET}`;
+                        }
+                        break;
+                    case 'DISCARD':
+                    case 'DISCARD_CARD':
+                        effText = `discard {TARGET}`; 
+                        break;
+                    case 'TRASH':
+                        effText = `trash {TARGET}`; 
+                        break;
                     case 'RECOVER': effText = `recover {TARGET}`; break;
                     case 'MODIFY_STAT': 
                         let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        if (eff.amount < 0) effText = `decrease {POSS} ${modStat} by ${Math.abs(eff.amount)}`;
-                        else effText = `increase {POSS} ${modStat} by ${eff.amount || 1}`;
+                        if (eff.amount < 0) {
+                            effText = `decrease {POSS} ${modStat} by ${Math.abs(eff.amount)}`;
+                        } else {
+                            effText = `increase {POSS} ${modStat} by ${eff.amount || 1}`;
+                            if (eff.maxStacks > 0) effText += ` (max ${eff.maxStacks})`;
+                        }
                         break;
                     case 'SET_STAT': 
                         let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
@@ -375,32 +370,44 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     case 'SHUFFLE': effText = `shuffle {TARGET} into deck`; break;
                     case 'RETURN': effText = `return {TARGET} to hand`; break;
                     case 'ATTACH': 
-                        if (eff.invertRoles) effText = `attach {TARGET} to self`;
-                        else effText = `attach self to {TARGET}`;
+                    case 'ATTACH_TO': 
+                        if (eff.invertRoles) effText = `attach to {TARGET}`;
+                        else effText = `attach {TARGET} to self`;
                         break;
-                    case 'REBEL': effText = `take control of {TARGET}`; break;
                     case 'UNATTACH': effText = `unattach {TARGET}`; break;
                     case 'FIELD': effText = `field {TARGET} (play for free)`; break;
                     case 'BANISH': effText = `banish {TARGET}`; break;
                     case 'KILL': effText = `kill {TARGET}`; break;
                     case 'ATTACK': effText = `attack {TARGET}`; break;
                     case 'CANCEL_EVENT': effText = `cancel the triggering event`; break;
+                    case 'CLEANSE': effText = `cleanse temporary effects from {TARGET}`; break;
                     case 'CHANGE_DESTINATION': effText = `change destination to ${eff.zone || 'DECK'}`; break;
                     case 'CUSTOM_SCRIPT': effText = `execute custom script on {TARGET}`; break;
-                    case 'GRANT_ABILITY':
-                        let abilityName = eff.grantedAbilityId;
-                        if (allAbilities && Array.isArray(allAbilities)) {
-                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
-                            if (match) abilityName = match.name;
-                        } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
-                             const grantedAb = getAbility(eff.grantedAbilityId);
-                             if(grantedAb) abilityName = grantedAb.name;
-                        }
-                        effText = `grant ability '${abilityName}' to {TARGET}`;
-                        break;
-                    case 'SUMMON':
-                        let cardName = eff.cardId;
-                        if (allCards && Array.isArray(allCards)) {
+                case 'GRANT_ABILITY':
+                    let abilityName = eff.grantedAbilityId;
+                    if (allAbilities && Array.isArray(allAbilities)) {
+                        const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId || a.id === eff.grantedAbilityId);
+                        if (match) abilityName = match.name;
+                    } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
+                         const grantedAb = getAbility(eff.grantedAbilityId);
+                         if(grantedAb) abilityName = grantedAb.name;
+                    }
+                    effText = `grant ability '${abilityName}' to {TARGET}`;
+                    break;
+                case 'REMOVE_ABILITY':
+                    let rmAbilityName = eff.grantedAbilityId;
+                    if (allAbilities && Array.isArray(allAbilities)) {
+                        const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId || a.id === eff.grantedAbilityId);
+                        if (match) rmAbilityName = match.name;
+                    } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
+                         const grantedAb = getAbility(eff.grantedAbilityId);
+                         if(grantedAb) rmAbilityName = grantedAb.name;
+                    }
+                    effText = `remove ability '${rmAbilityName}' from {TARGET}`;
+                    break;
+                case 'SUMMON':
+                    let cardName = eff.cardId;
+                    if (allCards && Array.isArray(allCards)) {
                             const match = allCards.find(c => c.id === eff.cardId);
                             if (match) cardName = match.name;
                         } else if (typeof window !== 'undefined' && typeof getCard === 'function') {
@@ -424,7 +431,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         if (eff.nestedGroup && eff.nestedGroup.payloads && eff.nestedGroup.payloads.length > 0) {
                             let nestedPayloadsText = eff.nestedGroup.payloads.map(np => {
                                 let npText = formatPayload(np);
-                                npText = npText.replace(/\{TARGET\}/g, 'them').replace(/\{POSS\}/g, 'their');
+                                npText = npText.replace(/\{TARGET\}/g, 'them').replace(/\{POSS\}/g, 'their').replace(/\{OMIT_TARGET\}/g, '');
                                 return npText;
                             });
                             let combinedNested = joinWithAnd(nestedPayloadsText);
@@ -441,10 +448,11 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         }
                         break;
                     default:
-                        effText = `perform ${eff.type} on {TARGET}`;
+                        let readableType = eff.type.toLowerCase().replace(/_/g, ' ');
+                        effText = `${readableType} {TARGET}`;
                 }
 
-                if (eff.invertRoles && eff.type !== 'ATTACH') {
+                if (eff.invertRoles && eff.type !== 'ATTACH' && eff.type !== 'ATTACH_TO') {
                     effText = `force {TARGET} to ${effText}`;
                 }
 
@@ -475,6 +483,11 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         p = mentioned ? (isPlural ? 'their' : 'its') : possessiveStr;
                     }
 
+                    if (str.includes('{OMIT_TARGET}')) {
+                        mentioned = true;
+                        str = str.replace('{OMIT_TARGET}', '');
+                    }
+
                     if (str.includes('{TARGET}') || str.includes('{POSS}')) {
                         mentioned = true;
                     }
@@ -501,7 +514,6 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
         if (allCostSentences.length > 0 && allEffectSentences.length > 0) {
              let combinedCosts = allCostSentences.join(' and ');
-             combinedCosts = combinedCosts.charAt(0).toUpperCase() + combinedCosts.slice(1);
              let combinedEffects = allEffectSentences.join(' and ');
              descriptionParts.push(`${combinedCosts} to ${combinedEffects}.`);
         } else if (allCostSentences.length > 0) {

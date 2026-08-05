@@ -48,6 +48,7 @@
             <div class="flex gap-2">
               <button id="save-card-btn-top" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider whitespace-nowrap">💾 Save</button>
               <button id="clone-card-btn" class="hidden bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-cyan-500/30 whitespace-nowrap">👯 Clone</button>
+              <button id="test-card-btn" class="hidden bg-purple-600/80 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-purple-500/30 whitespace-nowrap">🧪 Test</button>
               <button id="delete-card-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap">🗑️ Delete</button>
             </div>
           </div>
@@ -145,8 +146,9 @@
   <script type="module">
     import { CARD_CATALOG } from './src/engine.js';
     import { renderCardHTML, showToast, openInspectionModal, renderJSONPreview } from './src/ui.js';
-    import { fetchCustomAbilities, fetchCustomCards, saveCardToCatalog, deleteCardFromCatalog } from './src/firebase.js';
+    import { fetchCustomAbilities, fetchCustomCards, saveCardToCatalog, deleteCardFromCatalog, createGameRoom } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
+    import { launchSandboxMatch } from './src/testing.js';
     import './src/catalog_component.js'; // Import custom element
 
     let allCards = [];
@@ -159,10 +161,12 @@
 
     async function init() {
       // 1. Fetch dependencies
-      const rawAbilities = await fetchCustomAbilities();
-      allAbilities = rawAbilities.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab) }));
-      
       const customCards = await fetchCustomCards();
+      const rawAbilities = await fetchCustomAbilities();
+      
+      const tempCards = [...CARD_CATALOG, ...customCards];
+      allAbilities = rawAbilities.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab, rawAbilities, tempCards) }));
+      
       const hydratedCustomCards = customCards.map(c => {
           if (c.abilities) {
               c.abilities = c.abilities.map(ab => {
@@ -214,10 +218,18 @@
       document.getElementById('save-card-btn').addEventListener('click', saveCard);
       document.getElementById('save-card-btn-top').addEventListener('click', saveCard);
       document.getElementById('clone-card-btn').addEventListener('click', cloneCard);
+      document.getElementById('test-card-btn').addEventListener('click', window.launchTestMatch);
       document.getElementById('delete-card-btn').addEventListener('click', deleteCard);
 
       renderCatalog();
       resetForm();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const hashId = window.location.hash.replace('#', '');
+      const loadId = urlParams.get('id') || hashId;
+      if (loadId) {
+          setTimeout(() => window.loadCard(loadId), 50);
+      }
     }
 
     function toggleStatFields() {
@@ -273,7 +285,7 @@
                         <span class="text-[9px] bg-indigo-900 text-indigo-200 px-1 py-0.5 rounded ml-1">${ab.trigger || 'MANUAL'}</span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <a href="ability_editor.html?id=${ab.abilityId}" target="_blank" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-indigo-400 hover:text-indigo-200 transition p-1">
+                        <a href="ability_editor.html#${ab.abilityId}" target="_blank" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-indigo-400 hover:text-indigo-200 transition p-1">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
                         </a>
                         <button onclick="window.removeAbility(${index})" class="text-red-400 hover:text-red-300 font-black px-1.5">&times;</button>
@@ -332,6 +344,7 @@
         currentAbilities = [];
         
         document.getElementById('clone-card-btn').classList.add('hidden');
+        document.getElementById('test-card-btn').classList.add('hidden');
         document.getElementById('delete-card-btn').classList.add('hidden');
         
         toggleStatFields();
@@ -409,6 +422,7 @@
         
         document.getElementById('form-title').innerText = `⚡ Edit: ${card.name}`;
         document.getElementById('clone-card-btn').classList.remove('hidden');
+        document.getElementById('test-card-btn').classList.remove('hidden');
         document.getElementById('delete-card-btn').classList.remove('hidden');
 
         btn.innerHTML = origText;
@@ -428,6 +442,7 @@
         document.getElementById('form-title').innerText = `⚡ Design New Card (Cloned)`;
         document.getElementById('card-name').value += ' (Copy)';
         document.getElementById('clone-card-btn').classList.add('hidden');
+        document.getElementById('test-card-btn').classList.add('hidden');
         document.getElementById('delete-card-btn').classList.add('hidden');
         updatePreview();
         showToast('Card cloned! Save to keep it.', 'info');
@@ -451,6 +466,19 @@
         resetForm();
         renderCatalog();
     }
+
+    window.launchTestMatch = async () => {
+        const card = buildCardState();
+        const btn = document.getElementById('test-card-btn');
+        const orig = btn.innerText;
+        btn.innerText = '...';
+        btn.disabled = true;
+
+        await launchSandboxMatch(card, 'card');
+        
+        btn.innerText = orig;
+        btn.disabled = false;
+    };
 
     function renderCatalog() {
         const catalogEl = document.getElementById('card-catalog');
@@ -492,6 +520,7 @@
         currentAbilities = (card.abilities || []).map(a => a.abilityId || a);
         
         document.getElementById('clone-card-btn').classList.remove('hidden');
+        document.getElementById('test-card-btn').classList.remove('hidden');
         document.getElementById('delete-card-btn').classList.remove('hidden');
         
         toggleStatFields();

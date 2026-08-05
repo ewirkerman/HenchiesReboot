@@ -92,12 +92,16 @@ export function renderCardHTML(card, options = {}) {
   const style = TRIBE_STYLES[card.tribe] || TRIBE_STYLES.Mythic;
   const isUnit = card.type === 'unit' || card.type === 'avatar';
   const isAvatar = card.type === 'avatar';
+  const isToken = !!card.isToken;
   const activeLine = card.line || card.defaultLine || (isAvatar ? 'avatar' : 'mid');
   const isTempLine = card.line && card.defaultLine && card.line !== card.defaultLine;
 
   const isFieldUnready = !isHand && isUnit && readiness !== null && readiness === 0;
   const isFieldExhausted = !isHand && isUnit && readiness !== null && readiness < 0;
   const fieldDimmingClass = (isFieldUnready || isFieldExhausted) ? 'saturate-[0.25] opacity-90' : '';
+
+  const tokenBorderClass = isToken ? 'border border-white/50 shadow-[0_0_12px_rgba(255,255,255,0.25)]' : 'border border-black shadow-md';
+  const separatorClass = isToken ? 'border-white/40' : 'border-black';
 
   const unreadySvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M9 3v8.29a3.71 3.71 0 0 0 3.71 3.71h8.29"/><path d="m16 10 5 5-5 5"/></svg>`;
   const exhaustedSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>`;
@@ -147,9 +151,9 @@ export function renderCardHTML(card, options = {}) {
   if (card.abilities && card.abilities.length > 0) {
       abilitiesHTML = card.abilities.map(ab => `
           <div class="text-[9px] text-slate-200 font-bold leading-tight truncate w-full text-center">
-            <span>⚡ ${ab.name || 'Unknown'}</span>${formatAbilityCostBadge(ab.cost, card.tribe)}
-          </div>
-      `).join('');
+        <span>⚡ ${ab.name || 'Unknown'}</span>${formatAbilityCostBadge(ab.cost, card.tribe)}
+      </div>
+  `).join('');
   }
 
   return `
@@ -157,9 +161,9 @@ export function renderCardHTML(card, options = {}) {
       onclick="${onClick}"
       ${rightClickAttr}
       title="Right-click or tap 🔍 to inspect"
-      class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md ${style.bg} border border-black ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 shadow-md flex flex-col justify-between select-none overflow-hidden"
+      class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md ${style.bg} ${tokenBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden"
     >
-      <div class="relative w-full h-[52%] overflow-hidden bg-slate-900 border-b border-black">
+      <div class="relative w-full h-[52%] overflow-hidden bg-slate-900 border-b ${separatorClass}">
         ${card.artUrl ? `<img src="${card.artUrl}" alt="${card.name}" class="w-full h-full object-cover ${fieldDimmingClass}" />` : `
           <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold ${fieldDimmingClass}">
             ${card.type === 'unit' ? '⚔️' : card.type === 'avatar' ? '👑' : card.type === 'boon' ? '✨' : card.type === 'buff' ? '🛡️' : '📜'}
@@ -172,13 +176,14 @@ export function renderCardHTML(card, options = {}) {
         </div>
       </div>
 
-      <div class="w-full h-[48%] ${style.lightBg} p-1 flex flex-col justify-between ${fieldDimmingClass}">
-        <div class="flex-1 flex flex-col gap-0 overflow-hidden justify-start items-center pt-0.5">
+      <div class="w-full h-[48%] ${style.lightBg} p-1 flex flex-col justify-between ${fieldDimmingClass} relative">
+        ${isToken ? '<div class="absolute inset-0 bg-white/5 pointer-events-none"></div>' : ''}
+        <div class="flex-1 flex flex-col gap-0 overflow-hidden justify-start items-center pt-0.5 relative z-10">
             ${abilitiesHTML}
         </div>
 
         ${isUnit ? `
-          <div class="flex justify-between items-end w-full pt-1 px-1 pb-0.5 shrink-0">
+          <div class="flex justify-between items-end w-full pt-1 px-1 pb-0.5 shrink-0 relative z-10">
             ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `
               <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${card.strength}</div>
             ` : '<div></div>'}
@@ -290,9 +295,13 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
 
   const isUnit = cardOrUnit.type === 'unit' || cardOrUnit.type === 'avatar' || cardOrUnit.currentHealth !== undefined;
   const isAvatar = cardOrUnit.type === 'avatar';
+  const isToken = !!cardOrUnit.isToken;
   const style = TRIBE_STYLES[cardOrUnit.tribe] || TRIBE_STYLES.Mythic;
   const activeLine = cardOrUnit.line || cardOrUnit.defaultLine || (isAvatar ? 'avatar' : 'mid');
   const isTempLine = cardOrUnit.line && cardOrUnit.defaultLine && cardOrUnit.line !== cardOrUnit.defaultLine;
+  
+  const inspectBorderClass = isToken ? 'border-white/50 shadow-[0_0_24px_rgba(255,255,255,0.25)]' : style.border;
+  const separatorClass = isToken ? 'border-white/40' : 'border-black';
   
   // Extract Glossary
   const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry);
@@ -311,10 +320,10 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
 
       <!-- CENTER: The Giant 5x7 Card Layout -->
       <div class="flex items-center justify-center pointer-events-auto">
-        <div class="relative h-[75vh] min-h-[450px] max-h-[750px] aspect-[5/7] rounded-2xl overflow-hidden border-4 ${style.border} shadow-2xl flex flex-col shrink-0 ${style.bg} transition-transform duration-300">
+        <div class="relative h-[75vh] min-h-[450px] max-h-[750px] aspect-[5/7] rounded-2xl overflow-hidden border-4 ${inspectBorderClass} shadow-2xl flex flex-col shrink-0 ${style.bg} transition-transform duration-300">
           
           <!-- Top Half: Art & Cost (50%) -->
-          <div class="relative w-full h-[50%] bg-slate-900 border-b-2 border-black shrink-0 overflow-hidden">
+          <div class="relative w-full h-[50%] bg-slate-900 border-b-2 ${separatorClass} shrink-0 overflow-hidden">
             ${cardOrUnit.artUrl ? `<img src="${cardOrUnit.artUrl}" alt="${cardOrUnit.name}" class="w-full h-full object-cover" />` : `
               <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-6xl font-bold">
                 ${cardOrUnit.type === 'unit' ? '⚔️' : cardOrUnit.type === 'avatar' ? '👑' : cardOrUnit.type === 'boon' ? '✨' : cardOrUnit.type === 'buff' ? '🛡️' : '📜'}
@@ -357,16 +366,17 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
 
           <!-- Bottom Half: Details & Abilities (50%) -->
           <div class="w-full h-[50%] ${style.lightBg} p-2 sm:p-3 flex flex-col relative overflow-hidden">
+            ${isToken ? '<div class="absolute inset-0 bg-white/5 pointer-events-none"></div>' : ''}
             
             <!-- Type Band -->
-            <div class="flex justify-center pb-1 shrink-0 mb-1 z-10 pointer-events-none">
+            <div class="flex justify-center pb-1 shrink-0 mb-1 z-10 pointer-events-none relative">
               <div class="text-[10px] font-bold text-slate-200 capitalize tracking-wider bg-black/40 px-3 py-0.5 rounded-full shadow-inner">
                 ${cardOrUnit.tribe} • ${cardOrUnit.type} ${cardOrUnit.genus ? `• ${cardOrUnit.genus}` : ''}
               </div>
             </div>
 
             <!-- Scrollable Traits & Abilities Box -->
-            <div class="flex-1 flex flex-col gap-1.5 overflow-y-auto pb-16 minimal-scrollbar pr-1 pointer-events-auto">
+            <div class="flex-1 flex flex-col gap-1.5 overflow-y-auto pb-16 minimal-scrollbar pr-1 pointer-events-auto relative z-10">
 
               <!-- Traits -->
               ${cardOrUnit.traits && cardOrUnit.traits.length > 0 ? `

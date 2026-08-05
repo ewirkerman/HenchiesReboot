@@ -64,13 +64,6 @@ const OPERATORS = {
 
 // --- CORE INITIALIZATION ---
 export async function initializeModule() {
-    const rawAbilities = await fetchCustomAbilities();
-    
-    state.allAbilities = rawAbilities.map(ab => ({
-        ...ab,
-        displayDescription: generateAbilityDescription(ab)
-    }));
-      
     const customCards = await fetchCustomCards();
     if (customCards && customCards.length > 0) {
         const merged = [...CARD_CATALOG, ...customCards];
@@ -78,7 +71,14 @@ export async function initializeModule() {
     } else {
         state.allCards = [...CARD_CATALOG];
     }
+
+    const rawAbilities = await fetchCustomAbilities();
     
+    state.allAbilities = rawAbilities.map(ab => ({
+        ...ab,
+        displayDescription: generateAbilityDescription(ab, rawAbilities, state.allCards)
+    }));
+      
     return state;
 }
 
@@ -171,12 +171,12 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
         const type = value;
         // Centralized logic for sanitizing parameterized effects based on type
         if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource;
+            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource; delete payload.maxStacks;
         } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
-            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource;
+            payload.amount = 1; payload.stat = 'strength'; payload.maxStacks = 0; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource;
         } else if (type === 'MODIFY_RESOURCE') { 
-            payload.amount = 1; payload.resource = 'Carnie'; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
-        } else if (type === 'GRANT_ABILITY') { 
+            payload.amount = 1; payload.resource = 'Carnie'; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.maxStacks;
+        } else if (type === 'GRANT_ABILITY' || type === 'REMOVE_ABILITY') { 
             payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
         } else if (type === 'SUMMON') { 
             payload.cardId = ''; payload.amount = 1; payload.zone = 'FIELD'; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.stat; delete payload.resource;
@@ -192,7 +192,7 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
             payload.zone = 'DECK'; delete payload.amount; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.resource; delete payload.zoneOwner;
         } else if (type === 'CUSTOM_SCRIPT') { 
             payload.script = 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
-        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST', 'CANCEL_EVENT', 'REBEL'].includes(type)) { 
+        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST', 'CANCEL_EVENT', 'REBEL', 'CLEANSE'].includes(type)) { 
             delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
         }
     }
@@ -242,7 +242,7 @@ export async function saveAbility(formData) {
     
     const processedAbility = {
         ...ability,
-        displayDescription: generateAbilityDescription(ability)
+        displayDescription: generateAbilityDescription(ability, state.allAbilities, state.allCards)
     };
     
     state.allAbilities = [...state.allAbilities.filter(a => a.abilityId !== ability.abilityId), processedAbility];

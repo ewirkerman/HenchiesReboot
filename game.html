@@ -319,14 +319,32 @@
     if (savedName) document.getElementById('setup-username').value = savedName;
 
     // Check for room in URL on page load to auto-rejoin match
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlRoom = urlParams.get('room');
+    const hashData = window.location.hash.replace('#', '');
+    const isTestMode = hashData.startsWith('test_');
+    const urlRoom = isTestMode ? hashData.replace('test_', '') : hashData;
     
-    if (urlRoom) {
-      console.log("[INIT] Room found in URL. Pre-filling lobby code:", urlRoom);
-      document.getElementById('setup-room-code').value = urlRoom;
+    if (isTestMode && urlRoom) {
+      console.log("[INIT] Sandbox Test mode detected. Bypassing lobby.");
+      roomCode = urlRoom;
+      localPlayerRole = 'player1';
+      document.getElementById('header-room-badge').innerText = `Sandbox: ${roomCode}`;
+      document.getElementById('match-setup-screen').classList.add('hidden');
+      document.getElementById('match-tabletop-screen').classList.remove('hidden');
+      
+      Promise.all([fetchCustomCards(), fetchCustomAbilities()]).then(([cards, abs]) => {
+          allCardsRegistry = [...CARD_CATALOG, ...cards];
+          allAbilitiesRegistry = abs.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab, abs) }));
+          subscribeToGameRoom(roomCode, (data) => {
+              if (data && data.turn_start_state) reconstructStateFromLog(data);
+          });
+      });
     } else {
-      document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      if (urlRoom) {
+        console.log("[INIT] Room found in URL. Pre-filling lobby code:", urlRoom);
+        document.getElementById('setup-room-code').value = urlRoom;
+      } else {
+        document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      }
     }
 
     document.getElementById('setup-username').addEventListener('input', updateDeckDropdown);
@@ -421,9 +439,7 @@
       localStorage.setItem('henchies_last_username', username);
       localStorage.setItem('henchies_last_deck', document.getElementById('setup-deck-select').value);
 
-      const newUrl = new URL(window.location);
-      newUrl.searchParams.set('room', roomCode);
-      window.history.pushState({}, '', newUrl);
+      window.location.hash = roomCode;
 
       const deckOption = document.getElementById('setup-deck-select').value;
       if (!deckOption) {
@@ -439,11 +455,11 @@
       }
 
       try {
-        const rawAbs = await fetchCustomAbilities();
-        allAbilitiesRegistry = rawAbs.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab, rawAbs) }));
-        
         const rawCards = await fetchCustomCards();
         allCardsRegistry = [...CARD_CATALOG, ...rawCards];
+
+        const rawAbs = await fetchCustomAbilities();
+        allAbilitiesRegistry = rawAbs.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab, rawAbs, allCardsRegistry) }));
 
         const combinedCatalog = allCardsRegistry;
 
@@ -849,7 +865,7 @@
         if (!isMyTurn() || clickedPrefix !== 'player') return;
       };
 
-      window.handleEntityClick = (prefix, line, entityId) => {
+      window.handleEntityClick = async (prefix, line, entityId) => {
         if (event) event.stopPropagation();
         if (!isMyTurn()) return;
 
@@ -875,15 +891,32 @@
                     if (playRes.success) {
                         // We ONLY trigger ability execution here if it's a MANUAL/ACTIVE ability.
                         // Play triggers are handled by the engine inherently during PlayAction via the tunneled abilityTargetId!
+                        let secondPayload = null;
                         if (theAb) {
                             const autoTriggers = ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'];
                             if (!autoTriggers.includes(theAb.trigger)) {
                                 executeEntityAction(currentGameState, localPlayerRole, pendingAbility.entityId, 'ABILITY', pendingAbility.abilityId, entityId, line);
+                                currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
+                                secondPayload = {
+                                    type: 'ENTITY_ACTION',
+                                    actionIndex: currentGameState.actionIndex,
+                                    playerId: localPlayerRole,
+                                    entityId: pendingAbility.entityId,
+                                    actionType: 'ABILITY',
+                                    abilityId: pendingAbility.abilityId,
+                                    targetId: entityId,
+                                    targetLine: line
+                                };
                             }
                         }
+                        
                         pendingAbility = null;
                         validTargets = [];
-                        pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+                        
+                        await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+                        if (secondPayload) {
+                            await pushActionToLog(roomCode, secondPayload, null, currentGameState.history_log);
+                        }
                         updateUI();
                     } else {
                         showToast(playRes.reason, 'error');
@@ -980,7 +1013,7 @@
         document.getElementById('unit-action-modal').classList.add('hidden');
       };
 
-      window.activateHandCardAbility = (cardId, abilityId) => {
+      window.activateHandCardAbility = async (cardId, abilityId) => {
         window.closeUnitActionModal();
         const player = currentGameState.players[localPlayerRole];
         const card = player.hand.find(c => c.instanceId === cardId || c.id === cardId);
@@ -996,7 +1029,12 @@
             return;
         }
 
-        window.executeNormalPlay(cardId);
+        await window.executeNormalPlay(cardId);
+        
+        const autoTriggers = ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'];
+        if (!autoTriggers.includes(ability.trigger)) {
+            await executeAndLogAbility(cardId, abilityId, null, 'back');
+        }
       };
 
       window.activateAbility = async (entityId, abilityId) => {
@@ -1134,7 +1172,7 @@
                         }
                         pendingAbility = null;
                         validTargets = [];
-                        pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
+                        await pushActionToLog(roomCode, actionPayload, null, currentGameState.history_log);
                         updateUI();
                     } else {
                         showToast(playRes.reason, 'error');
@@ -1173,7 +1211,7 @@
           }) : [];
 
           // Fast-track targeting if there's exactly 1 play ability and it requires a target
-          if (playAbilities.length === 1 && playAbilities[0].activation?.method === 'PLAYER_CHOICE') {
+          if (playAbilities.length === 1 && playAbilities[0].activation?.method === 'PLAYER_CHOICE' && playAbilities[0].trigger !== 'PLAY_OPTIONAL') {
               window.activateHandCardAbility(cardId, playAbilities[0].abilityId);
               return;
           }

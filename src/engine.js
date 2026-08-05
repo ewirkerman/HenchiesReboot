@@ -225,7 +225,9 @@ export class GameEngine {
     }
 
     executeAbility(ability, source, eventPayload, ownerId) {
+        const DEBUG_ABILITIES = true;
         try {
+            if (DEBUG_ABILITIES) console.log(`[DEBUG ENGINE] executeAbility START: '${ability.name}' on source '${source?.name}'`);
             // Log the execution
             this.state.history_log.push(`✨ ${source.name || 'Entity'} activated '${ability.name}'`);
             
@@ -291,6 +293,7 @@ export class GameEngine {
 
             // Phase 1: Target Acquisition (Lock in targets based on board state BEFORE costs/effects resolve)
             const lockedTargets = ability.effects.map((group, index) => {
+                if (DEBUG_ABILITIES) console.log(`[DEBUG ENGINE] Target Acquisition - Group ${index} Method: ${group?.targetMethod}`);
                 if (!group) {
                     console.warn(`[Engine] Ability '${ability.name}' (${ability.abilityId}) has a null target group at index ${index}.`);
                     return [];
@@ -311,10 +314,14 @@ export class GameEngine {
                 else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
                     // Check if a specific target ID was tunneled through the payload (e.g. from PlayAction targeted equip)
                     if (eventPayload && eventPayload.abilityTargetId) {
+                        const p1 = this.state.players.player1;
+                        const p2 = this.state.players.player2;
                         const allEntities = [
-                            ...Object.values(this.state.players.player1.lines).flat(),
-                            ...Object.values(this.state.players.player2.lines).flat(),
-                            ...(this.state.equator || [])
+                            ...Object.values(p1.lines).flat(),
+                            ...Object.values(p2.lines).flat(),
+                            ...(this.state.equator || []),
+                            ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
+                            ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
                         ].filter(Boolean);
                         const resolvedTarget = allEntities.find(e => e.id === eventPayload.abilityTargetId || e.instanceId === eventPayload.abilityTargetId);
                         
@@ -338,21 +345,24 @@ export class GameEngine {
                     
                     if (group.targetMethod === 'AUTO_ALL') targets = pool;
                     else if (group.targetMethod === 'AUTO_RANDOM') {
-                        const shuffled = [...pool].sort(() => 0.5 - Math.random());
-                        targets = shuffled.slice(0, group.targetCount || 1);
+                        targets = [...pool].sort(() => 0.5 - Math.random()).slice(0, group.targetCount || 1);
+                    } else if (group.targetMethod === 'AUTO_FIRST') {
+                        targets = pool.slice(0, group.targetCount || 1);
+                    } else if (group.targetMethod === 'AUTO_LAST') {
+                        targets = pool.slice(-(group.targetCount || 1));
                     }
-                    else if (group.targetMethod === 'AUTO_FIRST') targets = pool.slice(0, group.targetCount || 1);
-                    else if (group.targetMethod === 'AUTO_LAST') targets = pool.slice(-(group.targetCount || 1));
                 }
                 
                 // Fallback safe defaults if no target acquired
                 if (targets.length === 0 && group.targetMethod === 'SAME_AS_ACTIVATION' && eventPayload.target) targets = [eventPayload.target];
                 
+                if (DEBUG_ABILITIES) console.log(`[DEBUG ENGINE] Target Acquisition - Group ${index} acquired ${targets.length} targets:`, targets.map(t => t.name));
                 return targets;
             });
 
             // Phase 2: Sequential Execution
             ability.effects.forEach((group, index) => {
+                if (DEBUG_ABILITIES) console.log(`[DEBUG ENGINE] Execution Phase - Group ${index}`);
                 if (!group) return;
                 if (!group.payloads || !Array.isArray(group.payloads)) {
                     console.warn(`[Engine] Ability '${ability.name}' (${ability.abilityId}) - Target Group ${index} has missing or invalid payloads array. Skipping.`);
@@ -361,6 +371,7 @@ export class GameEngine {
                 
                 const targets = lockedTargets[index] || [];
                 for (const payload of group.payloads) {
+                    if (DEBUG_ABILITIES) console.log(`[DEBUG ENGINE] Executing Payload Type: ${payload.type} on ${targets.length} targets.`);
                     const ActionClass = ACTION_REGISTRY[payload.type];
                     if (ActionClass) {
                         for (const target of targets) {
@@ -397,6 +408,7 @@ export class GameEngine {
                                 actionPayload.target = currentTarget;
                             }
                             actionPayload.eventContext = eventPayload; // Inject context for replacement effects
+                            actionPayload.sourceAbilityId = ability.abilityId; // Track source for stacking limits
                             const action = new ActionClass(actionPayload);
                             action.run(this);
                         }
@@ -693,7 +705,7 @@ export function canPlayCard(state, playerId, card) {
     let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
     if (baseCost > 0) {
-        if (cTribe.toLowerCase() === 'carnie') {
+        if (cTribe.toLowerCase() === 'carnie' || cTribe.toLowerCase() === 'generic') {
             if (carnieRes < baseCost) return false;
         } else {
             const tribeRes = resKey ? player.resources[resKey].current : 0;
@@ -748,7 +760,7 @@ export function playCard(state, playerId, cardId, targetLine = 'back', abilityTa
     let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
     if (baseCost > 0) {
-        if (cTribe.toLowerCase() === 'carnie') {
+        if (cTribe.toLowerCase() === 'carnie' || cTribe.toLowerCase() === 'generic') {
             if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Cost: ${baseCost})` };
             player.resources['Carnie'].current -= baseCost;
         } else {
@@ -1000,10 +1012,14 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         // 2. Resolve Target Reference
         let targetEntity = null;
         if (targetId) {
+            const p1 = state.players.player1;
+            const p2 = state.players.player2;
             const allEntities = [
-                ...Object.values(state.players.player1.lines).flat(),
-                ...Object.values(state.players.player2.lines).flat(),
-                ...(state.equator || [])
+                ...Object.values(p1.lines).flat(),
+                ...Object.values(p2.lines).flat(),
+                ...(state.equator || []),
+                ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
+                ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
             ].filter(Boolean);
             targetEntity = allEntities.find(e => e.id === targetId || e.instanceId === targetId);
         }

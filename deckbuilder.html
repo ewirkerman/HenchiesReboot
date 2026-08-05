@@ -207,13 +207,15 @@
 
     async function init() {
       try {
+        const customCards = await fetchCustomCards();
+        const tempCards = [...CARD_CATALOG, ...customCards];
+
         const rawAbs = await fetchCustomAbilities();
         allAbilitiesRegistry = rawAbs.map(ab => ({
             ...ab,
-            displayDescription: generateAbilityDescription(ab, rawAbs)
+            displayDescription: generateAbilityDescription(ab, rawAbs, tempCards)
         }));
 
-        const customCards = await fetchCustomCards();
         if (customCards && customCards.length > 0) {
            const hydratedCustomCards = customCards.map(c => {
                if (c.abilities) {

@@ -81,6 +81,9 @@
             <button type="button" id="clone-ability-btn" class="hidden bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-cyan-500/30 whitespace-nowrap">
               👯 Clone
             </button>
+            <button type="button" id="test-ability-btn" class="hidden bg-purple-600/80 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-purple-500/30 whitespace-nowrap">
+              🧪 Test
+            </button>
             <button type="button" id="delete-ability-btn" class="hidden bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap">
               🗑️ Delete Ability
             </button>
@@ -238,15 +241,32 @@
         </form>
       </div>
     </div>
+
+    <!-- RIGHT: ASSOCIATED CARDS COLUMN -->
+    <div class="w-full xl:w-72 flex flex-col gap-4 shrink-0">
+      <div class="glass-panel rounded-2xl p-4 shadow-2xl border border-slate-800 flex flex-col gap-3 h-full max-h-[800px] sticky top-20">
+        <div class="border-b border-slate-800 pb-2 flex justify-between items-center">
+          <h2 class="text-xs font-black text-sky-400 uppercase tracking-wider">
+            🔗 Used By
+          </h2>
+          <span id="associated-cards-count" class="bg-sky-950 text-sky-300 text-[10px] font-bold px-2 py-0.5 rounded border border-sky-800">0</span>
+        </div>
+        <div id="associated-cards-list" class="flex flex-col gap-2 overflow-y-auto minimal-scrollbar pb-2 pr-1">
+          <div class="text-xs text-slate-500 italic text-center p-4">Select an ability to see associated cards.</div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <script type="module">
-    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './src/firebase.js';
+    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, createGameRoom } from './src/firebase.js';
     import { CARD_CATALOG } from './src/engine.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { TRIGGER_EVENTS, getValidActionsForZones } from './src/abilities.js';
     import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from './src/actions.js';
     import { renderJSONPreview } from './src/ui.js';
+    import { launchSandboxMatch } from './src/testing.js';
     import './src/catalog_component.js'; // Import custom element
 
     let allAbilities = [];
@@ -285,8 +305,17 @@
     async function init() {
       const baseTriggerSelect = document.getElementById('ab-base-trigger');
       if (baseTriggerSelect) {
-        const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
-        let optionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+        const basics = [
+            { val: 'MANUAL', label: 'Manual Activation' },
+            { val: 'ON_BE_PLAYED', label: 'When Played (Mandatory)' },
+            { val: 'PLAY_OPTIONAL', label: 'When Played (Optional)' },
+            { val: 'UNTRIGGERABLE', label: 'Passive / Untriggerable' },
+            { val: 'TURN_STARTING', label: 'Turn Starting' },
+            { val: 'TURN_STARTED', label: 'Turn Started' },
+            { val: 'TURN_ENDING', label: 'Turn Ending' },
+            { val: 'TURN_ENDED', label: 'Turn Ended' }
+        ];
+        let optionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t.val}">${t.label}</option>`).join('') + `</optgroup>`;
         
         Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
             optionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
@@ -300,6 +329,7 @@
       document.getElementById('save-ability-btn-top').addEventListener('click', handleSaveAbility);
       document.getElementById('delete-ability-btn').addEventListener('click', handleDeleteAbility);
       document.getElementById('clone-ability-btn').addEventListener('click', handleCloneAbility);
+      document.getElementById('test-ability-btn').addEventListener('click', window.launchTestMatch);
       
       // Catalog hooks
       const catalogEl = document.getElementById('ability-catalog');
@@ -313,7 +343,7 @@
       document.getElementById('ab-trigger-role').addEventListener('change', () => window.updateTriggerComposite());
 
       window.parseTriggerToComposite = function(triggerString) {
-          const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+          const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
           if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
 
           for (const effect in ACTION_MANIFEST) {
@@ -337,8 +367,17 @@
               return;
           }
           
-          const basics = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
-          let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+          const basics = [
+              { val: 'MANUAL', label: 'Manual Activation' },
+              { val: 'ON_BE_PLAYED', label: 'When Played (Mandatory)' },
+              { val: 'PLAY_OPTIONAL', label: 'When Played (Optional)' },
+              { val: 'UNTRIGGERABLE', label: 'Passive / Untriggerable' },
+              { val: 'TURN_STARTING', label: 'Turn Starting' },
+              { val: 'TURN_STARTED', label: 'Turn Started' },
+              { val: 'TURN_ENDING', label: 'Turn Ending' },
+              { val: 'TURN_ENDED', label: 'Turn Ended' }
+          ];
+          let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t.val}">${t.label}</option>`).join('') + `</optgroup>`;
           
           Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
               baseOptionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
@@ -459,9 +498,9 @@
         const actMethodSelect = document.getElementById('ab-act-method');
         const triggerLimitSelect = document.getElementById('ab-trigger-limit');
 
-        const isEvent = EFFECT_TYPES.includes(baseTrigger) || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(baseTrigger);
+        const isEvent = EFFECT_TYPES.includes(baseTrigger) || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'ON_BE_PLAYED'].includes(baseTrigger);
         const scopeContainer = document.getElementById('trigger-scope-container');
-        if (isEvent && !['MANUAL', 'UNTRIGGERABLE', 'PLAY', 'PLAY_OPTIONAL'].includes(baseTrigger)) {
+        if (isEvent && !['MANUAL', 'UNTRIGGERABLE', 'PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED'].includes(baseTrigger)) {
              scopeContainer.classList.remove('hidden');
         } else {
              scopeContainer.classList.add('hidden');
@@ -471,7 +510,7 @@
         const scope = document.getElementById('ab-trigger-scope').value;
 
         if (triggerValue !== lastTriggerValue) {
-             if (baseTrigger === 'PLAY' || baseTrigger === 'PLAY_OPTIONAL') {
+             if (baseTrigger === 'ON_BE_PLAYED' || baseTrigger === 'PLAY' || baseTrigger === 'PLAY_OPTIONAL') {
                  activationQuickTargeting.ignoreBattlelines = true;
              } else if (baseTrigger === 'MANUAL') {
                  activationQuickTargeting.ignoreBattlelines = false;
@@ -487,7 +526,7 @@
           triggerLimitSelect.title = "";
         }
         
-        const allowedTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL'];
+        const allowedTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED'];
         const allowsPlayerChoice = allowedTriggers.includes(baseTrigger);
         const playerChoiceOption = actMethodSelect.querySelector('option[value="PLAYER_CHOICE"]');
         
@@ -570,28 +609,38 @@
         } catch (e) {
             console.warn(`Failed to generate description for ${ab.name}:`, e);
         }
-        return { ...ab, displayDescription: desc };
+        return { ...ab, abilityId: ab.abilityId || ab.id, displayDescription: desc };
       });
       
       renderCatalogList();
       resetForm();
 
       const urlParams = new URLSearchParams(window.location.search);
-      const loadId = urlParams.get('id');
+      const hashId = window.location.hash.replace('#', '');
+      const loadId = urlParams.get('id') || hashId;
       if (loadId) {
-          window.loadAbility(loadId);
+          setTimeout(() => window.loadAbility(loadId), 50);
       }
     }
 
     window.revalidatePayloadTypes = () => {
         if (typeof getValidActionsForZones === 'undefined') return;
         effectGroups.forEach((group, gIdx) => {
-            let actualZones = group.quickTargeting.zones;
-            if (group.targetMethod === 'SAME_AS_ACTIVATION') actualZones = activationQuickTargeting.zones;
-            
-            const validActions = group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(actualZones);
+            let baseZones = group.quickTargeting?.zones || ['FIELD'];
+            if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = activationQuickTargeting?.zones || ['FIELD'];
             
             group.payloads.forEach((payload, pIdx) => {
+                let effectiveZones = [...baseZones];
+                for (let i = 0; i < pIdx; i++) {
+                    const pt = group.payloads[i].type;
+                    if (pt === 'RECOVER' || pt === 'DRAW_CARD' || pt === 'RETURN') effectiveZones = ['HAND'];
+                    else if (pt === 'FIELD') effectiveZones = ['FIELD'];
+                    else if (pt === 'DISCARD' || pt === 'DISCARD_CARD' || pt === 'TRASH') effectiveZones = ['DISCARD'];
+                    else if (pt === 'BANISH') effectiveZones = ['BANISH'];
+                }
+                
+                const validActions = group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones);
+                
                 if (!validActions.includes(payload.type)) {
                     const fallback = validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT';
                     payload.type = fallback;
@@ -606,6 +655,7 @@
                         if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
                         if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
                         if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
+                        if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
                         if (manifest.hasNestedGroup) {
                             payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
                         } else { delete payload.nestedGroup; }
@@ -980,11 +1030,20 @@
     
     window.addPayload = (groupIndex) => {
         const group = effectGroups[groupIndex];
-        let actualZones = group.quickTargeting.zones;
-        if (group.targetMethod === 'SAME_AS_ACTIVATION') actualZones = activationQuickTargeting.zones;
+        let baseZones = group.quickTargeting?.zones || ['FIELD'];
+        if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = activationQuickTargeting?.zones || ['FIELD'];
             
+        let effectiveZones = [...baseZones];
+        for (let i = 0; i < group.payloads.length; i++) {
+            const pt = group.payloads[i].type;
+            if (pt === 'RECOVER' || pt === 'DRAW_CARD' || pt === 'RETURN') effectiveZones = ['HAND'];
+            else if (pt === 'FIELD') effectiveZones = ['FIELD'];
+            else if (pt === 'DISCARD' || pt === 'DISCARD_CARD' || pt === 'TRASH') effectiveZones = ['DISCARD'];
+            else if (pt === 'BANISH') effectiveZones = ['BANISH'];
+        }
+
         const validActions = typeof getValidActionsForZones !== 'undefined' 
-            ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(actualZones))
+            ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones))
             : EFFECT_TYPES;
             
         const initialType = validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT';
@@ -1022,6 +1081,7 @@
           if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
           if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
           if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
+          if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
           
           if (manifest.hasNestedGroup) {
               payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
@@ -1084,6 +1144,7 @@
           if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
           if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
           if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
+          if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
           
           if (!manifest.validDurations.includes(payload.duration)) {
               payload.duration = manifest.validDurations[0] || 'INSTANT';
@@ -1118,11 +1179,20 @@
           
         const payloadsHtml = group.payloads.map((payload, pIdx) => {
             // Filter dynamic action types based on the selected zones
-            let actualZones = group.quickTargeting.zones;
-            if (group.targetMethod === 'SAME_AS_ACTIVATION') actualZones = activationQuickTargeting.zones;
+            let baseZones = group.quickTargeting?.zones || ['FIELD'];
+            if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = activationQuickTargeting?.zones || ['FIELD'];
                 
+            let effectiveZones = [...baseZones];
+            for (let i = 0; i < pIdx; i++) {
+                const pt = group.payloads[i].type;
+                if (pt === 'RECOVER' || pt === 'DRAW_CARD' || pt === 'RETURN') effectiveZones = ['HAND'];
+                else if (pt === 'FIELD') effectiveZones = ['FIELD'];
+                else if (pt === 'DISCARD' || pt === 'DISCARD_CARD' || pt === 'TRASH') effectiveZones = ['DISCARD'];
+                else if (pt === 'BANISH') effectiveZones = ['BANISH'];
+            }
+
             const validEffectTypes = typeof getValidActionsForZones !== 'undefined' 
-                ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(actualZones))
+                ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones))
                 : EFFECT_TYPES;
 
             const typeOptions = Object.entries(ACTION_CATEGORIES).map(([cat, actions]) => {
@@ -1150,6 +1220,10 @@
                 } else {
                   basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude/Amt</label><input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
                 }
+            }
+
+            if (manifest.canLimitStacks) {
+                basicParamsHtml += `<div class="w-20 pb-0.5"><label class="block text-[10px] font-bold text-pink-400 mb-0.5" title="Max allowed from this specific ability (0 = no limit)">Src Cap</label><input type="number" value="${payload.maxStacks || 0}" min="0" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'maxStacks', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
             }
 
             if (manifest.requiresStat) {
@@ -1192,7 +1266,8 @@
                 let displayValue = payload.grantedAbilityId || '';
                 const foundAb = allAbilities.find(a => a.abilityId === displayValue);
                 if (foundAb) displayValue = foundAb.name;
-                basicParamsHtml += `<div class="flex-1 min-w-[150px] pb-0.5"><label class="block text-[10px] font-bold text-cyan-400 mb-0.5">Ability to Grant</label><input list="ability-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateGrantedAbility(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
+                const abLabel = payload.type === 'REMOVE_ABILITY' ? 'Ability to Remove' : 'Ability to Grant';
+                basicParamsHtml += `<div class="flex-1 min-w-[150px] pb-0.5"><label class="block text-[10px] font-bold text-cyan-400 mb-0.5">${abLabel}</label><input list="ability-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateGrantedAbility(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
                 <datalist id="ability-list-${gIdx}-${pIdx}">${customOptions}</datalist></div>`;
             }
 
@@ -1251,6 +1326,10 @@
                        npParamsHtml += `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
                     } 
                     
+                    if (nMan.canLimitStacks) {
+                       npParamsHtml += `<div class="w-16"><input type="number" value="${np.maxStacks || 0}" min="0" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'maxStacks', parseInt(this.value))" class="bg-slate-900 border border-pink-700/50 p-1.5 rounded text-white font-bold w-full text-[10px]" title="Source Cap" /></div>`;
+                    }
+
                     if (nMan.requiresGrantedAbility) {
                        const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
                        let displayValue = np.grantedAbilityId || '';
@@ -1463,7 +1542,7 @@
       return {
         abilityId: currentEditingId || ('ability_' + Date.now()),
         updatedAt: Date.now(),
-        name: document.getElementById('ab-name').value,
+        name: document.getElementById('ab-name').value.trim(),
         description: document.getElementById('ab-description').value,
         trigger: document.getElementById('ab-trigger').value,
         additionalTriggers: window.additionalTriggers || [],
@@ -1512,7 +1591,7 @@
     async function handleSaveAbility() {
       const ability = getCurrentAbilityState();
 
-      if (!ability.name || ability.name.trim() === '') {
+      if (!ability.name || ability.name === '') {
         const toast = document.createElement('div');
         toast.className = 'bg-red-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
         toast.innerText = `Cannot save: Please provide an Ability Name!`;
@@ -1521,8 +1600,12 @@
         return;
       }
 
-      const isDuplicate = allAbilities.some(a => a.name.toLowerCase() === ability.name.toLowerCase() && a.abilityId !== ability.abilityId);
-      if (isDuplicate) {
+      const isDuplicate = allAbilities.some(a => (a.name || '').trim().toLowerCase() === ability.name.toLowerCase() && a.abilityId !== ability.abilityId);
+      const originalAb = allAbilities.find(a => a.abilityId === currentEditingId);
+      const isNameChanged = !originalAb || (originalAb.name || '').trim().toLowerCase() !== ability.name.toLowerCase();
+
+      if (isDuplicate && (!currentEditingId || isNameChanged)) {
+        console.warn(`[Duplicate Block] Blocked save for '${ability.name}'. editingId: ${currentEditingId}, nameChanged: ${isNameChanged}`);
         const toast = document.createElement('div');
         toast.className = 'bg-red-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
         toast.innerText = `Cannot save: An ability named '${ability.name}' already exists!`;
@@ -1532,14 +1615,25 @@
       }
       
       const btn = document.getElementById('save-ability-btn');
+      const topBtn = document.getElementById('save-ability-btn-top');
       const originalText = btn.innerHTML;
+      const originalTopText = topBtn ? topBtn.innerHTML : '💾 Save';
+      
       btn.innerHTML = 'Saving...';
       btn.disabled = true;
+      if (topBtn) {
+          topBtn.innerHTML = 'Saving...';
+          topBtn.disabled = true;
+      }
 
       const cloudSaveSuccess = await saveAbilityToCatalog(ability);
       
       btn.innerHTML = originalText;
       btn.disabled = false;
+      if (topBtn) {
+          topBtn.innerHTML = originalTopText;
+          topBtn.disabled = false;
+      }
 
       if (cloudSaveSuccess) {
           const toast = document.createElement('div');
@@ -1565,6 +1659,7 @@
       currentEditingId = ability.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
       document.getElementById('clone-ability-btn').classList.remove('hidden');
+      document.getElementById('test-ability-btn').classList.remove('hidden');
       document.getElementById('delete-ability-btn').classList.remove('hidden');
     }
 
@@ -1604,6 +1699,7 @@
       
       document.getElementById('delete-ability-btn').classList.add('hidden');
       document.getElementById('clone-ability-btn').classList.add('hidden');
+      document.getElementById('test-ability-btn').classList.add('hidden');
       
       updateJSONPreview();
       
@@ -1644,11 +1740,13 @@
       
       document.getElementById('delete-ability-btn').classList.add('hidden');
       document.getElementById('clone-ability-btn').classList.add('hidden');
+      document.getElementById('test-ability-btn').classList.add('hidden');
       
       renderLogicTrees();
       renderEffects();
       window.updateTargetingUI();
       updateJSONPreview();
+      renderAssociatedCards();
     }
 
     function renderCatalogList() {
@@ -1715,6 +1813,7 @@
 
       document.getElementById('delete-ability-btn').classList.remove('hidden');
       document.getElementById('clone-ability-btn').classList.remove('hidden');
+      document.getElementById('test-ability-btn').classList.remove('hidden');
 
       const srcAct = ab.activation || ab.targeting || {};
       document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
@@ -1750,6 +1849,7 @@
                e.showAdvanced = e.logicTree && e.logicTree.children && e.logicTree.children.length > 0;
                migrateConditions(e.logicTree);
                
+               if (!e.quickTargeting) e.quickTargeting = {};
                if (!Array.isArray(e.quickTargeting.zones)) e.quickTargeting.zones = ['FIELD'];
                if (!Array.isArray(e.quickTargeting.alignment)) e.quickTargeting.alignment = ['ENEMY'];
                if (!Array.isArray(e.quickTargeting.entityType)) e.quickTargeting.entityType = ['UNIT'];
@@ -1807,7 +1907,174 @@
       renderEffects();
       window.updateTargetingUI();
       updateJSONPreview();
+      renderAssociatedCards();
     };
+
+    window.launchTestMatch = async () => {
+        const ability = getCurrentAbilityState();
+        const btn = document.getElementById('test-ability-btn');
+        const orig = btn.innerText;
+        btn.innerText = '...';
+        btn.disabled = true;
+
+        await launchSandboxMatch(ability, 'ability');
+        
+        btn.innerText = orig;
+        btn.disabled = false;
+    };
+
+    function renderAssociatedCards() {
+        const container = document.getElementById('associated-cards-list');
+        if (!container) return;
+
+        if (!currentEditingId) {
+            container.innerHTML = '<div class="text-xs text-slate-500 italic text-center p-4">Select an ability to see associated cards.</div>';
+            document.getElementById('associated-cards-count').innerText = '0';
+            return;
+        }
+
+        const currentName = document.getElementById('ab-name').value;
+        const linkedCards = allCards.filter(c => {
+            if (!c.abilities) return false;
+            return c.abilities.some(a => {
+                const aId = typeof a === 'string' ? a : (a.abilityId || a.id);
+                const aName = a.name || '';
+                return aId === currentEditingId || (aName && currentName && aName.toLowerCase() === currentName.toLowerCase());
+            });
+        });
+
+        document.getElementById('associated-cards-count').innerText = linkedCards.length;
+
+        if (linkedCards.length === 0) {
+            container.innerHTML = '<div class="text-[10px] text-slate-500 italic text-center p-4 border border-dashed border-slate-700/50 rounded-lg mt-2">No cards natively use this ability.</div>';
+            return;
+        }
+
+        container.innerHTML = linkedCards.map(c => `
+            <a href="card_editor.html#${c.id}" target="_blank" title="Edit ${c.name}" class="p-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/50 hover:border-sky-500/50 rounded-lg text-xs flex justify-between items-center transition-all group">
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[9px] shrink-0 shadow">${c.cost || 0}</span>
+                    <div class="flex flex-col truncate">
+                        <span class="font-bold text-sky-300 truncate group-hover:text-white transition-colors text-[11px]">${c.name}</span>
+                        <span class="text-[9px] text-slate-400 capitalize truncate">${c.tribe || 'Generic'} • ${c.type || 'Unit'}</span>
+                    </div>
+                </div>
+                <span class="text-slate-600 group-hover:text-sky-400 transition-colors ml-1 p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                </span>
+            </a>
+        `).join('');
+    }
+
+    window.updateGlobalCard = (updatedCard) => {
+        const idx = allCards.findIndex(c => c.id === updatedCard.id);
+        if (idx !== -1) allCards[idx] = updatedCard;
+        else allCards.push(updatedCard);
+        renderAssociatedCards();
+    };
+    </script>
+  
+  <!-- Dynamic Card Assigner Extension -->
+  <script type="module">
+    import { fetchCustomCards, saveCardToCatalog, fetchCustomAbilities } from './src/firebase.js';
+    import { CARD_CATALOG } from './src/engine.js';
+    import { showToast } from './src/ui.js';
+
+    // Track active ID regardless of URL state
+    window._activeAssignerId = window.location.hash.replace('#', '') || new URLSearchParams(window.location.search).get('id');
+
+    async function initCardAssigner() {
+        const panels = document.querySelectorAll('main .glass-panel');
+        // Target the 3rd panel (Usage Column)
+        const usagePanel = panels.length >= 3 ? panels[panels.length - 1] : null;
+        
+        if (!usagePanel || document.getElementById('assign-card-container')) return;
+
+        const container = document.createElement('div');
+        container.id = 'assign-card-container';
+        container.className = 'mt-auto pt-4 border-t border-slate-800 flex flex-col gap-2 w-full shrink-0';
+        container.innerHTML = `
+            <label class="text-[10px] font-black text-cyan-400 uppercase tracking-wider">➕ Quick Assign to Card</label>
+            <input type="text" list="assign-card-options" id="assign-card-input" placeholder="Type to search cards..." class="bg-slate-900 border border-cyan-900/50 p-2 rounded text-cyan-300 text-xs w-full outline-none focus:border-cyan-500 placeholder-cyan-900/50" />
+            <datalist id="assign-card-options"></datalist>
+        `;
+        usagePanel.appendChild(container);
+
+        const customCards = await fetchCustomCards();
+        const allCards = [...CARD_CATALOG, ...customCards];
+        const datalist = document.getElementById('assign-card-options');
+        
+        allCards.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            datalist.appendChild(opt);
+        });
+
+        const input = document.getElementById('assign-card-input');
+        input.addEventListener('change', async (e) => {
+            const val = e.target.value.toLowerCase();
+            const match = allCards.find(c => c.name.toLowerCase() === val);
+            
+            let loadId = window._activeAssignerId || window.location.hash.replace('#', '');
+            
+            if (!loadId) {
+                showToast('Please select or save an ability first.', 'error');
+                input.value = '';
+                return;
+            }
+
+            if (match) {
+                if (!match.abilities) match.abilities = [];
+                const hasAb = match.abilities.some(a => (a.abilityId || a) === loadId);
+                
+                if (!hasAb) {
+                    input.disabled = true;
+                    input.value = 'Assigning...';
+                    
+                    const abs = await fetchCustomAbilities();
+                    const fullAb = abs.find(a => a.abilityId === loadId);
+                    
+                    if (fullAb) {
+                        match.abilities.push(JSON.parse(JSON.stringify(fullAb)));
+                        await saveCardToCatalog(match);
+                        showToast(`Ability assigned to ${match.name}!`, 'success');
+                        
+                        if (typeof window.updateGlobalCard === 'function') {
+                            window.updateGlobalCard(match);
+                        }
+                        
+                        // Force UI refresh
+                        if (typeof window.loadAbility === 'function') {
+                            window.loadAbility(loadId); 
+                        }
+                    } else {
+                        showToast('Ability not found in database. Save it first.', 'error');
+                    }
+                    
+                    input.disabled = false;
+                    input.value = '';
+                    input.blur();
+                } else {
+                    showToast(`${match.name} already has this ability.`, 'info');
+                    input.value = '';
+                }
+            }
+        });
+    }
+
+    // Run on boot
+    setTimeout(initCardAssigner, 1000);
+    
+    // Hook into loadAbility to ensure it stays attached when the column re-renders
+    const originalLoad = window.loadAbility;
+    if (originalLoad) {
+        window.loadAbility = async (id) => {
+            window._activeAssignerId = id;
+            window.location.hash = id; // Ensure hash updates for deep-linking
+            await originalLoad(id);
+            setTimeout(initCardAssigner, 500);
+        };
+    }
   </script>
 </body>
 </html>
