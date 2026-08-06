@@ -55,18 +55,25 @@ export class StudioCatalog extends HTMLElement {
     }
 
     filterAndRender(query) {
-        const q = query.toLowerCase().trim();
+        const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
         const listContainer = this.querySelector('#catalog-list-container');
 
-        if (!q) {
+        if (terms.length === 0) {
             // Show top 5 most recent if no search
             this.filteredItems = this.items.slice(0, 5);
         } else {
             this.filteredItems = this.items.filter(item => {
-                const searchStr = (item.name || item.id || '').toLowerCase();
-                const genusStr = (item.genus || '').toLowerCase();
-                return searchStr.includes(q) || genusStr.includes(q);
-            }).slice(0, 5);
+                const searchableText = [
+                    item.name,
+                    item.id,
+                    item.genus,
+                    item.tribe,
+                    item.type,
+                    item.family
+                ].filter(Boolean).join(' ').toLowerCase();
+                
+                return terms.every(term => searchableText.includes(term));
+            }).slice(0, 30);
         }
 
         if (this.filteredItems.length === 0) {
