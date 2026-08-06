@@ -478,6 +478,7 @@ export class GameEngine {
             if (ent.type === 'avatar') entType = 'AVATAR';
             else if (ent.type === 'equipment' || ent.type === 'artifact') entType = 'EQUIPMENT';
             else if (ent.type === 'spell') entType = 'SPELL';
+            else if (ent.type === 'boon') entType = 'BOON';
             return types.includes(entType);
         });
     }
@@ -497,6 +498,7 @@ export class GameEngine {
                 if (node.value === 'SELF') return entity.instanceId === source.instanceId;
                 if (node.value === 'AVATAR') return entity.type === 'avatar';
                 if (node.value === 'UNIT') return entity.type === 'unit';
+                if (node.value === 'BOON') return entity.type === 'boon';
                 return false;
             }
             else if (node.attribute === 'tribe') entVal = entity.tribe || 'Generic';
@@ -518,6 +520,8 @@ export class GameEngine {
                 const val = Number(node.value);
                 if (node.operator === '==') return entVal === val;
                 if (node.operator === '!=') return entVal !== val;
+                if (node.operator === '>=') return entVal >= val;
+                if (node.operator === '<=') return entVal <= val;
                 if (node.operator === '>') return entVal > val;
                 if (node.operator === '<') return entVal < val;
             }
@@ -630,7 +634,7 @@ export function startTurn(state, engine) {
     // 2.5 Ready Equator items
     if (state.equator) {
         state.equator.forEach(item => {
-            if (item.ownerId === pId) {
+            if (item.ownerId === pId || item.type === 'artifact') {
                 let currentReadiness = Number(item.readiness);
                 if (isNaN(currentReadiness)) currentReadiness = 0;
                 if (currentReadiness < 1) item.readiness = currentReadiness + 1;
@@ -807,29 +811,32 @@ export function getValidAttackTargets(state, attackerOwnerId) {
 
     // 1. Taunt absorbs all attacks
     if (defPlayer.lines['taunt'] && defPlayer.lines['taunt'].length > 0) {
-        defPlayer.lines['taunt'].forEach(u => targets.push({ id: u.instanceId, line: 'taunt' }));
-        return targets;
+        defPlayer.lines['taunt'].filter(u => u.type !== 'boon').forEach(u => targets.push({ id: u.instanceId, line: 'taunt' }));
+        if (targets.some(t => t.line === 'taunt')) return targets;
     }
 
     // 2. Left Column
     if (defPlayer.lines['bodyguard'] && defPlayer.lines['bodyguard'].length > 0) {
-        defPlayer.lines['bodyguard'].forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
+        defPlayer.lines['bodyguard'].filter(u => u.type !== 'boon').forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
     } else if (defPlayer.lines['avatar'] && defPlayer.lines['avatar'].length > 0) {
-        defPlayer.lines['avatar'].forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
+        defPlayer.lines['avatar'].filter(u => u.type !== 'boon').forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
     }
 
     // 3. Center Column
     const centerLines = ['front', 'mid', 'back', 'sheltered'];
     for (const line of centerLines) {
         if (defPlayer.lines[line] && defPlayer.lines[line].length > 0) {
-            defPlayer.lines[line].forEach(u => targets.push({ id: u.instanceId, line: line }));
-            break;
+            const valid = defPlayer.lines[line].filter(u => u.type !== 'boon');
+            if (valid.length > 0) {
+                valid.forEach(u => targets.push({ id: u.instanceId, line: line }));
+                break;
+            }
         }
     }
 
     // 4. Right Column
     if (defPlayer.lines['sideline'] && defPlayer.lines['sideline'].length > 0) {
-        defPlayer.lines['sideline'].forEach(u => targets.push({ id: u.instanceId, line: 'sideline' }));
+        defPlayer.lines['sideline'].filter(u => u.type !== 'boon').forEach(u => targets.push({ id: u.instanceId, line: 'sideline' }));
     }
     
     return targets;
@@ -873,30 +880,45 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     let targets = [];
     const oppId = playerId === 'player1' ? 'player2' : 'player1';
 
-    if (qt.zones?.includes('FIELD')) {
+    if (qt.zones) {
         const checkPlayer = (pId, isFriendly) => {
             if ((isFriendly && !qt.alignment.includes('FRIENDLY')) || (!isFriendly && !qt.alignment.includes('ENEMY'))) return;
             
             const p = state.players[pId];
-            if (qt.entityType.includes('AVATAR') && p.avatar && p.setupComplete) {
-                targets.push({ id: p.avatar.id, line: 'avatar' });
-            }
-            if (qt.entityType.includes('UNIT')) {
+            
+            const checkEntity = (ent, line) => {
+                let entType = 'UNIT';
+                if (ent.type === 'avatar') entType = 'AVATAR';
+                else if (ent.type === 'equipment' || ent.type === 'artifact') entType = 'EQUIPMENT';
+                else if (ent.type === 'spell') entType = 'SPELL';
+                else if (ent.type === 'boon') entType = 'BOON';
+                
+                if (qt.entityType.includes(entType)) {
+                    targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
+                }
+            };
+
+            if (qt.zones.includes('FIELD')) {
+                if (p.lines['avatar']) p.lines['avatar'].forEach(u => checkEntity(u, 'avatar'));
                 for (const line of LINES) {
-                    if (line === 'avatar') continue;
-                    if (p.lines[line]) {
-                        p.lines[line].forEach(u => targets.push({ id: u.instanceId, line: line }));
-                    }
+                    if (p.lines[line]) p.lines[line].forEach(u => {
+                        if (u.type !== 'avatar' && u.type !== 'boon') checkEntity(u, line);
+                    });
                 }
             }
+            
+            if (qt.zones.includes('HAND')) p.hand.forEach(c => checkEntity(c, 'hand'));
+            if (qt.zones.includes('DISCARD')) p.discard.forEach(c => checkEntity(c, 'discard'));
+            if (qt.zones.includes('DECK')) p.deck.forEach(c => checkEntity(c, 'deck'));
+            if (qt.zones.includes('BANISH')) p.banish.forEach(c => checkEntity(c, 'banish'));
         };
         
         checkPlayer(playerId, true);
         checkPlayer(oppId, false);
         
-        if (!qt.ignoreBattlelines && !qt.alignment.includes('FRIENDLY') && qt.alignment.includes('ENEMY')) {
+        if (qt.zones.includes('FIELD') && !qt.ignoreBattlelines && !qt.alignment.includes('FRIENDLY') && qt.alignment.includes('ENEMY')) {
             const atkTargets = getValidAttackTargets(state, playerId);
-            targets = targets.filter(t => atkTargets.some(at => at.id === t.id));
+            targets = targets.filter(t => !['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(t.line) || atkTargets.some(at => at.id === t.id));
         }
     }
     
@@ -970,9 +992,11 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                         if (isAttack) {
                             if (entity.activeEffects?.some(e => e.type === 'BLOCK_ATTACK')) canAfford = false;
                         } else {
-                            let currentActs = Number(entity.acts);
-                            if (isNaN(currentActs)) currentActs = 0;
-                            if (currentActs < 1) canAfford = false;
+                            if (!cost.freeAction) {
+                                let currentActs = Number(entity.acts);
+                                if (isNaN(currentActs)) currentActs = 0;
+                                if (currentActs < 1) canAfford = false;
+                            }
                         }
 
                         if (canAfford) {
@@ -1006,7 +1030,7 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         const ability = entity.abilities?.find(a => a.abilityId === abilityId);
         if (!ability) return { success: false, reason: "Ability not found" };
 
-        if (actionType === 'ABILITY') {
+        if (actionType === 'ABILITY' && !ability.cost?.freeAction) {
             let currentActs = Number(entity.acts);
             if (isNaN(currentActs)) currentActs = 0;
             entity.acts = Math.max(0, currentActs - 1);

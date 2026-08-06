@@ -76,7 +76,9 @@
                 <option value="unit">Unit</option>
                 <option value="avatar">Avatar</option>
                 <option value="equipment">Equipment</option>
+                <option value="artifact">Artifact</option>
                 <option value="spell">Spell</option>
+                <option value="boon">Boon</option>
               </select>
             </div>
             <div id="default-line-container">
@@ -99,6 +101,10 @@
               <label class="font-bold text-slate-300 block mb-1">Cost (Resource / Tents)</label>
               <input type="number" id="card-cost" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" value="1" min="0" />
             </div>
+            <div id="stat-power-container">
+              <label class="font-bold text-slate-300 block mb-1">Power</label>
+              <input type="number" id="card-power" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" value="0" min="0" />
+            </div>
             <div id="stat-health-container">
               <label class="font-bold text-slate-300 block mb-1">Health (Max)</label>
               <input type="number" id="card-health" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" value="1" min="1" />
@@ -118,7 +124,10 @@
           </div>
           
           <div class="mt-2 border-t border-slate-800 pt-3 flex flex-col gap-2">
-            <h3 class="text-xs font-bold text-indigo-400">⚡ Assigned Abilities</h3>
+            <div class="flex justify-between items-center mb-1">
+                <h3 class="text-xs font-bold text-indigo-400">⚡ Assigned Abilities</h3>
+                <button type="button" onclick="window.createNewAbilityForCard()" id="create-new-ability-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-bold px-2 py-1 rounded shadow transition">+ New Ability</button>
+            </div>
             <div id="assigned-abilities" class="flex flex-col gap-2"></div>
             
             <!-- Upgraded Searchable Datalist Input -->
@@ -149,9 +158,29 @@
 
     let allCards = [];
     let allAbilities = [];
+    let allAbilitiesRegistry = [];
     let currentEditingId = null;
     let currentAbilities = []; // Stores abilityIds attached to the current card
     let draggedAbilityIndex = null;
+
+    window.inspectCard = (cardJson) => {
+      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry);
+    };
+
+    window.createNewAbilityForCard = async () => {
+        const card = buildCardState();
+        if (!card.name || card.name.trim() === 'Unnamed Card') {
+            showToast('Please name the card before creating an ability.', 'error');
+            return;
+        }
+        
+        const btn = document.getElementById('create-new-ability-btn');
+        btn.innerHTML = 'Saving...';
+        btn.disabled = true;
+
+        await saveCardToCatalog(card);
+        window.location.href = `ability_editor.html?returnToCard=${card.id}`;
+    };
 
     init();
 
@@ -162,7 +191,27 @@
       
       const tempCards = [...CARD_CATALOG, ...customCards];
       allAbilities = rawAbilities.map(ab => ({ ...ab, displayDescription: generateAbilityDescription(ab, rawAbilities, tempCards) }));
+      allAbilitiesRegistry = [...allAbilities];
       
+      const defaultAttackAbility = {
+        "abilityId": "ability_1785516184176",
+        "name": "Attack",
+        "description": "",
+        "trigger": "MANUAL",
+        "additionalTriggers": [],
+        "triggerScope": "PERSONAL",
+        "triggerLimit": "UNLIMITED",
+        "cost": { "tribeAmount": 0, "carnie": 0, "readinessCost": "UNREADIES", "reuseIgnoresReadiness": false, "freeAction": false },
+        "activation": { "method": "PLAYER_CHOICE", "quickTargeting": { "zones": ["FIELD"], "alignment": ["ENEMY"], "entityType": ["UNIT", "AVATAR"], "ignoreBattlelines": false }, "logicTree": { "type": "group", "children": [], "logicalOperator": "AND" } },
+        "effects": [{ "targetCount": 1, "quickTargeting": { "entityType": ["UNIT", "AVATAR"], "zones": ["FIELD"], "alignment": ["ENEMY"], "ignoreBattlelines": false }, "payloads": [{ "amount": 1, "duration": "INSTANT", "type": "ATTACK" }], "logicTree": { "type": "group", "logicalOperator": "AND", "children": [] }, "targetMethod": "SAME_AS_ACTIVATION" }]
+      };
+      
+      if (!allAbilities.some(a => a.abilityId === defaultAttackAbility.abilityId)) {
+          const processedAtt = { ...defaultAttackAbility, displayDescription: generateAbilityDescription(defaultAttackAbility, allAbilities, tempCards) };
+          allAbilities.push(processedAtt);
+          allAbilitiesRegistry.push(processedAtt);
+      }
+
       const hydratedCustomCards = customCards.map(c => {
           if (c.abilities) {
               c.abilities = c.abilities.map(ab => {
@@ -216,7 +265,7 @@
       const topbar = document.getElementById('studio-topbar');
       topbar.addEventListener('save', saveCard);
       topbar.addEventListener('clone', cloneCard);
-      topbar.addEventListener('test', window.launchTestMatch);
+      topbar.addEventListener('test', () => { if(window.launchTestMatch) window.launchTestMatch(); });
       topbar.addEventListener('delete', deleteCard);
       topbar.addEventListener('import', (e) => {
           const data = e.detail;
@@ -292,8 +341,8 @@
                         <span class="text-[9px] bg-indigo-900 text-indigo-200 px-1 py-0.5 rounded ml-1">${ab.trigger || 'MANUAL'}</span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <a href="ability_editor.html#${ab.abilityId}" target="_blank" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-indigo-400 hover:text-indigo-200 transition p-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                        <a href="ability_editor.html#${ab.abilityId}" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-indigo-400 hover:text-indigo-200 transition p-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                         </a>
                         <button onclick="window.removeAbility(${index})" class="text-red-400 hover:text-red-300 font-black px-1.5">&times;</button>
                     </div>
@@ -344,6 +393,7 @@
         document.getElementById('card-default-line').value = 'mid';
         document.getElementById('card-genus').value = '';
         document.getElementById('card-cost').value = '1';
+        document.getElementById('card-power').value = '0';
         document.getElementById('card-health').value = '1';
         document.getElementById('card-strength').value = '';
         document.getElementById('card-art').value = '';
@@ -370,6 +420,7 @@
             type: cardType,
             genus: document.getElementById('card-genus').value || 'Generic',
             cost: parseInt(document.getElementById('card-cost').value) || 0,
+            power: parseInt(document.getElementById('card-power').value) || 0,
             health: parseInt(document.getElementById('card-health').value) || 1,
             maxHealth: parseInt(document.getElementById('card-health').value) || 1,
             strength: strVal === '' ? null : parseInt(strVal),
@@ -394,10 +445,27 @@
 
     window.inspectMiniPreview = () => {
         const card = buildCardState();
-        openInspectionModal(card, allAbilities);
+        openInspectionModal(card, allAbilitiesRegistry);
     };
 
     function updatePreview() {
+        const strVal = document.getElementById('card-strength').value;
+        const cardType = document.getElementById('card-type').value;
+        const atkId = 'ability_1785516184176';
+        
+        if ((cardType === 'unit' || cardType === 'avatar') && strVal !== '') {
+            if (!currentAbilities.includes(atkId)) {
+                currentAbilities.push(atkId);
+                renderAssignedAbilities();
+            }
+        } else {
+            const idx = currentAbilities.indexOf(atkId);
+            if (idx > -1) {
+                currentAbilities.splice(idx, 1);
+                renderAssignedAbilities();
+            }
+        }
+
         const card = buildCardState();
         const container = document.getElementById('card-preview-container');
         container.innerHTML = renderCardHTML(card, { 
@@ -507,6 +575,7 @@
         document.getElementById('card-default-line').value = card.defaultLine || 'mid';
         document.getElementById('card-genus').value = card.genus || '';
         document.getElementById('card-cost').value = card.cost || 0;
+        document.getElementById('card-power').value = card.power || 0;
         document.getElementById('card-health').value = card.maxHealth || card.health || 1;
         document.getElementById('card-strength').value = (card.strength !== undefined && card.strength !== null) ? card.strength : '';
         document.getElementById('card-art').value = card.artUrl || '';

@@ -257,6 +257,22 @@
       </div>
     </div>
 
+    <!-- ================= ZONE VIEWER MODAL ================= -->
+    <div id="zone-viewer-modal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-md hidden flex-col p-4 sm:p-8" onclick="if(event.target === this) window.closeZoneModal()">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-5xl w-full mx-auto flex flex-col h-full max-h-[85vh]">
+        <div class="flex justify-between items-center p-4 border-b border-slate-800 shrink-0">
+          <div class="flex flex-col">
+              <h3 id="zone-modal-title" class="text-xl font-black text-amber-400 uppercase tracking-wider">Zone Pile</h3>
+              <p id="zone-modal-subtitle" class="text-xs text-slate-400">View cards.</p>
+          </div>
+          <button onclick="window.closeZoneModal()" class="text-slate-400 hover:text-white font-bold text-3xl leading-none">&times;</button>
+        </div>
+        <div id="zone-modal-cards" class="flex-1 overflow-y-auto p-4 flex flex-wrap content-start justify-center gap-4 bg-slate-950 minimal-scrollbar">
+          <!-- Cards injected here -->
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <script type="module">
@@ -404,7 +420,14 @@
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
         const modal = document.getElementById('unit-action-modal');
+        const zoneModal = document.getElementById('zone-viewer-modal');
         const isModalOpen = !modal.classList.contains('hidden');
+        const isZoneOpen = zoneModal && !zoneModal.classList.contains('hidden');
+
+        if (isZoneOpen) {
+            if (e.key === 'Escape') window.closeZoneModal();
+            return;
+        }
 
         if (isModalOpen) {
             const num = parseInt(e.key);
@@ -777,7 +800,7 @@
       
       if (deckEl) {
         deckEl.innerHTML = `
-          <div class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-800 border-2 border-slate-950 shadow-xl flex flex-col items-center justify-center overflow-hidden select-none">
+          <div onclick="window.openZoneModal('${player.id}', 'deck')" class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-800 border-2 border-slate-950 shadow-xl flex flex-col items-center justify-center overflow-hidden select-none cursor-pointer hover:border-amber-500 transition-colors">
             <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 8px 8px;"></div>
             <span class="text-4xl sm:text-5xl relative z-10 drop-shadow-lg">🎴</span>
             <span class="text-[10px] sm:text-[12px] font-black text-amber-400 mt-3 uppercase tracking-widest bg-slate-950/90 px-2 py-1 rounded border border-amber-900/50 relative z-10 shadow">Deck: ${player.deck.length}</span>
@@ -788,7 +811,7 @@
       if (discardEl) {
         if (!player.discard || player.discard.length === 0) {
           discardEl.innerHTML = `
-            <div class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-900/40 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center select-none text-slate-500 shadow-inner">
+            <div onclick="window.openZoneModal('${player.id}', 'discard')" class="cursor-pointer group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-900/40 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center select-none text-slate-500 shadow-inner hover:border-amber-500 transition-colors">
               <span class="text-3xl sm:text-4xl opacity-50 mb-2">🗑️</span>
               <span class="text-[10px] sm:text-[12px] font-black uppercase tracking-widest">Discard</span>
             </div>
@@ -796,13 +819,21 @@
         } else {
           const topCard = player.discard[player.discard.length - 1];
           const json = encodeURIComponent(JSON.stringify(topCard)).replace(/'/g, "%27");
+          
+          let targetHighlight = '';
+          if (pendingAbility && validTargets.some(t => t.line === 'discard' && t.playerId === player.id)) {
+              targetHighlight = 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]';
+          }
+
           const cardHtml = renderCardHTML(topCard, {
+            onClick: `window.openZoneModal('${player.id}', 'discard')`,
             onInspect: `window.inspectCard('${json}')`
           });
+          
           discardEl.innerHTML = `
-            <div class="relative flex-shrink-0 ${CARD_BASE_CLASSES}">
+            <div class="relative flex-shrink-0 ${CARD_BASE_CLASSES} ${targetHighlight}">
               ${cardHtml}
-              <div class="absolute -top-2 -right-2 bg-slate-950 text-white font-black text-[12px] w-6 h-6 sm:w-7 sm:h-7 rounded-full shadow-xl border border-slate-600 z-30 flex items-center justify-center">
+              <div class="absolute -top-2 -right-2 bg-slate-950 text-white font-black text-[12px] w-6 h-6 sm:w-7 sm:h-7 rounded-full shadow-xl border border-slate-600 z-30 flex items-center justify-center pointer-events-none">
                 ${player.discard.length}
               </div>
             </div>
@@ -810,6 +841,63 @@
         }
       }
     }
+
+    window.openZoneModal = (playerId, zone) => {
+        const player = currentGameState.players[playerId];
+        if (!player || !player[zone]) return;
+        
+        const cards = player[zone];
+        const container = document.getElementById('zone-modal-cards');
+        const title = document.getElementById('zone-modal-title');
+        const subtitle = document.getElementById('zone-modal-subtitle');
+        
+        title.innerText = `${player.name}'s ${zone.toUpperCase()}`;
+        
+        if (pendingAbility && validTargets.some(t => t.line === zone && t.playerId === playerId)) {
+            subtitle.innerText = "Select a target for your pending ability.";
+            subtitle.classList.add('text-amber-400', 'font-bold', 'animate-pulse');
+        } else {
+            subtitle.innerText = `${cards.length} cards in ${zone}.`;
+            subtitle.classList.remove('text-amber-400', 'font-bold', 'animate-pulse');
+        }
+        
+        const prefix = playerId === localPlayerRole ? 'player' : 'opp';
+
+        if (cards.length === 0) {
+            container.innerHTML = `<div class="text-slate-500 italic mt-10">This ${zone} is empty.</div>`;
+        } else {
+            const reversed = [...cards].reverse();
+            container.innerHTML = reversed.map(c => {
+                const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
+                const isTargetable = pendingAbility && validTargets.some(t => t.id === (c.instanceId || c.id));
+                
+                return renderCardHTML(c, {
+                    isTargetable: isTargetable,
+                    onClick: `window.handleZoneCardClick('${prefix}', '${zone}', '${c.instanceId || c.id}')`,
+                    onInspect: `window.inspectCard('${json}')`
+                });
+            }).join('');
+        }
+        
+        document.getElementById('zone-viewer-modal').classList.remove('hidden');
+        document.getElementById('zone-viewer-modal').classList.add('flex');
+    };
+
+    window.closeZoneModal = () => {
+        document.getElementById('zone-viewer-modal').classList.add('hidden');
+        document.getElementById('zone-viewer-modal').classList.remove('flex');
+    };
+
+    window.handleZoneCardClick = (prefix, zone, cardId) => {
+        if (pendingAbility) {
+            if (validTargets.some(t => t.id === cardId)) {
+                window.closeZoneModal();
+                window.handleEntityClick(prefix, zone, cardId);
+            } else {
+                showToast("This card is not a valid target.", "info");
+            }
+        }
+    };
 
     function renderPlayerBattlelines(player, prefix) {
       const checkOccupied = (line) => {

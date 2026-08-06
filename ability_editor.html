@@ -162,8 +162,12 @@
                   <option value="EXHAUSTS">Exhausts (Hard Tap)</option>
                 </select>
               </div>
-              <div class="md:col-span-3">
-                <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition pb-2">
+              <div class="md:col-span-3 flex flex-col gap-2 pb-2">
+                <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
+                  <input type="checkbox" id="ab-cost-free-action" class="w-4 h-4 accent-rose-500" />
+                  <span class="font-bold text-[11px] text-amber-400">Free Action (Does not consume unit's Act)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
                   <input type="checkbox" id="ab-cost-reuse-exempt" class="w-4 h-4 accent-rose-500" />
                   <span class="font-bold text-[11px]">Subsequent uses this round ignore readiness cost</span>
                 </label>
@@ -247,10 +251,10 @@
   </main>
 
   <script type="module">
-    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, createGameRoom } from './src/firebase.js';
+    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, createGameRoom, saveCardToCatalog } from './src/firebase.js';
     import { CARD_CATALOG } from './src/engine.js';
     import { generateAbilityDescription } from './src/language_description.js';
-    import { TRIGGER_EVENTS, getValidActionsForZones } from './src/abilities.js';
+    import { TRIGGER_EVENTS, getValidActionsForZones, exportCurrentState } from './src/abilities.js';
     import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from './src/actions.js';
     import { renderJSONPreview } from './src/ui.js';
     import { launchSandboxMatch } from './src/testing.js';
@@ -260,6 +264,7 @@
     let allAbilities = [];
     let allCards = [];
     let currentEditingId = null;
+    let returnToCardId = null;
     
     // UI State
     let activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
@@ -276,7 +281,7 @@
     let filteredMentions = [];
 
     const ATTRIBUTE_TYPES = {
-      'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER'] },
+      'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER', 'BOON'] },
       'zone': { label: 'Zone', type: 'select', options: ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'] },
       'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
       'family': { label: 'Family (Text)', type: 'text' },
@@ -284,11 +289,12 @@
       'health': { label: 'Current Health', type: 'number' },
       'strength': { label: 'Strength', type: 'number' },
       'armor': { label: 'Armor', type: 'number' },
+      'cost': { label: 'Cost', type: 'number' },
       'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
       'hasAbility': { label: 'Has Ability ID', type: 'text' }
     };
 
-    const OPERATORS = { '==': 'Is (==)', '!=': 'Is Not (!=)', '>': 'Greater Than (>)', '<': 'Less Than (<)' };
+    const OPERATORS = { '==': 'Is (==)', '!=': 'Is Not (!=)', '>': 'Greater Than (>)', '<': 'Less Than (<)', '>=': 'X or more (>=)', '<=': 'X or less (<=)' };
 
     init();
 
@@ -320,7 +326,7 @@
       const topbar = document.getElementById('studio-topbar');
       topbar.addEventListener('save', handleSaveAbility);
       topbar.addEventListener('clone', handleCloneAbility);
-      topbar.addEventListener('test', window.launchTestMatch);
+      topbar.addEventListener('test', () => { if(window.launchTestMatch) window.launchTestMatch(); });
       topbar.addEventListener('delete', handleDeleteAbility);
       topbar.addEventListener('import', (e) => {
           const data = e.detail;
@@ -623,6 +629,11 @@
       const urlParams = new URLSearchParams(window.location.search);
       const hashId = window.location.hash.replace('#', '');
       const loadId = urlParams.get('id') || hashId;
+      returnToCardId = urlParams.get('returnToCard');
+
+      if (returnToCardId) {
+          document.getElementById('save-ability-btn').innerHTML = '💾 Save & Return to Card';
+      }
 
       renderCatalogList();
       resetForm();
@@ -661,7 +672,7 @@
                         if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
                         if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
                         if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
-                        if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
+                        if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
                         if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
                         if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
                         if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
@@ -745,7 +756,7 @@
           {label: 'Banish', value: 'BANISH'}, {label: 'Orig. Deck', value: 'ORIGINAL_DECK'}
       ];
       const alignmentOptions = [{label: 'Friendly', value: 'FRIENDLY'}, {label: 'Enemy', value: 'ENEMY'}];
-      const entityOptions = [{label: 'Unit', value: 'UNIT'}, {label: 'Avatar', value: 'AVATAR'}, {label: 'Equipment', value: 'EQUIPMENT'}, {label: 'Spell', value: 'SPELL'}];
+      const entityOptions = [{label: 'Unit', value: 'UNIT'}, {label: 'Avatar', value: 'AVATAR'}, {label: 'Equipment', value: 'EQUIPMENT'}, {label: 'Spell', value: 'SPELL'}, {label: 'Boon', value: 'BOON'}];
 
       const toggleBoolHandler = context === 'activation'
           ? `window.toggleQuickMatrixBoolean('activation', null, 'ignoreBattlelines')`
@@ -1087,7 +1098,7 @@
           if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
           if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
           if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
-          if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
+          if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
           if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
           if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
           if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
@@ -1156,7 +1167,7 @@
           if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
           if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
           if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
-          if (manifest.requiresScript) payload.script = 'state.players[state.activePlayerId].health += params.amount;'; else delete payload.script;
+          if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
           if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
           if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
           if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
@@ -1312,7 +1323,7 @@
 
             let fullWidthHtml = '';
             if (manifest.requiresScript) {
-                fullWidthHtml += `<div class="w-full mt-2 border-t border-slate-700/50 pt-2"><label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end"><span>⚡ Execution Script</span><span class="text-slate-500 font-normal">Signature: (state, target, params)</span></label><textarea onchange="window.updatePayload(${gIdx}, ${pIdx}, 'script', this.value)" rows="3" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea></div>`;
+                fullWidthHtml += `<div class="w-full mt-2 border-t border-slate-700/50 pt-2"><label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end"><span>⚡ Execution Script</span><span class="text-slate-500 font-normal">Signature: (state, target, params)</span></label><textarea onchange="window.updatePayload(${gIdx}, ${pIdx}, 'script', this.value)" rows="3" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea><label class="block text-[10px] font-bold text-amber-400 mb-1 mt-2">Script Language Description</label><input type="text" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'description', this.value)" value="${payload.description || ''}" placeholder="e.g. set {POSS} health to 1" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
             }
             
             // Generate Nested Group Content
@@ -1389,6 +1400,7 @@
                     
                     if (nMan.requiresScript) {
                        npParamsHtml += `<div class="flex-1 min-w-[150px]"><input type="text" value="${np.script || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'script', this.value)" placeholder="state.players..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-mono w-full text-[10px]" /></div>`;
+                       npParamsHtml += `<div class="flex-1 min-w-[150px]"><input type="text" value="${np.description || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'description', this.value)" placeholder="desc (e.g. destroy {TARGET})" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
                     }
 
                     let nestedDurHtml = '';
@@ -1397,9 +1409,11 @@
                           <div class="w-24">
                               <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'duration', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-sky-300 font-bold text-[10px] w-full">
                                   <option value="INSTANT" ${np.duration === 'INSTANT' ? 'selected' : ''}>Instant</option>
-                                  <option value="TEMPORARY" ${np.duration === 'TEMPORARY' ? 'selected' : ''}>Temp (Round)</option>
-                                  <option value="PERMANENT" ${np.duration === 'PERMANENT' ? 'selected' : ''}>Permanent</option>
+                                  <option value="ACTION" ${np.duration === 'ACTION' ? 'selected' : ''}>Action (Event)</option>
+                                  <option value="BRIEF" ${np.duration === 'BRIEF' ? 'selected' : ''}>Brief (Turn)</option>
+                                  <option value="TEMPORARY" ${np.duration === 'TEMPORARY' ? 'selected' : ''}>Temporary (Round)</option>
                                   <option value="WHILE_ATTACHED" ${np.duration === 'WHILE_ATTACHED' ? 'selected' : ''}>While Attached</option>
+                                  <option value="PERMANENT" ${np.duration === 'PERMANENT' ? 'selected' : ''}>Permanent</option>
                               </select>
                           </div>
                        `;
@@ -1480,10 +1494,11 @@
                         <label class="block text-[10px] font-bold text-sky-400 mb-0.5">Duration</label>
                         <select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'duration', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-sky-300 font-bold w-full focus:outline-none focus:border-sky-500">
                           <option value="INSTANT" ${payload.duration === 'INSTANT' ? 'selected' : ''}>Instant</option>
+                          <option value="ACTION" ${payload.duration === 'ACTION' ? 'selected' : ''}>Action (Current Event)</option>
                           <option value="BRIEF" ${payload.duration === 'BRIEF' ? 'selected' : ''}>Brief (End of Turn)</option>
                           <option value="TEMPORARY" ${payload.duration === 'TEMPORARY' ? 'selected' : ''}>Temporary (End of Round)</option>
-                          <option value="INDEFINITE" ${payload.duration === 'INDEFINITE' ? 'selected' : ''}>Indefinite (While on Board)</option>
                           <option value="WHILE_ATTACHED" ${payload.duration === 'WHILE_ATTACHED' ? 'selected' : ''}>While Attached</option>
+                          <option value="INDEFINITE" ${payload.duration === 'INDEFINITE' ? 'selected' : ''}>Indefinite (While on Board)</option>
                           <option value="PERMANENT" ${payload.duration === 'PERMANENT' ? 'selected' : ''}>Permanent (Across Zones)</option>
                         </select>
                       </div>
@@ -1564,43 +1579,29 @@
     }
 
     function getCurrentAbilityState() {
-      const scope = document.getElementById('ab-trigger-scope').value;
-      const actMethod = document.getElementById('ab-act-method').value;
-      
-      let activationData = {
-        method: actMethod,
-        quickTargeting: JSON.parse(JSON.stringify(activationQuickTargeting)),
-        logicTree: JSON.parse(JSON.stringify(activationRoot)) 
-      };
-
-      if (scope === 'PERSONAL' && actMethod === 'NONE') {
-          delete activationData.quickTargeting;
-          // Retain logicTree so users can configure Event Conditions like isCombat
-      } else if (scope === 'GLOBAL') {
-          activationData.method = 'NONE';
-      }
-
-      return {
-        abilityId: currentEditingId || ('ability_' + Date.now()),
-        updatedAt: Date.now(),
+      const formData = {
+        abilityId: currentEditingId,
         name: document.getElementById('ab-name').value.trim(),
         description: document.getElementById('ab-description').value,
         trigger: document.getElementById('ab-trigger').value,
         additionalTriggers: window.additionalTriggers || [],
-        triggerScope: scope,
+        triggerScope: document.getElementById('ab-trigger-scope').value,
         triggerLimit: document.getElementById('ab-trigger-limit').value,
-        cost: {
-          tribeAmount: parseInt(document.getElementById('ab-cost-tribe-amt').value) || 0,
-          carnie: parseInt(document.getElementById('ab-cost-tent').value) || 0,
-          readinessCost: document.getElementById('ab-cost-readiness').value,
-          reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked
-        },
-        activation: activationData,
-        effects: JSON.parse(JSON.stringify(effectGroups)).map(e => {
-            delete e.showAdvanced; // Clean ephemeral UI state
-            return e;
-        })
+        tribeAmount: document.getElementById('ab-cost-tribe-amt').value,
+        carnie: document.getElementById('ab-cost-tent').value,
+        readinessCost: document.getElementById('ab-cost-readiness').value,
+        reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked,
+        freeAction: document.getElementById('ab-cost-free-action').checked,
+        actMethod: document.getElementById('ab-act-method').value,
+        actQuickTargeting: activationQuickTargeting
       };
+      
+      const uiState = {
+        activationRoot: activationRoot,
+        targetGroups: effectGroups
+      };
+
+      return exportCurrentState(formData, uiState);
     }
 
     function updateJSONPreview() {
@@ -1693,8 +1694,20 @@
       renderCatalogList();
 
       currentEditingId = ability.abilityId;
+      window.location.hash = ability.abilityId;
+      window._activeAssignerId = ability.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
       document.getElementById('studio-topbar').showButtons(true);
+
+      if (returnToCardId) {
+          const cardToUpdate = allCards.find(c => c.id === returnToCardId);
+          if (cardToUpdate) {
+              if (!cardToUpdate.abilities) cardToUpdate.abilities = [];
+              cardToUpdate.abilities.push(processedAbility);
+              await saveCardToCatalog(cardToUpdate);
+              window.location.href = `card_editor.html#${returnToCardId}`;
+          }
+      }
     }
 
     async function handleDeleteAbility() {
@@ -1716,6 +1729,7 @@
       // Clear the ID so it saves as a new entity
       currentEditingId = null; 
       window.location.hash = '';
+      window._activeAssignerId = null;
       
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
       document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
@@ -1734,6 +1748,7 @@
     function resetForm() {
       currentEditingId = null;
       window.location.hash = '';
+      window._activeAssignerId = null;
       document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
       document.getElementById('ab-name').value = '';
       document.getElementById('ab-description').value = '';
@@ -1752,6 +1767,7 @@
       document.getElementById('ab-cost-tent').value = '0';
       document.getElementById('ab-cost-readiness').value = 'NONE';
       document.getElementById('ab-cost-reuse-exempt').checked = false;
+      document.getElementById('ab-cost-free-action').checked = false;
 
       document.getElementById('ab-act-method').value = 'NONE';
       
@@ -1804,6 +1820,13 @@
       const ab = allAbilities.find(a => a.abilityId === id);
       if (!ab) return;
 
+      if (returnToCardId) {
+          returnToCardId = null;
+          document.getElementById('save-ability-btn').innerHTML = '💾 Save Ability Logic';
+          const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + (window.location.hash ? window.location.hash : '');
+          window.history.replaceState({path:newUrl},'',newUrl);
+      }
+
       currentEditingId = ab.abilityId;
       window.location.hash = id;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ab.name}`;
@@ -1827,8 +1850,9 @@
       
       if (cost.readinessCost) document.getElementById('ab-cost-readiness').value = cost.readinessCost;
       else if (cost.exhausts) document.getElementById('ab-cost-readiness').value = 'EXHAUSTS';
-        document.getElementById('ab-cost-readiness').value = 'NONE';
+      else document.getElementById('ab-cost-readiness').value = 'NONE';
       document.getElementById('ab-cost-reuse-exempt').checked = !!cost.reuseIgnoresReadiness;
+      document.getElementById('ab-cost-free-action').checked = !!cost.freeAction;
 
       document.getElementById('ab-trigger-scope').value = ab.triggerScope || 'PERSONAL';
 
@@ -1967,7 +1991,7 @@
         }
 
         container.innerHTML = linkedCards.map(c => `
-            <a href="card_editor.html#${c.id}" target="_blank" title="Edit ${c.name}" class="p-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/50 hover:border-sky-500/50 rounded-lg text-xs flex justify-between items-center transition-all group">
+            <a href="card_editor.html#${c.id}" title="Edit ${c.name}" class="p-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/50 hover:border-sky-500/50 rounded-lg text-xs flex justify-between items-center transition-all group">
                 <div class="flex items-center gap-2 overflow-hidden">
                     <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[9px] shrink-0 shadow">${c.cost || 0}</span>
                     <div class="flex flex-col truncate">
@@ -1976,7 +2000,7 @@
                     </div>
                 </div>
                 <span class="text-slate-600 group-hover:text-sky-400 transition-colors ml-1 p-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                 </span>
             </a>
         `).join('');

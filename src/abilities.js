@@ -42,7 +42,7 @@ export function getValidActionsForZones(selectedZones) {
 }
 
 const ATTRIBUTE_TYPES = {
-    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER'] },
+    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER', 'BOON'] },
     'zone': { label: 'Zone', type: 'select', options: ZONES },
     'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
     'family': { label: 'Family', type: 'text' },
@@ -53,6 +53,7 @@ const ATTRIBUTE_TYPES = {
     'power': { label: 'Power', type: 'number' },
     'fast': { label: 'Fast Charges', type: 'number' },
     'slow': { label: 'Slow Charges', type: 'number' },
+    'cost': { label: 'Cost', type: 'number' },
     'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
     'hasAbility': { label: 'Has Ability', type: 'text' }
 };
@@ -61,7 +62,9 @@ const OPERATORS = {
     '==': 'Is (==)',
     '!=': 'Is Not (!=)',
     '>': 'Greater Than (>)',
-    '<': 'Less Than (<)'
+    '<': 'Less Than (<)',
+    '>=': 'X or more (>=)',
+    '<=': 'X or less (<=)'
 };
 
 // --- CORE INITIALIZATION ---
@@ -173,15 +176,13 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
         const type = value;
         // Centralized logic for sanitizing parameterized effects based on type
         if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource; delete payload.maxStacks;
+            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone;
         } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
-            payload.amount = 1; payload.stat = 'strength'; payload.maxStacks = 0; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource;
-        } else if (type === 'MODIFY_RESOURCE') { 
-            payload.amount = 1; payload.resource = 'Carnie'; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.maxStacks;
-        } else if (type === 'GRANT_ABILITY' || type === 'REMOVE_ABILITY') { 
-            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
+            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone;
+        } else if (type === 'GRANT_ABILITY') { 
+            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
         } else if (type === 'SUMMON') { 
-            payload.cardId = ''; payload.amount = 1; payload.zone = 'FIELD'; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.stat; delete payload.resource;
+            payload.cardId = ''; payload.amount = 1; payload.zone = 'FIELD'; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.description; delete payload.stat; 
             // Initialize a nested group specifically for SUMMON
             payload.nestedGroup = {
                 targetMethod: 'AUTO_ALL',
@@ -190,25 +191,24 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
                 logicTree: { type: 'group', logicalOperator: 'AND', children: [] },
                 payloads: []
             };
-        } else if (type === 'CHANGE_DESTINATION') {
-            payload.zone = 'DECK'; delete payload.amount; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.resource; delete payload.zoneOwner;
         } else if (type === 'CUSTOM_SCRIPT') { 
-            payload.script = 'state.players[state.activePlayerId].health += params.amount;'; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
-        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST', 'CANCEL_EVENT', 'REBEL', 'CLEANSE'].includes(type)) { 
-            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
+            payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
+        } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST'].includes(type)) { 
+            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.description; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
         }
     }
 }
 
 // --- DATA EXPORT & MIGRATION ---
-export function exportCurrentState(formData) {
+export function exportCurrentState(formData, externalState = null) {
+    const sourceState = externalState || state;
     const scope = formData.triggerScope || 'PERSONAL';
     const actMethod = formData.actMethod || 'NONE';
     
     let activationData = { 
         method: actMethod, 
-        quickTargeting: formData.actQuickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false }, 
-        logicTree: JSON.parse(JSON.stringify(state.activationRoot)) 
+        quickTargeting: formData.actQuickTargeting ? JSON.parse(JSON.stringify(formData.actQuickTargeting)) : { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false }, 
+        logicTree: JSON.parse(JSON.stringify(sourceState.activationRoot)) 
     };
 
     if (scope === 'PERSONAL' && actMethod === 'NONE') {
@@ -219,7 +219,8 @@ export function exportCurrentState(formData) {
     }
 
     return {
-        abilityId: state.currentEditingId || ('ability_' + Date.now()),
+        abilityId: formData.abilityId || sourceState.currentEditingId || ('ability_' + Date.now()),
+        updatedAt: Date.now(),
         name: formData.name,
         description: formData.description || '',
         trigger: formData.trigger,
@@ -228,13 +229,21 @@ export function exportCurrentState(formData) {
         triggerLimit: formData.triggerLimit || 'UNLIMITED',
         cost: {
             tribeAmount: parseInt(formData.tribeAmount) || 0,
-            carnie: parseInt(formData.carnie) || parseInt(formData.tent) || 0,
+            carnie: parseInt(formData.carnie || formData.tent) || 0,
             power: parseInt(formData.power) || 0,
             readinessCost: formData.readinessCost || 'NONE',
-            reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness
+            reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness,
+            freeAction: !!formData.freeAction
         },
         activation: activationData,
-        effects: JSON.parse(JSON.stringify(state.targetGroups))
+        effects: JSON.parse(JSON.stringify(sourceState.targetGroups)).map(group => {
+            delete group.showAdvanced; // Clean ephemeral UI state
+            if (['SELF', 'EVENT_SOURCE', 'EVENT_TARGET', 'AVATAR', 'ENEMY_AVATAR', 'SAME_AS_ACTIVATION'].includes(group.targetMethod)) {
+                delete group.quickTargeting;
+                delete group.logicTree;
+            }
+            return group;
+        })
     };
 }
 
@@ -314,6 +323,7 @@ export function hydrateStateFromAbility(ability) {
                 grantedAbilityId: e.grantedAbilityId || e.traitId,
                 cardId: e.cardId,
                 script: e.script,
+                description: e.description,
                 zone: e.zone,
                 zoneOwner: e.zoneOwner || 'CASTER',
                 nestedGroup: e.nestedGroup

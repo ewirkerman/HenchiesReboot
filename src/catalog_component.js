@@ -63,13 +63,22 @@ export class StudioCatalog extends HTMLElement {
             this.filteredItems = this.items.slice(0, 5);
         } else {
             this.filteredItems = this.items.filter(item => {
+                let payloadTypes = '';
+                if (item.effects) {
+                    payloadTypes = item.effects.map(g => (g.payloads || []).map(p => p.type).join(' ')).join(' ');
+                }
                 const searchableText = [
                     item.name,
                     item.id,
+                    item.abilityId,
                     item.genus,
                     item.tribe,
                     item.type,
-                    item.family
+                    item.family,
+                    item.description,
+                    item.displayDescription,
+                    item.trigger,
+                    payloadTypes
                 ].filter(Boolean).join(' ').toLowerCase();
                 
                 return terms.every(term => searchableText.includes(term));

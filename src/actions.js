@@ -8,22 +8,21 @@ export const ACTION_MANIFEST = {
     'DEAL_DAMAGE': { passiveType: 'BE_DAMAGED', canInvert: true, canBeCost: true, requiresAmount: true, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'HEAL': { passiveType: 'BE_HEALED', canInvert: true, canBeCost: false, requiresAmount: true, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'KILL': { passiveType: 'BE_KILLED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: true },
-    'GRANT_ABILITY': { passiveType: 'BE_GRANTED_ABILITY', canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'MODIFY_STAT': { passiveType: 'BE_STAT_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, canLimitStacks: true, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'SET_STAT': { passiveType: 'BE_STAT_SET', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'MODIFY_RESOURCE': { passiveType: 'BE_RESOURCE_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresResource: true, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'GRANT_ABILITY': { passiveType: 'BE_GRANTED_ABILITY', canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'MODIFY_STAT': { passiveType: 'BE_STAT_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, canLimitStacks: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'SET_STAT': { passiveType: 'BE_STAT_SET', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'MODIFY_RESOURCE': { passiveType: 'BE_RESOURCE_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresResource: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'DRAW_CARD': { passiveType: 'BE_DRAWN', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DECK'], validDurations: ['INSTANT'] },
     'SUMMON': { passiveType: 'BE_SUMMONED', canInvert: false, canBeCost: false, requiresAmount: true, requiresCardId: true, requiresZone: true, requiresZoneOwner: true, hasNestedGroup: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'PLAY': { passiveType: 'BE_PLAYED', canInvert: true, canBeCost: false, validZones: ['HAND'], validDurations: ['INSTANT'] },
     'ATTACK': { passiveType: 'BE_ATTACKED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'HARVEST': { passiveType: 'BE_HARVESTED', canInvert: true, canBeCost: false, validZones: ['HAND'], validDurations: ['INSTANT'], isLeavesPlay: true },
-    'BLOCK_ACT': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'BLOCK_ATTACK': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'BLOCK_RETALIATE': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'BLOCK_ACT': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'BLOCK_ATTACK': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'BLOCK_RETALIATE': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'CANCEL_EVENT': { passiveType: null, canInvert: false, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CLEANSE': { passiveType: 'BE_CLEANSED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CHANGE_DESTINATION': { passiveType: null, canInvert: false, canBeCost: false, requiresZone: true, validZones: 'ALL', validDurations: ['INSTANT'] },
-    'GRANT_ABILITY': { passiveType: 'BE_GRANTED_ABILITY', canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'REMOVE_ABILITY': { passiveType: null, canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'MODIFY_EVENT': { passiveType: null, canInvert: false, canBeCost: false, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
@@ -34,7 +33,7 @@ export const ACTION_MANIFEST = {
     'RECOVER': { passiveType: 'BE_RECOVERED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], validDurations: ['INSTANT'] },
     'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACH_TO': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
-    'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'UNFIELD': { passiveType: 'BE_UNFIELDED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'TRASH': { passiveType: 'BE_TRASHED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['FIELD', 'HAND', 'DECK'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -55,22 +54,72 @@ export class Action {
     }
 
     run(engine) {
-        // 1. Interrupt Phase
-        if (engine.emit(`WOULD_${this.type}`, this.payload).cancelled) return false;
-        if (this.passiveType && engine.emit(`WOULD_${this.passiveType}`, this.payload).cancelled) return false;
+        if (!engine.state._actionDepth) engine.state._actionDepth = 0;
+        engine.state._actionDepth++;
+        
+        try {
+            // 1. Interrupt Phase
+            if (engine.emit(`WOULD_${this.type}`, this.payload).cancelled) return false;
+            if (this.passiveType && engine.emit(`WOULD_${this.passiveType}`, this.payload).cancelled) return false;
 
-        // 2. Modification Phase
-        engine.emit(`MODIFY_${this.type}`, this.payload);
-        if (this.passiveType) engine.emit(`MODIFY_${this.passiveType}`, this.payload);
+            // 2. Modification Phase
+            engine.emit(`MODIFY_${this.type}`, this.payload);
+            if (this.passiveType) engine.emit(`MODIFY_${this.passiveType}`, this.payload);
 
-        // 3. Execution Phase
-        this.execute(engine);
+            const manifest = ACTION_MANIFEST[this.type];
+            if (manifest && manifest.isLeavesPlay && this.payload.target && this.payload.target.attachments && this.payload.target.attachments.length > 0) {
+                const atts = [...this.payload.target.attachments];
+                const UnattachClass = ACTION_REGISTRY['UNATTACH'];
+                if (UnattachClass) {
+                    for (const att of atts) {
+                        new UnattachClass({ target: att }).run(engine);
+                    }
+                }
+            }
 
-        // 4. Reaction Phase
-        engine.emit(`ON_${this.type}`, this.payload);
-        if (this.passiveType) engine.emit(`ON_${this.passiveType}`, this.payload);
+            // 3. Execution Phase
+            this.execute(engine);
 
-        return true;
+            // 4. Reaction Phase
+            engine.emit(`ON_${this.type}`, this.payload);
+            if (this.passiveType) engine.emit(`ON_${this.passiveType}`, this.payload);
+
+            return true;
+        } finally {
+            engine.state._actionDepth--;
+            if (engine.state._actionDepth <= 0) {
+                engine.state._actionDepth = 0;
+                this.sweepActionEffects(engine);
+            }
+        }
+    }
+    
+    sweepActionEffects(engine) {
+        const checkAndClean = (ent) => {
+            if (ent && ent.activeEffects) {
+                for (let i = ent.activeEffects.length - 1; i >= 0; i--) {
+                    if (ent.activeEffects[i].duration === 'ACTION') {
+                        revertEffect(engine, ent, ent.activeEffects[i]);
+                        ent.activeEffects.splice(i, 1);
+                    }
+                }
+            }
+        };
+
+        for (const pId of ['player1', 'player2']) {
+            const p = engine.state.players[pId];
+            if (p && p.lines) {
+                for (const line in p.lines) {
+                    if (p.lines[line]) p.lines[line].forEach(checkAndClean);
+                }
+            }
+            if (p) {
+                ['hand', 'deck', 'discard', 'banish'].forEach(z => {
+                    if (p[z]) p[z].forEach(checkAndClean);
+                });
+            }
+        }
+        if (engine.state.equator) engine.state.equator.forEach(checkAndClean);
     }
 
     execute(engine) {
@@ -476,7 +525,7 @@ export class PlayAction extends Action {
         instance.readiness = 0; // "Summoning Sickness" when explicitly played
         instance.acts = instance.maxActs !== undefined ? instance.maxActs : 1;
         
-        let destZone = (instance.type === 'artifact' || instance.type === 'equipment') ? 'equator' : (this.payload.targetLine || 'back');
+        let destZone = (instance.type === 'artifact' || instance.type === 'equipment') ? 'equator' : (instance.type === 'boon' ? 'avatar' : (this.payload.targetLine || 'back'));
         
         if (instance.type === 'unit') {
              instance.defaultLine = instance.defaultLine || 'mid';
@@ -622,15 +671,31 @@ export class TrashAction extends Action {
     } 
 }
 export class BanishAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) { if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) { new UnfieldAction({ target: this.payload.target, destination: 'banish' }).run(engine); } else { moveEntity(engine, this.payload.target, loc.playerId, 'banish'); } } } }
-export class FieldAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) moveEntity(engine, this.payload.target, loc.playerId, 'back'); } }
+export class FieldAction extends Action { 
+    execute(engine) { 
+        const loc = findEntityLocation(engine, this.payload.target); 
+        if (loc) {
+            const target = this.payload.target;
+            let destZone = (target.type === 'artifact' || target.type === 'equipment') ? 'equator' : (target.type === 'boon' ? 'avatar' : 'back');
+            
+            if (target.type === 'unit') {
+                target.defaultLine = target.defaultLine || 'mid';
+                destZone = target.defaultLine;
+                target.line = destZone;
+            }
+            
+            moveEntity(engine, target, loc.playerId, destZone); 
+        }
+    } 
+}
 
 export class AttachAction extends Action { 
     execute(engine) { 
         const source = this.payload.source;
         const target = this.payload.target;
         
-        let host = [source, target].find(e => e && (['unit', 'avatar'].includes((e.type || '').toLowerCase())));
-        let attachment = [source, target].find(e => e && (['equipment', 'artifact', 'buff'].includes((e.type || '').toLowerCase())));
+        let host = source;
+        let attachment = target;
         
         if (!host || !attachment) {
             console.warn(`[AttachAction] Failed. Source: ${source?.name} (${source?.type}), Target: ${target?.name} (${target?.type})`);

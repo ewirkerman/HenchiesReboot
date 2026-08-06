@@ -96,8 +96,9 @@ export function renderCardHTML(card, options = {}) {
   const activeLine = card.line || card.defaultLine || (isAvatar ? 'avatar' : 'mid');
   const isTempLine = card.line && card.defaultLine && card.line !== card.defaultLine;
 
-  const isFieldUnready = !isHand && isUnit && readiness !== null && readiness === 0;
-  const isFieldExhausted = !isHand && isUnit && readiness !== null && readiness < 0;
+  const hasReadiness = isUnit || card.type === 'equipment' || card.type === 'artifact';
+  const isFieldUnready = !isHand && hasReadiness && readiness !== null && readiness === 0;
+  const isFieldExhausted = !isHand && hasReadiness && readiness !== null && readiness < 0;
   const fieldDimmingClass = (isFieldUnready || isFieldExhausted) ? 'saturate-[0.25] opacity-90' : '';
 
   const tokenBorderClass = isToken ? 'border border-white/50 shadow-[0_0_12px_rgba(255,255,255,0.25)]' : 'border border-black shadow-md';
@@ -149,18 +150,43 @@ export function renderCardHTML(card, options = {}) {
 
   let abilitiesHTML = '';
   if (card.abilities && card.abilities.length > 0) {
-      abilitiesHTML = card.abilities.map(ab => `
-          <div class="text-[9px] text-slate-200 font-bold leading-tight truncate w-full text-center">
-        <span>⚡ ${ab.name || 'Unknown'}</span>${formatAbilityCostBadge(ab.cost, card.tribe)}
-      </div>
-  `).join('');
+      abilitiesHTML = card.abilities.map(ab => {
+          const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
+          const isPassive = ab.trigger === 'UNTRIGGERABLE';
+          const hasNoCost = !ab.cost || ((!ab.cost.tribeAmount) && (!ab.cost.carnie) && (!ab.cost.tent) && (!ab.cost.power) && (!ab.cost.readinessCost || ab.cost.readinessCost === 'NONE'));
+          
+          const iconContent = isAttack ? '⚔️ ' : '';
+          
+          if (isPassive && hasNoCost && !isAttack) return '';
+          
+          return `
+            <div class="text-[9px] text-slate-200 font-bold leading-tight truncate w-full text-center">
+              <span>${iconContent}<span>${ab.name || 'Unknown'}</span></span>${formatAbilityCostBadge(ab.cost, card.tribe)}
+            </div>
+          `;
+      }).filter(Boolean).join('');
   }
+  
+  let hoverTooltip = `${card.name}\n${card.tribe} • ${card.type}\n`;
+  if (card.description) hoverTooltip += `\n"${card.description}"\n`;
+  if (card.abilities && card.abilities.length > 0) {
+      card.abilities.forEach(ab => {
+          let desc = ab.displayDescription || ab.description || '';
+          if (card.type === 'spell') {
+              desc = desc.replace(/^When played,\s*/i, '');
+              if (desc) desc = desc.charAt(0).toUpperCase() + desc.slice(1);
+          }
+          hoverTooltip += `\n[${ab.name || 'Ability'}]: ${desc}`;
+      });
+  }
+  hoverTooltip += `\n\n(Right-click or tap 🔍 to inspect fully)`;
+  const safeTooltip = hoverTooltip.replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 
   return `
     <div 
       onclick="${onClick}"
       ${rightClickAttr}
-      title="Right-click or tap 🔍 to inspect"
+      title="${safeTooltip}"
       class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md ${style.bg} ${tokenBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden"
     >
       <div class="relative w-full h-[52%] overflow-hidden bg-slate-900 border-b ${separatorClass}">
@@ -201,6 +227,11 @@ export function renderCardHTML(card, options = {}) {
             ${card.cost ?? 0}
           </div>
         ` : ''}
+        ${card.power > 0 ? `
+          <div class="w-7 h-7 rounded-full bg-purple-600 text-white font-black text-[12px] flex items-center justify-center border border-black shadow pointer-events-auto" title="Power">
+            ${card.power}
+          </div>
+        ` : ''}
         ${isUnit ? `
           <div class="w-5 h-5 flex items-center justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_6px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
             ${getLineIconSvg(activeLine)}
@@ -216,11 +247,22 @@ export function renderCardHTML(card, options = {}) {
   `;
 }
 
-function extractGlossary(baseAbilities, allAbilitiesRegistry) {
+const SYSTEM_GLOSSARY = [
+    { regex: /\bfield(s|ed|ing)?\b/i, id: 'sys_field', name: 'Field', trigger: 'KEYWORD', displayDescription: 'To put a card into play from your hand or discard pile without paying its resource cost.' },
+    { regex: /\bfor this action\b/i, id: 'sys_action', name: 'Action', trigger: 'DURATION', displayDescription: 'An effect that lasts only until the current action, attack, or event fully resolves.' },
+    { regex: /\bbrief\b/i, id: 'sys_brief', name: 'Brief', trigger: 'DURATION', displayDescription: 'An effect that lasts until the end of the current turn.' },
+    { regex: /\btemporary\b/i, id: 'sys_temporary', name: 'Temporary', trigger: 'DURATION', displayDescription: 'An effect that lasts until the end of the opponent\'s turn.' },
+    { regex: /\bwhile attached\b/i, id: 'sys_attached', name: 'While Attached', trigger: 'DURATION', displayDescription: 'An effect that lasts only as long as the equipment, artifact, or aura remains attached to its host.' },
+    { regex: /\bindefinite\b/i, id: 'sys_indefinite', name: 'Indefinite', trigger: 'DURATION', displayDescription: 'An effect that lasts as long as the entity remains on the board. Removed if it dies or leaves play.' },
+    { regex: /\bpermanent\b/i, id: 'sys_permanent', name: 'Permanent', trigger: 'DURATION', displayDescription: 'An effect that persists across all zones, even if the entity is destroyed or returned to hand.' }
+];
+
+function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = '') {
     if (!allAbilitiesRegistry || allAbilitiesRegistry.length === 0) return [];
     
     let glossaryMap = new Map();
     let queue = [...(baseAbilities || [])];
+    if (cardText) queue.push({ displayDescription: cardText, abilityId: 'card_text_dummy' });
     
     // Create a set of base IDs to exclude them from the sidebar (so we only show nested definitions)
     let baseIds = new Set(queue.map(a => a.abilityId));
@@ -231,6 +273,13 @@ function extractGlossary(baseAbilities, allAbilitiesRegistry) {
         
         // Find mentions in description (e.g., @[Walker])
         const text = (current.displayDescription || current.description || '');
+
+        SYSTEM_GLOSSARY.forEach(sys => {
+            if (!glossaryMap.has(sys.id) && sys.regex.test(text)) {
+                glossaryMap.set(sys.id, sys);
+            }
+        });
+
         const mentionRegex = /@\[(.*?)\]/g;
         let match;
         while ((match = mentionRegex.exec(text)) !== null) {
@@ -274,24 +323,58 @@ function extractGlossary(baseAbilities, allAbilitiesRegistry) {
     return Array.from(glossaryMap.values());
 }
 
-export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
+export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false) {
+  if (!window._inspectHistory) window._inspectHistory = [];
+  if (!isNested) window._inspectHistory = [];
+  
+  const currentRef = cardOrUnit.instanceId || cardOrUnit.id || cardOrUnit.name;
+  const lastInHistory = window._inspectHistory.length > 0 ? window._inspectHistory[window._inspectHistory.length - 1] : null;
+  const lastRef = lastInHistory ? (lastInHistory.card.instanceId || lastInHistory.card.id || lastInHistory.card.name) : null;
+  
+  if (currentRef !== lastRef) {
+      window._inspectHistory.push({ card: cardOrUnit, registry: allAbilitiesRegistry });
+  }
+
   let modal = document.getElementById('inspection-modal');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'inspection-modal';
     modal.className = 'fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none';
     
-    modal.onclick = (e) => { if (e.target === modal) modal.classList.add('hidden'); };
-    modal.oncontextmenu = (e) => { if (e.target === modal) { e.preventDefault(); modal.classList.add('hidden'); } };
+    const handleBack = () => {
+      if (window._inspectHistory && window._inspectHistory.length > 1) {
+        window._inspectHistory.pop();
+        const prev = window._inspectHistory[window._inspectHistory.length - 1];
+        openInspectionModal(prev.card, prev.registry, true);
+      } else {
+        modal.classList.add('hidden');
+        window._inspectHistory = [];
+      }
+    };
+
+    modal.onclick = (e) => { if (e.target === modal) handleBack(); };
+    modal.oncontextmenu = (e) => { if (e.target === modal) { e.preventDefault(); handleBack(); } };
     
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
-        modal.classList.add('hidden');
+        handleBack();
       }
     });
     
     document.body.appendChild(modal);
   }
+
+  window.closeInspectionModal = () => {
+    window._inspectHistory = [];
+    const m = document.getElementById('inspection-modal');
+    if (m) m.classList.add('hidden');
+  };
+
+  window.inspectNestedCard = (cardJson) => {
+    const card = JSON.parse(decodeURIComponent(cardJson));
+    const currentRegistry = window._inspectHistory.length > 0 ? window._inspectHistory[window._inspectHistory.length - 1].registry : [];
+    openInspectionModal(card, currentRegistry, true);
+  };
 
   const isUnit = cardOrUnit.type === 'unit' || cardOrUnit.type === 'avatar' || cardOrUnit.currentHealth !== undefined;
   const isAvatar = cardOrUnit.type === 'avatar';
@@ -304,12 +387,12 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
   const separatorClass = isToken ? 'border-white/40' : 'border-black';
   
   // Extract Glossary
-  const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry);
+  const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry, cardOrUnit.description);
 
   modal.innerHTML = `
     <!-- Close Button (Fixed Top Right) -->
     <button 
-      onclick="document.getElementById('inspection-modal').classList.add('hidden')"
+      onclick="window.closeInspectionModal()"
       class="fixed top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-white text-xl font-bold w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur flex items-center justify-center border border-slate-700 z-[60] shadow-2xl transition-transform hover:scale-110 pointer-events-auto"
     >✕</button>
 
@@ -340,6 +423,11 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
               ${!isAvatar ? `
                 <div class="w-12 h-12 rounded-full bg-amber-500 text-black font-black text-2xl flex items-center justify-center border-2 border-black shadow-lg" title="Cost">
                   ${cardOrUnit.cost ?? 0}
+                </div>
+              ` : ''}
+              ${cardOrUnit.power > 0 ? `
+                <div class="w-12 h-12 rounded-full bg-purple-600 text-white font-black text-2xl flex items-center justify-center border-2 border-black shadow-lg" title="Power">
+                  ${cardOrUnit.power}
                 </div>
               ` : ''}
               ${isUnit ? `
@@ -388,7 +476,10 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
               <!-- Attachments -->
               ${cardOrUnit.attachments && cardOrUnit.attachments.length > 0 ? `
                 <div class="flex flex-wrap justify-center gap-1.5 mt-1">
-                  ${cardOrUnit.attachments.map(a => `<span class="text-[10px] bg-fuchsia-950/80 text-fuchsia-200 px-2 py-1 rounded border border-fuchsia-800 font-extrabold uppercase tracking-wider shadow-sm">🔗 ${a.name}</span>`).join('')}
+                  ${cardOrUnit.attachments.map(a => {
+                    const aJson = encodeURIComponent(JSON.stringify(a)).replace(/'/g, "%27");
+                    return `<span oncontextmenu="event.preventDefault(); event.stopPropagation(); window.inspectNestedCard('${aJson}')" onclick="event.stopPropagation(); window.inspectNestedCard('${aJson}')" class="text-[10px] bg-fuchsia-950/80 text-fuchsia-200 px-2 py-1 rounded border border-fuchsia-800 font-extrabold uppercase tracking-wider shadow-sm cursor-pointer hover:bg-fuchsia-900 transition-colors" title="Inspect ${a.name}">🔗 ${a.name}</span>`;
+                  }).join('')}
                 </div>
               ` : ''}
 
@@ -397,7 +488,11 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
                 <div class="flex flex-col gap-1 mt-1">
                   ${cardOrUnit.abilities.map(a => {
                     const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
-                    const finalDesc = regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
+                    let finalDesc = regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
+                    if (cardOrUnit.type === 'spell') {
+                        finalDesc = finalDesc.replace(/^When played,\s*/i, '');
+                        if (finalDesc) finalDesc = finalDesc.charAt(0).toUpperCase() + finalDesc.slice(1);
+                    }
                     
                     const formattedDesc = finalDesc.replace(/@\[(.*?)\]/g, (match, p1) => {
                         let displayName = p1;
@@ -406,9 +501,17 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = []) {
                         return `<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary">${displayName}</span>`;
                     });
                     
+                    const isAttack = a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
+                    const isPassive = a.trigger === 'UNTRIGGERABLE';
+                    
+                    const iconContent = isAttack ? '⚔️ ' : '';
+                    const nameContent = `<span class="font-black text-amber-400 drop-shadow-sm">${iconContent}${regMatch.name || a.name || a.abilityId}</span>`;
+                    const costBadge = formatAbilityCostBadge(a.cost, cardOrUnit.tribe);
+                    const triggerPill = `<span class="text-[8px] bg-slate-800 text-slate-300 px-1 py-px rounded font-bold uppercase tracking-widest mx-1.5 shadow-inner opacity-90">${a.trigger || 'MANUAL'}</span>`;
+                    
                     return `
                     <div class="bg-black/30 backdrop-blur-sm p-1.5 rounded border border-white/5 shadow-sm text-[10px] sm:text-[11px] text-slate-200 leading-snug">
-                      <span class="font-black text-amber-400 drop-shadow-sm">⚡ ${regMatch.name || a.name || a.abilityId}</span>${formatAbilityCostBadge(a.cost, cardOrUnit.tribe)}<span class="text-[8px] bg-slate-800 text-slate-300 px-1 py-px rounded font-bold uppercase tracking-widest mx-1.5 shadow-inner opacity-90">${a.trigger || 'MANUAL'}</span><span>${formattedDesc}</span>
+                      ${nameContent}${costBadge}${triggerPill}<span>${formattedDesc}</span>
                     </div>
                   `}).join('')}
                 </div>
