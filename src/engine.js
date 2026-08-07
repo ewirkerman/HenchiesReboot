@@ -538,7 +538,11 @@ export class GameEngine {
                 entVal = entOwner === sourceOwner ? 'FRIENDLY' : 'ENEMY';
             }
             else if (node.attribute === 'hasAbility') {
-                entVal = entity.abilities ? entity.abilities.some(a => a.abilityId === node.value || (a.name && a.name.toLowerCase() === String(node.value).toLowerCase())) : false;
+                const searchVal = String(node.value).toLowerCase();
+                const hasAb = entity.abilities?.some(a => a.abilityId === node.value || (a.name && a.name.toLowerCase() === searchVal));
+                const hasEffect = entity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === node.value || (e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === searchVal)));
+                const hasTrait = entity.traits?.some(t => t.toLowerCase() === searchVal);
+                entVal = !!(hasAb || hasEffect || hasTrait);
                 return node.operator === '==' ? entVal : !entVal;
             }
             

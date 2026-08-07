@@ -330,11 +330,16 @@ export class DealDamageAction extends Action {
             target.health = Math.max(0, (target.health || 0) - amount);
             engine.state.history_log.push(`💥 ${target.name || 'Target'} took ${amount} damage.`);
             
-            if (target.abilities && target.abilities.some(a => a.name && a.name.toLowerCase() === 'dazed')) {
-                target.abilities = target.abilities.filter(a => !(a.name && a.name.toLowerCase() === 'dazed'));
+            const isDazed = target.abilities?.some(a => a.name && a.name.toLowerCase() === 'dazed') || 
+                            target.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && ((e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'dazed') || (e.traitId && e.traitId.toLowerCase() === 'dazed'))) ||
+                            target.traits?.some(t => t.toLowerCase() === 'dazed');
+
+            if (isDazed) {
+                if (target.abilities) target.abilities = target.abilities.filter(a => !(a.name && a.name.toLowerCase() === 'dazed'));
                 if (target.activeEffects) {
                     target.activeEffects = target.activeEffects.filter(e => !(e.type === 'GRANT_ABILITY' && ((e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'dazed') || (e.traitId && e.traitId.toLowerCase() === 'dazed'))));
                 }
+                if (target.traits) target.traits = target.traits.filter(t => t.toLowerCase() !== 'dazed');
                 engine.state.history_log.push(`💫 ${target.name} snapped out of being Dazed!`);
             }
 
