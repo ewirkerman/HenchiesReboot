@@ -17,7 +17,7 @@ export const TRIBE_STYLES = {
   Luchador: { bg: 'bg-yellow-900', lightBg: 'bg-yellow-950/90', border: 'border-black', text: 'text-yellow-300' }
 };
 
-export const CARD_BASE_CLASSES = "w-[128px] sm:w-[144px] aspect-[5/7]";
+export const CARD_BASE_CLASSES = "w-[128px] h-[179px] sm:w-[144px] sm:h-[201px]";
 
 export function showToast(message, type = 'info') {
   let container = document.getElementById('toast-container');
@@ -89,7 +89,7 @@ function formatAbilityCostBadge(cost, cardTribe) {
 }
 
 export function renderCardHTML(card, options = {}) {
-  const { isHand = false, isSelected = false, isTargetable = false, readiness = null, onClick = '', onInspect = '' } = options;
+  const { isHand = false, isSelected = false, isTargetable = false, readiness = null, onClick = '', onInspect = '', isMicro = false } = options;
   const style = TRIBE_STYLES[card.tribe] || TRIBE_STYLES.Mythic;
   const isUnit = card.type === 'unit' || card.type === 'avatar';
   const isAvatar = card.type === 'avatar';
@@ -128,7 +128,7 @@ export function renderCardHTML(card, options = {}) {
   const inspectButton = onInspect ? `
     <button 
       onclick="event.stopPropagation(); ${onInspect}"
-      class="absolute ${readiness !== null ? 'top-6' : 'top-1'} right-1 w-6 h-6 rounded-full bg-slate-900/80 hover:bg-slate-700 text-white font-black text-[10px] flex items-center justify-center border border-slate-500 shadow-lg z-30 transition-colors backdrop-blur-sm"
+      class="absolute ${isMicro ? 'top-6 right-1 w-4 h-4 text-[8px]' : (readiness !== null ? 'top-6 right-1 w-6 h-6 text-[10px]' : 'top-1 right-1 w-6 h-6 text-[10px]')} rounded-full bg-slate-900/80 hover:bg-slate-700 text-white font-black flex items-center justify-center border border-slate-500 shadow-lg z-30 transition-colors backdrop-blur-sm"
       title="Inspect Card"
     >
       🔍
@@ -149,6 +149,9 @@ export function renderCardHTML(card, options = {}) {
 
   const rightClickAttr = onInspect ? `oncontextmenu="event.preventDefault(); event.stopPropagation(); ${onInspect}"` : '';
 
+  let hoverTooltip = card.name || 'Unknown Card';
+  if (card.description) hoverTooltip += `\n"${card.description}"`;
+
   let abilitiesHTML = '';
   if (card.abilities && card.abilities.length > 0) {
       abilitiesHTML = card.abilities.map(ab => {
@@ -167,50 +170,75 @@ export function renderCardHTML(card, options = {}) {
           `;
       }).filter(Boolean).join('');
   }
-  
-  let hoverTooltip = `${card.name}\n${card.tribe} • ${card.type}\n`;
-  if (card.description) hoverTooltip += `\n"${card.description}"\n`;
-  if (card.abilities && card.abilities.length > 0) {
-      card.abilities.forEach(ab => {
-          let desc = ab.displayDescription || ab.description || '';
-          if (card.type === 'spell') {
-              desc = desc.replace(/^When played,\s*/i, '');
-              if (desc) desc = desc.charAt(0).toUpperCase() + desc.slice(1);
-          }
-          hoverTooltip += `\n[${ab.name || 'Ability'}]: ${desc}`;
-      });
-  }
   hoverTooltip += `\n\n(Right-click or tap 🔍 to inspect fully)`;
   const safeTooltip = hoverTooltip.replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+  if (isMicro) {
+    return `
+      <div 
+        onclick="${onClick}"
+        ${rightClickAttr}
+        title="${safeTooltip}"
+        class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${style.bg} ${tokenBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md"
+      >
+        <div class="absolute inset-0 opacity-30 mix-blend-overlay ${fieldDimmingClass}">
+           ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover" />` : ''}
+        </div>
+        <div class="relative z-10 w-full h-full p-1.5 flex flex-col justify-between bg-gradient-to-t from-black/90 via-black/40 to-black/90 ${fieldDimmingClass}">
+          <div class="flex items-center gap-1.5 w-full pr-6">
+            ${!isAvatar ? `<div class="w-4 h-4 rounded-full bg-amber-500 text-black font-black text-[9px] flex items-center justify-center border border-black shadow pointer-events-auto shrink-0">${card.cost ?? 0}</div>` : ''}
+            <div class="text-white text-[11px] font-black truncate drop-shadow-md leading-tight w-full">${card.name}</div>
+          </div>
+          ${isUnit ? `
+            <div class="flex justify-between items-end w-full px-0.5 mt-auto">
+              ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `<div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[10px] flex items-center justify-center shadow">${card.strength}</div>` : '<div></div>'}
+              ${(card.armor > 0) ? `<div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[9px] flex items-center justify-center shadow">🛡️${card.armor}</div>` : '<div></div>'}
+              <div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
+            </div>
+          ` : ''}
+        </div>
+        ${readiness !== null ? `
+          <div class="absolute top-1 right-1 text-[7px] px-1 py-0.5 rounded font-black uppercase z-20 ${
+            readiness === 1 ? 'bg-emerald-500 text-black' : 
+            readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border border-red-700'
+          }">
+            ${readiness === 1 ? 'RDY' : readiness === 0 ? 'UNRDY' : 'EXH'}
+          </div>
+        ` : ''}
+        ${(card.attachments && card.attachments.length > 0) ? `
+          <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 rounded bg-fuchsia-600 border border-black text-white font-black text-[8px] flex items-center justify-center z-30 shadow">🔗${card.attachments.length}</div>
+        ` : ''}
+        ${overlayHTML}
+        ${inspectButton}
+      </div>
+    `;
+  }
 
   return `
     <div 
       onclick="${onClick}"
       ${rightClickAttr}
       title="${safeTooltip}"
-      class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md ${style.bg} ${tokenBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden"
+      class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${style.bg} ${tokenBorderClass} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col select-none overflow-hidden"
     >
-      <div class="relative w-full h-[52%] overflow-hidden bg-slate-900 border-b ${separatorClass}">
-        ${card.artUrl ? `<img src="${card.artUrl}" alt="${card.name}" class="w-full h-full object-cover ${fieldDimmingClass}" />` : `
-          <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-3xl font-bold ${fieldDimmingClass}">
-            ${card.type === 'unit' ? '⚔️' : card.type === 'avatar' ? '👑' : card.type === 'boon' ? '✨' : card.type === 'buff' ? '🛡️' : '📜'}
-          </div>
-        `}
-        <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-[92%] flex justify-center z-10 pointer-events-none">
-          <div class="bg-black/50 backdrop-blur-sm text-white text-[11px] font-black px-2 py-0.5 rounded-full truncate text-center w-full shadow-md leading-tight border-none">
-            ${card.name}
-          </div>
-        </div>
+      <div class="absolute inset-0 opacity-10 mix-blend-overlay ${fieldDimmingClass}"></div>
+      
+      <div class="w-full h-1/2 bg-slate-900 border-b-2 ${separatorClass} shrink-0 relative overflow-hidden ${fieldDimmingClass}">
+        ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover" />` : ''}
       </div>
 
-      <div class="w-full h-[48%] ${style.lightBg} p-1 flex flex-col justify-between ${fieldDimmingClass} relative">
+      <div class="w-full h-1/2 ${style.lightBg} p-1.5 sm:p-2 flex flex-col relative overflow-hidden ${fieldDimmingClass}">
         ${isToken ? '<div class="absolute inset-0 bg-white/5 pointer-events-none"></div>' : ''}
-        <div class="flex-1 flex flex-col gap-0 overflow-hidden justify-start items-center pt-0.5 relative z-10">
-            ${abilitiesHTML}
+        <div class="text-[10px] font-bold text-slate-200 capitalize text-center tracking-wider bg-black/40 px-2 rounded-full mx-auto w-max mb-1 shadow-inner relative z-10 pointer-events-none">
+          ${card.tribe} • ${card.type}
+        </div>
+        
+        <div class="flex-1 flex flex-col gap-0.5 overflow-hidden w-full relative z-10 pointer-events-none">
+           ${abilitiesHTML}
         </div>
 
         ${isUnit ? `
-          <div class="flex justify-between items-end w-full pt-1 px-1 pb-0.5 shrink-0 relative z-10">
+          <div class="absolute bottom-1.5 left-1.5 right-1.5 flex justify-between items-end pointer-events-none">
             ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `
               <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${card.strength}</div>
             ` : '<div></div>'}
