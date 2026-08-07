@@ -330,9 +330,19 @@ export class DealDamageAction extends Action {
             target.health = Math.max(0, (target.health || 0) - amount);
             engine.state.history_log.push(`💥 ${target.name || 'Target'} took ${amount} damage.`);
             
+            if (target.abilities && target.abilities.some(a => a.name && a.name.toLowerCase() === 'dazed')) {
+                target.abilities = target.abilities.filter(a => !(a.name && a.name.toLowerCase() === 'dazed'));
+                if (target.activeEffects) {
+                    target.activeEffects = target.activeEffects.filter(e => !(e.type === 'GRANT_ABILITY' && ((e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'dazed') || (e.traitId && e.traitId.toLowerCase() === 'dazed'))));
+                }
+                engine.state.history_log.push(`💫 ${target.name} snapped out of being Dazed!`);
+            }
+
             if (target.type === 'avatar' && target.health <= 0) {
+                const loc = findEntityLocation(engine, target);
+                const loserId = loc ? loc.playerId : (engine.state.activePlayerId === 'player1' ? 'player2' : 'player1');
                 engine.state.status = 'finished';
-                engine.state.winner = engine.state.activePlayerId === 'player1' ? 'player2' : 'player1';
+                engine.state.winner = loserId === 'player1' ? 'player2' : 'player1';
                 engine.state.history_log.push(`☠️ Avatar ${target.name} has fallen! Match finished.`);
             }
             if (target.health <= 0 && target.type !== 'avatar' && !target._isDying) {
@@ -525,7 +535,7 @@ export class PlayAction extends Action {
         instance.readiness = 0; // "Summoning Sickness" when explicitly played
         instance.acts = instance.maxActs !== undefined ? instance.maxActs : 1;
         
-        let destZone = (instance.type === 'artifact' || instance.type === 'equipment') ? 'equator' : (instance.type === 'boon' ? 'avatar' : (this.payload.targetLine || 'back'));
+        let destZone = (instance.type === 'artifact' || instance.type === 'equipment') ? 'equator' : (instance.type === 'boon' ? 'avatar' : (instance.type === 'spell' ? 'discard' : (this.payload.targetLine || 'back')));
         
         if (instance.type === 'unit') {
              instance.defaultLine = instance.defaultLine || 'mid';
@@ -544,7 +554,7 @@ export class PlayAction extends Action {
         this.payload.target = instance; 
         
         if (instance.type === 'unit') {
-             instance.line = instance.defaultLine;
+             instance.line = destZone;
              
              if (destZone !== instance.defaultLine) {
                  const tempEffect = new SetStatAction({
@@ -559,6 +569,13 @@ export class PlayAction extends Action {
         }
         
         engine.state.history_log.push(`🃏 Played ${instance.name}.`);
+        
+        // Play is a physical movement to the field, making it a subset of Field events.
+        // Summon bypasses this because tokens materialize natively on the board.
+        if (instance.type !== 'spell') {
+            engine.emit('ON_FIELD', { source: this.payload.source, target: instance, eventContext: this.payload.eventContext });
+            engine.emit('ON_BE_FIELDED', { source: this.payload.source, target: instance, eventContext: this.payload.eventContext });
+        }
     }
 }
 
@@ -568,8 +585,6 @@ export class AttackAction extends Action {
         const defender = this.payload.target;
         
         engine.state.history_log.push(`⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`);
-        
-        attacker.readiness = 0; 
         
         const atkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
         const defBlockRetaliate = defender.activeEffects?.some(e => e.type === 'BLOCK_RETALIATE' || e.type === 'BLOCK_ACT');
@@ -741,6 +756,8 @@ export class UnattachAction extends Action {
             const target = this.payload.target;
             const ownerId = loc.playerId || engine.state.activePlayerId;
             
+            target.readiness = 0;
+            
             if (target.type === 'buff') {
                 moveEntity(engine, target, ownerId, 'discard');
                 engine.state.history_log.push(`🔓 '${target.name}' unattached and was trashed to discard.`);
@@ -823,12 +840,19 @@ export class SummonAction extends Action {
             instance.isToken = true;
             instance.health = instance.health || 1;
             instance.maxHealth = instance.health;
-            instance.readiness = 0;
+            instance.readiness = 0; // Tokens suffer summoning sickness
             instance.acts = instance.maxActs !== undefined ? instance.maxActs : 1;
             
-            moveEntity(engine, instance, ownerId, destZone);
-            registerEffect(engine, instance, this.payload);
+            let actualDest = destZone;
+            if (instance.type === 'unit') {
+                 instance.defaultLine = instance.defaultLine || 'mid';
+                 instance.line = instance.defaultLine;
+                 if (actualDest === 'back' && instance.defaultLine !== 'mid') actualDest = instance.defaultLine;
+            }
+            
+            moveEntity(engine, instance, ownerId, actualDest);
             summonedInstances.push(instance);
+            engine.state.history_log.push(`✨ Summoned ${instance.name}.`);
         }
         
         if (this.payload.nestedGroup && this.payload.nestedGroup.payloads && this.payload.nestedGroup.payloads.length > 0) {

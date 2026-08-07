@@ -296,8 +296,8 @@ export class GameEngine {
             this.state.abilityUses[abilityKey] = (this.state.abilityUses[abilityKey] || 0) + 1;
 
             if (requiresReadiness) {
-                if (cost.readinessCost === 'EXHAUSTS') source.readiness = -1;
-                else if (cost.readinessCost === 'UNREADIES') source.readiness = 0;
+                if (cost.readinessCost === 'EXHAUSTS') source.readiness -= 2;
+                else if (cost.readinessCost === 'UNREADIES') source.readiness -= 1;
             }
             
             if (cCost > 0 && p.resources['Carnie']) p.resources['Carnie'].current -= cCost;
@@ -520,8 +520,25 @@ export class GameEngine {
             else if (node.attribute === 'strength') entVal = entity.strength || 0;
             else if (node.attribute === 'armor') entVal = entity.armor || 0;
             else if (node.attribute === 'isCombat') entVal = eventPayload?.isCombat ? 'true' : 'false';
+            else if (node.attribute === 'alignment') {
+                const getOwner = (ent) => {
+                    if (ent?.ownerId) return ent.ownerId;
+                    for (const pId of ['player1', 'player2']) {
+                        const p = this.state.players[pId];
+                        if (['hand', 'deck', 'discard', 'banish'].some(z => p[z].some(c => c.instanceId === ent?.instanceId))) return pId;
+                        for (const line of LINES) {
+                            if (p.lines[line] && p.lines[line].some(c => c.instanceId === ent?.instanceId)) return pId;
+                            if (p.lines[line] && p.lines[line].some(u => u.attachments && u.attachments.some(a => a.instanceId === ent?.instanceId))) return pId;
+                        }
+                    }
+                    return null;
+                };
+                const entOwner = getOwner(entity);
+                const sourceOwner = getOwner(source) || this.state.activePlayerId;
+                entVal = entOwner === sourceOwner ? 'FRIENDLY' : 'ENEMY';
+            }
             else if (node.attribute === 'hasAbility') {
-                entVal = entity.abilities ? entity.abilities.some(a => a.abilityId === node.value) : false;
+                entVal = entity.abilities ? entity.abilities.some(a => a.abilityId === node.value || (a.name && a.name.toLowerCase() === String(node.value).toLowerCase())) : false;
                 return node.operator === '==' ? entVal : !entVal;
             }
             
@@ -928,10 +945,28 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
         checkPlayer(playerId, true);
         checkPlayer(oppId, false);
         
-        if (qt.zones.includes('FIELD') && !qt.ignoreBattlelines && !qt.alignment.includes('FRIENDLY') && qt.alignment.includes('ENEMY')) {
+        if (qt.zones.includes('FIELD') && !qt.ignoreBattlelines) {
             const atkTargets = getValidAttackTargets(state, playerId);
-            targets = targets.filter(t => !['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(t.line) || atkTargets.some(at => at.id === t.id));
+            targets = targets.filter(t => {
+                if (t.playerId === playerId) return true; // Friendly targets ignore battlelines
+                return !['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(t.line) || atkTargets.some(at => at.id === t.id);
+            });
         }
+    }
+    
+    if (ability.activation?.logicTree) {
+        const engine = new GameEngine(state);
+        targets = targets.filter(t => {
+            const targetEntity = [
+                ...Object.values(state.players.player1.lines).flat(),
+                ...Object.values(state.players.player2.lines).flat(),
+                ...(state.equator || []),
+                ...state.players.player1.hand, ...state.players.player1.deck, ...state.players.player1.discard, ...state.players.player1.banish,
+                ...state.players.player2.hand, ...state.players.player2.deck, ...state.players.player2.discard, ...state.players.player2.banish
+            ].filter(Boolean).find(e => e.id === t.id || e.instanceId === t.id);
+            
+            return targetEntity ? engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, entity) : false;
+        });
     }
     
     return targets.filter((t, index, self) => index === self.findIndex(o => o.id === t.id));

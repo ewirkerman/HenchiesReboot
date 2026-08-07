@@ -1,8 +1,13 @@
-import { createGameRoom } from './firebase.js';
+import { createGameRoom, fetchCustomAbilities } from './firebase.js';
 
 export async function launchSandboxMatch(itemData, type = 'card') {
-    const dummyAttack = {"abilityId":"ability_dummy_attack","name":"Attack","trigger":"MANUAL","cost":{"readinessCost":"EXHAUSTS"},"activation":{"method":"PLAYER_CHOICE","quickTargeting":{"zones":["FIELD"],"alignment":["ENEMY"],"entityType":["UNIT","AVATAR"],"ignoreBattlelines":false}},"effects":[{"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"type":"ATTACK","duration":"INSTANT"}]}]};
-    const dummyCard = {"id":"custom_1785272139394","name":"Target Dummy","tribe":"Carnie","type":"unit","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":1,"description":"","artUrl":"","abilities":[dummyAttack],"defaultLine":"mid"};
+    const abs = await fetchCustomAbilities();
+    let standardAttack = abs.find(a => a.name === 'Attack' || a.abilityId === 'ability_1785516184176');
+    if (!standardAttack) {
+        standardAttack = {"abilityId":"ability_dummy_attack","name":"Attack","trigger":"MANUAL","cost":{"readinessCost":"EXHAUSTS"},"activation":{"method":"PLAYER_CHOICE","quickTargeting":{"zones":["FIELD"],"alignment":["ENEMY"],"entityType":["UNIT","AVATAR"],"ignoreBattlelines":false}},"effects":[{"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"type":"ATTACK","duration":"INSTANT"}]}]};
+    }
+
+    const dummyCard = {"id":"custom_1785272139394","name":"Target Dummy","tribe":"Carnie","type":"unit","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":1,"description":"","artUrl":"","abilities":[standardAttack],"defaultLine":"mid"};
     const shovelCard = {"id":"card_1785786111173","name":"Skull Shovel","tribe":"Undead","type":"equipment","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[{"cost":{"carnie":0,"readinessCost":"NONE","tribeAmount":0,"reuseIgnoresReadiness":false},"activation":{"quickTargeting":{"entityType":["UNIT"],"ignoreBattlelines":true,"alignment":["FRIENDLY"],"zones":["FIELD"]},"logicTree":{"type":"group","logicalOperator":"AND","children":[]},"method":"PLAYER_CHOICE"},"effects":[{"payloads":[{"type":"ATTACH","invertRoles":true,"duration":"INDEFINITE"}],"targetCount":1,"targetMethod":"SAME_AS_ACTIVATION","logicTree":{"children":[],"type":"group","logicalOperator":"AND"},"quickTargeting":{"zones":["FIELD"],"alignment":["ENEMY"],"ignoreBattlelines":true,"entityType":["UNIT","AVATAR"]}}],"abilityId":"ability_1785760109406","description":"","name":"Equip on play","trigger":"ON_BE_PLAYED","triggerLimit":"UNLIMITED","displayDescription":"When played, attach to a chosen ally (indefinite)."},{"description":"","name":"Equip","triggerScope":"PERSONAL","additionalTriggers":[],"triggerLimit":"UNLIMITED","effects":[{"logicTree":{"children":[],"type":"group","logicalOperator":"AND"},"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"duration":"INDEFINITE","type":"ATTACH","invertRoles":true}],"quickTargeting":{"alignment":["ENEMY"],"entityType":["UNIT","AVATAR"],"ignoreBattlelines":true,"zones":["FIELD"]}}],"trigger":"MANUAL","activation":{"logicTree":{"type":"group","logicalOperator":"AND","children":[]},"method":"PLAYER_CHOICE","quickTargeting":{"ignoreBattlelines":false,"zones":["FIELD"],"entityType":["UNIT"],"alignment":["FRIENDLY"]}},"abilityId":"ability_1785782572054","cost":{"reuseIgnoresReadiness":false,"carnie":2,"tribeAmount":0,"readinessCost":"NONE"},"displayDescription":"Attach to a chosen ally (indefinite)."},{"name":"Grant Dig","triggerLimit":"UNLIMITED","effects":[{"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"type":"GRANT_ABILITY","duration":"WHILE_ATTACHED","grantedAbilityId":"ability_1785512849923"}],"quickTargeting":{"zones":["FIELD"],"ignoreBattlelines":false,"entityType":["UNIT","AVATAR"],"alignment":["ENEMY"]},"logicTree":{"children":[],"logicalOperator":"AND","type":"group"}}],"activation":{"quickTargeting":{"zones":["FIELD"],"entityType":["UNIT","AVATAR"],"ignoreBattlelines":false,"alignment":["ENEMY"]},"method":"NONE","logicTree":{"logicalOperator":"AND","children":[],"type":"group"}},"trigger":"ON_BE_ATTACHED","description":"","abilityId":"ability_1785795705988","cost":{"carnie":0,"reuseIgnoresReadiness":false,"readinessCost":"NONE","tribeAmount":0},"displayDescription":"When attached, grant ability 'Dig' to the triggered entity (while attached)."}]};
 
     let card;
@@ -10,7 +15,7 @@ export async function launchSandboxMatch(itemData, type = 'card') {
         card = JSON.parse(JSON.stringify(dummyCard));
         card.id = 'test_card';
         card.name = 'Test Dummy';
-        card.abilities = [itemData, dummyAttack];
+        card.abilities = [itemData, standardAttack];
         card.description = itemData.name + ' test wrapper.';
     } else {
         card = itemData;

@@ -42,7 +42,8 @@ export function getValidActionsForZones(selectedZones) {
 }
 
 const ATTRIBUTE_TYPES = {
-    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER', 'BOON'] },
+    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER'] },
+    'alignment': { label: 'Alignment', type: 'select', options: ['FRIENDLY', 'ENEMY'] },
     'zone': { label: 'Zone', type: 'select', options: ZONES },
     'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
     'family': { label: 'Family', type: 'text' },

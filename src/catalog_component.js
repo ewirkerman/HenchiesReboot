@@ -62,7 +62,7 @@ export class StudioCatalog extends HTMLElement {
             // Show top 5 most recent if no search
             this.filteredItems = this.items.slice(0, 5);
         } else {
-            this.filteredItems = this.items.filter(item => {
+            const matched = this.items.filter(item => {
                 let payloadTypes = '';
                 if (item.effects) {
                     payloadTypes = item.effects.map(g => (g.payloads || []).map(p => p.type).join(' ')).join(' ');
@@ -82,7 +82,21 @@ export class StudioCatalog extends HTMLElement {
                 ].filter(Boolean).join(' ').toLowerCase();
                 
                 return terms.every(term => searchableText.includes(term));
-            }).slice(0, 30);
+            });
+
+            const nameMatches = [];
+            const otherMatches = [];
+            
+            matched.forEach(item => {
+                const itemName = (item.name || '').toLowerCase();
+                if (terms.every(term => itemName.includes(term))) {
+                    nameMatches.push(item);
+                } else {
+                    otherMatches.push(item);
+                }
+            });
+            
+            this.filteredItems = [...nameMatches, ...otherMatches].slice(0, 30);
         }
 
         if (this.filteredItems.length === 0) {
