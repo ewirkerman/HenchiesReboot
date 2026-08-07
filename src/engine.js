@@ -142,8 +142,20 @@ export class GameEngine {
 
         // 1. Force-check transit entities in the payload (crucial for MODIFY_PLAY / ON_BE_PLAYED)
         if (payload) {
-            if (payload.source) checkEntity(payload.source, payload.source.ownerId);
-            if (payload.target) checkEntity(payload.target, payload.target.ownerId);
+            const getOwner = (ent) => {
+                if (ent.ownerId) return ent.ownerId;
+                for (const pId of ['player1', 'player2']) {
+                    const p = this.state.players[pId];
+                    if (['hand', 'deck', 'discard', 'banish'].some(z => p[z].some(c => c.instanceId === ent.instanceId))) return pId;
+                    for (const line of LINES) {
+                        if (p.lines[line] && p.lines[line].some(c => c.instanceId === ent.instanceId)) return pId;
+                        if (p.lines[line] && p.lines[line].some(u => u.attachments && u.attachments.some(a => a.instanceId === ent.instanceId))) return pId;
+                    }
+                }
+                return null;
+            };
+            if (payload.source) checkEntity(payload.source, getOwner(payload.source));
+            if (payload.target) checkEntity(payload.target, getOwner(payload.target));
         }
         
         // 2. Scan all entities on the board for matching triggers
@@ -266,7 +278,7 @@ export class GameEngine {
 
             let cCost = cost.carnie || cost.tent || 0;
             if (cCost > 0 && (p.resources['Carnie']?.current || 0) < cCost) canAfford = false;
-            if (cost.power > 0 && (avatar?.power || 0) < cost.power) canAfford = false;
+            if (cost.power > 0 && (source.power || 0) < cost.power) canAfford = false;
             
             let tribeResKey = null;
             if (cost.tribeAmount > 0) {
@@ -289,7 +301,7 @@ export class GameEngine {
             }
             
             if (cCost > 0 && p.resources['Carnie']) p.resources['Carnie'].current -= cCost;
-            if (cost.power > 0 && avatar) avatar.power -= cost.power;
+            if (cost.power > 0) source.power -= cost.power;
             if (cost.tribeAmount > 0 && tribeResKey) p.resources[tribeResKey].current -= cost.tribeAmount;
 
             // Phase 1: Target Acquisition (Lock in targets based on board state BEFORE costs/effects resolve)
@@ -973,7 +985,7 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                         }
 
                         if ((cost.carnie || cost.tent) > 0 && (player.resources['Carnie']?.current || 0) < (cost.carnie || cost.tent)) canAfford = false;
-                        if (cost.power > 0 && (avatar?.power || 0) < cost.power) canAfford = false;
+                        if (cost.power > 0 && (entity.power || 0) < cost.power) canAfford = false;
                         
                         if (canAfford && cost.tribeAmount > 0) {
                             const entityTribe = entity.tribe || 'Generic';

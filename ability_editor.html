@@ -145,7 +145,7 @@
               2. Cost & Requirements
             </h3>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Resource Amount</label>
                 <input type="number" id="ab-cost-tribe-amt" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
@@ -155,6 +155,10 @@
                 <input type="number" id="ab-cost-tent" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
               </div>
               <div>
+                <label class="font-bold text-slate-300 block mb-1">Power Cost</label>
+                <input type="number" id="ab-cost-power" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
+              </div>
+              <div>
                 <label class="font-bold text-slate-300 block mb-1">Readiness Cost</label>
                 <select id="ab-cost-readiness" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500">
                   <option value="NONE" selected>None</option>
@@ -162,7 +166,7 @@
                   <option value="EXHAUSTS">Exhausts (Hard Tap)</option>
                 </select>
               </div>
-              <div class="md:col-span-3 flex flex-col gap-2 pb-2">
+              <div class="md:col-span-4 flex flex-col gap-2 pb-2">
                 <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
                   <input type="checkbox" id="ab-cost-free-action" class="w-4 h-4 accent-rose-500" />
                   <span class="font-bold text-[11px] text-amber-400">Free Action (Does not consume unit's Act)</span>
@@ -1589,6 +1593,7 @@
         triggerLimit: document.getElementById('ab-trigger-limit').value,
         tribeAmount: document.getElementById('ab-cost-tribe-amt').value,
         carnie: document.getElementById('ab-cost-tent').value,
+        power: document.getElementById('ab-cost-power').value,
         readinessCost: document.getElementById('ab-cost-readiness').value,
         reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked,
         freeAction: document.getElementById('ab-cost-free-action').checked,
@@ -1765,6 +1770,7 @@
       
       document.getElementById('ab-cost-tribe-amt').value = '0';
       document.getElementById('ab-cost-tent').value = '0';
+      document.getElementById('ab-cost-power').value = '0';
       document.getElementById('ab-cost-readiness').value = 'NONE';
       document.getElementById('ab-cost-reuse-exempt').checked = false;
       document.getElementById('ab-cost-free-action').checked = false;
@@ -1847,6 +1853,7 @@
       const cost = ab.cost || {};
       document.getElementById('ab-cost-tribe-amt').value = cost.tribeAmount || 0;
       document.getElementById('ab-cost-tent').value = cost.carnie || cost.tent || 0;
+      document.getElementById('ab-cost-power').value = cost.power || 0;
       
       if (cost.readinessCost) document.getElementById('ab-cost-readiness').value = cost.readinessCost;
       else if (cost.exhausts) document.getElementById('ab-cost-readiness').value = 'EXHAUSTS';

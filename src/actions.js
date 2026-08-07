@@ -13,7 +13,7 @@ export const ACTION_MANIFEST = {
     'SET_STAT': { passiveType: 'BE_STAT_SET', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'MODIFY_RESOURCE': { passiveType: 'BE_RESOURCE_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresResource: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'DRAW_CARD': { passiveType: 'BE_DRAWN', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DECK'], validDurations: ['INSTANT'] },
-    'SUMMON': { passiveType: 'BE_SUMMONED', canInvert: false, canBeCost: false, requiresAmount: true, requiresCardId: true, requiresZone: true, requiresZoneOwner: true, hasNestedGroup: true, validZones: 'ALL', validDurations: ['INSTANT'] },
+    'SUMMON': { passiveType: 'BE_SUMMONED', canInvert: false, canBeCost: false, requiresAmount: true, requiresCardId: true, requiresZone: true, requiresZoneOwner: true, hasNestedGroup: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'PLAY': { passiveType: 'BE_PLAYED', canInvert: true, canBeCost: false, validZones: ['HAND'], validDurations: ['INSTANT'] },
     'ATTACK': { passiveType: 'BE_ATTACKED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'HARVEST': { passiveType: 'BE_HARVESTED', canInvert: true, canBeCost: false, validZones: ['HAND'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -801,9 +801,17 @@ export class SummonAction extends Action {
         }
         
         const destZone = String(this.payload.zone || 'back').toLowerCase();
+        
+        let fallbackOwner = engine.state.activePlayerId;
+        if (this.payload.source) {
+            const loc = findEntityLocation(engine, this.payload.source);
+            if (loc && loc.playerId) fallbackOwner = loc.playerId;
+            else if (this.payload.source.ownerId) fallbackOwner = this.payload.source.ownerId;
+        }
+
         const ownerId = this.payload.zoneOwner === 'TARGET' && this.payload.target ? 
-            findEntityLocation(engine, this.payload.target)?.playerId || engine.state.activePlayerId : 
-            engine.state.activePlayerId;
+            findEntityLocation(engine, this.payload.target)?.playerId || fallbackOwner : 
+            fallbackOwner;
             
         if (DEBUG_ACTIONS) console.log(`[DEBUG ACTIONS] SummonAction found card '${card.name}'. Summoning ${this.payload.amount || 1} copy(ies) to owner: ${ownerId}, zone: ${destZone}`);
             

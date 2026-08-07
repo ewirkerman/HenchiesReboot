@@ -258,38 +258,13 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         triggerText = first + ' or ' + rest.join(' or ');
     }
 
-    // 1b. Symbol String Prefix Cost Block
+    // 1b. Cost Modifiers (Icons handled by UI Badge instead of text)
     const cost = ability.cost || {};
-    let costSymbols = [];
-
-    if (cost.tribeAmount && cost.tribeAmount > 0) {
-        costSymbols.push(`{Resource ${cost.tribeAmount}}`);
-    }
-    if (cost.tent && cost.tent > 0) {
-        costSymbols.push(`{Tent ${cost.tent}}`);
-    }
-    if (cost.power && cost.power > 0) {
-        costSymbols.push(`{Power ${cost.power}}`);
-    }
-    if (cost.readinessCost === 'UNREADIES') {
-        costSymbols.push(`{Unready}`);
-    } else if (cost.readinessCost === 'EXHAUSTS') {
-        costSymbols.push(`{Exhaust}`);
-    }
-    if (cost.freeAction) {
-        costSymbols.push(`{Free Action}`);
-    }
-
-    let symbolPrefix = costSymbols.join(' ');
     
     if (trigger === 'UNTRIGGERABLE') {
         descriptionParts.push(triggerText);
     } else {
         let triggerAndCostStr = "";
-        
-        if (symbolPrefix) {
-             triggerAndCostStr += symbolPrefix + " ";
-        }
         
         if (cost.reuseIgnoresReadiness && cost.readinessCost !== 'NONE') {
              triggerAndCostStr += `(Subsequent uses this round ignore readiness cost) `;
@@ -480,7 +455,15 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         let destZone = (eff.zone || 'FIELD').toLowerCase();
                         let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
 
-                        effText = `summon ${summonAmt} ${cardName}${pluralSuffix}{OMIT_TARGET}`;
+                        let durationAdj = '';
+                        if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
+                            if (eff.duration === 'TEMPORARY') durationAdj = 'temporary ';
+                            else if (eff.duration === 'BRIEF') durationAdj = 'brief ';
+                            else if (eff.duration === 'PERMANENT') durationAdj = 'permanent ';
+                            else durationAdj = eff.duration.toLowerCase() + ' ';
+                        }
+
+                        effText = `summon ${summonAmt} ${durationAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
                         
                         if (isCasterZone) {
                             if (destZone !== 'field') effText += ` to ${destZone}`;
@@ -516,10 +499,20 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     effText = `force {TARGET} to ${effText}`;
                 }
 
-                if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
-                    let durText = eff.duration.toLowerCase();
-                    if (eff.duration === 'WHILE_ATTACHED') durText = 'while attached';
-                    effText += ` (${durText})`;
+                if (eff.type !== 'SUMMON' && eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
+                    if (eff.duration === 'WHILE_ATTACHED') {
+                        effText += ' (while attached)';
+                    } else {
+                        let adverb = '';
+                        if (eff.duration === 'TEMPORARY') adverb = 'temporarily ';
+                        else if (eff.duration === 'BRIEF') adverb = 'briefly ';
+                        else if (eff.duration === 'PERMANENT') adverb = 'permanently ';
+                        else adverb = eff.duration.toLowerCase() + ' ';
+                        
+                        // Inject adverb right after the first space (assuming verb is first word, e.g. "deal 1 damage" -> "deal temporarily 1 damage" wait no, "temporarily deal 1 damage")
+                        const parts = effText.split(' ');
+                        effText = adverb + parts.join(' ');
+                    }
                 }
 
                 return effText;

@@ -59,21 +59,22 @@ function formatAbilityCostBadge(cost, cardTribe) {
   const carnieCost = cost.carnie || cost.tent || 0;
   if (carnieCost > 0) badgeStr += `${carnieCost}🎪`;
   if (cost.power > 0) badgeStr += `${cost.power}⚡`;
-  if (cost.tribeAmount > 0) {
-      const tType = cost.tribeType || cardTribe || 'Generic';
-      if (tType && tType !== 'NONE' && tType !== 'Generic') {
-          badgeStr += `${cost.tribeAmount}${tType.charAt(0)}`;
-      } else {
-          badgeStr += `${cost.tribeAmount}💎`;
+      if (cost.tribeAmount > 0) {
+          const tType = cost.tribeType || cardTribe || 'Generic';
+          if (tType && tType !== 'NONE' && tType !== 'Generic') {
+              badgeStr += `${cost.tribeAmount}${tType.charAt(0)}`;
+          } else {
+              badgeStr += `${cost.tribeAmount}💎`;
+          }
       }
-  }
-  if (cost.readinessCost === 'EXHAUSTS') badgeStr += `🔄`;
-  if (cost.readinessCost === 'UNREADIES') badgeStr += `⤵️`;
-  
-  return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-1 tracking-tighter whitespace-nowrap opacity-90">[${badgeStr}]</span>` : '';
-}
+      if (cost.readinessCost === 'EXHAUSTS') badgeStr += `🔄`;
+      if (cost.readinessCost === 'UNREADIES') badgeStr += `⤵️`;
+      if (cost.freeAction) badgeStr += `🆓`;
+      
+      return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-1 tracking-tighter whitespace-nowrap opacity-90">[${badgeStr}]</span>` : '';
+    }
 
-function getLineIconSvg(line) {
+    function getLineIconSvg(line) {
     const svgs = {
         avatar: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
         bodyguard: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12 1L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4zm4.5 14h-9l-1-4 3 1.5L12 9l2.5 3.5L17.5 11l-1 4z"/></svg>`,
@@ -250,11 +251,11 @@ export function renderCardHTML(card, options = {}) {
 const SYSTEM_GLOSSARY = [
     { regex: /\bfield(s|ed|ing)?\b/i, id: 'sys_field', name: 'Field', trigger: 'KEYWORD', displayDescription: 'To put a card into play from your hand or discard pile without paying its resource cost.' },
     { regex: /\bfor this action\b/i, id: 'sys_action', name: 'Action', trigger: 'DURATION', displayDescription: 'An effect that lasts only until the current action, attack, or event fully resolves.' },
-    { regex: /\bbrief\b/i, id: 'sys_brief', name: 'Brief', trigger: 'DURATION', displayDescription: 'An effect that lasts until the end of the current turn.' },
-    { regex: /\btemporary\b/i, id: 'sys_temporary', name: 'Temporary', trigger: 'DURATION', displayDescription: 'An effect that lasts until the end of the opponent\'s turn.' },
+    { regex: /\bbrief(ly)?\b/i, id: 'sys_brief', name: 'Brief', trigger: 'DURATION', displayDescription: 'An effect that lasts until the end of the current turn.' },
+    { regex: /\btemporar(y|ily)\b/i, id: 'sys_temporary', name: 'Temporary', trigger: 'DURATION', displayDescription: 'An effect that lasts until the end of the opponent\'s turn.' },
     { regex: /\bwhile attached\b/i, id: 'sys_attached', name: 'While Attached', trigger: 'DURATION', displayDescription: 'An effect that lasts only as long as the equipment, artifact, or aura remains attached to its host.' },
-    { regex: /\bindefinite\b/i, id: 'sys_indefinite', name: 'Indefinite', trigger: 'DURATION', displayDescription: 'An effect that lasts as long as the entity remains on the board. Removed if it dies or leaves play.' },
-    { regex: /\bpermanent\b/i, id: 'sys_permanent', name: 'Permanent', trigger: 'DURATION', displayDescription: 'An effect that persists across all zones, even if the entity is destroyed or returned to hand.' }
+    { regex: /\bindefinite(ly)?\b/i, id: 'sys_indefinite', name: 'Indefinite', trigger: 'DURATION', displayDescription: 'An effect that lasts as long as the entity remains on the board. Removed if it dies or leaves play.' },
+    { regex: /\bpermanent(ly)?\b/i, id: 'sys_permanent', name: 'Permanent', trigger: 'DURATION', displayDescription: 'An effect that persists across all zones, even if the entity is destroyed or returned to hand.' }
 ];
 
 function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = '') {
