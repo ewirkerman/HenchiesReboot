@@ -406,7 +406,7 @@
     updateDeckDropdown();
 
     window.inspectCard = (cardJson) => {
-      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry);
+      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry, false, currentGameState?.abilityUses || {});
     };
 
     document.getElementById('launch-match-btn').addEventListener('click', handleLaunchMatch);
@@ -797,7 +797,8 @@
         const json = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
         return renderCardHTML(item, {
           onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
-          onInspect: `window.inspectCard('${json}')`
+          onInspect: `window.inspectCard('${json}')`,
+          abilityUses: currentGameState?.abilityUses || {}
         });
       }).join('');
     }
@@ -835,7 +836,8 @@
 
           const cardHtml = renderCardHTML(topCard, {
             onClick: `window.openZoneModal('${player.id}', 'discard')`,
-            onInspect: `window.inspectCard('${json}')`
+            onInspect: `window.inspectCard('${json}')`,
+            abilityUses: currentGameState?.abilityUses || {}
           });
           
           discardEl.innerHTML = `
@@ -882,7 +884,8 @@
                 return renderCardHTML(c, {
                     isTargetable: isTargetable,
                     onClick: `window.handleZoneCardClick('${prefix}', '${zone}', '${c.instanceId || c.id}')`,
-                    onInspect: `window.inspectCard('${json}')`
+                    onInspect: `window.inspectCard('${json}')`,
+                    abilityUses: currentGameState?.abilityUses || {}
                 });
             }).join('');
         }
@@ -969,7 +972,8 @@
             isMicro: useMicro,
             isNano: useNano,
             onClick: `window.handleEntityClick('${prefix}', '${line}', '${u.instanceId}')`,
-            onInspect: `window.inspectCard('${json}')`
+            onInspect: `window.inspectCard('${json}')`,
+            abilityUses: currentGameState?.abilityUses || {}
           });
         }).join('');
       }
@@ -1235,7 +1239,8 @@
           isSelected: isSelected,
           isPlayable: playable,
           onClick: `window.handleHandCardClick('${cardRefId}')`,
-          onInspect: `window.inspectCard('${json}')`
+          onInspect: `window.inspectCard('${json}')`,
+          abilityUses: currentGameState?.abilityUses || {}
         });
       }).join('');
 

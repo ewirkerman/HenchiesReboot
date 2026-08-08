@@ -78,6 +78,17 @@
         return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-1 tracking-tighter whitespace-nowrap opacity-90">[${badgeStr}]</span>` : '';
       }
 
+      export function getIconSvg(icon) {
+          const svgs = {
+              attack: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M6 4l14 14M14 4l-4 4m6 6l4 4M4 20l4-4M4 6l4 4" /></svg>`,
+              armor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>`,
+              fast: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`,
+              attach: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>`,
+              hourglass: `<svg width="800" height="800" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2A16.08 16.08 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a16.09 16.09 0 0 0-6.352-12.764L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M184 40v23.996H72V40Zm0 176H72v-36l55.981-41.986L184 180.36Z"/></svg>`
+          };
+          return svgs[icon] || '';
+      }
+
       function getLineIconSvg(line) {
       const svgs = {
           avatar: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
@@ -167,13 +178,13 @@
 
     const fastBadge = (card.fast > 0) ? `
       <div class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-yellow-400 border border-black text-black font-black text-[10px] flex items-center justify-center shadow-lg z-30" title="Fast Charges">
-        ⚡${card.fast}
+        <div class="w-3 h-3 mr-0.5">${getIconSvg('fast')}</div>${card.fast}
       </div>
     ` : '';
 
     const attachmentsBadge = (card.attachments && card.attachments.length > 0) ? `
       <div class="absolute -top-1.5 -left-1.5 w-6 h-6 rounded bg-fuchsia-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow-lg z-30" title="Attachments">
-        🔗${card.attachments.length}
+        <div class="w-3 h-3 mr-0.5">${getIconSvg('attach')}</div>${card.attachments.length}
       </div>
     ` : '';
 
@@ -189,13 +200,31 @@
             const isPassive = ab.trigger === 'UNTRIGGERABLE';
             const hasNoCost = !ab.cost || ((!ab.cost.tribeAmount) && (!ab.cost.carnie) && (!ab.cost.tent) && (!ab.cost.power) && (!ab.cost.readinessCost || ab.cost.readinessCost === 'NONE'));
             
-            const iconContent = isAttack ? '⚔️ ' : '';
-            
             if (isPassive && hasNoCost && !isAttack) return '';
             
+            const abilityKey = `${card.instanceId}_${ab.abilityId}`;
+            const uses = (options.abilityUses || {})[abilityKey] || 0;
+            let isUsable = true;
+            if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) isUsable = false;
+            if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) isUsable = false;
+            
+            if (ab.trigger === 'MANUAL' && isUsable && card.readiness !== undefined) {
+                const cost = ab.cost || {};
+                let reqReadiness = cost.readinessCost && cost.readinessCost !== 'NONE';
+                if (reqReadiness && cost.reuseIgnoresReadiness && uses > 0) reqReadiness = false;
+                if (reqReadiness && card.readiness < 1) isUsable = false;
+                if (!cost.freeAction && (card.acts === undefined || card.acts < 1)) isUsable = false;
+            }
+
+            const iconContent = isAttack ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5">${getIconSvg('attack')}</span>` : '';
+            const hourglassIcon = !isUsable ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass')}</span>` : '';
+            
+            const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
+            const nameColorClass = isUsable ? '' : 'text-slate-500';
+            
             return `
-              <div class="text-[9px] text-slate-200 font-bold leading-tight truncate w-full text-center">
-                <span>${iconContent}<span>${ab.name || 'Unknown'}</span></span>${formatAbilityCostBadge(ab.cost, card.tribe)}
+              <div class="text-[9px] ${textColorClass} font-bold leading-tight truncate w-full text-center">
+                <span>${hourglassIcon}${iconContent}<span class="${nameColorClass}">${ab.name || 'Unknown'}</span></span>${formatAbilityCostBadge(ab.cost, card.tribe)}
               </div>
             `;
         }).filter(Boolean).join('');
@@ -258,7 +287,7 @@
             ${isUnit ? `
               <div class="flex justify-between items-end w-full px-0.5 mt-auto">
                 ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `<div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[10px] flex items-center justify-center shadow">${card.strength}</div>` : '<div></div>'}
-                ${(card.armor > 0) ? `<div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[9px] flex items-center justify-center shadow">🛡️${card.armor}</div>` : '<div></div>'}
+                ${(card.armor > 0) ? `<div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[9px] flex items-center justify-center shadow"><div class="w-2.5 h-2.5 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>` : '<div></div>'}
                 <div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
               </div>
             ` : ''}
@@ -272,7 +301,7 @@
             </div>
           ` : ''}
           ${(card.attachments && card.attachments.length > 0) ? `
-            <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 rounded bg-fuchsia-600 border border-black text-white font-black text-[8px] flex items-center justify-center z-30 shadow">🔗${card.attachments.length}</div>
+            <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 rounded bg-fuchsia-600 border border-black text-white font-black text-[8px] flex items-center justify-center z-30 shadow"><div class="w-2.5 h-2.5 mr-px">${getIconSvg('attach')}</div>${card.attachments.length}</div>
           ` : ''}
           ${overlayHTML}
           ${inspectButton}
@@ -309,7 +338,7 @@
                 <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${card.strength}</div>
               ` : '<div></div>'}
               ${(card.armor > 0) ? `
-                <div class="w-6 h-6 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow" title="Armor: ${card.armor}">🛡️${card.armor}</div>
+                <div class="w-6 h-6 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow" title="Armor: ${card.armor}"><div class="w-3 h-3 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
               ` : '<div></div>'}
               <div class="w-6 h-6 rounded-full bg-red-600 border border-black text-white font-black text-[11px] flex items-center justify-center shadow" title="Health">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
             </div>
@@ -408,7 +437,7 @@
       return Array.from(glossaryMap.values());
   }
 
-  export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false) {
+  export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false, abilityUses = {}) {
     if (!window._inspectHistory) window._inspectHistory = [];
     if (!isNested) window._inspectHistory = [];
     
@@ -542,7 +571,7 @@
                 ` : ''}
                 ${(cardOrUnit.fast > 0) ? `
                   <div class="w-8 h-8 rounded-full bg-yellow-400 text-black font-black text-sm flex items-center justify-center border-2 border-black shadow-lg mt-1" title="Fast Charges">
-                    ⚡${cardOrUnit.fast}
+                    <div class="w-4 h-4 mr-0.5">${getIconSvg('fast')}</div>${cardOrUnit.fast}
                   </div>
                 ` : ''}
               </div>
@@ -574,7 +603,7 @@
                 <!-- Traits -->
                 ${cardOrUnit.traits && cardOrUnit.traits.length > 0 ? `
                   <div class="flex flex-wrap justify-center gap-1.5 mt-1">
-                    ${cardOrUnit.traits.map(t => `<span class="text-[10px] bg-slate-900/80 text-cyan-300 px-2 py-1 rounded border border-cyan-800 font-extrabold uppercase tracking-wider shadow-sm">${t}</span>`).join('')}
+                    ${cardOrUnit.traits.map(t => `<span class="text-xs sm:text-sm bg-slate-900/80 text-cyan-300 px-2 py-1 rounded border border-cyan-800 font-extrabold uppercase tracking-wider shadow-sm">${t}</span>`).join('')}
                   </div>
                 ` : ''}
 
@@ -583,14 +612,14 @@
                   <div class="flex flex-wrap justify-center gap-1.5 mt-1">
                     ${cardOrUnit.attachments.map(a => {
                       const aJson = encodeURIComponent(JSON.stringify(a)).replace(/'/g, "%27");
-                      return `<span oncontextmenu="event.preventDefault(); event.stopPropagation(); window.inspectNestedCard('${aJson}')" onclick="event.stopPropagation(); window.inspectNestedCard('${aJson}')" class="text-[10px] bg-fuchsia-950/80 text-fuchsia-200 px-2 py-1 rounded border border-fuchsia-800 font-extrabold uppercase tracking-wider shadow-sm cursor-pointer hover:bg-fuchsia-900 transition-colors" title="Inspect ${a.name}">🔗 ${a.name}</span>`;
+                      return `<span oncontextmenu="event.preventDefault(); event.stopPropagation(); window.inspectNestedCard('${aJson}')" onclick="event.stopPropagation(); window.inspectNestedCard('${aJson}')" class="text-xs sm:text-sm bg-fuchsia-950/80 text-fuchsia-200 px-2 py-1 rounded border border-fuchsia-800 font-extrabold uppercase tracking-wider shadow-sm cursor-pointer hover:bg-fuchsia-900 transition-colors flex items-center" title="Inspect ${a.name}"><div class="w-3.5 h-3.5 mr-1">${getIconSvg('attach')}</div> ${a.name}</span>`;
                     }).join('')}
                   </div>
                 ` : ''}
 
                 <!-- Full Abilities with Registry Lookup -->
                 ${cardOrUnit.abilities && cardOrUnit.abilities.length > 0 ? `
-                  <div class="flex flex-col gap-1 mt-1">
+                  <div class="flex flex-col gap-2 mt-1">
                     ${cardOrUnit.abilities.map(a => {
                       const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
                       let finalDesc = regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
@@ -608,15 +637,33 @@
                       formattedDesc = formattedDesc.replace(/\{Unready\}/g, SVG_UNREADY).replace(/\{Exhaust\}/g, SVG_EXHAUST).replace(/\{Power.*?\}/g, '').replace(/\{Resource.*?\}/g, '').replace(/\{Tent.*?\}/g, '');
                       
                       const isAttack = a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
-                      const isPassive = a.trigger === 'UNTRIGGERABLE';
                       
-                      const iconContent = isAttack ? '⚔️ ' : '';
-                      const nameContent = `<span class="font-black text-amber-400 drop-shadow-sm">${iconContent}${regMatch.name || a.name || a.abilityId}</span>`;
+                      const abilityKey = `${cardOrUnit.instanceId}_${a.abilityId}`;
+                      const uses = (abilityUses || {})[abilityKey] || 0;
+                      let isUsable = true;
+                      if (a.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) isUsable = false;
+                      if (a.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) isUsable = false;
+                      
+                      if (a.trigger === 'MANUAL' && isUsable && cardOrUnit.readiness !== undefined) {
+                          const cost = a.cost || {};
+                          let reqReadiness = cost.readinessCost && cost.readinessCost !== 'NONE';
+                          if (reqReadiness && cost.reuseIgnoresReadiness && uses > 0) reqReadiness = false;
+                          if (reqReadiness && cardOrUnit.readiness < 1) isUsable = false;
+                          if (!cost.freeAction && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) isUsable = false;
+                      }
+
+                      const iconContent = isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
+                      const hourglassIcon = !isUsable ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass')}</span>` : '';
+                      
+                      const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
+                      const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
+
+                      const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}${regMatch.name || a.name || a.abilityId}</span>`;
                       const costBadge = formatAbilityCostBadge(a.cost, cardOrUnit.tribe);
-                      const triggerPill = `<span class="text-[8px] bg-slate-800 text-slate-300 px-1 py-px rounded font-bold uppercase tracking-widest mx-1.5 shadow-inner opacity-90">${a.trigger || 'MANUAL'}</span>`;
+                      const triggerPill = `<span class="text-[9px] sm:text-[10px] bg-slate-800 text-slate-300 px-1 py-px rounded font-bold uppercase tracking-widest mx-1.5 shadow-inner opacity-90">${a.trigger || 'MANUAL'}</span>`;
                       
                       return `
-                      <div class="bg-black/30 backdrop-blur-sm p-1.5 rounded border border-white/5 shadow-sm text-[10px] sm:text-[11px] text-slate-200 leading-snug">
+                      <div class="bg-black/30 backdrop-blur-sm p-2 rounded border border-white/5 shadow-sm text-xs sm:text-sm ${textColorClass} leading-snug">
                         ${nameContent}${costBadge}${triggerPill}<span>${formattedDesc}</span>
                       </div>
                     `}).join('')}
@@ -636,10 +683,10 @@
                 <!-- Center: Armor & Flavor Text -->
                 <div class="flex-1 flex flex-col items-center justify-end pb-1 px-1 gap-1 pointer-events-none">
                   ${isUnit && (cardOrUnit.armor > 0) ? `
-                    <div class="w-10 h-10 rounded bg-cyan-600 border-2 border-black text-white font-black text-base flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Armor: ${cardOrUnit.armor}">🛡️${cardOrUnit.armor}</div>
+                    <div class="w-10 h-10 rounded bg-cyan-600 border-2 border-black text-white font-black text-base flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Armor: ${cardOrUnit.armor}"><div class="w-4 h-4 mr-0.5">${getIconSvg('armor')}</div>${cardOrUnit.armor}</div>
                   ` : ''}
                   ${cardOrUnit.description ? `
-                    <div class="text-[10px] italic text-slate-300 text-center leading-snug w-full opacity-90 drop-shadow-md">
+                    <div class="text-xs sm:text-sm italic text-slate-300 text-center leading-snug w-full opacity-90 drop-shadow-md">
                       "${cardOrUnit.description}"
                     </div>
                   ` : ''}

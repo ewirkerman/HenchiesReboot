@@ -1,4 +1,5 @@
-import { createGameRoom, fetchCustomAbilities } from './firebase.js';
+import { createGameRoom, fetchCustomAbilities, fetchCustomCards } from './firebase.js';
+import { CARD_CATALOG } from './engine.js';
 
 export async function launchSandboxMatch(itemData, type = 'card') {
     const abs = await fetchCustomAbilities();
@@ -26,6 +27,11 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     const allTribes = ['Carnie', 'Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador', 'Generic'];
     const p1Res = {};
     allTribes.forEach(t => p1Res[t] = {current: 10, max: 10});
+    
+    // Look up Butcher from catalog
+    const customCards = await fetchCustomCards();
+    const allCards = [...CARD_CATALOG, ...customCards];
+    const butcherCard = allCards.find(c => c.name.toLowerCase() === 'butcher') || dummyCard;
 
     const state = {
         status: 'active',
@@ -56,6 +62,9 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     for(let i=0; i<5; i++) {
         state.players.player1.hand.push({...JSON.parse(JSON.stringify(card)), instanceId: 'h_'+i, readiness: 0});
     }
+    
+    // Add the Butcher to hand
+    state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_1', readiness: 0});
 
     state.players.player1.lines.avatar = [{ id: 'p1_avatar', instanceId: 'p1_av', type: 'avatar', name: 'Test Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1 }];
     state.players.player2.lines.avatar = [{ id: 'p2_avatar', instanceId: 'p2_av', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1 }];
@@ -65,10 +74,12 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     }
     state.players.player2.lines.front.push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_10', health: 10, maxHealth: 10, strength: 10, name: 'Big Dummy', readiness: 1, line: 'front', defaultLine: 'front'});
 
-    const friendlyDummy = {...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'f_dum_1', readiness: 1, line: 'front', defaultLine: 'front'};
+    const friendlyDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Dazed Ally', instanceId: 'f_dum_1', readiness: 1, line: 'back', defaultLine: 'back'};
+    friendlyDummy.traits = ['Dazed'];
+    friendlyDummy.abilities = [{ abilityId: 'dazed_trait', name: 'Dazed', trigger: 'UNTRIGGERABLE', description: 'This unit is Dazed.' }, standardAttack];
     const shovelInst = {...JSON.parse(JSON.stringify(shovelCard)), instanceId: 'f_shovel_1', ownerId: 'player1', readiness: 1};
     friendlyDummy.attachments = [shovelInst];
-    state.players.player1.lines.front.push(friendlyDummy);
+    state.players.player1.lines.back.push(friendlyDummy);
 
     const roomId = 'TEST_' + Date.now();
     state.gameId = roomId;
