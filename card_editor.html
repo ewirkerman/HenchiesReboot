@@ -478,6 +478,13 @@
             abilities: (currentAbilities || []).map(id => allAbilities.find(a => a.abilityId === id)).filter(Boolean)
         };
         
+        // Guarantee Attack is strictly the first ability
+        const attackIdx = state.abilities.findIndex(a => a.name.toLowerCase() === 'attack' || a.abilityId === 'ability_1785516184176');
+        if (attackIdx > 0) {
+            const attackAb = state.abilities.splice(attackIdx, 1)[0];
+            state.abilities.unshift(attackAb);
+        }
+
         if (cardType === 'unit') {
             state.defaultLine = document.getElementById('card-default-line').value;
         }

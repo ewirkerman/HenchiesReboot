@@ -405,8 +405,8 @@
 
     updateDeckDropdown();
 
-    window.inspectCard = (cardJson) => {
-      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry, false, currentGameState?.abilityUses || {});
+    window.inspectCard = (cardJson, isHand = false) => {
+      openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry, false, currentGameState?.abilityUses || {}, isHand);
     };
 
     document.getElementById('launch-match-btn').addEventListener('click', handleLaunchMatch);
@@ -836,7 +836,7 @@
 
           const cardHtml = renderCardHTML(topCard, {
             onClick: `window.openZoneModal('${player.id}', 'discard')`,
-            onInspect: `window.inspectCard('${json}')`,
+            onInspect: `window.inspectCard('${json}', false)`,
             abilityUses: currentGameState?.abilityUses || {}
           });
           
@@ -882,9 +882,10 @@
                 const isTargetable = pendingAbility && validTargets.some(t => t.id === (c.instanceId || c.id));
                 
                 return renderCardHTML(c, {
+                    isHand: zone === 'hand',
                     isTargetable: isTargetable,
                     onClick: `window.handleZoneCardClick('${prefix}', '${zone}', '${c.instanceId || c.id}')`,
-                    onInspect: `window.inspectCard('${json}')`,
+                    onInspect: `window.inspectCard('${json}', ${zone === 'hand'})`,
                     abilityUses: currentGameState?.abilityUses || {}
                 });
             }).join('');
@@ -1239,7 +1240,7 @@
           isSelected: isSelected,
           isPlayable: playable,
           onClick: `window.handleHandCardClick('${cardRefId}')`,
-          onInspect: `window.inspectCard('${json}')`,
+          onInspect: `window.inspectCard('${json}', true)`,
           abilityUses: currentGameState?.abilityUses || {}
         });
       }).join('');

@@ -60,7 +60,7 @@
     if (!cost) return '';
     let badgeStr = '';
     const carnieCost = cost.carnie || cost.tent || 0;
-    if (carnieCost > 0) badgeStr += `${carnieCost}🎪`;
+    if (carnieCost > 0) badgeStr += `${carnieCost}<span class="inline-block w-[11px] h-[11px] align-middle ml-px mr-0.5 text-purple-400 drop-shadow-sm">${getIconSvg('tent')}</span>`;
     if (cost.power > 0) badgeStr += `${cost.power}⚡`;
         if (cost.tribeAmount > 0) {
             const tType = cost.tribeType || cardTribe || 'Generic';
@@ -80,11 +80,13 @@
 
       export function getIconSvg(icon) {
           const svgs = {
-              attack: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M6 4l14 14M14 4l-4 4m6 6l4 4M4 20l4-4M4 6l4 4" /></svg>`,
+              attack: `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="m2.75 9.25 1.5 2.5 2 1.5m-4.5 0 1 1m1.5-2.5-1.5 1.5m3-1 8.5-8.5v-2h-2l-8.5 8.5"/><path d="M10.25 12.25 8 10m2-2 2.25 2.25m1-1-1.5 2.5-2 1.5m4.5 0-1 1m-1.5-2.5 1.5 1.5M6 8 1.75 3.75v-2h2L8 6"/></svg>`,
               armor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>`,
               fast: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`,
               attach: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>`,
-              hourglass: `<svg width="800" height="800" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2A16.08 16.08 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a16.09 16.09 0 0 0-6.352-12.764L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M184 40v23.996H72V40Zm0 176H72v-36l55.981-41.986L184 180.36Z"/></svg>`
+              'hourglass-empty': `<svg viewBox="-32 -32 320 320" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2a16.06 16.06 0 0 0-6.348 11.923A8 8 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a8 8 0 0 0-.053-.893 16.07 16.07 0 0 0-6.299-11.87L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M82.597 172.052l45.384-34.038 45.366 34.293ZM184 75.642l-56.019 42.344L72 76V40h112Z"/></svg>`,
+              'hourglass-full': `<svg viewBox="-32 -32 320 320" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2A16.08 16.08 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a16.09 16.09 0 0 0-6.352-12.764L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M184 40v23.996H72V40Zm0 176H72v-36l55.981-41.986L184 180.36Z"/></svg>`,
+              tent: `<svg viewBox="0 0 24 24" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><defs><mask id="tent-mask"><path fill="#fff" d="M0 0h24v24H0z"/><path d="M16.93 20.63 13.86 13a2 2 0 0 0-3.72 0l-3.07 7.63A1 1 0 0 0 8 22h8a1 1 0 0 0 .93-1.37"/></mask></defs><path d="M21.2 8c-4.58-.92-8.38-5.6-8.42-5.64a1 1 0 0 0-1.56 0S7.38 7.1 2.8 8a1 1 0 0 0 .4 2c.23-.05.45-.13.68-.19l-.79 10.03a2 2 0 0 0 2 2.16h13.83a2 2 0 0 0 2-2.16l-.79-10c.23.06.45.14.68.19h.2a1 1 0 0 0 .2-2Z" mask="url(#tent-mask)"/></svg>`
           };
           return svgs[icon] || '';
       }
@@ -129,19 +131,20 @@
 
     if (isStunned) overlayContent = SVG_STUNNED;
     else if (isDazed) overlayContent = SVG_DAZED;
-    else if (isFieldExhausted) overlayContent = SVG_EXHAUST;
-    else if (isFieldUnready) overlayContent = SVG_UNREADY;
+    else if (isFieldExhausted) overlayContent = getIconSvg('hourglass-full');
+    else if (isFieldUnready) overlayContent = getIconSvg('hourglass-empty');
     else if (isFieldOverReady) {
-        overlayContent = SVG_EXHAUST;
+        overlayContent = getIconSvg('hourglass-full');
         isOverReadyOverlay = true;
     }
 
     let overlayHTML = '';
+    let overlayScaleClass = isDazed ? 'scale-75' : '';
     if (overlayContent) {
         if (isOverReadyOverlay) {
             overlayHTML = `
               <div class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none rounded-md">
-                <div class="w-16 h-16 opacity-60 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)] [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0 [&>svg]:!text-green-400 [&>svg]:!drop-shadow-none">
+                <div class="w-16 h-16 ${overlayScaleClass} opacity-60 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)] [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0 [&>svg]:!text-green-400 [&>svg]:!drop-shadow-none">
                   ${overlayContent}
                 </div>
               </div>
@@ -149,7 +152,7 @@
         } else {
             overlayHTML = `
               <div class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none bg-black/30 rounded-md">
-                <div class="w-16 h-16 text-white opacity-80 drop-shadow-[0_2px_8px_rgba(0,0,0,1)] [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0">
+                <div class="w-16 h-16 ${overlayScaleClass} text-white opacity-80 drop-shadow-[0_2px_8px_rgba(0,0,0,1)] [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0">
                   ${overlayContent}
                 </div>
               </div>
@@ -207,17 +210,33 @@
             let isUsable = true;
             if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) isUsable = false;
             if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) isUsable = false;
+
+            const hasGrantedUnaggressive = card.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === 'ability_unaggressive' || (e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'unaggressive')));
+            const hasNativeUnaggressive = card.abilities?.some(abItem => abItem.name && abItem.name.toLowerCase() === 'unaggressive') && !hasGrantedUnaggressive;
+
+            if (isAttack && hasNativeUnaggressive) return '';
+
+            const isBlockedAct = card.activeEffects?.some(e => e.type === 'BLOCK_ACT');
+            const isBlockedAttack = card.activeEffects?.some(e => e.type === 'BLOCK_ATTACK') || hasGrantedUnaggressive;
+
+            if (isAttack && isBlockedAttack) isUsable = false;
             
-            if (ab.trigger === 'MANUAL' && isUsable && card.readiness !== undefined) {
-                const cost = ab.cost || {};
-                let reqReadiness = cost.readinessCost && cost.readinessCost !== 'NONE';
-                if (reqReadiness && cost.reuseIgnoresReadiness && uses > 0) reqReadiness = false;
-                if (reqReadiness && card.readiness < 1) isUsable = false;
-                if (!cost.freeAction && (card.acts === undefined || card.acts < 1)) isUsable = false;
+            if (ab.trigger === 'MANUAL') {
+                if (!isAttack && isBlockedAct) isUsable = false;
+                
+                if (isUsable && card.readiness !== undefined) {
+                    const cost = ab.cost || {};
+                    let reqReadiness = (cost.readinessCost && cost.readinessCost !== 'NONE') || cost.freeAction;
+                    if (reqReadiness && cost.reuseIgnoresReadiness && uses > 0) reqReadiness = false;
+                    if (reqReadiness && card.readiness < 1) isUsable = false;
+                    if (!cost.freeAction && !isAttack && (card.acts === undefined || card.acts < 1)) isUsable = false;
+                }
             }
 
+            if (options.isHand) isUsable = true;
+
             const iconContent = isAttack ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5">${getIconSvg('attack')}</span>` : '';
-            const hourglassIcon = !isUsable ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass')}</span>` : '';
+            const hourglassIcon = !isUsable ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
             
             const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
             const nameColorClass = isUsable ? '' : 'text-slate-500';
@@ -320,15 +339,17 @@
         
         <div class="w-full h-1/2 bg-slate-900 border-b-2 ${separatorClass} shrink-0 relative overflow-hidden ${fieldDimmingClass}">
           ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover" style="object-position: ${card.artX ?? 50}% ${card.artY ?? 50}%;" draggable="false" />` : ''}
+          <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[90%] flex justify-center z-30 pointer-events-none">
+            <div class="bg-black/60 backdrop-blur-md text-white text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full truncate text-center w-full shadow-[0_2px_6px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide">
+              ${card.name}
+            </div>
+          </div>
         </div>
 
         <div class="w-full h-1/2 ${style.lightBg} p-1.5 sm:p-2 flex flex-col relative overflow-hidden ${fieldDimmingClass}">
           ${isToken ? '<div class="absolute inset-0 bg-white/5 pointer-events-none"></div>' : ''}
-          <div class="text-[10px] font-bold text-slate-200 capitalize text-center tracking-wider bg-black/40 px-2 rounded-full mx-auto w-max mb-1 shadow-inner relative z-10 pointer-events-none">
-            ${card.type}${card.genus ? ` • ${card.genus}` : ''}
-          </div>
           
-          <div class="flex-1 flex flex-col gap-0.5 overflow-hidden w-full relative z-10 pointer-events-none">
+          <div class="flex-1 flex flex-col gap-0.5 overflow-hidden w-full relative z-10 pointer-events-none pt-0.5">
             ${abilitiesHTML}
           </div>
 
@@ -437,7 +458,7 @@
       return Array.from(glossaryMap.values());
   }
 
-  export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false, abilityUses = {}) {
+  export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false, abilityUses = {}, isHand = false) {
     if (!window._inspectHistory) window._inspectHistory = [];
     if (!isNested) window._inspectHistory = [];
     
@@ -459,13 +480,14 @@
         if (window._inspectHistory && window._inspectHistory.length > 1) {
           window._inspectHistory.pop();
           const prev = window._inspectHistory[window._inspectHistory.length - 1];
-          openInspectionModal(prev.card, prev.registry, true);
+          openInspectionModal(prev.card, prev.registry, true, abilityUses, isHand);
         } else {
           modal.classList.add('hidden');
           window._inspectHistory = [];
         }
       };
 
+      window._handleModalBack = handleBack;
       modal.onclick = (e) => { if (e.target === modal) handleBack(); };
       modal.oncontextmenu = (e) => { if (e.target === modal) { e.preventDefault(); handleBack(); } };
       
@@ -530,10 +552,10 @@
         class="fixed top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-white text-xl font-bold w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur flex items-center justify-center border border-slate-700 z-[60] shadow-2xl transition-transform hover:scale-110 pointer-events-auto"
       >✕</button>
 
-      <div class="w-full h-full max-w-[1400px] text-slate-100 flex flex-col md:flex-row items-center justify-center gap-8 pointer-events-none mx-auto">
+      <div class="w-full h-full max-w-[1400px] text-slate-100 flex flex-col md:flex-row items-center justify-center gap-8 pointer-events-none mx-auto" onclick="if(event.target === this) window._handleModalBack()">
         
         <!-- LEFT SPACER (Forces card to perfect center) -->
-        <div class="hidden md:block md:w-[350px] shrink-0 pointer-events-none"></div>
+        <div class="hidden md:block md:w-[350px] shrink-0 pointer-events-none" onclick="if(event.target === this) window._handleModalBack()"></div>
 
         <!-- CENTER: The Giant 5x7 Card Layout -->
         <div class="flex items-center justify-center pointer-events-auto shrink-0">
@@ -643,17 +665,33 @@
                       let isUsable = true;
                       if (a.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) isUsable = false;
                       if (a.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) isUsable = false;
+
+                      const hasGrantedUnaggressive = cardOrUnit.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === 'ability_unaggressive' || (e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'unaggressive')));
+                      const hasNativeUnaggressive = cardOrUnit.abilities?.some(abItem => abItem.name && abItem.name.toLowerCase() === 'unaggressive') && !hasGrantedUnaggressive;
+
+                      if (isAttack && hasNativeUnaggressive) return '';
+
+                      const isBlockedAct = cardOrUnit.activeEffects?.some(e => e.type === 'BLOCK_ACT');
+                      const isBlockedAttack = cardOrUnit.activeEffects?.some(e => e.type === 'BLOCK_ATTACK') || hasGrantedUnaggressive;
+
+                      if (isAttack && isBlockedAttack) isUsable = false;
                       
-                      if (a.trigger === 'MANUAL' && isUsable && cardOrUnit.readiness !== undefined) {
-                          const cost = a.cost || {};
-                          let reqReadiness = cost.readinessCost && cost.readinessCost !== 'NONE';
-                          if (reqReadiness && cost.reuseIgnoresReadiness && uses > 0) reqReadiness = false;
-                          if (reqReadiness && cardOrUnit.readiness < 1) isUsable = false;
-                          if (!cost.freeAction && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) isUsable = false;
+                      if (a.trigger === 'MANUAL') {
+                          if (!isAttack && isBlockedAct) isUsable = false;
+                          
+                          if (isUsable && cardOrUnit.readiness !== undefined) {
+                              const cost = a.cost || {};
+                              let reqReadiness = (cost.readinessCost && cost.readinessCost !== 'NONE') || cost.freeAction;
+                              if (reqReadiness && cost.reuseIgnoresReadiness && uses > 0) reqReadiness = false;
+                              if (reqReadiness && cardOrUnit.readiness < 1) isUsable = false;
+                              if (!cost.freeAction && !isAttack && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) isUsable = false;
+                          }
                       }
 
+                      if (isHand) isUsable = true;
+
                       const iconContent = isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
-                      const hourglassIcon = !isUsable ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass')}</span>` : '';
+                      const hourglassIcon = !isUsable ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
                       
                       const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
                       const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
@@ -703,7 +741,7 @@
         </div>
 
         <!-- RIGHT COLUMN: Recursive Glossary Bubbles -->
-        <div class="w-full md:w-[350px] flex flex-col h-[75vh] min-h-[450px] max-h-[750px] pointer-events-auto shrink-0">
+        <div class="w-full md:w-[350px] flex flex-col h-[75vh] min-h-[450px] max-h-[750px] pointer-events-auto shrink-0" onclick="if(event.target === this) window._handleModalBack()">
           
           <!-- Fixed Sticky Header -->
           <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-700/50 shrink-0">
@@ -716,7 +754,7 @@
           </div>
           
           <!-- Scrollable Items List -->
-          <div class="flex-1 overflow-y-auto minimal-scrollbar pr-2 pb-8">
+          <div class="flex-1 overflow-y-auto minimal-scrollbar pr-2 pb-8" onclick="if(event.target === this) window._handleModalBack()">
             ${glossaryAbilities.length > 0 ? `
               <div class="flex flex-col gap-3">
                 ${glossaryAbilities.map(a => {

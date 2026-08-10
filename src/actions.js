@@ -45,8 +45,11 @@ import { shuffleArray, generateId } from './prandom.js';
 
 export class Action {
     constructor(payload) {
-        // Automatically derive the type from the class name (e.g., DealDamageAction -> DEAL_DAMAGE)
-        this.type = this.constructor.name.replace(/Action$/, '').replace(/([A-Z])/g, '_$1').toUpperCase().replace(/^_/, '');
+        // Automatically derive the type via minification-safe registry lookup instead of regex parsing class names
+        this.type = payload.type || Object.keys(ACTION_REGISTRY).find(k => ACTION_REGISTRY[k] === this.constructor);
+        
+        if (!this.type) console.warn(`[Action] Could not determine action type for constructor!`, this);
+        
         const manifest = ACTION_MANIFEST[this.type];
         this.passiveType = manifest ? manifest.passiveType : null;
         this.payload = payload; // { source, target, amount, stat, etc. }
@@ -54,6 +57,7 @@ export class Action {
     }
 
     run(engine) {
+        console.log(`[ACTION EXECUTION] Depth ${engine.state._actionDepth || 0} -> Running ${this.type} Action. Context available:`, !!this.payload.eventContext);
         if (!engine.state._actionDepth) engine.state._actionDepth = 0;
         engine.state._actionDepth++;
         
@@ -350,8 +354,8 @@ export class DealDamageAction extends Action {
                 engine.state.winner = loserId === 'player1' ? 'player2' : 'player1';
                 engine.state.history_log.push(`☠️ Avatar ${target.name} has fallen! Match finished.`);
             }
-            if (target.health <= 0 && target.type !== 'avatar' && !target._isDying) {
-                new KillAction({ source, target }).run(engine);
+            if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && !this.payload.deferDeath) {
+                new KillAction({ source, target, isCombat, eventContext: { isCombat } }).run(engine);
             }
         }
     }
@@ -559,9 +563,9 @@ export class PlayAction extends Action {
         this.payload.target = instance; 
         
         if (instance.type === 'unit') {
-             instance.line = destZone;
+             instance.line = instance.defaultLine || 'mid';
              
-             if (destZone !== instance.defaultLine) {
+             if (destZone !== instance.line) {
                  const tempEffect = new SetStatAction({
                      source: instance,
                      target: instance,
@@ -570,6 +574,8 @@ export class PlayAction extends Action {
                      duration: 'TEMPORARY'
                  });
                  tempEffect.execute(engine);
+             } else {
+                 instance.line = destZone;
              }
         }
         
@@ -625,8 +631,18 @@ export class AttackAction extends Action {
             const atkStrikes = atkSpeed === phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0;
             const defStrikes = defSpeed === phase && defDmg !== null && defDmg >= 0 && defender.health > 0;
 
-            if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg, isCombat: true }).run(engine);
-            if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: defDmg, isCombat: true }).run(engine);
+            if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg, isCombat: true, deferDeath: true }).run(engine);
+            if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: defDmg, isCombat: true, deferDeath: true }).run(engine);
+            
+            // After simultaneous strikes resolve in this speed phase, evaluate deaths
+            if (atkStrikes || defStrikes) {
+                if (defender.health <= 0 && defender.type !== 'avatar' && !defender._isDying) {
+                    new KillAction({ source: attacker, target: defender, isCombat: true, eventContext: { isCombat: true } }).run(engine);
+                }
+                if (attacker.health <= 0 && attacker.type !== 'avatar' && !attacker._isDying) {
+                    new KillAction({ source: defender, target: attacker, isCombat: true, eventContext: { isCombat: true } }).run(engine);
+                }
+            }
         }
     }
 }
@@ -702,9 +718,11 @@ export class FieldAction extends Action {
                 target.defaultLine = target.defaultLine || 'mid';
                 destZone = target.defaultLine;
                 target.line = destZone;
+                target.health = target.maxHealth || target.health || 1;
             }
             
             moveEntity(engine, target, loc.playerId, destZone); 
+            engine.state.history_log.push(`✨ '${target.name}' was fielded.`);
         }
     } 
 }
@@ -896,6 +914,7 @@ export class BlockRetaliateAction extends Action { execute(engine) { registerEff
 export class CancelEventAction extends Action {
     execute(engine) {
         if (this.payload.eventContext) this.payload.eventContext.cancelled = true;
+        else this.payload.cancelled = true;
     }
 }
 
@@ -951,8 +970,9 @@ export class CustomScriptAction extends Action {
     execute(engine) {
         if (this.payload.script) {
             try {
-                const fn = new Function('state', 'target', 'params', this.payload.script);
-                fn(engine.state, this.payload.target, this.payload);
+                // Inject 'use strict' to prevent 'this' from leaking to the global Window object
+                const fn = new Function('state', 'target', 'params', 'engine', '"use strict";\n' + this.payload.script);
+                fn(engine.state, this.payload.target, this.payload, engine);
             } catch(e) {
                 console.error("Custom script execution error:", e);
             }
