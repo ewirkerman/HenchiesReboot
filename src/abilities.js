@@ -41,6 +41,23 @@ export function getValidActionsForZones(selectedZones) {
     });
 }
 
+export function calculateEffectiveZones(baseZones, payloads, currentIndex) {
+    let effectiveZones = [...(baseZones || ['FIELD'])];
+    for (let i = 0; i < currentIndex; i++) {
+        const p = payloads[i];
+        const pt = p.type;
+        const manifest = ACTION_MANIFEST[pt];
+        if (manifest && manifest.endZone) {
+            effectiveZones = [...manifest.endZone];
+        } else if (pt === 'CHANGE_DESTINATION' && p.zone) {
+            effectiveZones = [p.zone];
+        } else if (pt === 'SUMMON' && p.zone) {
+            effectiveZones = [p.zone];
+        }
+    }
+    return effectiveZones;
+}
+
 const ATTRIBUTE_TYPES = {
     'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER'] },
     'alignment': { label: 'Alignment', type: 'select', options: ['FRIENDLY', 'ENEMY'] },
@@ -182,6 +199,8 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
             payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone;
         } else if (type === 'GRANT_ABILITY') { 
             payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
+        } else if (type === 'TRANSFORM') {
+            payload.cardId = ''; delete payload.amount; delete payload.stat; delete payload.grantedAbilityId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
         } else if (type === 'SUMMON') { 
             payload.cardId = ''; payload.amount = 1; payload.zone = 'FIELD'; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.description; delete payload.stat; 
             // Initialize a nested group specifically for SUMMON

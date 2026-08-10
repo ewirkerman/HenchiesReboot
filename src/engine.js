@@ -58,31 +58,41 @@ export class GameEngine {
      * @param {object} payload Contextual data (source, target, amount, etc.)
      */
     emit(eventType, payload) {
-        console.log(`\n[EVENT BUS] 📣 Emitting: ${eventType}`);
+        if (!this.state.isReconstructing) {
+            let logMsg = `\n[EVENT BUS] 📣 Emitting: ${eventType}`;
+            if (payload) {
+                const sName = payload.source?.name || 'System';
+                const sId = payload.source?.instanceId || payload.source?.id || 'none';
+                const tName = payload.target?.name || 'None';
+                const tId = payload.target?.instanceId || payload.target?.id || 'none';
+                logMsg += ` | Src: ${sName} (${sId}) -> Tgt: ${tName} (${tId})`;
+            }
+            console.log(logMsg);
+        }
         
         // 1. If this is a naked event (like 'TURN_STARTING'), check for WOULD_ interceptors first.
         if (!eventType.startsWith('WOULD_') && !eventType.startsWith('MODIFY_') && !eventType.startsWith('ON_')) {
             const wouldEvent = `WOULD_${eventType}`;
-            const hasWouldTriggers = this.queueTriggers(wouldEvent, payload);
-            if (hasWouldTriggers || this.stack.length > 0) {
-                console.log(`[EVENT BUS] ⚡ Stack resolved immediately for ${wouldEvent} due to interceptors.`);
-                this.startStackProcessing();
+            const addedTriggers = this.queueTriggers(wouldEvent, payload);
+            if (addedTriggers > 0) {
+                if (!this.state.isReconstructing) console.log(`[EVENT BUS] ⚡ Stack resolved immediately for ${wouldEvent} due to interceptors.`);
+                this.processStack(addedTriggers);
             }
             if (payload && payload.cancelled) {
-                console.log(`[EVENT BUS] 🛑 Event ${eventType} was CANCELLED.`);
+                if (!this.state.isReconstructing) console.log(`[EVENT BUS] 🛑 Event ${eventType} was CANCELLED.`);
                 return { cancelled: true };
             }
         }
         
         // 2. Queue triggers for the exact requested event
-        const hasTriggers = this.queueTriggers(eventType, payload);
+        const addedTriggers = this.queueTriggers(eventType, payload);
         
-        if (hasTriggers || this.stack.length > 0) {
-            console.log(`[EVENT BUS] ⚡ Stack resolved immediately for ${eventType}.`);
-            this.startStackProcessing();
+        if (addedTriggers > 0) {
+            if (!this.state.isReconstructing) console.log(`[EVENT BUS] ⚡ Stack resolved immediately for ${eventType}.`);
+            this.processStack(addedTriggers);
         }
         
-        if (payload && payload.cancelled) console.log(`[EVENT BUS] 🛑 Event ${eventType} was CANCELLED.`);
+        if (payload && payload.cancelled && !this.state.isReconstructing) console.log(`[EVENT BUS] 🛑 Event ${eventType} was CANCELLED.`);
         return { cancelled: !!(payload && payload.cancelled) };
     }
 
@@ -152,7 +162,7 @@ export class GameEngine {
                     }
 
                     if (isValid) {
-                        console.log(`[TRIGGER FOUND] 🎯 Matched ability '${ability.name}' on entity '${ent.name}' for event ${eventType}`);
+                        if (!this.state.isReconstructing) console.log(`[TRIGGER FOUND] 🎯 Matched ability '${ability.name}' on entity '${ent.name}' for event ${eventType}`);
                         triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload });
                     }
                 }
@@ -200,7 +210,7 @@ export class GameEngine {
             }
         }
 
-        if (triggers.length === 0) return false;
+        if (triggers.length === 0) return 0;
 
         // APNAP Sorting (Active Player, then Non-Active Player)
         triggers.sort((a, b) => {
@@ -211,16 +221,21 @@ export class GameEngine {
 
         // LIFO: Active Player triggers go on stack first (so they are at the bottom).
         // Non-Active Player triggers go on stack last (so they resolve first at the top).
-        triggers.reverse().forEach(t => this.stack.push(t));
+        let addedCount = 0;
+        triggers.reverse().forEach(t => {
+            this.stack.push(t);
+            addedCount++;
+        });
 
-        return true;
+        return addedCount;
     }
 
-    startStackProcessing() {
+    processStack(count) {
         this.processingDepth = (this.processingDepth || 0) + 1;
         
-        while (this.stack.length > 0) {
+        while (count > 0 && this.stack.length > 0) {
             const frame = this.stack.pop();
+            count--;
             
             // Lock this ability from re-triggering itself during this specific chain
             this.activeChainAbilities.add(frame.ability.abilityId);
@@ -237,7 +252,7 @@ export class GameEngine {
     }
 
     executeAbility(ability, source, eventPayload, ownerId) {
-        console.log(`\n[ABILITY START] ✨ Executing '${ability.name}' from source '${source?.name}'`);
+        if (!this.state.isReconstructing) console.log(`\n[ABILITY START] ✨ Executing '${ability.name}' from source '${source?.name}'`);
         try {
             // Log the execution
             this.state.history_log.push(`✨ ${source.name || 'Entity'} activated '${ability.name}'`);
@@ -286,7 +301,12 @@ export class GameEngine {
             }
 
             if (!canAfford) {
-                console.log(`[Engine] Could not afford trigger cost for '${ability.name}'.`);
+                if (!this.state.isReconstructing) {
+                    console.log(`[Engine] Could not afford trigger cost for '${ability.name}'.`);
+                    if (ability.trigger !== 'MANUAL') {
+                        this.state.history_log.push(`⚠️ ${source.name || 'A unit'} tried to trigger '${ability.name}', but lacked the resources/readiness.`);
+                    }
+                }
                 return;
             }
 
@@ -304,7 +324,7 @@ export class GameEngine {
 
             // Phase 1: Target Acquisition (Lock in targets based on board state BEFORE costs/effects resolve)
             const lockedTargets = ability.effects.map((group, index) => {
-                console.log(`[TARGETING] Group ${index} Method: ${group?.targetMethod}`);
+                if (!this.state.isReconstructing) console.log(`[TARGETING] Group ${index} Method: ${group?.targetMethod}`);
                 if (!group) {
                     console.warn(`[Engine] Ability '${ability.name}' (${ability.abilityId}) has a null target group at index ${index}.`);
                     return [];
@@ -324,7 +344,8 @@ export class GameEngine {
                 }
                 else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
                     // Check if a specific target ID was tunneled through the payload (e.g. from PlayAction targeted equip)
-                    if (eventPayload && eventPayload.abilityTargetId) {
+                    const tunneledTargetId = (eventPayload && eventPayload.abilityTargetId) || (eventPayload && eventPayload.eventContext && eventPayload.eventContext.abilityTargetId);
+                    if (tunneledTargetId) {
                         const p1 = this.state.players.player1;
                         const p2 = this.state.players.player2;
                         const allEntities = [
@@ -334,9 +355,9 @@ export class GameEngine {
                             ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
                             ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
                         ].filter(Boolean);
-                        const resolvedTarget = allEntities.find(e => e.id === eventPayload.abilityTargetId || e.instanceId === eventPayload.abilityTargetId);
+                        const resolvedTarget = allEntities.find(e => e.id === tunneledTargetId || e.instanceId === tunneledTargetId);
                         
-                        if (!resolvedTarget) console.warn(`[Engine] SAME_AS_ACTIVATION could not find entity with ID: ${eventPayload.abilityTargetId}`);
+                        if (!resolvedTarget && !this.state.isReconstructing) console.warn(`[Engine] SAME_AS_ACTIVATION could not find entity with ID: ${tunneledTargetId}`);
                         
                         targets = [resolvedTarget || eventPayload.target || source];
                     } else if (eventPayload) {
@@ -351,38 +372,45 @@ export class GameEngine {
                     }
                 }
                 else if (group.targetMethod && group.targetMethod.startsWith('AUTO_')) {
-                    let pool = this.findEntitiesInScope(group.quickTargeting, ownerId);
-                    pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source, eventPayload));
-                    
-                    if (group.targetMethod === 'AUTO_ALL') targets = pool;
-                else if (group.targetMethod === 'AUTO_RANDOM') {
-                    targets = prandomShuffle(this.state, [...pool]).slice(0, group.targetCount || 1);
-                } else if (group.targetMethod === 'AUTO_FIRST') {
-                    targets = pool.slice(0, group.targetCount || 1);
-                    } else if (group.targetMethod === 'AUTO_LAST') {
-                        targets = pool.slice(-(group.targetCount || 1));
-                    }
+                    // Deferred to Phase 2 for dynamic resolution
+                    return [];
                 }
                 
                 // Fallback safe defaults if no target acquired
-                if (targets.length === 0 && group.targetMethod === 'SAME_AS_ACTIVATION' && eventPayload.target) targets = [eventPayload.target];
+                if (targets.length === 0 && group.targetMethod === 'SAME_AS_ACTIVATION' && eventPayload && eventPayload.target) targets = [eventPayload.target];
                 
-                console.log(`[TARGETING] Group ${index} acquired ${targets.length} targets:`, targets.map(t => t.name));
+                if (!this.state.isReconstructing) console.log(`[TARGETING] Group ${index} acquired ${targets.length} targets:`, targets.map(t => t.name));
                 return targets;
             });
 
             // Phase 2: Sequential Execution
             ability.effects.forEach((group, index) => {
-                console.log(`[EXECUTION] Phase - Group ${index}`);
+                if (!this.state.isReconstructing) console.log(`[EXECUTION] Phase - Group ${index}`);
                 if (!group) return;
                 if (!group.payloads || !Array.isArray(group.payloads)) {
                     console.warn(`[Engine] Ability '${ability.name}' (${ability.abilityId}) - Target Group ${index} has missing or invalid payloads array. Skipping.`);
                     return;
                 }
                 
-                const targets = lockedTargets[index] || [];
+                let targets = lockedTargets[index] || [];
+                
+                if (group.targetMethod && group.targetMethod.startsWith('AUTO_')) {
+                    let pool = this.findEntitiesInScope(group.quickTargeting, ownerId);
+                    pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source, eventPayload));
+                    
+                    if (group.targetMethod === 'AUTO_ALL') targets = pool;
+                    else if (group.targetMethod === 'AUTO_RANDOM') {
+                        targets = prandomShuffle(this.state, [...pool]).slice(0, group.targetCount || 1);
+                    } else if (group.targetMethod === 'AUTO_FIRST') {
+                        targets = pool.slice(0, group.targetCount || 1);
+                    } else if (group.targetMethod === 'AUTO_LAST') {
+                        targets = pool.slice(-(group.targetCount || 1));
+                    }
+                    if (!this.state.isReconstructing) console.log(`[TARGETING] Group ${index} dynamically acquired ${targets.length} targets:`, targets.map(t => t.name));
+                }
+
                 for (const payload of group.payloads) {
-                    console.log(`[EXECUTION] Payload Type: ${payload.type} on ${targets.length} targets.`);
+                    if (!this.state.isReconstructing) console.log(`[EXECUTION] Payload Type: ${payload.type} on ${targets.length} targets.`);
                     const ActionClass = ACTION_REGISTRY[payload.type];
                     if (ActionClass) {
                         for (const target of targets) {
@@ -390,22 +418,26 @@ export class GameEngine {
                             
                             // Last-ditch interceptor to catch any failing self-attachments if a tunneled target exists
                             if ((payload.type === 'ATTACH' || payload.type === 'ATTACH_TO') && currentTarget.instanceId === source.instanceId) {
-                                if (eventPayload && eventPayload.abilityTargetId) {
+                                const tunneledTargetId = (eventPayload && eventPayload.abilityTargetId) || (eventPayload && eventPayload.eventContext && eventPayload.eventContext.abilityTargetId);
+                                if (tunneledTargetId) {
+                                    const p1 = this.state.players.player1;
+                                    const p2 = this.state.players.player2;
                                     const allEntities = [
-                                        this.state.players.player1.avatar, this.state.players.player2.avatar,
-                                        ...Object.values(this.state.players.player1.lines).flat(),
-                                        ...Object.values(this.state.players.player2.lines).flat(),
-                                        ...(this.state.equator || [])
+                                        ...Object.values(p1.lines).flat(),
+                                        ...Object.values(p2.lines).flat(),
+                                        ...(this.state.equator || []),
+                                        ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
+                                        ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
                                     ].filter(Boolean);
-                                    const altTarget = allEntities.find(e => e.id === eventPayload.abilityTargetId || e.instanceId === eventPayload.abilityTargetId);
+                                    const altTarget = allEntities.find(e => e.id === tunneledTargetId || e.instanceId === tunneledTargetId);
                                     if (altTarget) {
-                                        console.log(`[Engine] Intercepted self-attachment, redirecting to tunneled target: ${altTarget.name}`);
+                                        if (!this.state.isReconstructing) console.log(`[Engine] Intercepted self-attachment, redirecting to tunneled target: ${altTarget.name}`);
                                         currentTarget = altTarget;
                                     }
                                 }
                                 
                                 if (currentTarget.instanceId === source.instanceId) {
-                                    console.warn(`[Engine] Aborted self-attachment for ${source.name}.`);
+                                    if (!this.state.isReconstructing) console.warn(`[Engine] Aborted self-attachment for ${source.name}.`);
                                     continue;
                                 }
                             }
@@ -424,7 +456,7 @@ export class GameEngine {
                             action.run(this);
                         }
                     } else {
-                        console.warn(`[Engine] Unknown action type '${payload.type}' in ability '${ability.name}' (${ability.abilityId}).`);
+                        if (!this.state.isReconstructing) console.warn(`[Engine] Unknown action type '${payload.type}' in ability '${ability.name}' (${ability.abilityId}).`);
                     }
                 }
             });
@@ -500,9 +532,17 @@ export class GameEngine {
             else if (node.attribute === 'tribe') entVal = entity.tribe || 'Generic';
             else if (node.attribute === 'family') entVal = entity.family || '';
             else if (node.attribute === 'genus') entVal = entity.genus || '';
+            else if (node.attribute === 'cost') entVal = typeof entity.cost === 'object' ? (entity.cost.tribeAmount || entity.cost.carnie || entity.cost.tent || 0) : (entity.cost || 0);
+            else if (node.attribute === 'power') entVal = entity.power || 0;
+            else if (node.attribute === 'fast') entVal = entity.fast || 0;
+            else if (node.attribute === 'slow') entVal = entity.slow || 0;
             else if (node.attribute === 'health') entVal = entity.health || 0;
+            else if (node.attribute === 'maxHealth') entVal = entity.maxHealth || 0;
             else if (node.attribute === 'strength') entVal = entity.strength || 0;
             else if (node.attribute === 'armor') entVal = entity.armor || 0;
+            else if (node.attribute === 'readiness') entVal = entity.readiness || 0;
+            else if (node.attribute === 'acts') entVal = entity.acts || 0;
+            else if (node.attribute === 'maxActs') entVal = entity.maxActs || 0;
             else if (node.attribute === 'isCombat') entVal = (eventPayload?.isCombat || eventPayload?.eventContext?.isCombat) ? 'true' : 'false';
             else if (node.attribute === 'alignment') {
                 const getOwner = (ent) => {
@@ -523,7 +563,14 @@ export class GameEngine {
             }
             else if (node.attribute === 'hasAbility') {
                 const searchVal = String(node.value).toLowerCase();
-                const hasAb = entity.abilities?.some(a => a.abilityId === node.value || (a.name && a.name.toLowerCase() === searchVal));
+                const hasAb = entity.abilities?.some(a => {
+                    if (typeof a === 'string') {
+                        if (a === node.value) return true;
+                        const catAb = this.state.abilityCatalog?.find(ca => ca.abilityId === a);
+                        return catAb && catAb.name && catAb.name.toLowerCase() === searchVal;
+                    }
+                    return a.abilityId === node.value || (a.name && a.name.toLowerCase() === searchVal);
+                });
                 const hasEffect = entity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === node.value || (e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === searchVal)));
                 const hasTrait = entity.traits?.some(t => t.toLowerCase() === searchVal);
                 entVal = !!(hasAb || hasEffect || hasTrait);
@@ -616,6 +663,10 @@ export function startTurn(state, engine) {
 
     if (pId === 'player2' && player.isDummy) {
         state.history_log.push(`⏭️ Player 2 auto-skipped (Waiting for opponent to join).`);
+        if (engine) {
+            engine.emit('TURN_STARTING', { playerId: pId });
+            engine.emit('TURN_STARTED', { playerId: pId });
+        }
         endTurn(state);
         return;
     }
@@ -806,44 +857,64 @@ export function playCard(state, playerId, cardId, targetLine = 'back', abilityTa
     }
 
     console.log(`[Engine] Executing playCard. abilityTargetId: ${abilityTargetId}`);
-    const engine = new GameEngine(state);
     
-    let avatar = null;
-    for (const line in player.lines) {
-        avatar = player.lines[line]?.find(u => u.type === 'avatar');
-        if (avatar) break;
-    }
-
-    // Tunnel the explicit target down through the payload so ON_BE_PLAYED triggers can resolve it
-    const play = new PlayAction({ source: avatar, target: card, targetLine: targetLine, line: targetLine, abilityTargetId: abilityTargetId });
-    play.run(engine);
-
+    const engine = new GameEngine(state);
+    const action = new PlayAction({
+        source: player.lines.avatar ? player.lines.avatar[0] : null,
+        target: card,
+        targetLine: targetLine,
+        eventContext: { abilityTargetId }
+    });
+    action.run(engine);
+    
     return { success: true };
 }
 
-export function getValidAttackTargets(state, attackerOwnerId) {
+export function getValidAttackTargets(state, attackerOwnerId, attackerEntity = null) {
     const defenderOwnerId = attackerOwnerId === 'player1' ? 'player2' : 'player1';
     const defPlayer = state.players[defenderOwnerId];
     let targets = [];
 
+    const hasPerception = attackerEntity ? (
+        attackerEntity.abilities?.some(a => a.name && a.name.toLowerCase() === 'perception') ||
+        attackerEntity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'perception' || e.traitId?.toLowerCase() === 'perception')) ||
+        attackerEntity.traits?.some(t => t.toLowerCase() === 'perception')
+    ) : false;
+
+    const isTimid = attackerEntity ? (
+        attackerEntity.abilities?.some(a => a.name && a.name.toLowerCase() === 'timid') ||
+        attackerEntity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'timid' || e.traitId?.toLowerCase() === 'timid')) ||
+        attackerEntity.traits?.some(t => t.toLowerCase() === 'timid')
+    ) : false;
+
+    const isValidTarget = (u) => {
+        if (u.type === 'boon') return false;
+        if (isTimid && u.type === 'avatar') return false;
+        const isHidden = u.activeEffects?.some(e => e.type === 'BLOCK_TARGETING') ||
+                            u.abilities?.some(a => a.name && a.name.toLowerCase() === 'hidden') ||
+                            u.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden')) ||
+                            u.traits?.some(t => t.toLowerCase() === 'hidden');
+        return !isHidden || hasPerception;
+    };
+
     // 1. Taunt absorbs all attacks
     if (defPlayer.lines['taunt'] && defPlayer.lines['taunt'].length > 0) {
-        defPlayer.lines['taunt'].filter(u => u.type !== 'boon').forEach(u => targets.push({ id: u.instanceId, line: 'taunt' }));
+        defPlayer.lines['taunt'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'taunt' }));
         if (targets.some(t => t.line === 'taunt')) return targets;
     }
 
     // 2. Left Column
     if (defPlayer.lines['bodyguard'] && defPlayer.lines['bodyguard'].length > 0) {
-        defPlayer.lines['bodyguard'].filter(u => u.type !== 'boon').forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
+        defPlayer.lines['bodyguard'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
     } else if (defPlayer.lines['avatar'] && defPlayer.lines['avatar'].length > 0) {
-        defPlayer.lines['avatar'].filter(u => u.type !== 'boon').forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
+        defPlayer.lines['avatar'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
     }
 
     // 3. Center Column
     const centerLines = ['front', 'mid', 'back', 'sheltered'];
     for (const line of centerLines) {
         if (defPlayer.lines[line] && defPlayer.lines[line].length > 0) {
-            const valid = defPlayer.lines[line].filter(u => u.type !== 'boon');
+            const valid = defPlayer.lines[line].filter(isValidTarget);
             if (valid.length > 0) {
                 valid.forEach(u => targets.push({ id: u.instanceId, line: line }));
                 break;
@@ -853,7 +924,7 @@ export function getValidAttackTargets(state, attackerOwnerId) {
 
     // 4. Right Column
     if (defPlayer.lines['sideline'] && defPlayer.lines['sideline'].length > 0) {
-        defPlayer.lines['sideline'].filter(u => u.type !== 'boon').forEach(u => targets.push({ id: u.instanceId, line: 'sideline' }));
+        defPlayer.lines['sideline'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'sideline' }));
     }
     
     return targets;
@@ -903,6 +974,10 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
             
             const p = state.players[pId];
             
+            const hasPerception = entity.abilities?.some(a => a.name && a.name.toLowerCase() === 'perception') ||
+                                  entity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'perception' || e.traitId?.toLowerCase() === 'perception')) ||
+                                  entity.traits?.some(t => t.toLowerCase() === 'perception');
+
             const checkEntity = (ent, line) => {
                 let entType = 'UNIT';
                 if (ent.type === 'avatar') entType = 'AVATAR';
@@ -910,6 +985,14 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
                 else if (ent.type === 'spell') entType = 'SPELL';
                 else if (ent.type === 'boon') entType = 'BOON';
                 
+                if (!isFriendly) {
+                    const isHidden = ent.activeEffects?.some(e => e.type === 'BLOCK_TARGETING') ||
+                                        ent.abilities?.some(a => a.name && a.name.toLowerCase() === 'hidden') ||
+                                        ent.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden')) ||
+                                        ent.traits?.some(t => t.toLowerCase() === 'hidden');
+                    if (isHidden && !hasPerception) return;
+                }
+
                 if (qt.entityType.includes(entType)) {
                     targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
                 }
@@ -934,7 +1017,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
         checkPlayer(oppId, false);
         
         if (qt.zones.includes('FIELD') && !qt.ignoreBattlelines) {
-            const atkTargets = getValidAttackTargets(state, playerId);
+            const atkTargets = getValidAttackTargets(state, playerId, entity);
             targets = targets.filter(t => {
                 if (t.playerId === playerId) return true; // Friendly targets ignore battlelines
                 return !['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(t.line) || atkTargets.some(at => at.id === t.id);
@@ -978,8 +1061,17 @@ export function getEntityAvailableActions(state, playerId, entityId) {
 
     const hasGrantedUnaggressive = entity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === 'ability_unaggressive' || (e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'unaggressive')));
     const hasNativeUnaggressive = entity.abilities?.some(a => a.name && a.name.toLowerCase() === 'unaggressive') && !hasGrantedUnaggressive;
-    const hasBlockAct = entity.activeEffects?.some(e => e.type === 'BLOCK_ACT');
-    const hasBlockAttack = entity.activeEffects?.some(e => e.type === 'BLOCK_ATTACK') || hasGrantedUnaggressive;
+
+    const isDazed = entity.abilities?.some(a => a.name && a.name.toLowerCase() === 'dazed') || 
+                    entity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'dazed' || e.traitId?.toLowerCase() === 'dazed')) ||
+                    entity.traits?.some(t => t.toLowerCase() === 'dazed');
+
+    const isStunned = entity.abilities?.some(a => a.name && (a.name.toLowerCase() === 'stunned' || a.name.toLowerCase() === 'stun')) || 
+                      entity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'stunned' || e.grantedAbilityId?.toLowerCase() === 'stun' || e.traitId?.toLowerCase() === 'stunned' || e.traitId?.toLowerCase() === 'stun')) ||
+                      entity.traits?.some(t => t.toLowerCase() === 'stunned' || t.toLowerCase() === 'stun');
+
+    const hasBlockAct = entity.activeEffects?.some(e => e.type === 'BLOCK_ACT') || isDazed || isStunned;
+    const hasBlockAttack = entity.activeEffects?.some(e => e.type === 'BLOCK_ATTACK') || hasGrantedUnaggressive || isDazed || isStunned;
 
     if (entity.abilities) {
         entity.abilities.forEach(ab => {
@@ -1078,6 +1170,23 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         const ability = entity.abilities?.find(a => a.abilityId === abilityId);
         if (!ability) return { success: false, reason: "Ability not found" };
 
+        const isHidden = entity.activeEffects?.some(e => e.type === 'BLOCK_TARGETING') ||
+                            entity.abilities?.some(a => a.name && a.name.toLowerCase() === 'hidden') ||
+                            entity.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden')) ||
+                            entity.traits?.some(t => t.toLowerCase() === 'hidden');
+
+        if (isHidden) {
+            if (entity.abilities) entity.abilities = entity.abilities.filter(a => !(a.name && a.name.toLowerCase() === 'hidden'));
+            if (entity.activeEffects) {
+                entity.activeEffects = entity.activeEffects.filter(e => 
+                    e.type !== 'BLOCK_TARGETING' && 
+                    !(e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden'))
+                );
+            }
+            if (entity.traits) entity.traits = entity.traits.filter(t => t.toLowerCase() !== 'hidden');
+            state.history_log.push(`👁️ ${entity.name} emerged from hiding!`);
+        }
+
         if (actionType === 'ABILITY' && !ability.cost?.freeAction) {
             let currentActs = Number(entity.acts);
             if (isNaN(currentActs)) currentActs = 0;
@@ -1127,6 +1236,10 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCata
     state.players.player1.deck.forEach((c, idx) => {
         // Unconditionally overwrite to destroy any fixed IDs inadvertently saved in custom cards
         c.instanceId = 'inst_p1_' + generateId(state, 9) + '_' + idx;
+        c.originalOwnerId = 'player1';
+        c.ownerId = 'player1';
+        c.originalPower = c.power || 0;
+        c.originalStrength = c.strength !== undefined ? c.strength : null;
     });
     
     const p1AvatarIdx = state.players.player1.deck.findIndex(c => c.type === 'avatar');
@@ -1142,6 +1255,10 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCata
         av.readiness = 1;
         av.acts = 1;
         av.maxActs = 1;
+        av.originalOwnerId = 'player1';
+        av.ownerId = 'player1';
+        av.originalPower = av.power || 0;
+        av.originalStrength = av.strength !== undefined ? av.strength : null;
         state.players.player1.lines.avatar = [av];
     }
 
@@ -1216,6 +1333,10 @@ export function joinGame(state, p2Name, p2Deck) {
     state.players.player2.deck.forEach((c, idx) => {
         // Unconditionally overwrite to destroy any fixed IDs inadvertently saved in custom cards
         c.instanceId = 'inst_p2_' + generateId(state, 9) + '_' + idx;
+        c.originalOwnerId = 'player2';
+        c.ownerId = 'player2';
+        c.originalPower = c.power || 0;
+        c.originalStrength = c.strength !== undefined ? c.strength : null;
     });
     
     const p2AvatarIdx = state.players.player2.deck.findIndex(c => c.type === 'avatar');
@@ -1231,6 +1352,10 @@ export function joinGame(state, p2Name, p2Deck) {
         av.readiness = 1;
         av.acts = 1;
         av.maxActs = 1;
+        av.originalOwnerId = 'player2';
+        av.ownerId = 'player2';
+        av.originalPower = av.power || 0;
+        av.originalStrength = av.strength !== undefined ? av.strength : null;
         state.players.player2.lines.avatar = [av];
     }
 

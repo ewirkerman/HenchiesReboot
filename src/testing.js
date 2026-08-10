@@ -19,7 +19,14 @@ export async function launchSandboxMatch(itemData, type = 'card') {
         card.abilities = [itemData, standardAttack];
         card.description = itemData.name + ' test wrapper.';
     } else {
-        card = itemData;
+        card = JSON.parse(JSON.stringify(itemData));
+        if (card.abilities) {
+            card.abilities = card.abilities.map(ab => {
+                const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
+                const match = abs.find(a => a.abilityId === abId);
+                return match ? JSON.parse(JSON.stringify(match)) : ab;
+            }).filter(Boolean);
+        }
     }
 
     const username = localStorage.getItem('henchies_last_username') || 'Tester';
@@ -30,8 +37,19 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     
     // Look up Butcher from catalog
     const customCards = await fetchCustomCards();
-    const allCards = [...CARD_CATALOG, ...customCards];
+    const hydratedCards = customCards.map(c => {
+        if (c.abilities) {
+            c.abilities = c.abilities.map(ab => {
+                const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
+                const match = abs.find(a => a.abilityId === abId);
+                return match ? JSON.parse(JSON.stringify(match)) : ab;
+            }).filter(Boolean);
+        }
+        return c;
+    });
+    const allCards = [...CARD_CATALOG, ...hydratedCards];
     const butcherCard = allCards.find(c => c.name.toLowerCase() === 'butcher') || dummyCard;
+    const riseAndServeCard = allCards.find(c => c.name.toLowerCase() === 'rise and serve') || dummyCard;
 
     const state = {
         status: 'active',
@@ -60,21 +78,30 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     };
 
     for(let i=0; i<5; i++) {
-        state.players.player1.hand.push({...JSON.parse(JSON.stringify(card)), instanceId: 'h_'+i, readiness: 0});
+        state.players.player1.hand.push({...JSON.parse(JSON.stringify(card)), instanceId: 'h_'+i, readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
     }
     
     // Add the Butcher to hand
-    state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_1', readiness: 0});
+    state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
+    state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_2', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
+    state.players.player1.hand.push({...JSON.parse(JSON.stringify(riseAndServeCard)), instanceId: 'h_rise_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
 
-    state.players.player1.lines.avatar = [{ id: 'p1_avatar', instanceId: 'p1_av', type: 'avatar', name: 'Test Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1 }];
-    state.players.player2.lines.avatar = [{ id: 'p2_avatar', instanceId: 'p2_av', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1 }];
+    state.players.player1.lines.avatar = [{ id: 'p1_avatar', instanceId: 'p1_av', type: 'avatar', name: 'Test Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player1', originalOwnerId: 'player1' }];
+    state.players.player2.lines.avatar = [{ id: 'p2_avatar', instanceId: 'p2_av', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player2', originalOwnerId: 'player2' }];
 
     for(let i=0; i<5; i++) {
-        state.players.player2.lines.front.push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_'+i, readiness: 1, line: 'front', defaultLine: 'front'});
+        state.players.player2.lines.front.push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_'+i, readiness: 1, line: 'front', defaultLine: 'front', ownerId: 'player2', originalOwnerId: 'player2'});
     }
-    state.players.player2.lines.front.push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_10', health: 10, maxHealth: 10, strength: 10, name: 'Big Dummy', readiness: 1, line: 'front', defaultLine: 'front'});
+    
+    const stealthDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Stealth Dummy', instanceId: 'e_dum_stealth', readiness: 1, line: 'front', defaultLine: 'front', ownerId: 'player2', originalOwnerId: 'player2'};
+    stealthDummy.traits = ['Stealth'];
+    const realStealth = abs.find(a => a.name && a.name.toLowerCase() === 'stealth') || { abilityId: 'stealth_trait', name: 'Stealth', trigger: 'UNTRIGGERABLE', description: 'This unit has Stealth.' };
+    stealthDummy.abilities = [realStealth, standardAttack];
+    state.players.player2.lines.front.push(stealthDummy);
 
-    const friendlyDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Dazed Ally', instanceId: 'f_dum_1', readiness: 1, line: 'back', defaultLine: 'back'};
+    state.players.player2.lines.front.push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_10', health: 10, maxHealth: 10, strength: 10, name: 'Big Dummy', readiness: 1, line: 'front', defaultLine: 'front', ownerId: 'player2', originalOwnerId: 'player2'});
+
+    const friendlyDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Dazed Ally', instanceId: 'f_dum_1', readiness: 1, line: 'back', defaultLine: 'back', ownerId: 'player1', originalOwnerId: 'player1'};
     friendlyDummy.traits = ['Dazed'];
     friendlyDummy.abilities = [{ abilityId: 'dazed_trait', name: 'Dazed', trigger: 'UNTRIGGERABLE', description: 'This unit is Dazed.' }, standardAttack];
     const shovelInst = {...JSON.parse(JSON.stringify(shovelCard)), instanceId: 'f_shovel_1', ownerId: 'player1', readiness: 1};

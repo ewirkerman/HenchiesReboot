@@ -189,7 +189,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'ON_BE_HEALED': 'When healed',
         'WOULD_HEAL': 'When it would heal',
         'WOULD_BE_HEALED': 'When it would be healed',
-        'ON_REBEL': 'When it takes control of an enemy',
+        'ON_REBEL': 'When it takes control',
         'ON_BE_REBELLED': 'When it changes sides',
         'WOULD_REBEL': 'When it would take control',
         'WOULD_BE_REBELLED': 'When it would change sides',
@@ -206,6 +206,10 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'ON_BE_RECOVERED': 'When recovered',
         'WOULD_RECOVER': 'When it would recover a card',
         'WOULD_BE_RECOVERED': 'When it would be recovered',
+        'ON_REVIVE': 'When it revives a unit',
+        'ON_BE_REVIVED': 'When revived',
+        'WOULD_REVIVE': 'When it would revive a unit',
+        'WOULD_BE_REVIVED': 'When it would be revived',
         'MODIFY_DEAL_DAMAGE': 'When dealing damage',
         'MODIFY_BE_DAMAGED': 'When taking damage',
         'MODIFY_HEAL': 'When healing',
@@ -258,13 +262,38 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         triggerText = first + ' or ' + rest.join(' or ');
     }
 
-    // 1b. Cost Modifiers (Icons handled by UI Badge instead of text)
+    // 1b. Symbol String Prefix Cost Block
     const cost = ability.cost || {};
+    let costSymbols = [];
+
+    if (cost.tribeAmount && cost.tribeAmount > 0) {
+        costSymbols.push(`{Resource ${cost.tribeAmount}}`);
+    }
+    if (cost.tent && cost.tent > 0) {
+        costSymbols.push(`{Tent ${cost.tent}}`);
+    }
+    if (cost.power && cost.power > 0) {
+        costSymbols.push(`{Power ${cost.power}}`);
+    }
+    if (cost.readinessCost === 'UNREADIES') {
+        costSymbols.push(`{Unready}`);
+    } else if (cost.readinessCost === 'EXHAUSTS') {
+        costSymbols.push(`{Exhaust}`);
+    }
+    if (cost.freeAction) {
+        costSymbols.push(`{Free Action}`);
+    }
+
+    let symbolPrefix = costSymbols.join(' ');
     
     if (trigger === 'UNTRIGGERABLE') {
         descriptionParts.push(triggerText);
     } else {
         let triggerAndCostStr = "";
+        
+        if (symbolPrefix) {
+             triggerAndCostStr += symbolPrefix + " ";
+        }
         
         if (cost.reuseIgnoresReadiness && cost.readinessCost !== 'NONE') {
              triggerAndCostStr += `(Subsequent uses this round ignore readiness cost) `;
@@ -367,6 +396,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         effText = `trash {TARGET}`; 
                         break;
                     case 'RECOVER': effText = `recover {TARGET}`; break;
+                    case 'REVIVE': effText = `revive {TARGET}`; break;
                     case 'MODIFY_STAT': 
                         let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
                         if (eff.amount < 0) {
@@ -390,6 +420,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     case 'BLOCK_ACT': effText = `block {TARGET} from acting`; break;
                     case 'BLOCK_ATTACK': effText = `block {TARGET} from attacking`; break;
                     case 'BLOCK_RETALIATE': effText = `block {TARGET} from retaliating`; break;
+                    case 'BLOCK_TARGETING': effText = `prevent enemies from targeting {TARGET}`; break;
                     case 'SHUFFLE': effText = `shuffle {TARGET} into deck`; break;
                     case 'RETURN': effText = `return {TARGET} to hand`; break;
                     case 'ATTACH': effText = eff.invertRoles ? `attach to {TARGET}` : `attach {TARGET} to self`; break;
@@ -410,6 +441,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         else if (targetDest === 'BANISH') effText = `instead, banish {TARGET}`;
                         else effText = `instead, move {TARGET} to ${targetDest.toLowerCase()}`;
                         break;
+                    case 'REBEL': effText = eff.invertRoles ? `give control of self to {TARGET}` : `take control of {TARGET}`; break;
                     case 'MODIFY_EVENT': 
                         if (eff.stat === 'amount') {
                             effText = eff.amount < 0 ? `decrease the amount by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the amount by ${eff.amount}{OMIT_TARGET}`;
@@ -420,15 +452,32 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     case 'CUSTOM_SCRIPT': effText = eff.description ? eff.description : `execute custom script on {TARGET}`; break;
                     case 'GRANT_ABILITY':
                         let abilityName = eff.grantedAbilityId;
-                    if (allAbilities && Array.isArray(allAbilities)) {
-                        const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId || a.id === eff.grantedAbilityId);
-                        if (match) abilityName = match.name;
-                    } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
-                         const grantedAb = getAbility(eff.grantedAbilityId);
-                         if(grantedAb) abilityName = grantedAb.name;
-                    }
-                    effText = `grant ability '${abilityName}' to {TARGET}`;
-                    break;
+                        if (allAbilities && Array.isArray(allAbilities)) {
+                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
+                            if (match) abilityName = match.name;
+                        } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
+                             const grantedAb = getAbility(eff.grantedAbilityId);
+                             if(grantedAb) abilityName = grantedAb.name;
+                        }
+                        effText = `grant ability '${abilityName}' to {TARGET}`;
+                        if (eff.blockDuplicates) effText += ` (if not present)`;
+                        break;
+                    case 'TRANSFORM':
+                        let transCardName = eff.cardId;
+                        if (allCards && Array.isArray(allCards)) {
+                            const match = allCards.find(c => c.id === eff.cardId);
+                            if (match) transCardName = match.name;
+                        } else if (typeof window !== 'undefined' && typeof getCard === 'function') {
+                            const foundCard = getCard(eff.cardId);
+                            if (foundCard) transCardName = foundCard.name;
+                        }
+                        let article = /^[aeiou]/i.test(transCardName) ? 'an' : 'a';
+                        if (targetStr === 'self' || targetStr === 'itself') {
+                            effText = `transform into ${article} ${transCardName}{OMIT_TARGET}`;
+                        } else {
+                            effText = `transform {TARGET} into ${article} ${transCardName}`;
+                        }
+                        break;
                 case 'REMOVE_ABILITY':
                     let rmAbilityName = eff.grantedAbilityId;
                     if (allAbilities && Array.isArray(allAbilities)) {
@@ -455,15 +504,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         let destZone = (eff.zone || 'FIELD').toLowerCase();
                         let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
 
-                        let durationAdj = '';
-                        if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
-                            if (eff.duration === 'TEMPORARY') durationAdj = 'temporary ';
-                            else if (eff.duration === 'BRIEF') durationAdj = 'brief ';
-                            else if (eff.duration === 'PERMANENT') durationAdj = 'permanent ';
-                            else durationAdj = eff.duration.toLowerCase() + ' ';
-                        }
-
-                        effText = `summon ${summonAmt} ${durationAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
+                        effText = `summon ${summonAmt} ${cardName}${pluralSuffix}{OMIT_TARGET}`;
                         
                         if (isCasterZone) {
                             if (destZone !== 'field') effText += ` to ${destZone}`;
@@ -495,24 +536,14 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         effText = `${readableType} {TARGET}`;
                 }
 
-                if (eff.invertRoles && eff.type !== 'ATTACH' && eff.type !== 'ATTACH_TO') {
+                if (eff.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL'].includes(eff.type)) {
                     effText = `force {TARGET} to ${effText}`;
                 }
 
-                if (eff.type !== 'SUMMON' && eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
-                    if (eff.duration === 'WHILE_ATTACHED') {
-                        effText += ' (while attached)';
-                    } else {
-                        let adverb = '';
-                        if (eff.duration === 'TEMPORARY') adverb = 'temporarily ';
-                        else if (eff.duration === 'BRIEF') adverb = 'briefly ';
-                        else if (eff.duration === 'PERMANENT') adverb = 'permanently ';
-                        else adverb = eff.duration.toLowerCase() + ' ';
-                        
-                        // Inject adverb right after the first space (assuming verb is first word, e.g. "deal 1 damage" -> "deal temporarily 1 damage" wait no, "temporarily deal 1 damage")
-                        const parts = effText.split(' ');
-                        effText = adverb + parts.join(' ');
-                    }
+                if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
+                    let durText = eff.duration.toLowerCase();
+                    if (eff.duration === 'WHILE_ATTACHED') durText = 'while attached';
+                    effText += ` (${durText})`;
                 }
 
                 return effText;
@@ -552,6 +583,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                 if (!mentioned && targetStr !== 'self' && targetStr !== 'itself' && !combined.includes(targetStr) && !combined.includes(possessiveStr)) {
                     combined += ` to ${targetStr}`;
                 }
+                
+                combined = combined.replace(/\binstead and /gi, 'instead, ');
+                
                 return combined;
             };
             
@@ -585,6 +619,8 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         }
         // Find the first alphabetical character after any symbols/brackets and capitalize it
         finalStr = finalStr.replace(/^([^a-zA-Z]*)([a-zA-Z])/i, (match, p1, p2) => p1 + p2.toUpperCase());
+        // Ensure any subsequent sentences are properly capitalized
+        finalStr = finalStr.replace(/\.\s+([a-z])/g, (match, p1) => '. ' + p1.toUpperCase());
     }
 
     return finalStr;

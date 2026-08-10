@@ -258,7 +258,7 @@
     import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, createGameRoom, saveCardToCatalog } from './src/firebase.js';
     import { CARD_CATALOG } from './src/engine.js';
     import { generateAbilityDescription } from './src/language_description.js';
-    import { TRIGGER_EVENTS, getValidActionsForZones, exportCurrentState } from './src/abilities.js';
+    import { TRIGGER_EVENTS, getValidActionsForZones, exportCurrentState, calculateEffectiveZones } from './src/abilities.js';
     import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from './src/actions.js';
     import { renderJSONPreview } from './src/ui.js';
     import { launchSandboxMatch } from './src/testing.js';
@@ -655,14 +655,7 @@
             if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = activationQuickTargeting?.zones || ['FIELD'];
             
             group.payloads.forEach((payload, pIdx) => {
-                let effectiveZones = [...baseZones];
-                for (let i = 0; i < pIdx; i++) {
-                    const pt = group.payloads[i].type;
-                    if (pt === 'RECOVER' || pt === 'DRAW_CARD' || pt === 'RETURN') effectiveZones = ['HAND'];
-                    else if (pt === 'FIELD') effectiveZones = ['FIELD'];
-                    else if (pt === 'DISCARD' || pt === 'DISCARD_CARD' || pt === 'TRASH') effectiveZones = ['DISCARD'];
-                    else if (pt === 'BANISH') effectiveZones = ['BANISH'];
-                }
+                let effectiveZones = calculateEffectiveZones(baseZones, group.payloads, pIdx);
                 
                 const validActions = group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones);
                 
@@ -681,6 +674,7 @@
                         if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
                         if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
                         if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+                        if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
                         if (manifest.hasNestedGroup) {
                             payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
                         } else { delete payload.nestedGroup; }
@@ -1058,14 +1052,7 @@
         let baseZones = group.quickTargeting?.zones || ['FIELD'];
         if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = activationQuickTargeting?.zones || ['FIELD'];
             
-        let effectiveZones = [...baseZones];
-        for (let i = 0; i < group.payloads.length; i++) {
-            const pt = group.payloads[i].type;
-            if (pt === 'RECOVER' || pt === 'DRAW_CARD' || pt === 'RETURN') effectiveZones = ['HAND'];
-            else if (pt === 'FIELD') effectiveZones = ['FIELD'];
-            else if (pt === 'DISCARD' || pt === 'DISCARD_CARD' || pt === 'TRASH') effectiveZones = ['DISCARD'];
-            else if (pt === 'BANISH') effectiveZones = ['BANISH'];
-        }
+        let effectiveZones = calculateEffectiveZones(baseZones, group.payloads, group.payloads.length);
 
         const validActions = typeof getValidActionsForZones !== 'undefined' 
             ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones))
@@ -1082,6 +1069,41 @@
         effectGroups[groupIndex].payloads.splice(payloadIndex, 1);
         renderEffects();
         updateJSONPreview();
+    };
+
+    window.handlePayloadDragStart = (e, gIdx, pIdx) => {
+        window._draggedPayloadInfo = { gIdx, pIdx };
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(() => e.target.classList.add('opacity-50'), 0);
+    };
+
+    window.handlePayloadDragOver = (e, gIdx) => {
+        e.preventDefault();
+        if (window._draggedPayloadInfo && window._draggedPayloadInfo.gIdx === gIdx) {
+            e.dataTransfer.dropEffect = 'move';
+        } else {
+            e.dataTransfer.dropEffect = 'none';
+        }
+    };
+
+    window.handlePayloadDrop = (e, targetGIdx, targetPIdx) => {
+        e.preventDefault();
+        if (!window._draggedPayloadInfo || window._draggedPayloadInfo.gIdx !== targetGIdx) return;
+        const srcPIdx = window._draggedPayloadInfo.pIdx;
+        if (srcPIdx === targetPIdx) return;
+
+        const group = effectGroups[targetGIdx];
+        const [movedItem] = group.payloads.splice(srcPIdx, 1);
+        group.payloads.splice(targetPIdx, 0, movedItem);
+
+        renderEffects();
+        updateJSONPreview();
+    };
+
+    window.handlePayloadDragEnd = (e) => {
+        window._draggedPayloadInfo = null;
+        e.target.classList.remove('opacity-50');
+        renderEffects();
     };
 
     window.updatePayload = (groupIndex, payloadIndex, field, value) => {
@@ -1107,6 +1129,7 @@
           if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
           if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
           if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+          if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
           
           if (manifest.hasNestedGroup) {
               payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
@@ -1176,6 +1199,7 @@
           if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
           if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
           if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+          if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
           
           if (!manifest.validDurations.includes(payload.duration)) {
               payload.duration = manifest.validDurations[0] || 'INSTANT';
@@ -1213,14 +1237,7 @@
             let baseZones = group.quickTargeting?.zones || ['FIELD'];
             if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = activationQuickTargeting?.zones || ['FIELD'];
                 
-            let effectiveZones = [...baseZones];
-            for (let i = 0; i < pIdx; i++) {
-                const pt = group.payloads[i].type;
-                if (pt === 'RECOVER' || pt === 'DRAW_CARD' || pt === 'RETURN') effectiveZones = ['HAND'];
-                else if (pt === 'FIELD') effectiveZones = ['FIELD'];
-                else if (pt === 'DISCARD' || pt === 'DISCARD_CARD' || pt === 'TRASH') effectiveZones = ['DISCARD'];
-                else if (pt === 'BANISH') effectiveZones = ['BANISH'];
-            }
+            let effectiveZones = calculateEffectiveZones(baseZones, group.payloads, pIdx);
 
             const validEffectTypes = typeof getValidActionsForZones !== 'undefined' 
                 ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones))
@@ -1302,6 +1319,10 @@
                 const abLabel = payload.type === 'REMOVE_ABILITY' ? 'Ability to Remove' : 'Ability to Grant';
                 basicParamsHtml += `<div class="flex-1 min-w-[150px] pb-0.5"><label class="block text-[10px] font-bold text-cyan-400 mb-0.5">${abLabel}</label><input list="ability-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateGrantedAbility(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
                 <datalist id="ability-list-${gIdx}-${pIdx}">${customOptions}</datalist></div>`;
+            }
+
+            if (manifest.canBlockDuplicates) {
+                basicParamsHtml += `<div class="flex items-end pb-1.5"><label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition whitespace-nowrap"><input type="checkbox" ${payload.blockDuplicates ? 'checked' : ''} onchange="window.updatePayload(${gIdx}, ${pIdx}, 'blockDuplicates', this.checked)" class="accent-cyan-500 w-3 h-3" /><span class="text-[9px] font-black text-cyan-400 uppercase tracking-wider">Block Duplicates</span></label></div>`;
             }
 
             if (manifest.requiresCardId) {
@@ -1394,6 +1415,10 @@
                        if (foundAb) displayValue = foundAb.name;
                        npParamsHtml += `<div class="flex-1 min-w-[120px]"><input list="nest-ability-list-${gIdx}-${pIdx}-${nIdx}" value="${displayValue}" onchange="window.updateNestedGrantedAbility(${gIdx}, ${pIdx}, ${nIdx}, this.value)" placeholder="Ability name..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full text-[10px]" /><datalist id="nest-ability-list-${gIdx}-${pIdx}-${nIdx}">${customOptions}</datalist></div>`;
                     } 
+
+                    if (nMan.canBlockDuplicates) {
+                       npParamsHtml += `<div class="flex items-center px-1"><label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" ${np.blockDuplicates ? 'checked' : ''} onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'blockDuplicates', this.checked)" class="accent-cyan-500 w-3 h-3" /><span class="text-[9px] font-bold text-cyan-400">No Dupes</span></label></div>`;
+                    }
                     
                     if (nMan.requiresCardId) {
                        const cardOptions = allCards.map(c => `<option value="${c.name}"></option>`).join('');
@@ -1473,7 +1498,13 @@
             const showDuration = manifest.validDurations && manifest.validDurations.length > 1;
             
             return `
-              <div class="flex flex-col gap-2 bg-slate-950 p-3 rounded-lg border border-slate-800 relative shadow-md">
+              <div draggable="true"
+                   ondragstart="window.handlePayloadDragStart(event, ${gIdx}, ${pIdx})"
+                   ondragover="window.handlePayloadDragOver(event, ${gIdx})"
+                   ondrop="window.handlePayloadDrop(event, ${gIdx}, ${pIdx})"
+                   ondragend="window.handlePayloadDragEnd(event)"
+                   class="flex flex-col gap-2 bg-slate-950 p-3 pl-8 rounded-lg border border-slate-800 relative shadow-md transition-all">
+                  <div class="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 cursor-grab active:cursor-grabbing text-lg" title="Drag to reorder">☰</div>
                   <button type="button" onclick="window.removePayload(${gIdx}, ${pIdx})" class="absolute top-2 right-2 text-slate-600 hover:text-red-400 font-black px-1.5 leading-none transition-colors">&times;</button>
                   <div class="w-full flex flex-wrap items-end gap-3 pr-6">
                       <div class="flex-1 min-w-[250px] flex flex-col pb-0.5">
@@ -1982,12 +2013,58 @@
         }
 
         const currentName = document.getElementById('ab-name').value;
+        
+        const dependentAbilityIds = new Set([currentEditingId]);
+        const dependentNames = new Set([currentName.toLowerCase()]);
+        let addedNew = true;
+        
+        while (addedNew) {
+            addedNew = false;
+            allAbilities.forEach(ab => {
+                if (dependentAbilityIds.has(ab.abilityId)) return;
+                
+                let isDependent = false;
+                
+                const desc = (ab.description || '') + ' ' + (ab.displayDescription || '');
+                for (const name of dependentNames) {
+                    if (name && desc.toLowerCase().includes('@[' + name + ']')) {
+                        isDependent = true; break;
+                    }
+                }
+                
+                if (!isDependent && ab.effects) {
+                    ab.effects.forEach(g => {
+                        if (g.payloads) {
+                            g.payloads.forEach(p => {
+                                if (p.type === 'GRANT_ABILITY' || p.type === 'REMOVE_ABILITY') {
+                                    if (dependentAbilityIds.has(p.grantedAbilityId) || dependentNames.has((p.grantedAbilityId || '').toLowerCase())) isDependent = true;
+                                }
+                                if (p.nestedGroup && p.nestedGroup.payloads) {
+                                    p.nestedGroup.payloads.forEach(np => {
+                                        if (np.type === 'GRANT_ABILITY' || np.type === 'REMOVE_ABILITY') {
+                                            if (dependentAbilityIds.has(np.grantedAbilityId) || dependentNames.has((np.grantedAbilityId || '').toLowerCase())) isDependent = true;
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                if (isDependent) {
+                    dependentAbilityIds.add(ab.abilityId);
+                    if (ab.name) dependentNames.add(ab.name.toLowerCase());
+                    addedNew = true;
+                }
+            });
+        }
+
         const linkedCards = allCards.filter(c => {
             if (!c.abilities) return false;
             return c.abilities.some(a => {
                 const aId = typeof a === 'string' ? a : (a.abilityId || a.id);
-                const aName = a.name || '';
-                return aId === currentEditingId || (aName && currentName && aName.toLowerCase() === currentName.toLowerCase());
+                const aName = (a.name || '').toLowerCase();
+                return dependentAbilityIds.has(aId) || dependentNames.has(aName);
             });
         });
 
@@ -1999,7 +2076,7 @@
         }
 
         container.innerHTML = linkedCards.map(c => `
-            <a href="card_editor.html#${c.id}" title="Edit ${c.name}" class="p-2 bg-slate-900/60 hover:bg-slate-800 border border-slate-700/50 hover:border-sky-500/50 rounded-lg text-xs flex justify-between items-center transition-all group">
+            <div class="p-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-xs flex justify-between items-center transition-all group">
                 <div class="flex items-center gap-2 overflow-hidden">
                     <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[9px] shrink-0 shadow">${c.cost || 0}</span>
                     <div class="flex flex-col truncate">
@@ -2007,10 +2084,15 @@
                         <span class="text-[9px] text-slate-400 capitalize truncate">${c.tribe || 'Generic'} • ${c.type || 'Unit'}</span>
                     </div>
                 </div>
-                <span class="text-slate-600 group-hover:text-sky-400 transition-colors ml-1 p-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
-                </span>
-            </a>
+                <div class="flex items-center gap-1 shrink-0">
+                    <button type="button" onclick="window.testAssociatedCard('${c.id}')" title="Test this card" class="text-slate-500 hover:text-purple-400 transition p-1">
+                        🧪
+                    </button>
+                    <a href="card_editor.html#${c.id}" title="Edit ${c.name}" class="text-slate-500 hover:text-sky-400 transition p-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
+                    </a>
+                </div>
+            </div>
         `).join('');
     }
 
@@ -2019,6 +2101,16 @@
         if (idx !== -1) allCards[idx] = updatedCard;
         else allCards.push(updatedCard);
         renderAssociatedCards();
+    };
+
+    window.testAssociatedCard = async (cardId) => {
+        const card = allCards.find(c => c.id === cardId);
+        if (card) {
+            const topbar = document.getElementById('studio-topbar');
+            if (topbar && topbar.setLoading) topbar.setLoading('test', true);
+            await launchSandboxMatch(card, 'card');
+            if (topbar && topbar.setLoading) topbar.setLoading('test', false);
+        }
     };
     </script>
   

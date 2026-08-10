@@ -882,10 +882,10 @@
                 const isTargetable = pendingAbility && validTargets.some(t => t.id === (c.instanceId || c.id));
                 
                 return renderCardHTML(c, {
-                    isHand: zone === 'hand',
+                    isHand: zone !== 'discard',
                     isTargetable: isTargetable,
                     onClick: `window.handleZoneCardClick('${prefix}', '${zone}', '${c.instanceId || c.id}')`,
-                    onInspect: `window.inspectCard('${json}', ${zone === 'hand'})`,
+                    onInspect: `window.inspectCard('${json}', ${zone !== 'discard'})`,
                     abilityUses: currentGameState?.abilityUses || {}
                 });
             }).join('');
@@ -980,13 +980,34 @@
       }
 
       window.handleLineClick = async (clickedPrefix, line) => {
+        if (event) event.stopPropagation();
+        if (pendingAbility) {
+            showToast("Targeting cancelled.", "info");
+            pendingAbility = null;
+            validTargets = [];
+            updateUI();
+            return;
+        }
         // Line dropping is removed. Cards auto-play to back.
         if (!isMyTurn() || clickedPrefix !== 'player') return;
       };
 
       window.handleEntityClick = async (prefix, line, entityId) => {
         if (event) event.stopPropagation();
-        if (!isMyTurn()) return;
+        
+        if (!isMyTurn()) {
+            let entity = null;
+            if (prefix === 'equator') entity = currentGameState.equator?.find(i => i.instanceId === entityId);
+            else {
+                const role = prefix === 'player' ? localPlayerRole : (localPlayerRole === 'player1' ? 'player2' : 'player1');
+                entity = currentGameState.players[role].lines[line]?.find(u => u.instanceId === entityId);
+            }
+            if (entity) {
+                const json = encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27");
+                window.inspectCard(json);
+            }
+            return;
+        }
 
         if (pendingAbility) {
             if (validTargets.some(t => t.id === entityId)) {
@@ -1052,7 +1073,7 @@
                 pendingAbility = null;
                 validTargets = [];
                 updateUI();
-                // Allow fall-through to trigger the newly clicked entity
+                return;
             }
         }
 
@@ -1101,11 +1122,22 @@
               }
               window.openActionModal(entityId, entityName, actions);
             } else {
-              showToast("No available actions or not enough resources.", "info");
+              let entity = null;
+              if (prefix === 'equator') entity = currentGameState.equator?.find(i => i.instanceId === entityId);
+              else entity = currentGameState.players[localPlayerRole].lines[line]?.find(u => u.instanceId === entityId);
+              if (entity) {
+                  const json = encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27");
+                  window.inspectCard(json);
+              }
             }
           }
         } else if (prefix === 'opp') {
-          window.handleTargetClick(line, entityId);
+          const oppRole = localPlayerRole === 'player1' ? 'player2' : 'player1';
+          const entity = currentGameState.players[oppRole].lines[line]?.find(u => u.instanceId === entityId);
+          if (entity) {
+              const json = encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27");
+              window.inspectCard(json);
+          }
         }
       };
 
@@ -1133,6 +1165,7 @@
       };
 
       window.activateHandCardAbility = async (cardId, abilityId) => {
+        if (event) event.stopPropagation();
         window.closeUnitActionModal();
         const player = currentGameState.players[localPlayerRole];
         const card = player.hand.find(c => c.instanceId === cardId || c.id === cardId);
@@ -1163,6 +1196,7 @@
       };
 
       window.activateAbility = async (entityId, abilityId) => {
+        if (event) event.stopPropagation();
         window.closeUnitActionModal();
         if (!isMyTurn()) return;
         
@@ -1246,6 +1280,7 @@
       }).join('');
 
       window.executeNormalPlay = async (cardId, abilityTargetId = null) => {
+          if (event) event.stopPropagation();
           window.closeUnitActionModal();
           currentGameState.actionIndex = (currentGameState.actionIndex || 0) + 1;
           const actionPayload = {
@@ -1268,6 +1303,7 @@
       };
 
       window.handleHandCardClick = async (cardId) => {
+        if (event) event.stopPropagation();
         if (!isMyTurn()) return;
 
         if (currentGameState.turnPhase === 'SACRIFICE_DECISION') {
@@ -1321,7 +1357,7 @@
                 pendingAbility = null;
                 validTargets = [];
                 updateUI();
-                // Allow fall through to evaluate the newly clicked hand card
+                return;
             }
         }
 
@@ -1401,6 +1437,15 @@
       await pushActionToLog(roomCode, actionPayload, snapshot, currentGameState.history_log);
       updateUI();
     }
+    
+    document.getElementById('match-tabletop-screen').addEventListener('click', (e) => {
+        if (pendingAbility && !e.target.closest('button')) {
+            showToast("Targeting cancelled.", "info");
+            pendingAbility = null;
+            validTargets = [];
+            updateUI();
+        }
+    });
   </script>
 </body>
 </html>

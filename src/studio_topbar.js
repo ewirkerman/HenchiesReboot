@@ -70,6 +70,17 @@ export class StudioTopbar extends HTMLElement {
         this.querySelector('#import-confirm').addEventListener('click', () => {
             try {
                 const data = JSON.parse(textarea.value);
+                
+                // Allow adopting the ID of the currently loaded item if it exists
+                const urlParams = new URLSearchParams(window.location.search);
+                const hashId = window.location.hash.replace('#', '');
+                const currentEditingId = urlParams.get('id') || hashId;
+                
+                if (currentEditingId) {
+                    if (data.abilityId) data.abilityId = currentEditingId;
+                    if (data.id) data.id = currentEditingId;
+                }
+                
                 this.dispatchEvent(new CustomEvent('import', { detail: data }));
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');

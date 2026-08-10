@@ -114,17 +114,29 @@
     const activeLine = card.line || card.defaultLine || (isAvatar ? 'avatar' : 'mid');
     const isTempLine = card.line && card.defaultLine && card.line !== card.defaultLine;
 
-    const isStunned = card.abilities && card.abilities.some(a => a.name && (a.name.toLowerCase() === 'stunned' || a.name.toLowerCase() === 'stun'));
-    const isDazed = card.abilities && card.abilities.some(a => a.name && a.name.toLowerCase() === 'dazed');
+    const separatorClass = isToken ? 'border-white/40' : 'border-black';
+
+    const isStunned = card.abilities?.some(a => a.name && (a.name.toLowerCase() === 'stunned' || a.name.toLowerCase() === 'stun')) || 
+                      card.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'stunned' || e.grantedAbilityId?.toLowerCase() === 'stun' || e.traitId?.toLowerCase() === 'stunned' || e.traitId?.toLowerCase() === 'stun')) ||
+                      card.traits?.some(t => t.toLowerCase() === 'stunned' || t.toLowerCase() === 'stun');
+
+    const isDazed = card.abilities?.some(a => a.name && a.name.toLowerCase() === 'dazed') || 
+                    card.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'dazed' || e.traitId?.toLowerCase() === 'dazed')) ||
+                    card.traits?.some(t => t.toLowerCase() === 'dazed');
+
+    const isHidden = card.abilities?.some(a => a.name && a.name.toLowerCase() === 'hidden') || 
+                     card.activeEffects?.some(e => e.type === 'BLOCK_TARGETING' || (e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden'))) ||
+                     card.traits?.some(t => t.toLowerCase() === 'hidden');
+
+    let dynamicBorderClass = isToken ? 'border-2 border-white/50 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : `border-2 ${style.border}`;
+    if (isHidden && !isHand) dynamicBorderClass = 'border-2 border-dashed border-white/80 shadow-[0_0_12px_rgba(255,255,255,0.4)]';
 
     const hasReadiness = isUnit || card.type === 'equipment' || card.type === 'artifact';
     const isFieldUnready = !isHand && hasReadiness && readiness !== null && readiness === 0;
     const isFieldExhausted = !isHand && hasReadiness && readiness !== null && readiness < 0;
     const isFieldOverReady = !isHand && hasReadiness && readiness !== null && readiness > 1;
     const fieldDimmingClass = (isFieldUnready || isFieldExhausted || isStunned || isDazed) ? 'saturate-[0.25] opacity-90' : '';
-
-    const tokenBorderClass = isToken ? 'border border-white/50 shadow-[0_0_12px_rgba(255,255,255,0.25)]' : 'border border-black shadow-md';
-    const separatorClass = isToken ? 'border-white/40' : 'border-black';
+    const hiddenClass = isHidden && !isHand ? 'opacity-60 hover:opacity-100' : '';
 
     let overlayContent = '';
     let isOverReadyOverlay = false;
@@ -160,7 +172,7 @@
         }
     }
 
-    const readinessBadge = readiness !== null ? `
+    const readinessBadge = (hasReadiness && readiness !== null) ? `
       <div class="absolute top-1 right-1 text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider z-20 ${
         readiness >= 1 ? 'bg-emerald-500 text-black' : 
         readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border border-red-700'
@@ -200,10 +212,6 @@
     if (card.abilities && card.abilities.length > 0) {
         abilitiesHTML = card.abilities.map(ab => {
             const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
-            const isPassive = ab.trigger === 'UNTRIGGERABLE';
-            const hasNoCost = !ab.cost || ((!ab.cost.tribeAmount) && (!ab.cost.carnie) && (!ab.cost.tent) && (!ab.cost.power) && (!ab.cost.readinessCost || ab.cost.readinessCost === 'NONE'));
-            
-            if (isPassive && hasNoCost && !isAttack) return '';
             
             const abilityKey = `${card.instanceId}_${ab.abilityId}`;
             const uses = (options.abilityUses || {})[abilityKey] || 0;
@@ -216,8 +224,8 @@
 
             if (isAttack && hasNativeUnaggressive) return '';
 
-            const isBlockedAct = card.activeEffects?.some(e => e.type === 'BLOCK_ACT');
-            const isBlockedAttack = card.activeEffects?.some(e => e.type === 'BLOCK_ATTACK') || hasGrantedUnaggressive;
+            const isBlockedAct = card.activeEffects?.some(e => e.type === 'BLOCK_ACT') || isDazed || isStunned;
+            const isBlockedAttack = card.activeEffects?.some(e => e.type === 'BLOCK_ATTACK') || hasGrantedUnaggressive || isDazed || isStunned;
 
             if (isAttack && isBlockedAttack) isUsable = false;
             
@@ -257,7 +265,7 @@
           onclick="${onClick}"
           ${rightClickAttr}
           title="${safeTooltip}"
-          class="group relative flex-shrink-0 w-[64px] sm:w-[72px] h-[64px] rounded-md ${style.bg} ${tokenBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-110 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md"
+          class="group relative flex-shrink-0 w-[64px] sm:w-[72px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-110 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
         >
           <div class="absolute inset-0 z-0 ${fieldDimmingClass}">
             ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover opacity-75" style="object-position: ${card.artX ?? 50}% ${card.artY ?? 50}%;" draggable="false" />` : ''}
@@ -265,7 +273,7 @@
           <div class="relative z-10 w-full h-full p-1 flex flex-col justify-between bg-gradient-to-t from-black/95 via-transparent to-black/85 ${fieldDimmingClass}">
             <div class="flex items-start justify-between w-full relative z-20">
               ${!isAvatar ? `<div class="w-4 h-4 rounded-full bg-amber-500 text-black font-black text-[9px] flex items-center justify-center border border-black shadow pointer-events-auto shrink-0">${card.cost ?? 0}</div>` : '<div></div>'}
-              ${readiness !== null ? `
+              ${(hasReadiness && readiness !== null) ? `
                 <div class="w-2.5 h-2.5 rounded-full ${readiness >= 1 ? 'bg-emerald-500' : readiness === 0 ? 'bg-yellow-500' : 'bg-red-600'} border border-black shadow z-20"></div>
               ` : ''}
             </div>
@@ -293,7 +301,7 @@
           onclick="${onClick}"
           ${rightClickAttr}
           title="${safeTooltip}"
-          class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${style.bg} ${tokenBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md"
+          class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
         >
           <div class="absolute inset-0 z-0 ${fieldDimmingClass}">
             ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover opacity-75" style="object-position: ${card.artX ?? 50}% ${card.artY ?? 50}%;" draggable="false" />` : ''}
@@ -311,7 +319,7 @@
               </div>
             ` : ''}
           </div>
-          ${readiness !== null ? `
+          ${(hasReadiness && readiness !== null) ? `
             <div class="absolute top-1 right-1 text-[7px] px-1 py-0.5 rounded font-black uppercase z-20 ${
               readiness >= 1 ? 'bg-emerald-500 text-black' : 
               readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border border-red-700'
@@ -333,14 +341,14 @@
         onclick="${onClick}"
         ${rightClickAttr}
         title="${safeTooltip}"
-        class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${style.bg} ${tokenBorderClass} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col select-none overflow-hidden"
+        class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col select-none overflow-hidden ${hiddenClass}"
       >
         <div class="absolute inset-0 opacity-10 mix-blend-overlay ${fieldDimmingClass}"></div>
         
         <div class="w-full h-1/2 bg-slate-900 border-b-2 ${separatorClass} shrink-0 relative overflow-hidden ${fieldDimmingClass}">
           ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover" style="object-position: ${card.artX ?? 50}% ${card.artY ?? 50}%;" draggable="false" />` : ''}
           <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[90%] flex justify-center z-30 pointer-events-none">
-            <div class="bg-black/60 backdrop-blur-md text-white text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full truncate text-center w-full shadow-[0_2px_6px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide">
+            <div class="bg-black/20 backdrop-blur-sm text-white text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full truncate text-center max-w-full shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide">
               ${card.name}
             </div>
           </div>
@@ -474,7 +482,7 @@
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'inspection-modal';
-      modal.className = 'fixed inset-0 z-50 bg-black/20 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none';
+      modal.className = 'fixed inset-0 z-[100] bg-black/20 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none';
       
       const handleBack = () => {
         if (window._inspectHistory && window._inspectHistory.length > 1) {
@@ -531,8 +539,15 @@
     const style = TRIBE_STYLES[cardOrUnit.tribe] || TRIBE_STYLES.Mythic;
     const activeLine = cardOrUnit.line || cardOrUnit.defaultLine || (isAvatar ? 'avatar' : 'mid');
     const isTempLine = cardOrUnit.line && cardOrUnit.defaultLine && cardOrUnit.line !== cardOrUnit.defaultLine;
+    const hasReadiness = isUnit || cardOrUnit.type === 'equipment' || cardOrUnit.type === 'artifact';
     
-    const inspectBorderClass = isToken ? 'border-white/50 shadow-[0_0_24px_rgba(255,255,255,0.25)]' : style.border;
+    const isHidden = cardOrUnit.abilities?.some(a => a.name && a.name.toLowerCase() === 'hidden') || 
+                     cardOrUnit.activeEffects?.some(e => e.type === 'BLOCK_TARGETING' || (e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden'))) ||
+                     cardOrUnit.traits?.some(t => t.toLowerCase() === 'hidden');
+
+    let inspectBorderClass = isToken ? 'border-white/50 shadow-[0_0_24px_rgba(255,255,255,0.25)]' : style.border;
+    if (isHidden && !isHand) inspectBorderClass = 'border-dashed border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.4)]';
+    
     const separatorClass = isToken ? 'border-white/40' : 'border-black';
     
     // Extract Glossary
@@ -570,7 +585,7 @@
               `}
               
               <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-[90%] flex justify-center z-30 pointer-events-none">
-                <div class="bg-black/50 backdrop-blur-md text-white text-xl sm:text-2xl font-black px-4 py-1 rounded-full truncate text-center w-full shadow-[0_4px_12px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide border-none">
+                <div class="bg-black/20 backdrop-blur-sm text-white text-xl sm:text-2xl font-black px-4 py-1 rounded-full truncate text-center max-w-full shadow-[0_4px_8px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide border-none">
                     ${cardOrUnit.name}
                 </div>
               </div>
@@ -598,7 +613,7 @@
                 ` : ''}
               </div>
 
-              ${cardOrUnit.readiness !== undefined && cardOrUnit.readiness !== null ? `
+              ${(hasReadiness && cardOrUnit.readiness !== undefined && cardOrUnit.readiness !== null) ? `
                 <div class="absolute top-3 right-3 text-sm px-2.5 py-1 rounded-md font-black uppercase tracking-wider z-20 border-2 border-black shadow-lg ${
                   cardOrUnit.readiness >= 1 ? 'bg-emerald-500 text-black' : 
                   cardOrUnit.readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border-red-700'
