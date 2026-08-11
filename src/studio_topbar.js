@@ -71,21 +71,22 @@ export class StudioTopbar extends HTMLElement {
             try {
                 const data = JSON.parse(textarea.value);
                 
-                // Allow adopting the ID of the currently loaded item if it exists
-                const urlParams = new URLSearchParams(window.location.search);
-                const hashId = window.location.hash.replace('#', '');
-                const currentEditingId = urlParams.get('id') || hashId;
-                
-                if (currentEditingId) {
-                    if (data.abilityId) data.abilityId = currentEditingId;
-                    if (data.id) data.id = currentEditingId;
+                if (typeof data !== 'object' || data === null) {
+                    throw new Error("Imported data must be a JSON object.");
                 }
                 
                 this.dispatchEvent(new CustomEvent('import', { detail: data }));
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
             } catch(e) {
-                alert('Invalid JSON! Please check your formatting.');
+                let msg = e.message;
+                if (e instanceof SyntaxError) {
+                    msg = "JSON Syntax Error. Check for missing quotes, extra commas, or trailing commas.\n\nDetails: " + msg;
+                }
+                // Dispatch an error event so the parent can handle it in the UI
+                this.dispatchEvent(new CustomEvent('import-error', { detail: { message: msg } }));
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
             }
         });
     }

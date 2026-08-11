@@ -59,7 +59,7 @@ export function calculateEffectiveZones(baseZones, payloads, currentIndex) {
 }
 
 const ATTRIBUTE_TYPES = {
-    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER'] },
+    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER', 'BOON'] },
     'alignment': { label: 'Alignment', type: 'select', options: ['FRIENDLY', 'ENEMY'] },
     'zone': { label: 'Zone', type: 'select', options: ZONES },
     'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
@@ -73,6 +73,7 @@ const ATTRIBUTE_TYPES = {
     'slow': { label: 'Slow Charges', type: 'number' },
     'cost': { label: 'Cost', type: 'number' },
     'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
+    'isAttacking': { label: 'Is the Active Attacker (Event)', type: 'select', options: ['true', 'false'] },
     'hasAbility': { label: 'Has Ability', type: 'text' }
 };
 
@@ -233,7 +234,6 @@ export function exportCurrentState(formData, externalState = null) {
 
     if (scope === 'PERSONAL' && actMethod === 'NONE') {
          delete activationData.quickTargeting;
-         // IMPORTANT: Kept logicTree to preserve Event Filtering
     } else if (scope === 'GLOBAL') {
          activationData.method = 'NONE';
     }
@@ -247,6 +247,7 @@ export function exportCurrentState(formData, externalState = null) {
         additionalTriggers: formData.additionalTriggers || [],
         triggerScope: scope,
         triggerLimit: formData.triggerLimit || 'UNLIMITED',
+        passiveFlags: formData.passiveFlags || [],
         cost: {
             tribeAmount: parseInt(formData.tribeAmount) || 0,
             carnie: parseInt(formData.carnie || formData.tent) || 0,
@@ -296,6 +297,8 @@ export function hydrateStateFromAbility(ability) {
     
     const srcEffScope = ability.effectScope || { method: 'SAME_AS_ACTIVATION', count: 1, quickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] } };
 
+    if (!ability.passiveFlags) ability.passiveFlags = [];
+
     if (ability.effects && ability.effects.length > 0) {
         state.targetGroups = JSON.parse(JSON.stringify(ability.effects)).map(e => {
             
@@ -305,7 +308,14 @@ export function hydrateStateFromAbility(ability) {
                 if (!Array.isArray(e.quickTargeting?.alignment)) e.quickTargeting.alignment = ['ENEMY'];
                 if (!Array.isArray(e.quickTargeting?.entityType)) e.quickTargeting.entityType = ['UNIT'];
                 
-                e.payloads = e.payloads.map(p => {
+                e.payloads = e.payloads.filter(p => {
+                    // AUTO-MIGRATE legacy SELF-TARGETED block effects to passiveFlags
+                    if (e.targetMethod === 'SELF' && ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING'].includes(p.type)) {
+                        if (!ability.passiveFlags.includes(p.type)) ability.passiveFlags.push(p.type);
+                        return false; 
+                    }
+                    return true;
+                }).map(p => {
                     if (p.type === 'APPLY_TRAIT' || p.type === 'GRANT_TRAIT_OR_ABILITY') p.type = 'GRANT_ABILITY';
                     if (p.traitId) { p.grantedAbilityId = p.traitId; delete p.traitId; }
                     return p;
@@ -335,22 +345,30 @@ export function hydrateStateFromAbility(ability) {
             let pType = e.type || 'DEAL_DAMAGE';
             if (pType === 'APPLY_TRAIT' || pType === 'GRANT_TRAIT_OR_ABILITY') pType = 'GRANT_ABILITY';
             
-            group.payloads.push({
-                type: pType,
-                duration: e.duration || 'INSTANT',
-                amount: e.amount,
-                stat: e.stat,
-                grantedAbilityId: e.grantedAbilityId || e.traitId,
-                cardId: e.cardId,
-                script: e.script,
-                description: e.description,
-                zone: e.zone,
-                zoneOwner: e.zoneOwner || 'CASTER',
-                nestedGroup: e.nestedGroup
-            });
+            if (group.targetMethod === 'SELF' && ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING'].includes(pType)) {
+                if (!ability.passiveFlags.includes(pType)) ability.passiveFlags.push(pType);
+            } else {
+                group.payloads.push({
+                    type: pType,
+                    duration: e.duration || 'INSTANT',
+                    amount: e.amount,
+                    stat: e.stat,
+                    grantedAbilityId: e.grantedAbilityId || e.traitId,
+                    cardId: e.cardId,
+                    script: e.script,
+                    description: e.description,
+                    zone: e.zone,
+                    zoneOwner: e.zoneOwner || 'CASTER',
+                    nestedGroup: e.nestedGroup
+                });
+            }
             
             return group;
         });
+
+        // Clean up groups that were completely emptied by migration
+        state.targetGroups = state.targetGroups.filter(g => g.payloads && g.payloads.length > 0);
+
     } else {
         state.targetGroups = [];
     }

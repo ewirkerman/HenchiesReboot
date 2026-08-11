@@ -17,10 +17,10 @@ export const ACTION_MANIFEST = {
     'PLAY': { passiveType: 'BE_PLAYED', canInvert: true, canBeCost: false, validZones: ['HAND'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACK': { passiveType: 'BE_ATTACKED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'HARVEST': { passiveType: 'BE_HARVESTED', canInvert: true, canBeCost: false, validZones: ['HAND'], endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true },
-    'BLOCK_ACT': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'BLOCK_ATTACK': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'BLOCK_RETALIATE': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'BLOCK_TARGETING': { passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'BLOCK_ACT': { deprecated: true, passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'BLOCK_ATTACK': { deprecated: true, passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'BLOCK_RETALIATE': { deprecated: true, passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'BLOCK_TARGETING': { deprecated: true, passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'CANCEL_EVENT': { passiveType: null, canInvert: false, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CLEANSE': { passiveType: 'BE_CLEANSED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CHANGE_DESTINATION': { passiveType: null, canInvert: false, canBeCost: false, requiresZone: true, validZones: 'ALL', validDurations: ['INSTANT'] },
@@ -37,7 +37,7 @@ export const ACTION_MANIFEST = {
     'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACH_TO': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: true },
+    'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: false },
     'UNFIELD': { passiveType: 'BE_UNFIELDED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'TRASH': { passiveType: 'BE_TRASHED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['FIELD', 'HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'FIELD': { passiveType: 'BE_FIELDED', canInvert: true, canBeCost: false, validZones: ['HAND', 'DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
@@ -64,11 +64,16 @@ export class Action {
         engine.state._actionDepth++;
         
         if (!engine.state.isReconstructing) {
-            const sName = this.payload.source?.name || 'System';
             const sId = this.payload.source?.instanceId || this.payload.source?.id || 'none';
-            const tName = this.payload.target?.name || 'None';
             const tId = this.payload.target?.instanceId || this.payload.target?.id || 'none';
-            console.log(`[ACTION EXECUTION] Depth ${engine.state._actionDepth} -> Running ${this.type} Action | Src: ${sName} (${sId}) -> Tgt: ${tName} (${tId}) | Ctx: ${!!this.payload.eventContext}`);
+            const sName = this.payload.source ? `${this.payload.source.name || 'Unknown'} (${sId})` : `System (${sId})`;
+            const tName = this.payload.target ? `${this.payload.target.name || 'Unknown'} (${tId})` : `None (${tId})`;
+            let extra = '';
+            if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE', 'MODIFY_EVENT'].includes(this.type)) {
+                extra = `(${this.payload.stat ? this.payload.stat + ': ' : ''}${this.payload.amount !== undefined ? this.payload.amount : 0}) `;
+            }
+            const indent = '  '.repeat(engine.state._actionDepth - 1);
+            console.log(`${indent}⚡ [ACTION] ${this.type} ${extra}| Src: ${sName} -> Tgt: ${tName}`);
         }
         
         try {
@@ -109,6 +114,9 @@ export class Action {
                 if (t.originalPower !== undefined) t.power = t.originalPower;
                 if (t.originalStrength !== undefined) t.strength = t.originalStrength;
             }
+
+            // Enforce Cancellation before execution
+            if (this.payload.cancelled) return false;
 
             // 3. Execution Phase
             this.execute(engine);
@@ -164,6 +172,19 @@ export class Action {
 
 export function findEntityLocation(engine, target) {
     if (!target) return null;
+    
+    const searchAttachments = (host, pId, zoneName) => {
+        if (host.attachments) {
+            const aIdx = host.attachments.findIndex(a => a.instanceId === target.instanceId);
+            if (aIdx > -1) return { playerId: pId, zone: 'attachment', array: host.attachments, index: aIdx, host: host };
+            for (const att of host.attachments) {
+                const found = searchAttachments(att, pId, 'attachment');
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+
     for (const pId of ['player1', 'player2']) {
         const p = engine.state.players[pId];
         
@@ -173,10 +194,8 @@ export function findEntityLocation(engine, target) {
                 if (idx > -1) return { playerId: pId, zone: line, array: p.lines[line], index: idx };
                 
                 for (const u of p.lines[line]) {
-                    if (u.attachments) {
-                        const aIdx = u.attachments.findIndex(a => a.instanceId === target.instanceId);
-                        if (aIdx > -1) return { playerId: pId, zone: 'attachment', array: u.attachments, index: aIdx, host: u };
-                    }
+                    const found = searchAttachments(u, pId, line);
+                    if (found) return found;
                 }
             }
         }
@@ -185,11 +204,21 @@ export function findEntityLocation(engine, target) {
         for (const z of zones) {
             const idx = p[z].findIndex(c => c.instanceId === target.instanceId);
             if (idx > -1) return { playerId: pId, zone: z, array: p[z], index: idx };
+            
+            for (const u of p[z]) {
+                const found = searchAttachments(u, pId, z);
+                if (found) return found;
+            }
         }
     }
     if (engine.state.equator) {
         const idx = engine.state.equator.findIndex(c => c.instanceId === target.instanceId);
         if (idx > -1) return { playerId: null, zone: 'equator', array: engine.state.equator, index: idx };
+        
+        for (const u of engine.state.equator) {
+            const found = searchAttachments(u, null, 'equator');
+            if (found) return found;
+        }
     }
     return null;
 }
@@ -337,20 +366,24 @@ export function revertEffect(engine, target, effect) {
 }
 
 export function sweepTurnEffects(engine, endingPlayerId) {
+    const cleanseRecursive = (ent) => {
+        if (!ent) return;
+        new CleanseAction({ target: ent, endingPlayerId }).run(engine);
+        if (ent.attachments) {
+            ent.attachments.forEach(att => cleanseRecursive(att));
+        }
+    };
+
     for (const pId of ['player1', 'player2']) {
         const p = engine.state.players[pId];
         for (const line in p.lines) {
             if (p.lines[line]) {
-                [...p.lines[line]].forEach(u => {
-                    new CleanseAction({ target: u, endingPlayerId }).run(engine);
-                });
+                [...p.lines[line]].forEach(u => cleanseRecursive(u));
             }
         }
     }
     if (engine.state.equator) {
-        engine.state.equator.forEach(u => {
-            new CleanseAction({ target: u, endingPlayerId }).run(engine);
-        });
+        engine.state.equator.forEach(u => cleanseRecursive(u));
     }
 }
 
@@ -369,19 +402,6 @@ export class DealDamageAction extends Action {
             
             target.health = Math.max(0, (target.health || 0) - amount);
             engine.state.history_log.push(`💥 ${target.name || 'Target'} took ${amount} damage.`);
-            
-            const isDazed = target.abilities?.some(a => a.name && a.name.toLowerCase() === 'dazed') || 
-                            target.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && ((e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'dazed') || (e.traitId && e.traitId.toLowerCase() === 'dazed'))) ||
-                            target.traits?.some(t => t.toLowerCase() === 'dazed');
-
-            if (isDazed) {
-                if (target.abilities) target.abilities = target.abilities.filter(a => !(a.name && a.name.toLowerCase() === 'dazed'));
-                if (target.activeEffects) {
-                    target.activeEffects = target.activeEffects.filter(e => !(e.type === 'GRANT_ABILITY' && ((e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'dazed') || (e.traitId && e.traitId.toLowerCase() === 'dazed'))));
-                }
-                if (target.traits) target.traits = target.traits.filter(t => t.toLowerCase() !== 'dazed');
-                engine.state.history_log.push(`💫 ${target.name} snapped out of being Dazed!`);
-            }
 
             if (target.type === 'avatar' && target.health <= 0) {
                 const loc = findEntityLocation(engine, target);
@@ -391,7 +411,7 @@ export class DealDamageAction extends Action {
                 engine.state.history_log.push(`☠️ Avatar ${target.name} has fallen! Match finished.`);
             }
             if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && !this.payload.deferDeath) {
-                new KillAction({ source, target, isCombat, eventContext: { isCombat } }).run(engine);
+                new KillAction({ source, target, isCombat, eventContext: this.payload.eventContext || { isCombat } }).run(engine);
             }
         }
     }
@@ -649,30 +669,11 @@ export class AttackAction extends Action {
         const attacker = this.payload.source;
         const defender = this.payload.target;
         
-        const isTimid = attacker.abilities?.some(a => a.name && a.name.toLowerCase() === 'timid') || 
-                        attacker.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'timid' || e.traitId?.toLowerCase() === 'timid')) ||
-                        attacker.traits?.some(t => t.toLowerCase() === 'timid');
+        const isTimid = engine.utils.hasEngineFlag(engine.state, attacker, 'BLOCK_TARGET_AVATAR');
 
         if (isTimid && defender.type === 'avatar') {
-            engine.state.history_log.push(`🙈 ${attacker.name} is too timid to attack the Avatar!`);
+            engine.state.history_log.push(`🙈 ${attacker.name} cannot attack the Avatar!`);
             return;
-        }
-
-        const isHidden = attacker.activeEffects?.some(e => e.type === 'BLOCK_TARGETING') ||
-                            attacker.abilities?.some(a => a.name && a.name.toLowerCase() === 'hidden') ||
-                            attacker.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden')) ||
-                            attacker.traits?.some(t => t.toLowerCase() === 'hidden');
-
-        if (isHidden) {
-            if (attacker.abilities) attacker.abilities = attacker.abilities.filter(a => !(a.name && a.name.toLowerCase() === 'hidden'));
-            if (attacker.activeEffects) {
-                attacker.activeEffects = attacker.activeEffects.filter(e => 
-                    e.type !== 'BLOCK_TARGETING' && 
-                    !(e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden'))
-                );
-            }
-            if (attacker.traits) attacker.traits = attacker.traits.filter(t => t.toLowerCase() !== 'hidden');
-            engine.state.history_log.push(`👁️ ${attacker.name} emerged from hiding to attack!`);
         }
 
         engine.state.history_log.push(`⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`);
@@ -683,51 +684,14 @@ export class AttackAction extends Action {
         this.payload.preventReaction = true;
         
         const atkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
-        
-        const isDefDazed = defender.abilities?.some(a => a.name && a.name.toLowerCase() === 'dazed') || 
-                           defender.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && ((e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'dazed') || (e.traitId && e.traitId.toLowerCase() === 'dazed'))) ||
-                           defender.traits?.some(t => t.toLowerCase() === 'dazed');
                            
-        const isDefStunned = defender.abilities?.some(a => a.name && (a.name.toLowerCase() === 'stunned' || a.name.toLowerCase() === 'stun')) || 
-                             defender.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && ((e.grantedAbilityId && (e.grantedAbilityId.toLowerCase() === 'stunned' || e.grantedAbilityId.toLowerCase() === 'stun')) || (e.traitId && (e.traitId.toLowerCase() === 'stunned' || e.traitId.toLowerCase() === 'stun')))) ||
-                             defender.traits?.some(t => t.toLowerCase() === 'stunned' || t.toLowerCase() === 'stun');
-
-        const defBlockRetaliate = isDefDazed || isDefStunned || defender.activeEffects?.some(e => e.type === 'BLOCK_RETALIATE' || e.type === 'BLOCK_ACT');
+        const defBlockRetaliate = engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_RETALIATE') || engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_ACT');
         const defDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
         
         const getSpeed = (ent) => {
             let speed = 0;
-            if (ent.fast && ent.fast > 0) { 
-                speed += 1; 
-                ent.fast -= 1; 
-                // Release the source tracker so the ability can replenish this charge next turn
-                if (ent.statSources && ent.statSources.fast && ent.statSources.fast.length > 0) ent.statSources.fast.shift();
-            }
-            if (ent.slow && ent.slow > 0) { 
-                speed -= 1; 
-                ent.slow -= 1; 
-                if (ent.statSources && ent.statSources.slow && ent.statSources.slow.length > 0) ent.statSources.slow.shift();
-            }
-            
-            const isAbMatch = (a, names) => {
-                if (typeof a === 'string') {
-                    const catAb = engine.state.abilityCatalog?.find(ca => ca.abilityId === a);
-                    return catAb && catAb.name && names.includes(catAb.name.toLowerCase());
-                }
-                return a && a.name && names.includes(a.name.toLowerCase());
-            };
-
-            const hasFast = ent.abilities?.some(a => isAbMatch(a, ['swift', 'first strike', 'fast'])) ||
-                            ent.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (['swift', 'first strike', 'fast'].includes(e.grantedAbilityId?.toLowerCase()) || ['swift', 'first strike', 'fast'].includes(e.traitId?.toLowerCase()))) ||
-                            ent.traits?.some(t => ['swift', 'first strike', 'fast'].includes(t.toLowerCase()));
-
-            const hasSlow = ent.abilities?.some(a => isAbMatch(a, ['slow'])) ||
-                            ent.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (['slow'].includes(e.grantedAbilityId?.toLowerCase()) || ['slow'].includes(e.traitId?.toLowerCase()))) ||
-                            ent.traits?.some(t => t.toLowerCase() === 'slow');
-            
-            if (hasFast) speed += 1;
-            if (hasSlow) speed -= 1;
-            
+            if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_FAST', true)) speed += 1;
+            if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_SLOW', true)) speed -= 1;
             return Math.max(-1, Math.min(1, speed));
         };
 
@@ -741,19 +705,29 @@ export class AttackAction extends Action {
 
         // Execute sequential combat phases: Fast (1) -> Normal (0) -> Slow (-1)
         for (const phase of [1, 0, -1]) {
-            const atkStrikes = atkSpeed === phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
-            const defStrikes = defSpeed === phase && defDmg !== null && defDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
+            let atkStrikes = atkSpeed === phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
+            let defStrikes = defSpeed === phase && defDmg !== null && defDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
 
-            if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg, isCombat: true, deferDeath: true }).run(engine);
-            if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: defDmg, isCombat: true, deferDeath: true }).run(engine);
+            const strikesHappened = atkStrikes || defStrikes;
+
+            if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
+            if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: defDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
             
+            // Re-evaluate death state AFTER damage resolves in case replacement effects saved them
+            atkStrikes = atkSpeed === phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
+            defStrikes = defSpeed === phase && defDmg !== null && defDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
+
+            // If a unit survived the phase (or was revived by a replacement effect), it gets to strike back if it hasn't yet
+            if (atkSpeed < phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker)) atkStrikes = true;
+            if (defSpeed < phase && defDmg !== null && defDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender)) defStrikes = true;
+
             // After simultaneous strikes resolve in this speed phase, evaluate deaths
-            if (atkStrikes || defStrikes) {
+            if (strikesHappened) {
                 if (defender.health <= 0 && defender.type !== 'avatar' && !defender._isDying) {
-                    new KillAction({ source: attacker, target: defender, isCombat: true, eventContext: { isCombat: true } }).run(engine);
+                    new KillAction({ source: attacker, target: defender, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
                 }
                 if (attacker.health <= 0 && attacker.type !== 'avatar' && !attacker._isDying) {
-                    new KillAction({ source: defender, target: attacker, isCombat: true, eventContext: { isCombat: true } }).run(engine);
+                    new KillAction({ source: defender, target: attacker, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
                 }
             }
         }
@@ -913,7 +887,8 @@ export class UnattachAction extends Action {
             }
             
             const target = this.payload.target;
-            const ownerId = loc.playerId || engine.state.activePlayerId;
+            const ownerId = target.originalOwnerId || target.ownerId || loc.playerId || engine.state.activePlayerId;
+            target.ownerId = ownerId;
             
             target.readiness = 0;
             
@@ -929,7 +904,8 @@ export class UnattachAction extends Action {
                 engine.state.history_log.push(`🔓 '${target.name}' unattached and fell to the Equator.`);
             }
         } else if (this.payload.target && ['equipment', 'artifact'].includes(this.payload.target.type)) {
-            moveEntity(engine, this.payload.target, engine.state.activePlayerId, 'equator');
+            this.payload.target.readiness = 0;
+            moveEntity(engine, this.payload.target, this.payload.target.ownerId || this.payload.target.originalOwnerId || engine.state.activePlayerId, 'equator');
         }
     } 
 }
@@ -1036,6 +1012,11 @@ export class SummonAction extends Action {
             
             moveEntity(engine, instance, ownerId, actualDest);
             summonedInstances.push(instance);
+            
+            if (this.payload.duration && !['INSTANT', 'PERMANENT', 'INDEFINITE'].includes(this.payload.duration)) {
+                registerEffect(engine, instance, this.payload);
+            }
+            
             engine.state.history_log.push(`✨ Summoned ${instance.name}.`);
         }
         
@@ -1075,8 +1056,13 @@ export class BlockTargetingAction extends Action { execute(engine) { registerEff
 
 export class CancelEventAction extends Action {
     execute(engine) {
-        if (this.payload.eventContext) this.payload.eventContext.cancelled = true;
-        else this.payload.cancelled = true;
+        if (this.payload.eventContext) {
+            // Flag the specific parent event context as cancelled to stop the chain
+            this.payload.eventContext.cancelled = true;
+        } else {
+            // Only flag the local payload if there is no broader context
+            this.payload.cancelled = true;
+        }
     }
 }
 

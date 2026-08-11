@@ -105,6 +105,14 @@
       return svgs[line.toLowerCase()] || svgs.mid;
   }
 
+  const hasEngineFlag = (card, flag) => {
+      if (!card) return false;
+      if (card.passiveFlags && card.passiveFlags.includes(flag)) return true;
+      if (card.abilities && card.abilities.some(a => a.passiveFlags && a.passiveFlags.includes(flag))) return true;
+      if (card.activeEffects && card.activeEffects.some(e => e.type === flag)) return true;
+      return false;
+  };
+
   export function renderCardHTML(card, options = {}) {
     const { isHand = false, isSelected = false, isTargetable = false, readiness = null, onClick = '', onInspect = '', isMicro = false, isNano = false } = options;
     const style = TRIBE_STYLES[card.tribe] || TRIBE_STYLES.Mythic;
@@ -116,17 +124,9 @@
 
     const separatorClass = isToken ? 'border-white/40' : 'border-black';
 
-    const isStunned = card.abilities?.some(a => a.name && (a.name.toLowerCase() === 'stunned' || a.name.toLowerCase() === 'stun')) || 
-                      card.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'stunned' || e.grantedAbilityId?.toLowerCase() === 'stun' || e.traitId?.toLowerCase() === 'stunned' || e.traitId?.toLowerCase() === 'stun')) ||
-                      card.traits?.some(t => t.toLowerCase() === 'stunned' || t.toLowerCase() === 'stun');
-
-    const isDazed = card.abilities?.some(a => a.name && a.name.toLowerCase() === 'dazed') || 
-                    card.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'dazed' || e.traitId?.toLowerCase() === 'dazed')) ||
-                    card.traits?.some(t => t.toLowerCase() === 'dazed');
-
-    const isHidden = card.abilities?.some(a => a.name && a.name.toLowerCase() === 'hidden') || 
-                     card.activeEffects?.some(e => e.type === 'BLOCK_TARGETING' || (e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden'))) ||
-                     card.traits?.some(t => t.toLowerCase() === 'hidden');
+    const isStunned = hasEngineFlag(card, 'BLOCK_ACT');
+    const isDazed = hasEngineFlag(card, 'BLOCK_RETALIATE') && !isStunned;
+    const isHidden = hasEngineFlag(card, 'BLOCK_TARGETING');
 
     let dynamicBorderClass = isToken ? 'border-2 border-white/50 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : `border-2 ${style.border}`;
     if (isHidden && !isHand) dynamicBorderClass = 'border-2 border-dashed border-white/80 shadow-[0_0_12px_rgba(255,255,255,0.4)]';
@@ -219,24 +219,17 @@
             if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) isUsable = false;
             if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) isUsable = false;
 
-            const hasGrantedUnaggressive = card.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === 'ability_unaggressive' || (e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'unaggressive')));
-            const hasNativeUnaggressive = card.abilities?.some(abItem => abItem.name && abItem.name.toLowerCase() === 'unaggressive') && !hasGrantedUnaggressive;
-
-            if (isAttack && hasNativeUnaggressive) return '';
-
-            const isBlockedAct = card.activeEffects?.some(e => e.type === 'BLOCK_ACT') || isDazed || isStunned;
-            const isBlockedAttack = card.activeEffects?.some(e => e.type === 'BLOCK_ATTACK') || hasGrantedUnaggressive || isDazed || isStunned;
+            const isBlockedAct = hasEngineFlag(card, 'BLOCK_ACT');
+            const isBlockedAttack = hasEngineFlag(card, 'BLOCK_ATTACK') || isBlockedAct;
 
             if (isAttack && isBlockedAttack) isUsable = false;
             
             if (ab.trigger === 'MANUAL') {
                 if (!isAttack && isBlockedAct) isUsable = false;
                 
-                if (isUsable && card.readiness !== undefined) {
+                if (isUsable) {
                     const cost = ab.cost || {};
-                    let reqReadiness = (cost.readinessCost && cost.readinessCost !== 'NONE') || cost.freeAction;
-                    if (reqReadiness && cost.reuseIgnoresReadiness && uses > 0) reqReadiness = false;
-                    if (reqReadiness && card.readiness < 1) isUsable = false;
+                    // UI explicitly ignores readiness when graying out abilities
                     if (!cost.freeAction && !isAttack && (card.acts === undefined || card.acts < 1)) isUsable = false;
                 }
             }
@@ -404,24 +397,12 @@
       if (!allAbilitiesRegistry || allAbilitiesRegistry.length === 0) return [];
       
       let glossaryMap = new Map();
-      let queue = [...(baseAbilities || [])];
-      if (cardText) queue.push({ displayDescription: cardText, abilityId: 'card_text_dummy' });
-      
-      // Create a set of base IDs to exclude them from the sidebar (so we only show nested definitions)
-      let baseIds = new Set(queue.map(a => a.abilityId));
+      let systemMap = new Map();
+      let baseIds = new Set((baseAbilities || []).map(a => a.abilityId));
 
-      while(queue.length > 0) {
-          let current = queue.shift();
-          if (!current) continue;
-          
-          // Find mentions in description (e.g., @[Walker])
+      function processAbility(current) {
+          if (!current) return;
           const text = (current.displayDescription || current.description || '');
-
-          SYSTEM_GLOSSARY.forEach(sys => {
-              if (!glossaryMap.has(sys.id) && sys.regex.test(text)) {
-                  glossaryMap.set(sys.id, sys);
-              }
-          });
 
           const mentionRegex = /@\[(.*?)\]/g;
           let match;
@@ -430,7 +411,7 @@
               const found = allAbilitiesRegistry.find(a => a.name.toLowerCase() === matchedName.toLowerCase());
               if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
                   glossaryMap.set(found.abilityId, found);
-                  queue.push(found);
+                  processAbility(found);
               }
           }
 
@@ -443,7 +424,7 @@
                               const found = allAbilitiesRegistry.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
                               if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
                                   glossaryMap.set(found.abilityId, found);
-                                  queue.push(found);
+                                  processAbility(found);
                               }
                           }
                           if (eff.nestedGroup && eff.nestedGroup.payloads) {
@@ -452,7 +433,7 @@
                                       const found = allAbilitiesRegistry.find(a => a.abilityId === neff.grantedAbilityId || a.name === neff.grantedAbilityId);
                                       if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
                                           glossaryMap.set(found.abilityId, found);
-                                          queue.push(found);
+                                          processAbility(found);
                                       }
                                   }
                               });
@@ -461,9 +442,22 @@
                   }
               });
           }
+
+          SYSTEM_GLOSSARY.forEach(sys => {
+              if (!systemMap.has(sys.id) && sys.regex.test(text)) {
+                  systemMap.set(sys.id, sys);
+              }
+          });
       }
 
-      return Array.from(glossaryMap.values());
+      if (baseAbilities) {
+          baseAbilities.forEach(a => processAbility(a));
+      }
+      if (cardText) {
+          processAbility({ displayDescription: cardText, abilityId: 'card_text_dummy' });
+      }
+
+      return [...Array.from(glossaryMap.values()), ...Array.from(systemMap.values())];
   }
 
   export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false, abilityUses = {}, isHand = false) {
@@ -541,9 +535,7 @@
     const isTempLine = cardOrUnit.line && cardOrUnit.defaultLine && cardOrUnit.line !== cardOrUnit.defaultLine;
     const hasReadiness = isUnit || cardOrUnit.type === 'equipment' || cardOrUnit.type === 'artifact';
     
-    const isHidden = cardOrUnit.abilities?.some(a => a.name && a.name.toLowerCase() === 'hidden') || 
-                     cardOrUnit.activeEffects?.some(e => e.type === 'BLOCK_TARGETING' || (e.type === 'GRANT_ABILITY' && (e.grantedAbilityId?.toLowerCase() === 'hidden' || e.traitId?.toLowerCase() === 'hidden'))) ||
-                     cardOrUnit.traits?.some(t => t.toLowerCase() === 'hidden');
+    const isHidden = hasEngineFlag(cardOrUnit, 'BLOCK_TARGETING');
 
     let inspectBorderClass = isToken ? 'border-white/50 shadow-[0_0_24px_rgba(255,255,255,0.25)]' : style.border;
     if (isHidden && !isHand) inspectBorderClass = 'border-dashed border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.4)]';
@@ -552,13 +544,6 @@
     
     // Extract Glossary
     const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry, cardOrUnit.description);
-    
-    // Sort to pin abilities to the top, and system definitions to the bottom
-    glossaryAbilities.sort((a, b) => {
-        const aSys = a.id && a.id.startsWith('sys_') ? 1 : 0;
-        const bSys = b.id && b.id.startsWith('sys_') ? 1 : 0;
-        return aSys - bSys;
-    });
 
     modal.innerHTML = `
       <!-- Close Button (Fixed Top Right) -->
@@ -637,13 +622,6 @@
               <!-- Scrollable Traits & Abilities Box -->
               <div class="flex-1 flex flex-col gap-1.5 overflow-y-auto pb-16 minimal-scrollbar pr-1 pointer-events-auto relative z-10">
 
-                <!-- Traits -->
-                ${cardOrUnit.traits && cardOrUnit.traits.length > 0 ? `
-                  <div class="flex flex-wrap justify-center gap-1.5 mt-1">
-                    ${cardOrUnit.traits.map(t => `<span class="text-xs sm:text-sm bg-slate-900/80 text-cyan-300 px-2 py-1 rounded border border-cyan-800 font-extrabold uppercase tracking-wider shadow-sm">${t}</span>`).join('')}
-                  </div>
-                ` : ''}
-
                 <!-- Attachments -->
                 ${cardOrUnit.attachments && cardOrUnit.attachments.length > 0 ? `
                   <div class="flex flex-wrap justify-center gap-1.5 mt-1">
@@ -681,24 +659,17 @@
                       if (a.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) isUsable = false;
                       if (a.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) isUsable = false;
 
-                      const hasGrantedUnaggressive = cardOrUnit.activeEffects?.some(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === 'ability_unaggressive' || (e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === 'unaggressive')));
-                      const hasNativeUnaggressive = cardOrUnit.abilities?.some(abItem => abItem.name && abItem.name.toLowerCase() === 'unaggressive') && !hasGrantedUnaggressive;
-
-                      if (isAttack && hasNativeUnaggressive) return '';
-
-                      const isBlockedAct = cardOrUnit.activeEffects?.some(e => e.type === 'BLOCK_ACT');
-                      const isBlockedAttack = cardOrUnit.activeEffects?.some(e => e.type === 'BLOCK_ATTACK') || hasGrantedUnaggressive;
+                      const isBlockedAct = hasEngineFlag(cardOrUnit, 'BLOCK_ACT');
+                      const isBlockedAttack = hasEngineFlag(cardOrUnit, 'BLOCK_ATTACK') || isBlockedAct;
 
                       if (isAttack && isBlockedAttack) isUsable = false;
                       
                       if (a.trigger === 'MANUAL') {
                           if (!isAttack && isBlockedAct) isUsable = false;
                           
-                          if (isUsable && cardOrUnit.readiness !== undefined) {
+                          if (isUsable) {
                               const cost = a.cost || {};
-                              let reqReadiness = (cost.readinessCost && cost.readinessCost !== 'NONE') || cost.freeAction;
-                              if (reqReadiness && cost.reuseIgnoresReadiness && uses > 0) reqReadiness = false;
-                              if (reqReadiness && cardOrUnit.readiness < 1) isUsable = false;
+                              // UI explicitly ignores readiness when graying out abilities
                               if (!cost.freeAction && !isAttack && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) isUsable = false;
                           }
                       }

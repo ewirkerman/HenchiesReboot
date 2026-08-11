@@ -634,6 +634,7 @@
         
         localReplayStates = [cloneGameState(baseState)];
         let liveState = cloneGameState(baseState);
+        liveState.isReconstructing = true;
         
         if (data.action_log) {
           for (const action of data.action_log) {
@@ -650,10 +651,13 @@
               endTurn(liveState);
             }
             liveState.actionIndex = action.actionIndex;
+            liveState.isReconstructing = false;
             localReplayStates.push(cloneGameState(liveState));
+            liveState.isReconstructing = true;
           }
         }
 
+        liveState.isReconstructing = false;
         currentGameState = liveState;
         Object.defineProperty(currentGameState, 'abilityCatalog', { value: allAbilitiesRegistry, enumerable: false, configurable: true });
         Object.defineProperty(currentGameState, 'catalog', { value: allCardsRegistry, enumerable: false, configurable: true });
@@ -809,7 +813,7 @@
       
       if (deckEl) {
         deckEl.innerHTML = `
-          <div onclick="window.openZoneModal('${player.id}', 'deck')" class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-800 border-2 border-slate-950 shadow-xl flex flex-col items-center justify-center overflow-hidden select-none cursor-pointer hover:border-amber-500 transition-colors">
+          <div onclick="if(event) event.stopPropagation(); window.openZoneModal('${player.id}', 'deck')" class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-800 border-2 border-slate-950 shadow-xl flex flex-col items-center justify-center overflow-hidden select-none cursor-pointer hover:border-amber-500 transition-colors">
             <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 8px 8px;"></div>
             <span class="text-4xl sm:text-5xl relative z-10 drop-shadow-lg">🎴</span>
             <span class="text-[10px] sm:text-[12px] font-black text-amber-400 mt-3 uppercase tracking-widest bg-slate-950/90 px-2 py-1 rounded border border-amber-900/50 relative z-10 shadow">Deck: ${player.deck.length}</span>
@@ -820,7 +824,7 @@
       if (discardEl) {
         if (!player.discard || player.discard.length === 0) {
           discardEl.innerHTML = `
-            <div onclick="window.openZoneModal('${player.id}', 'discard')" class="cursor-pointer group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-900/40 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center select-none text-slate-500 shadow-inner hover:border-amber-500 transition-colors">
+            <div onclick="if(event) event.stopPropagation(); window.openZoneModal('${player.id}', 'discard')" class="cursor-pointer group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-md bg-slate-900/40 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center select-none text-slate-500 shadow-inner hover:border-amber-500 transition-colors">
               <span class="text-3xl sm:text-4xl opacity-50 mb-2">🗑️</span>
               <span class="text-[10px] sm:text-[12px] font-black uppercase tracking-widest">Discard</span>
             </div>
@@ -835,7 +839,7 @@
           }
 
           const cardHtml = renderCardHTML(topCard, {
-            onClick: `window.openZoneModal('${player.id}', 'discard')`,
+            onClick: `if(event) event.stopPropagation(); window.openZoneModal('${player.id}', 'discard')`,
             onInspect: `window.inspectCard('${json}', false)`,
             abilityUses: currentGameState?.abilityUses || {}
           });
@@ -884,7 +888,7 @@
                 return renderCardHTML(c, {
                     isHand: zone !== 'discard',
                     isTargetable: isTargetable,
-                    onClick: `window.handleZoneCardClick('${prefix}', '${zone}', '${c.instanceId || c.id}')`,
+                    onClick: `if(event) event.stopPropagation(); window.handleZoneCardClick('${prefix}', '${zone}', '${c.instanceId || c.id}')`,
                     onInspect: `window.inspectCard('${json}', ${zone !== 'discard'})`,
                     abilityUses: currentGameState?.abilityUses || {}
                 });

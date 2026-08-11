@@ -173,7 +173,7 @@
   <script type="module">
     import { CARD_CATALOG } from './src/engine.js';
     import { renderCardHTML, showToast, openInspectionModal, renderJSONPreview } from './src/ui.js';
-    import { fetchCustomAbilities, fetchCustomCards, saveCardToCatalog, deleteCardFromCatalog, createGameRoom } from './src/firebase.js';
+    import { fetchCustomAbilities, fetchCustomCards, saveCardToCatalog, deleteCardFromCatalog, createGameRoom, saveAbilityToCatalog } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { launchSandboxMatch } from './src/testing.js';
     import './src/catalog_component.js'; 
@@ -319,13 +319,32 @@
       topbar.addEventListener('clone', cloneCard);
       topbar.addEventListener('test', () => { if(window.launchTestMatch) window.launchTestMatch(); });
       topbar.addEventListener('delete', deleteCard);
-      topbar.addEventListener('import', (e) => {
+      topbar.addEventListener('import', async (e) => {
           const data = e.detail;
           data.id = 'card_' + Date.now();
-          allCards.push(data);
+          
+          if (data.abilities && Array.isArray(data.abilities)) {
+              for (const ab of data.abilities) {
+                  if (typeof ab === 'object' && ab.abilityId) {
+                      if (!allAbilities.some(a => a.abilityId === ab.abilityId)) {
+                          let newDesc = '';
+                          try { newDesc = generateAbilityDescription(ab, allAbilities, allCards); } catch(err) {}
+                          ab.displayDescription = newDesc;
+                          allAbilities.push(ab);
+                          allAbilitiesRegistry.push(ab);
+                          await saveAbilityToCatalog(ab);
+                      }
+                  }
+              }
+          }
+
+          allCards.unshift(data); // Add to top of list
           window.loadCard(data.id);
           document.getElementById('card-name').value += ' (Imported)';
           updatePreview();
+          renderCatalog();
+          
+          showToast('Card Imported Successfully!', 'success');
       });
 
       const urlParams = new URLSearchParams(window.location.search);

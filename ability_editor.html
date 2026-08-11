@@ -77,7 +77,13 @@
           <studio-topbar id="studio-topbar"></studio-topbar>
         </div>
 
-        <form id="ability-form" class="flex flex-col gap-6 text-xs">
+        <div id="editor-error-banner" class="hidden bg-red-950/80 border border-red-500/50 p-3 rounded-xl relative shadow-inner mt-2">
+            <button type="button" onclick="document.getElementById('editor-error-banner').classList.add('hidden')" class="absolute top-2 right-2 text-red-400 hover:text-white font-bold text-lg leading-none">&times;</button>
+            <h3 class="text-[11px] font-black text-red-400 uppercase tracking-wider mb-1">Import Error</h3>
+            <pre id="editor-error-message" class="text-[10px] text-red-200 font-mono whitespace-pre-wrap select-text overflow-x-auto"></pre>
+        </div>
+
+        <form id="ability-form" class="flex flex-col gap-6 text-xs mt-2">
           
           <!-- 1. IDENTITY & TRIGGER -->
           <div class="flex flex-col gap-3 p-4 bg-slate-900/50 rounded-xl border border-slate-700/50">
@@ -119,6 +125,49 @@
                   <option value="ONCE_PER_ROUND">Once Per Round</option>
                   <option value="TWICE_PER_ROUND">Twice Per Round</option>
                 </select>
+              </div>
+
+              <div class="md:col-span-3 border-t border-slate-700/50 pt-3 mt-1">
+                <label class="font-bold text-slate-300 block mb-2">Passive Engine Flags (Paired Overrides)</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 text-[10px]">
+                  
+                  <div class="flex flex-col p-1.5 bg-slate-900/60 rounded border border-slate-700/50">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-amber-100 hover:text-white"><input type="checkbox" value="BLOCK_ACT" class="ab-flag-chk accent-amber-500 w-3 h-3" /> BLOCK_ACT (Stun)</label>
+                    <div class="my-0.5 border-t border-slate-800/80"></div>
+                    <label class="flex items-center gap-1.5 cursor-pointer text-emerald-200 hover:text-white"><input type="checkbox" value="IGNORE_BLOCK_ACT" class="ab-flag-chk accent-emerald-500 w-3 h-3" /> IGNORE_BLOCK_ACT (Unstoppable)</label>
+                  </div>
+
+                  <div class="flex flex-col p-1.5 bg-slate-900/60 rounded border border-slate-700/50">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-amber-100 hover:text-white"><input type="checkbox" value="BLOCK_ATTACK" class="ab-flag-chk accent-amber-500 w-3 h-3" /> BLOCK_ATTACK (Pacify)</label>
+                    <div class="my-0.5 border-t border-slate-800/80"></div>
+                    <label class="flex items-center gap-1.5 cursor-pointer text-emerald-200 hover:text-white"><input type="checkbox" value="IGNORE_BLOCK_ATTACK" class="ab-flag-chk accent-emerald-500 w-3 h-3" /> IGNORE_BLOCK_ATTACK (Relentless)</label>
+                  </div>
+
+                  <div class="flex flex-col p-1.5 bg-slate-900/60 rounded border border-slate-700/50">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-amber-100 hover:text-white"><input type="checkbox" value="BLOCK_RETALIATE" class="ab-flag-chk accent-amber-500 w-3 h-3" /> BLOCK_RETALIATE (Daze)</label>
+                    <div class="my-0.5 border-t border-slate-800/80"></div>
+                    <label class="flex items-center gap-1.5 cursor-pointer text-emerald-200 hover:text-white"><input type="checkbox" value="IGNORE_BLOCK_RETALIATE" class="ab-flag-chk accent-emerald-500 w-3 h-3" /> IGNORE_BLOCK_RETALIATE (Vengeful)</label>
+                  </div>
+
+                  <div class="flex flex-col p-1.5 bg-slate-900/60 rounded border border-slate-700/50">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-amber-100 hover:text-white"><input type="checkbox" value="BLOCK_TARGETING" class="ab-flag-chk accent-amber-500 w-3 h-3" /> BLOCK_TARGETING (Stealth)</label>
+                    <div class="my-0.5 border-t border-slate-800/80"></div>
+                    <label class="flex items-center gap-1.5 cursor-pointer text-emerald-200 hover:text-white"><input type="checkbox" value="IGNORE_BLOCK_TARGETING" class="ab-flag-chk accent-emerald-500 w-3 h-3" /> IGNORE_BLOCK_TARGETING (Pierce)</label>
+                  </div>
+
+                  <div class="flex flex-col p-1.5 bg-slate-900/60 rounded border border-slate-700/50">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-sky-200 hover:text-white"><input type="checkbox" value="STRIKE_FAST" class="ab-flag-chk accent-sky-500 w-3 h-3" /> STRIKE_FAST (First Strike)</label>
+                    <div class="my-0.5 border-t border-slate-800/80"></div>
+                    <label class="flex items-center gap-1.5 cursor-pointer text-rose-200 hover:text-white"><input type="checkbox" value="STRIKE_SLOW" class="ab-flag-chk accent-rose-500 w-3 h-3" /> STRIKE_SLOW (Last Strike)</label>
+                  </div>
+
+                  <div class="flex flex-col p-1.5 bg-slate-900/60 rounded border border-slate-700/50">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-amber-100 hover:text-white"><input type="checkbox" value="BLOCK_TARGET_AVATAR" class="ab-flag-chk accent-amber-500 w-3 h-3" /> BLOCK_TARGET_AVATAR (Timid)</label>
+                    <div class="my-0.5 border-t border-slate-800/80"></div>
+                    <span class="text-slate-500 italic px-1 py-[3px]">No direct override...</span>
+                  </div>
+
+                </div>
               </div>
               
               <div class="md:col-span-3 relative">
@@ -296,6 +345,7 @@
       'armor': { label: 'Armor', type: 'number' },
       'cost': { label: 'Cost', type: 'number' },
       'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
+      'isAttacking': { label: 'Is the Active Attacker (Event)', type: 'select', options: ['true', 'false'] },
       'hasAbility': { label: 'Has Ability ID', type: 'text' }
     };
 
@@ -334,12 +384,50 @@
       topbar.addEventListener('test', () => { if(window.launchTestMatch) window.launchTestMatch(); });
       topbar.addEventListener('delete', handleDeleteAbility);
       topbar.addEventListener('import', (e) => {
-          const data = e.detail;
-          data.abilityId = 'ability_' + Date.now();
-          allAbilities.push(data);
-          window.loadAbility(data.abilityId);
-          document.getElementById('ab-name').value += ' (Imported)';
-          updateJSONPreview();
+          try {
+              let data = e.detail;
+              
+              // Auto-extract ability if user pastes a full Card JSON
+              if (!data.trigger && data.abilities && Array.isArray(data.abilities) && data.abilities.length > 0) {
+                  data = data.abilities[0];
+              }
+
+              if (!data.name) throw new Error("Missing 'name' field. Is this a valid ability JSON?");
+              if (!data.trigger) throw new Error("Missing 'trigger' field. Is this a valid ability JSON?");
+              document.getElementById('editor-error-banner').classList.add('hidden');
+              
+              // Force a new ID to avoid accidentally overwriting existing catalog items
+              data.abilityId = 'ability_' + Date.now();
+              
+              let newDesc = '';
+              try { newDesc = generateAbilityDescription(data, allAbilities, allCards); } catch(err) {}
+              data.displayDescription = newDesc;
+
+              allAbilities.unshift(data); // Add to top of list
+              
+              window.loadAbility(data.abilityId);
+              document.getElementById('ab-name').value = data.name + ' (Imported)';
+              updateJSONPreview();
+              renderCatalogList();
+
+              const toast = document.createElement('div');
+              toast.className = 'bg-emerald-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+              toast.innerText = 'Ability Imported Successfully!';
+              document.getElementById('toast-container').appendChild(toast);
+              setTimeout(() => toast.remove(), 3000);
+          } catch(err) {
+              const errorBanner = document.getElementById('editor-error-banner');
+              const errorMessage = document.getElementById('editor-error-message');
+              errorMessage.innerText = "Validation Failed:\n" + err.message;
+              errorBanner.classList.remove('hidden');
+          }
+      });
+      
+      topbar.addEventListener('import-error', (e) => {
+          const errorBanner = document.getElementById('editor-error-banner');
+          const errorMessage = document.getElementById('editor-error-message');
+          errorMessage.innerText = e.detail.message;
+          errorBanner.classList.remove('hidden');
       });
       
       // Catalog hooks
@@ -1623,6 +1711,7 @@
         additionalTriggers: window.additionalTriggers || [],
         triggerScope: document.getElementById('ab-trigger-scope').value,
         triggerLimit: document.getElementById('ab-trigger-limit').value,
+        passiveFlags: Array.from(document.querySelectorAll('.ab-flag-chk:checked')).map(cb => cb.value),
         tribeAmount: document.getElementById('ab-cost-tribe-amt').value,
         carnie: document.getElementById('ab-cost-tent').value,
         power: document.getElementById('ab-cost-power').value,
@@ -1799,6 +1888,7 @@
       window.renderAdditionalTriggers();
       
       document.getElementById('ab-trigger-limit').value = 'UNLIMITED';
+      document.querySelectorAll('.ab-flag-chk').forEach(cb => cb.checked = false);
       
       document.getElementById('ab-cost-tribe-amt').value = '0';
       document.getElementById('ab-cost-tent').value = '0';
@@ -1881,6 +1971,9 @@
       window.renderAdditionalTriggers();
       
       document.getElementById('ab-trigger-limit').value = ab.triggerLimit || 'UNLIMITED';
+      document.querySelectorAll('.ab-flag-chk').forEach(cb => {
+          cb.checked = ab.passiveFlags ? ab.passiveFlags.includes(cb.value) : false;
+      });
       
       const cost = ab.cost || {};
       document.getElementById('ab-cost-tribe-amt').value = cost.tribeAmount || 0;

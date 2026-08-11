@@ -57,6 +57,9 @@ function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, implied
             } else if (node.attribute === 'isCombat') {
                 if (String(node.value) === 'true') suffixes.push(`during combat`);
                 else suffixes.push(`outside of combat`);
+            } else if (node.attribute === 'isAttacking') {
+                if (String(node.value) === 'true') suffixes.push(`while attacking`);
+                else suffixes.push(`while defending`);
             } else if (node.attribute === 'hasAbility') {
                 if (node.operator === '==') suffixes.push(`with ability '${node.value}'`);
                 else suffixes.push(`without ability '${node.value}'`);
@@ -152,14 +155,40 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
     let descriptionParts = [];
 
+    // --- PASSIVE FLAGS ---
+    const flags = ability.passiveFlags || [];
+    if (flags.includes('STRIKE_FAST')) descriptionParts.push("Fast.");
+    if (flags.includes('STRIKE_SLOW')) descriptionParts.push("Slow.");
+
+    let blocks = [];
+    if (flags.includes('BLOCK_ACT')) blocks.push('act');
+    if (flags.includes('BLOCK_ATTACK')) blocks.push('attack');
+    if (flags.includes('BLOCK_RETALIATE')) blocks.push('retaliate');
+
+    if (blocks.length === 1) descriptionParts.push(`Unable to ${blocks[0]}.`);
+    else if (blocks.length === 2) descriptionParts.push(`Unable to ${blocks[0]} or ${blocks[1]}.`);
+    else if (blocks.length > 2) descriptionParts.push(`Unable to act, attack, or retaliate.`);
+
+    let ignores = [];
+    if (flags.includes('IGNORE_BLOCK_ACT')) ignores.push('acting');
+    if (flags.includes('IGNORE_BLOCK_ATTACK')) ignores.push('attacking');
+    if (flags.includes('IGNORE_BLOCK_RETALIATE')) ignores.push('retaliating');
+
+    if (ignores.length === 1) descriptionParts.push(`Ignores effects that prevent it from ${ignores[0]}.`);
+    else if (ignores.length === 2) descriptionParts.push(`Ignores effects that prevent it from ${ignores[0]} or ${ignores[1]}.`);
+    else if (ignores.length > 2) descriptionParts.push(`Ignores effects that prevent it from acting, attacking, or retaliating.`);
+
+    if (flags.includes('BLOCK_TARGETING')) descriptionParts.push("Cannot be targeted by enemies.");
+    if (flags.includes('IGNORE_BLOCK_TARGETING')) descriptionParts.push("Ignores enemy stealth and targeting restrictions.");
+    if (flags.includes('BLOCK_TARGET_AVATAR')) descriptionParts.push("Cannot target enemy avatars.");
+
     // 1. TRIGGER
-    const allTriggers = [ability.trigger || 'MANUAL', ...(ability.additionalTriggers || [])].filter(Boolean);
-    const trigger = allTriggers[0] || 'MANUAL'; // Added back fallback for subsequent checks
+    const trigger = ability.trigger || 'MANUAL';
     let triggerText = '';
     
     const triggerDict = {
         'MANUAL': '',
-        'UNTRIGGERABLE': 'Cannot be triggered. (Passive/Status)',
+        'UNTRIGGERABLE': '',
         'TURN_STARTING': 'At the start of the turn',
         'TURN_STARTED': 'After the turn starts',
         'PLAY': 'When played',
@@ -216,6 +245,8 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'MODIFY_BE_HEALED': 'When being healed',
         'MODIFY_ATTACK': 'When attacking'
     };
+
+    const allTriggers = [ability.trigger || 'MANUAL', ...(ability.additionalTriggers || [])];
 
     let processedTriggers = allTriggers.map(t => {
         let txt = triggerDict[t];
@@ -287,7 +318,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
     let symbolPrefix = costSymbols.join(' ');
     
     if (trigger === 'UNTRIGGERABLE') {
-        descriptionParts.push(triggerText);
+        if (triggerText && triggerText.trim() !== '') {
+            descriptionParts.push(triggerText.trim());
+        }
     } else {
         let triggerAndCostStr = "";
         
@@ -543,6 +576,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                 if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
                     let durText = eff.duration.toLowerCase();
                     if (eff.duration === 'WHILE_ATTACHED') durText = 'while attached';
+                    else if (eff.duration === 'ACTION') durText = 'for the current action';
                     effText += ` (${durText})`;
                 }
 
