@@ -411,7 +411,9 @@ export class DealDamageAction extends Action {
                 engine.state.history_log.push(`☠️ Avatar ${target.name} has fallen! Match finished.`);
             }
             if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && !this.payload.deferDeath) {
-                new KillAction({ source, target, isCombat, eventContext: this.payload.eventContext || { isCombat } }).run(engine);
+                const atkLKI = source && source.abilities ? [...source.abilities] : [];
+                const defLKI = target.abilities ? [...target.abilities] : [];
+                new KillAction({ source, target, _lkiSourceAbilities: atkLKI, _lkiTargetAbilities: defLKI, isCombat, eventContext: this.payload.eventContext || { isCombat } }).run(engine);
             }
         }
     }
@@ -683,11 +685,6 @@ export class AttackAction extends Action {
         engine.emit('ON_BE_ATTACKED', this.payload);
         this.payload.preventReaction = true;
         
-        const atkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
-                           
-        const defBlockRetaliate = engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_RETALIATE') || engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_ACT');
-        const defDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
-        
         const getSpeed = (ent) => {
             let speed = 0;
             if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_FAST', true)) speed += 1;
@@ -705,29 +702,36 @@ export class AttackAction extends Action {
 
         // Execute sequential combat phases: Fast (1) -> Normal (0) -> Slow (-1)
         for (const phase of [1, 0, -1]) {
-            let atkStrikes = atkSpeed === phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
-            let defStrikes = defSpeed === phase && defDmg !== null && defDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
+            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
+            const defBlockRetaliate = engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_RETALIATE') || engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_ACT');
+            const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
+
+            let atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
+            let defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
 
             const strikesHappened = atkStrikes || defStrikes;
 
-            if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: atkDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
-            if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: defDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
+            if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: currentAtkDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
+            if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: currentDefDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
             
             // Re-evaluate death state AFTER damage resolves in case replacement effects saved them
-            atkStrikes = atkSpeed === phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
-            defStrikes = defSpeed === phase && defDmg !== null && defDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
+            atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
+            defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
 
             // If a unit survived the phase (or was revived by a replacement effect), it gets to strike back if it hasn't yet
-            if (atkSpeed < phase && atkDmg !== null && atkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker)) atkStrikes = true;
-            if (defSpeed < phase && defDmg !== null && defDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender)) defStrikes = true;
+            if (atkSpeed < phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker)) atkStrikes = true;
+            if (defSpeed < phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender)) defStrikes = true;
 
             // After simultaneous strikes resolve in this speed phase, evaluate deaths
             if (strikesHappened) {
+                const atkLKI = attacker.abilities ? [...attacker.abilities] : [];
+                const defLKI = defender.abilities ? [...defender.abilities] : [];
+
                 if (defender.health <= 0 && defender.type !== 'avatar' && !defender._isDying) {
-                    new KillAction({ source: attacker, target: defender, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
+                    new KillAction({ source: attacker, target: defender, _lkiSourceAbilities: atkLKI, _lkiTargetAbilities: defLKI, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
                 }
                 if (attacker.health <= 0 && attacker.type !== 'avatar' && !attacker._isDying) {
-                    new KillAction({ source: defender, target: attacker, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
+                    new KillAction({ source: defender, target: attacker, _lkiSourceAbilities: defLKI, _lkiTargetAbilities: atkLKI, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
                 }
             }
         }
@@ -1207,11 +1211,23 @@ export class CustomScriptAction extends Action {
     execute(engine) {
         if (this.payload.script) {
             try {
+                // Sanitize Markdown escape artifacts (like \[ or \_) that occur when copy-pasting JSON from LLMs
+                const cleanScript = this.payload.script
+                    .replace(/\\\[/g, '[')
+                    .replace(/\\\]/g, ']')
+                    .replace(/\\_/g, '_');
+
                 // Inject 'use strict' to prevent 'this' from leaking to the global Window object
-                const fn = new Function('state', 'target', 'params', 'engine', '"use strict";\n' + this.payload.script);
+                const fn = new Function('state', 'target', 'params', 'engine', '"use strict";\n' + cleanScript);
                 fn(engine.state, this.payload.target, this.payload, engine);
             } catch(e) {
-                console.error("Custom script execution error:", e);
+                let abilityName = this.payload.sourceAbilityId || 'Unknown';
+                if (engine.state.abilityCatalog && this.payload.sourceAbilityId) {
+                    const ab = engine.state.abilityCatalog.find(a => a.abilityId === this.payload.sourceAbilityId);
+                    if (ab) abilityName = `'${ab.name}' (${ab.abilityId})`;
+                }
+                console.error(`[Engine] Custom script execution error in Ability ${abilityName}:`, e);
+                console.error(`[Engine] Failing script content:\n`, this.payload.script);
             }
         }
     } 

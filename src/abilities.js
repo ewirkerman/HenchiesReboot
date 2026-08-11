@@ -69,8 +69,6 @@ const ATTRIBUTE_TYPES = {
     'strength': { label: 'Strength', type: 'number' },
     'armor': { label: 'Armor', type: 'number' },
     'power': { label: 'Power', type: 'number' },
-    'fast': { label: 'Fast Charges', type: 'number' },
-    'slow': { label: 'Slow Charges', type: 'number' },
     'cost': { label: 'Cost', type: 'number' },
     'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
     'isAttacking': { label: 'Is the Active Attacker (Event)', type: 'select', options: ['true', 'false'] },

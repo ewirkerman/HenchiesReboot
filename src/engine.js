@@ -263,10 +263,22 @@ export class GameEngine {
     }
 
     _evaluateTriggerMatch(ent, ownerId, eventType, payload, checkedEntities, triggers) {
-        if (!ent || !ent.abilities || !ent.instanceId || checkedEntities.has(ent.instanceId)) return;
+        if (!ent || !ent.instanceId || checkedEntities.has(ent.instanceId)) return;
         checkedEntities.add(ent.instanceId);
         
-        for (const ability of ent.abilities) {
+        let abilitiesToCheck = ent.abilities || [];
+        if (payload) {
+            if (payload.source && payload.source.instanceId === ent.instanceId && payload._lkiSourceAbilities) {
+                abilitiesToCheck = payload._lkiSourceAbilities;
+            }
+            if (payload.target && payload.target.instanceId === ent.instanceId && payload._lkiTargetAbilities) {
+                abilitiesToCheck = payload._lkiTargetAbilities;
+            }
+        }
+        
+        if (!abilitiesToCheck || abilitiesToCheck.length === 0) return;
+
+        for (const ability of abilitiesToCheck) {
             const allTriggers = [ability.trigger, ...(ability.additionalTriggers || [])];
             if (allTriggers.includes(eventType) && !this.activeChainAbilities.has(ability.abilityId)) {
                 
@@ -308,7 +320,12 @@ export class GameEngine {
 
                 if (isValid && ability.activation?.logicTree) {
                     const evalEntity = (scope === 'GLOBAL' && eventEntity) ? eventEntity : ent;
-                    if (!this.evaluateLogicTree(ability.activation.logicTree, evalEntity, ent, payload)) {
+                    let evalLKI = null;
+                    if (payload) {
+                         if (payload.source?.instanceId === evalEntity.instanceId) evalLKI = payload._lkiSourceAbilities;
+                         if (payload.target?.instanceId === evalEntity.instanceId) evalLKI = payload._lkiTargetAbilities;
+                    }
+                    if (!this.evaluateLogicTree(ability.activation.logicTree, evalEntity, ent, payload, evalLKI)) {
                         isValid = false;
                     }
                 }
@@ -568,8 +585,6 @@ export class GameEngine {
             });
         });
 
-        if (zones.includes('FIELD') && this.state.equator) pool.push(...this.state.equator);
-        
         return pool.filter(ent => {
             if (!types || types.length === 0) return true;
             let entType = 'UNIT';
@@ -581,12 +596,12 @@ export class GameEngine {
         });
     }
 
-    evaluateLogicTree(node, entity, source, eventPayload) {
+    evaluateLogicTree(node, entity, source, eventPayload, lkiAbilities = null) {
         if (!node) return true;
         if (node.type === 'group') {
             if (!node.children || node.children.length === 0) return true;
-            if (node.logicalOperator === 'OR') return node.children.some(child => this.evaluateLogicTree(child, entity, source, eventPayload));
-            else return node.children.every(child => this.evaluateLogicTree(child, entity, source, eventPayload));
+            if (node.logicalOperator === 'OR') return node.children.some(child => this.evaluateLogicTree(child, entity, source, eventPayload, lkiAbilities));
+            else return node.children.every(child => this.evaluateLogicTree(child, entity, source, eventPayload, lkiAbilities));
         } else if (node.type === 'condition') {
             let entVal;
             if (node.attribute === 'entity') {
@@ -601,8 +616,6 @@ export class GameEngine {
             else if (node.attribute === 'genus') entVal = entity.genus || '';
             else if (node.attribute === 'cost') entVal = typeof entity.cost === 'object' ? (entity.cost.tribeAmount || entity.cost.carnie || entity.cost.tent || 0) : (entity.cost || 0);
             else if (node.attribute === 'power') entVal = entity.power || 0;
-            else if (node.attribute === 'fast') entVal = entity.fast || 0;
-            else if (node.attribute === 'slow') entVal = entity.slow || 0;
             else if (node.attribute === 'health') entVal = entity.health || 0;
             else if (node.attribute === 'maxHealth') entVal = entity.maxHealth || 0;
             else if (node.attribute === 'strength') entVal = entity.strength || 0;
@@ -619,7 +632,8 @@ export class GameEngine {
             }
             else if (node.attribute === 'hasAbility') {
                 const searchVal = String(node.value).toLowerCase();
-                const hasAb = entity.abilities?.some(a => {
+                const abs = lkiAbilities || entity.abilities || [];
+                const hasAb = abs.some(a => {
                     if (typeof a === 'string') {
                         if (a.toLowerCase() === searchVal) return true;
                         const catAb = this.state.abilityCatalog?.find(ca => ca.abilityId === a);
@@ -979,21 +993,39 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
         }
     }
     
-    if (ability.activation?.logicTree) {
-        const engine = new GameEngine(state);
-        const p1 = state.players.player1;
-        const p2 = state.players.player2;
-        const allEntities = [
-            ...Object.values(p1.lines).flat(), ...Object.values(p2.lines).flat(), ...(state.equator || []),
-            ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
-            ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
-        ].filter(Boolean);
+    const engine = new GameEngine(state);
+    const p1 = state.players.player1;
+    const p2 = state.players.player2;
+    const allEntities = [
+        ...Object.values(p1.lines).flat(), ...Object.values(p2.lines).flat(), ...(state.equator || []),
+        ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
+        ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
+    ].filter(Boolean);
+    
+    targets = targets.filter(t => {
+        const targetEntity = allEntities.find(e => e.id === t.id || e.instanceId === t.id);
+        if (!targetEntity) return false;
         
-        targets = targets.filter(t => {
-            const targetEntity = allEntities.find(e => e.id === t.id || e.instanceId === t.id);
-            return targetEntity ? engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, entity) : false;
-        });
-    }
+        if (ability.activation?.logicTree && !engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, entity)) return false;
+
+        if (ability.effects) {
+            for (const group of ability.effects) {
+                if (group.targetMethod === 'SAME_AS_ACTIVATION' && group.payloads) {
+                    for (const p of group.payloads) {
+                        if (p.isCost && p.type === 'MODIFY_STAT' && p.amount < 0) {
+                            if (p.stat === 'readiness') {
+                                const costAmt = Math.abs(p.amount);
+                                let currentVal = Number(targetEntity[p.stat]);
+                                if (isNaN(currentVal)) currentVal = 0;
+                                if (currentVal - costAmt < -1) return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    });
     
     return targets.filter((t, index, self) => index === self.findIndex(o => o.id === t.id));
 }
@@ -1062,6 +1094,28 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                         let currentActs = Number(entity.acts);
                         if (isNaN(currentActs)) currentActs = 0;
                         if (currentActs < 1) canAfford = false;
+                    }
+
+                    if (canAfford && ab.effects) {
+                        for (const group of ab.effects) {
+                            if (group.targetMethod === 'SELF' && group.payloads) {
+                                for (const p of group.payloads) {
+                                    if (p.isCost && p.type === 'MODIFY_STAT' && p.amount < 0) {
+                                        if (p.stat === 'readiness') {
+                                            const costAmt = Math.abs(p.amount);
+                                            let currentVal = Number(entity[p.stat]);
+                                            if (isNaN(currentVal)) currentVal = 0;
+                                            
+                                            if (currentVal - costAmt < -1) {
+                                                canAfford = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (!canAfford) break;
+                        }
                     }
                 }
                 

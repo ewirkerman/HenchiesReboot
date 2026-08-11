@@ -51,15 +51,15 @@ function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, implied
                 } else {
                     suffixes.push(`that is ${opText} ${node.value}`.trim());
                 }
-            } else if (['health', 'strength', 'armor', 'readiness', 'maxHealth', 'acts', 'maxActs', 'power', 'fast', 'slow', 'cost'].includes(node.attribute)) {
-                let statName = node.attribute === 'maxHealth' ? 'max health' : (node.attribute === 'acts' ? 'available acts' : (node.attribute === 'maxActs' ? 'max acts' : node.attribute));
+            } else if (['health', 'strength', 'readiness', 'maxHealth'].includes(node.attribute)) {
+                let statName = node.attribute === 'maxHealth' ? 'max health' : node.attribute;
                 suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
             } else if (node.attribute === 'isCombat') {
                 if (String(node.value) === 'true') suffixes.push(`during combat`);
                 else suffixes.push(`outside of combat`);
             } else if (node.attribute === 'isAttacking') {
-                if (String(node.value) === 'true') suffixes.push(`while attacking`);
-                else suffixes.push(`while defending`);
+                if (String(node.value) === 'true') suffixes.push(`as the attacker`);
+                else suffixes.push(`as the defender`);
             } else if (node.attribute === 'hasAbility') {
                 if (node.operator === '==') suffixes.push(`with ability '${node.value}'`);
                 else suffixes.push(`without ability '${node.value}'`);
@@ -180,7 +180,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
     if (flags.includes('BLOCK_TARGETING')) descriptionParts.push("Cannot be targeted by enemies.");
     if (flags.includes('IGNORE_BLOCK_TARGETING')) descriptionParts.push("Ignores enemy stealth and targeting restrictions.");
-    if (flags.includes('BLOCK_TARGET_AVATAR')) descriptionParts.push("Cannot target enemy avatars.");
+    if (flags.includes('BLOCK_TARGET_AVATAR')) descriptionParts.push("Cannot attack enemy avatars.");
 
     // 1. TRIGGER
     const trigger = ability.trigger || 'MANUAL';
@@ -264,24 +264,24 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             const qt = ability.activation?.quickTargeting;
             const lt = ability.activation?.logicTree;
             const targetDesc = buildTargetDesc(qt, lt, t, true, 'FIELD', false);
-
-            if (lowerTxt.startsWith('when it would be ')) lowerTxt = lowerTxt.replace('when it would be ', `whenever ${targetDesc} would be `);
-            else if (lowerTxt.startsWith('when it would ')) lowerTxt = lowerTxt.replace('when it would ', `whenever ${targetDesc} would `);
-            else if (lowerTxt.startsWith('when it ')) lowerTxt = lowerTxt.replace('when it ', `whenever ${targetDesc} `);
-            else if (lowerTxt.startsWith('after being ')) lowerTxt = lowerTxt.replace('after being ', `after ${targetDesc} is `);
-            else if (lowerTxt.startsWith('when ')) lowerTxt = lowerTxt.replace('when ', `whenever ${targetDesc} is `);
+            if (lowerTxt.startsWith('when ')) lowerTxt = lowerTxt.replace('when ', `whenever ${targetDesc} is `);
             
             return lowerTxt.charAt(0).toUpperCase() + lowerTxt.slice(1);
         } else {
             let combatSuffix = '';
+            let attackSuffix = '';
             const scan = (node) => {
                 if (!node) return;
-                if (node.type === 'condition' && node.attribute === 'isCombat') {
-                    combatSuffix = String(node.value) === 'true' ? ' during combat' : ' outside of combat';
+                if (node.type === 'condition') {
+                    if (node.attribute === 'isCombat') {
+                        combatSuffix = String(node.value) === 'true' ? ' during combat' : ' outside of combat';
+                    } else if (node.attribute === 'isAttacking') {
+                        attackSuffix = String(node.value) === 'true' ? ' as the attacker' : ' as the defender';
+                    }
                 } else if (node.children) node.children.forEach(scan);
             };
             scan(ability.activation?.logicTree);
-            return txt + combatSuffix;
+            return txt + attackSuffix + combatSuffix;
         }
     });
 
@@ -293,29 +293,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         triggerText = first + ' or ' + rest.join(' or ');
     }
 
-    // 1b. Symbol String Prefix Cost Block
     const cost = ability.cost || {};
-    let costSymbols = [];
-
-    if (cost.tribeAmount && cost.tribeAmount > 0) {
-        costSymbols.push(`{Resource ${cost.tribeAmount}}`);
-    }
-    if (cost.tent && cost.tent > 0) {
-        costSymbols.push(`{Tent ${cost.tent}}`);
-    }
-    if (cost.power && cost.power > 0) {
-        costSymbols.push(`{Power ${cost.power}}`);
-    }
-    if (cost.readinessCost === 'UNREADIES') {
-        costSymbols.push(`{Unready}`);
-    } else if (cost.readinessCost === 'EXHAUSTS') {
-        costSymbols.push(`{Exhaust}`);
-    }
-    if (cost.freeAction) {
-        costSymbols.push(`{Free Action}`);
-    }
-
-    let symbolPrefix = costSymbols.join(' ');
     
     if (trigger === 'UNTRIGGERABLE') {
         if (triggerText && triggerText.trim() !== '') {
@@ -323,10 +301,6 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         }
     } else {
         let triggerAndCostStr = "";
-        
-        if (symbolPrefix) {
-             triggerAndCostStr += symbolPrefix + " ";
-        }
         
         if (cost.reuseIgnoresReadiness && cost.readinessCost !== 'NONE') {
              triggerAndCostStr += `(Subsequent uses this round ignore readiness cost) `;

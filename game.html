@@ -800,6 +800,7 @@
       container.innerHTML = equatorItems.map((item, idx) => {
         const json = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
         return renderCardHTML(item, {
+          readiness: item.readiness,
           onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
           onInspect: `window.inspectCard('${json}')`,
           abilityUses: currentGameState?.abilityUses || {}

@@ -1373,8 +1373,6 @@
                   <option value="acts" ${payload.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
                   <option value="maxActs" ${payload.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
                   <option value="power" ${payload.stat === 'power' ? 'selected' : ''}>Power</option>
-                  <option value="fast" ${payload.stat === 'fast' ? 'selected' : ''}>Fast (Charges)</option>
-                  <option value="slow" ${payload.stat === 'slow' ? 'selected' : ''}>Slow (Charges)</option>
               `;
               if (payload.type === 'SET_STAT') {
                   statOptions += `<option value="line" ${payload.stat === 'line' ? 'selected' : ''}>Battleline</option>`;
@@ -1473,8 +1471,6 @@
                                 <option value="acts" ${np.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
                                 <option value="maxActs" ${np.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
                                 <option value="power" ${np.stat === 'power' ? 'selected' : ''}>Power</option>
-                                <option value="fast" ${np.stat === 'fast' ? 'selected' : ''}>Fast (Charges)</option>
-                                <option value="slow" ${np.stat === 'slow' ? 'selected' : ''}>Slow (Charges)</option>
                        `;
                        if (np.type === 'SET_STAT') {
                            nestedStatOptions += `<option value="line" ${np.stat === 'line' ? 'selected' : ''}>Battleline</option>`;

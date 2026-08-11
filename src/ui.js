@@ -124,8 +124,15 @@
 
     const separatorClass = isToken ? 'border-white/40' : 'border-black';
 
-    const isStunned = hasEngineFlag(card, 'BLOCK_ACT');
-    const isDazed = hasEngineFlag(card, 'BLOCK_RETALIATE') && !isStunned;
+    // Only show giant overlays and dimming for temporary status effects, not inherent native passive flags (like Mindless)
+    const isStatusApplied = (targetCard, flag, statusNames) => {
+        if (targetCard.activeEffects && targetCard.activeEffects.some(e => e.type === flag)) return true;
+        if (targetCard.abilities && targetCard.abilities.some(a => statusNames.includes((a.name || '').toLowerCase()))) return true;
+        return false;
+    };
+
+    const isStunned = isStatusApplied(card, 'BLOCK_ACT', ['stun', 'stunned']);
+    const isDazed = isStatusApplied(card, 'BLOCK_RETALIATE', ['daze', 'dazed']) && !isStunned;
     const isHidden = hasEngineFlag(card, 'BLOCK_TARGETING');
 
     let dynamicBorderClass = isToken ? 'border-2 border-white/50 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : `border-2 ${style.border}`;
@@ -627,7 +634,11 @@
                   <div class="flex flex-wrap justify-center gap-1.5 mt-1">
                     ${cardOrUnit.attachments.map(a => {
                       const aJson = encodeURIComponent(JSON.stringify(a)).replace(/'/g, "%27");
-                      return `<span oncontextmenu="event.preventDefault(); event.stopPropagation(); window.inspectNestedCard('${aJson}')" onclick="event.stopPropagation(); window.inspectNestedCard('${aJson}')" class="text-xs sm:text-sm bg-fuchsia-950/80 text-fuchsia-200 px-2 py-1 rounded border border-fuchsia-800 font-extrabold uppercase tracking-wider shadow-sm cursor-pointer hover:bg-fuchsia-900 transition-colors flex items-center" title="Inspect ${a.name}"><div class="w-3.5 h-3.5 mr-1">${getIconSvg('attach')}</div> ${a.name}</span>`;
+                      let rBadge = '';
+                      if (a.readiness !== undefined && a.readiness < 1) {
+                          rBadge = a.readiness < 0 ? '<span class="text-red-400 ml-1 drop-shadow-md">[EXH]</span>' : '<span class="text-yellow-400 ml-1 drop-shadow-md">[UNRDY]</span>';
+                      }
+                      return `<span oncontextmenu="event.preventDefault(); event.stopPropagation(); window.inspectNestedCard('${aJson}')" onclick="event.stopPropagation(); window.inspectNestedCard('${aJson}')" class="text-xs sm:text-sm bg-fuchsia-950/80 text-fuchsia-200 px-2 py-1 rounded border border-fuchsia-800 font-extrabold uppercase tracking-wider shadow-sm cursor-pointer hover:bg-fuchsia-900 transition-colors flex items-center" title="Inspect ${a.name}"><div class="w-3.5 h-3.5 mr-1">${getIconSvg('attach')}</div> ${a.name}${rBadge}</span>`;
                     }).join('')}
                   </div>
                 ` : ''}
@@ -649,7 +660,7 @@
                           if (foundAb) displayName = foundAb.name;
                           return `<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary">${displayName}</span>`;
                       });
-                      formattedDesc = formattedDesc.replace(/\{Unready\}/g, SVG_UNREADY).replace(/\{Exhaust\}/g, SVG_EXHAUST).replace(/\{Power.*?\}/g, '').replace(/\{Resource.*?\}/g, '').replace(/\{Tent.*?\}/g, '');
+                      formattedDesc = formattedDesc.replace(/\{Unready\}/g, SVG_UNREADY).replace(/\{Exhaust\}/g, SVG_EXHAUST).replace(/\{Power.*?\}/g, '').replace(/\{Resource.*?\}/g, '').replace(/\{Tent.*?\}/g, '').replace(/\{Free Action\}/g, '');
                       
                       const isAttack = a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
                       
