@@ -2,7 +2,7 @@
  * Ability Logic Controller (Modular Production Ready)
  */
 
-import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog } from './firebase.js';
+import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, fetchCustomTribes } from './firebase.js';
 import { CARD_CATALOG } from './engine.js';
 import { generateAbilityDescription } from './language_description.js';
 import { getActionTriggers, EFFECT_TYPES, ACTION_MANIFEST } from './actions.js';
@@ -62,8 +62,8 @@ const ATTRIBUTE_TYPES = {
     'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER', 'BOON'] },
     'alignment': { label: 'Alignment', type: 'select', options: ['FRIENDLY', 'ENEMY'] },
     'zone': { label: 'Zone', type: 'select', options: ZONES },
-    'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
-    'family': { label: 'Family', type: 'text' },
+    'tribe': { label: 'Tribe', type: 'select', options: [] },
+    'family': { label: 'Family', type: 'select', options: ['Humanoid', 'Creature', 'Automaton'] },
     'genus': { label: 'Genus', type: 'text' },
     'health': { label: 'Current Health', type: 'number' },
     'strength': { label: 'Strength', type: 'number' },
@@ -86,6 +86,9 @@ const OPERATORS = {
 
 // --- CORE INITIALIZATION ---
 export async function initializeModule() {
+    const customTribes = await fetchCustomTribes();
+    ATTRIBUTE_TYPES.tribe.options = customTribes.map(t => ({ value: t.id, label: t.name }));
+
     const customCards = await fetchCustomCards();
     if (customCards && customCards.length > 0) {
         const merged = [...CARD_CATALOG, ...customCards];
@@ -151,7 +154,8 @@ export function updateNode(treeType, path, field, value) {
     
     if (field === 'attribute') {
         const typeDef = ATTRIBUTE_TYPES[value] || ATTRIBUTE_TYPES['entity'];
-        node.value = typeDef.type === 'select' ? typeDef.options[0] : 1;
+        const firstOpt = typeDef.options ? typeDef.options[0] : null;
+        node.value = typeDef.type === 'select' ? (typeof firstOpt === 'object' ? firstOpt.value : firstOpt) : 1;
         node.operator = '==';
     }
 }

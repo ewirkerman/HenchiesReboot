@@ -290,6 +290,55 @@ export async function deleteAbilityFromCatalog(abilityId) {
 }
 
 
+export async function saveTribeToCatalog(tribeData) {
+  if (await isReadyForDB()) {
+    try {
+      await setDoc(doc(db, "tribes", tribeData.id), tribeData);
+      console.log("Tribe saved to Firestore");
+      return true;
+    } catch (e) {
+      console.warn("Firestore tribe save failed, saving to LocalStorage", e);
+    }
+  }
+
+  const existing = JSON.parse(localStorage.getItem('henchies_custom_tribes') || '[]');
+  const idx = existing.findIndex(t => t.id === tribeData.id);
+  if (idx !== -1) existing[idx] = tribeData;
+  else existing.push(tribeData);
+  localStorage.setItem('henchies_custom_tribes', JSON.stringify(existing));
+  return false;
+}
+
+export async function fetchCustomTribes() {
+  if (await isReadyForDB()) {
+    try {
+      const querySnapshot = await getDocs(collection(db, "tribes"));
+      const tribes = [];
+      querySnapshot.forEach((doc) => tribes.push(doc.data()));
+      if (tribes.length > 0) return tribes;
+    } catch (e) {
+      console.warn("Firestore tribe fetch failed, reading LocalStorage", e);
+    }
+  }
+  return JSON.parse(localStorage.getItem('henchies_custom_tribes') || '[]');
+}
+
+export async function deleteTribeFromCatalog(tribeId) {
+  if (await isReadyForDB()) {
+    try {
+      await deleteDoc(doc(db, "tribes", tribeId));
+      console.log(`Tribe ${tribeId} deleted from Firestore`);
+    } catch (e) {
+      console.warn("Firestore tribe delete failed, deleting from LocalStorage", e);
+    }
+  }
+
+  const existing = JSON.parse(localStorage.getItem('henchies_custom_tribes') || '[]');
+  const filtered = existing.filter(t => t.id !== tribeId);
+  localStorage.setItem('henchies_custom_tribes', JSON.stringify(filtered));
+}
+
+
 export async function uploadCardArt(file) {
   if ((await isReadyForDB()) && file) {
     try {
@@ -314,7 +363,7 @@ export async function fetchUserDecks(username) {
         qSnapshot.forEach((docSnap) => {
             const data = docSnap.data();
             if (data.username === username) {
-                userDecks[data.deckName] = data.deckData;
+                userDecks[data.deckName] = data;
             }
         });
         return userDecks;
@@ -336,6 +385,17 @@ export async function saveDeckToCatalog(username, deckName, deckData) {
         return true;
     } catch (e) {
         console.error("Error saving deck:", e);
+        return false;
+    }
+}
+
+export async function deleteDeckFromCatalog(username, deckName) {
+    try {
+        const deckId = `${username}_${deckName}`.replace(/[^a-zA-Z0-9_]/g, '_');
+        await deleteDoc(doc(db, "custom_decks", deckId));
+        return true;
+    } catch (e) {
+        console.error("Error deleting deck:", e);
         return false;
     }
 }

@@ -1,4 +1,4 @@
-import { createGameRoom, fetchCustomAbilities, fetchCustomCards } from './firebase.js';
+import { createGameRoom, fetchCustomAbilities, fetchCustomCards, fetchCustomTribes } from './firebase.js';
 import { CARD_CATALOG } from './engine.js';
 
 /*
@@ -69,6 +69,17 @@ export async function launchSandboxMatch(itemData, type = 'card') {
 
     // Dynamically load from catalog
     const dummyCard = getCard('Target Dummy', fallbackDummy);
+    
+    // Force-inject Attack onto the dummy so it can be provoked, even if your catalog version lacks it
+    if (!dummyCard.abilities) dummyCard.abilities = [];
+    if (!dummyCard.abilities.some(a => (a.abilityId || a) === standardAttack.abilityId || a.name === 'Attack')) {
+        dummyCard.abilities.push(standardAttack);
+    }
+    // Force inject strength so it can actually deal damage when provoked
+    if (dummyCard.strength === null || dummyCard.strength === undefined) {
+        dummyCard.strength = 1;
+    }
+
     const shovelCard = getCard('Skull Shovel', fallbackShovel);
     
     const liveTauntAbility = getAbility('Taunting Call', fallbackTauntAbility);
@@ -98,9 +109,9 @@ export async function launchSandboxMatch(itemData, type = 'card') {
 
     const username = localStorage.getItem('henchies_last_username') || 'Tester';
 
-    const allTribes = ['Carnie', 'Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador', 'Generic'];
-    const p1Res = {};
-    allTribes.forEach(t => p1Res[t] = {current: 10, max: 10});
+    const customTribes = await fetchCustomTribes();
+    const p1Res = { 'Carnie': {current: 10, max: 10} };
+    customTribes.forEach(t => p1Res[t.id] = {current: 10, max: 10});
     
     const state = {
         status: 'active',

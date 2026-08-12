@@ -7,6 +7,14 @@
 
 export const CARD_CATALOG = []; // Will be hydrated by deckbuilder/firebase
 
+export function getResKey(tribeStr) {
+    if (!tribeStr) return 'Generic';
+    const t = tribeStr.toLowerCase();
+    if (t === 'carnie' || t === 'tribe_carnie') return 'Carnie';
+    if (t === 'generic' || t === 'tribe_generic') return 'Generic';
+    return tribeStr; 
+}
+
 import { nextRandom, randomInt, generateId, shuffleArray as prandomShuffle } from './prandom.js';
 import { ACTION_REGISTRY, ACTION_MANIFEST, HarvestAction, PlayAction, KillAction, UnfieldAction, sweepTurnEffects } from './actions.js';
 
@@ -429,9 +437,13 @@ export class GameEngine {
         
         let tribeResKey = null;
         if (cost.tribeAmount > 0) {
-            const entityTribe = source.tribe || 'Generic';
-            tribeResKey = Object.keys(p.resources || {}).find(k => k.toLowerCase() === entityTribe.toLowerCase());
-            if (!tribeResKey || p.resources[tribeResKey].current < cost.tribeAmount) canAfford = false;
+            const entityTribe = getResKey(source.tribe);
+            if (entityTribe === 'Carnie' || entityTribe === 'Generic') {
+                if ((p.resources['Carnie']?.current || 0) < cost.tribeAmount) canAfford = false;
+            } else {
+                tribeResKey = entityTribe;
+                if (!p.resources[tribeResKey] || p.resources[tribeResKey].current < cost.tribeAmount) canAfford = false;
+            }
         }
 
         if (!canAfford) {
@@ -450,7 +462,15 @@ export class GameEngine {
         
         if (cCost > 0 && p.resources['Carnie']) p.resources['Carnie'].current -= cCost;
         if (cost.power > 0) source.power -= cost.power;
-        if (cost.tribeAmount > 0 && tribeResKey) p.resources[tribeResKey].current -= cost.tribeAmount;
+        
+        if (cost.tribeAmount > 0) {
+            const entityTribe = getResKey(source.tribe);
+            if (entityTribe === 'Carnie' || entityTribe === 'Generic') {
+                p.resources['Carnie'].current -= cost.tribeAmount;
+            } else if (tribeResKey) {
+                p.resources[tribeResKey].current -= cost.tribeAmount;
+            }
+        }
 
         return true;
     }
@@ -682,6 +702,8 @@ export function endTurn(state) {
 
     sweepTurnEffects(engine, prevPlayer);
 
+    engine.emit('TURN_ENDED', { playerId: prevPlayer });
+
     state.activePlayerId = state.activePlayerId === 'player1' ? 'player2' : 'player1';
     if (state.activePlayerId === 'player1') state.turnNumber++;
 
@@ -813,15 +835,14 @@ export function canPlayCard(state, playerId, card) {
     if (!player) return false;
 
     let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
-    let cTribe = card.tribe || 'Generic';
-    let resKey = Object.keys(player.resources || {}).find(k => k.toLowerCase() === cTribe.toLowerCase());
+    let cTribe = getResKey(card.tribe);
     let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
     if (baseCost > 0) {
-        if (cTribe.toLowerCase() === 'carnie' || cTribe.toLowerCase() === 'generic') {
+        if (cTribe === 'Carnie' || cTribe === 'Generic') {
             if (carnieRes < baseCost) return false;
         } else {
-            const tribeRes = resKey ? player.resources[resKey].current : 0;
+            const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
             if (tribeRes < 1) return false;
             const maxCarnieConversion = Math.floor(carnieRes / 3);
             if (tribeRes + maxCarnieConversion < baseCost) return false;
@@ -852,17 +873,16 @@ export function playCard(state, playerId, cardId, targetLine = 'back', abilityTa
     const card = player.hand[cardIdx];
 
     let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
-    let cTribe = card.tribe || 'Generic';
-    let resKey = Object.keys(player.resources || {}).find(k => k.toLowerCase() === cTribe.toLowerCase());
+    let cTribe = getResKey(card.tribe);
     let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
     if (baseCost > 0) {
-        if (cTribe.toLowerCase() === 'carnie' || cTribe.toLowerCase() === 'generic') {
+        if (cTribe === 'Carnie' || cTribe === 'Generic') {
             if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Cost: ${baseCost})` };
             player.resources['Carnie'].current -= baseCost;
         } else {
-            const tribeRes = resKey ? player.resources[resKey].current : 0;
-            if (tribeRes < 1) return { success: false, reason: `Must use at least 1 ${cTribe} Resource` };
+            const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
+            if (tribeRes < 1) return { success: false, reason: `Must use at least 1 Tribe Resource` };
             const maxCarnieConversion = Math.floor(carnieRes / 3);
             if (tribeRes + maxCarnieConversion < baseCost) return { success: false, reason: `Not enough resources (Cost: ${baseCost})` };
             
@@ -870,7 +890,7 @@ export function playCard(state, playerId, cardId, targetLine = 'back', abilityTa
             let tribeResToUse = Math.min(tribeRes, costRemaining);
             costRemaining -= tribeResToUse;
             if (costRemaining > 0) player.resources['Carnie'].current -= (costRemaining * 3);
-            if (resKey) player.resources[resKey].current -= tribeResToUse;
+            if (cTribe) player.resources[cTribe].current -= tribeResToUse;
         }
     }
 
@@ -900,20 +920,31 @@ export function getValidAttackTargets(state, attackerOwnerId, attackerEntity = n
         return !isTargetHidden || hasPerception;
     };
 
-    if (defPlayer.lines['taunt'] && defPlayer.lines['taunt'].length > 0) {
-        defPlayer.lines['taunt'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'taunt' }));
-        if (targets.some(t => t.line === 'taunt')) return targets;
+    // Group by logical line in case of physical array desync (e.g. from SET_STAT)
+    const logicalLines = { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] };
+    for (const line of ['taunt', 'bodyguard', 'avatar', 'front', 'mid', 'back', 'sheltered', 'sideline']) {
+        if (defPlayer.lines[line]) {
+            defPlayer.lines[line].forEach(u => {
+                const currentLine = u.line || line;
+                if (logicalLines[currentLine]) logicalLines[currentLine].push(u);
+            });
+        }
     }
 
-    if (defPlayer.lines['bodyguard'] && defPlayer.lines['bodyguard'].length > 0) {
-        defPlayer.lines['bodyguard'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
-    } else if (defPlayer.lines['avatar'] && defPlayer.lines['avatar'].length > 0) {
-        defPlayer.lines['avatar'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
+    if (logicalLines['taunt'].length > 0) {
+        logicalLines['taunt'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'taunt' }));
+        return targets;
+    }
+
+    if (logicalLines['bodyguard'].length > 0) {
+        logicalLines['bodyguard'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
+    } else if (logicalLines['avatar'].length > 0) {
+        logicalLines['avatar'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
     }
 
     for (const line of ['front', 'mid', 'back', 'sheltered']) {
-        if (defPlayer.lines[line] && defPlayer.lines[line].length > 0) {
-            const valid = defPlayer.lines[line].filter(isValidTarget);
+        if (logicalLines[line].length > 0) {
+            const valid = logicalLines[line].filter(isValidTarget);
             if (valid.length > 0) {
                 valid.forEach(u => targets.push({ id: u.instanceId, line: line }));
                 break;
@@ -921,8 +952,8 @@ export function getValidAttackTargets(state, attackerOwnerId, attackerEntity = n
         }
     }
 
-    if (defPlayer.lines['sideline'] && defPlayer.lines['sideline'].length > 0) {
-        defPlayer.lines['sideline'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'sideline' }));
+    if (logicalLines['sideline'].length > 0) {
+        logicalLines['sideline'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'sideline' }));
     }
     
     return targets;
@@ -953,6 +984,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
 
     let targets = [];
     const oppId = playerId === 'player1' ? 'player2' : 'player1';
+    const isAttack = ability.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
 
     if (qt.zones) {
         const checkPlayer = (pId, isFriendly) => {
@@ -971,12 +1003,12 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
                     const isTargetHidden = hasEngineFlag(state, ent, 'BLOCK_TARGETING');
                     if (isTargetHidden && !hasPerception) return;
                 }
-                if (qt.entityType.includes(entType)) targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
+                if (qt.entityType.includes(entType) || (isAttack && entType === 'AVATAR')) targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
             };
 
             if (qt.zones.includes('FIELD')) {
                 for (const line of LINES) {
-                    if (p.lines[line]) p.lines[line].forEach(u => { if (u.type !== 'boon') checkEntity(u, line); });
+                    if (p.lines[line]) p.lines[line].forEach(u => { if (u.type !== 'boon') checkEntity(u, u.line || line); });
                 }
             }
             ['hand', 'discard', 'deck', 'banish'].forEach(z => {
@@ -1070,10 +1102,9 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                     if (cost.power > 0 && (entity.power || 0) < cost.power) canAfford = false;
                     
                     if (canAfford && cost.tribeAmount > 0) {
-                        const entityTribe = entity.tribe || 'Generic';
-                        const resKey = Object.keys(player.resources || {}).find(k => k.toLowerCase() === entityTribe.toLowerCase());
-                        const tribeRes = resKey ? player.resources[resKey].current : 0;
-                        if (entityTribe.toLowerCase() === 'carnie' || entityTribe.toLowerCase() === 'generic') {
+                        const entityTribe = getResKey(entity.tribe);
+                        const tribeRes = player.resources[entityTribe] ? player.resources[entityTribe].current : 0;
+                        if (entityTribe === 'Carnie' || entityTribe === 'Generic') {
                             if ((player.resources['Carnie']?.current || 0) < cost.tribeAmount) canAfford = false;
                         } else {
                             if (tribeRes < 1) canAfford = false;
@@ -1201,8 +1232,8 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCata
 
     state.players.player1.tents = 2; state.players.player1.maxTents = 2;
     state.players.player1.resources = { 'Carnie': { current: 2, max: 2 } };
-    let p1Tribe = state.players.player1.lines.avatar[0]?.tribe || 'Generic';
-    if (p1Tribe.toLowerCase() === 'carnie') {
+    let p1Tribe = getResKey(state.players.player1.lines.avatar[0]?.tribe);
+    if (p1Tribe === 'Carnie' || p1Tribe === 'Generic') {
         state.players.player1.resources['Carnie'].current = 3;
         state.players.player1.resources['Carnie'].max = 3;
     } else {
@@ -1234,6 +1265,9 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCata
             const c = state.players.player1.deck.pop();
             c.readiness = 0; state.players.player1.hand.push(c);
         }
+    }
+
+    for(let i = 0; i < 5; i++) {
         if (state.players.player2.deck.length > 0) {
             const c = state.players.player2.deck.pop();
             c.readiness = 0; state.players.player2.hand.push(c);
@@ -1272,8 +1306,8 @@ export function joinGame(state, p2Name, p2Deck) {
 
     state.players.player2.tents = 2; state.players.player2.maxTents = 2;
     state.players.player2.resources = { 'Carnie': { current: 2, max: 2 } };
-    let p2Tribe = state.players.player2.lines.avatar[0]?.tribe || 'Generic';
-    if (p2Tribe.toLowerCase() === 'carnie') {
+    let p2Tribe = getResKey(state.players.player2.lines.avatar[0]?.tribe);
+    if (p2Tribe === 'Carnie' || p2Tribe === 'Generic') {
         state.players.player2.resources['Carnie'].current = 3;
         state.players.player2.resources['Carnie'].max = 3;
     } else {
@@ -1283,7 +1317,7 @@ export function joinGame(state, p2Name, p2Deck) {
     shuffleArray(state, state.players.player2.deck);
     
     state.players.player2.hand = [];
-    for(let i = 0; i < 4; i++) {
+    for(let i = 0; i < 5; i++) {
         if (state.players.player2.deck.length > 0) {
             const c = state.players.player2.deck.pop();
             c.readiness = 0; state.players.player2.hand.push(c);

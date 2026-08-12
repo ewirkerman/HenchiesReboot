@@ -492,12 +492,15 @@ export class ModifyResourceAction extends Action {
         const amt = this.payload.amount || 0;
 
         let actualKey = res;
-        actualKey = Object.keys(p.resources).find(k => k.toLowerCase() === res.toLowerCase());
-        if (!actualKey) {
-            actualKey = res.charAt(0).toUpperCase() + res.slice(1).toLowerCase();
-            p.resources[actualKey] = { current: 0, max: 0 };
+        if (actualKey === 'maxCarnie') {
+            if (!p.resources['Carnie']) p.resources['Carnie'] = { current: 0, max: 0 };
+            p.resources['Carnie'].max += amt;
+        } else {
+            if (!p.resources[actualKey]) {
+                p.resources[actualKey] = { current: 0, max: 0 };
+            }
+            p.resources[actualKey].current += amt;
         }
-        p.resources[actualKey].current += amt;
 
         let avatar = null;
         for (const line in p.lines) {
@@ -745,24 +748,29 @@ export class HarvestAction extends Action {
             const player = engine.state.players[loc.playerId];
             moveEntity(engine, this.payload.target, loc.playerId, 'banish');
             
-            let sTribe = this.payload.target.tribe || 'Generic';
-            let resKey = Object.keys(player.resources).find(k => k.toLowerCase() === sTribe.toLowerCase());
-            if (!resKey) {
-                resKey = sTribe.charAt(0).toUpperCase() + sTribe.slice(1).toLowerCase();
-                player.resources[resKey] = { current: 0, max: 0 };
-            }
+            const getResKey = (ts) => {
+                if (!ts) return 'Generic';
+                const t = ts.toLowerCase();
+                if (t === 'carnie' || t === 'tribe_carnie') return 'Carnie';
+                if (t === 'generic' || t === 'tribe_generic') return 'Generic';
+                return ts;
+            };
+
+            let sTribe = getResKey(this.payload.target.tribe);
+            
             if (!player.resources['Carnie']) player.resources['Carnie'] = { current: 0, max: 0 };
 
-            if (sTribe.toLowerCase() === 'carnie') {
+            if (sTribe === 'Carnie' || sTribe === 'Generic') {
                 player.resources['Carnie'].max += 2;
                 player.resources['Carnie'].current += 2;
                 engine.state.history_log.push(`🔥 ${player.name} harvested '${this.payload.target.name}' (Carnie) for +2 Max Carnie!`);
             } else {
+                if (!player.resources[sTribe]) player.resources[sTribe] = { current: 0, max: 0 };
                 player.resources['Carnie'].max += 1;
                 player.resources['Carnie'].current += 1;
-                player.resources[resKey].max += 1;
-                player.resources[resKey].current += 1;
-                engine.state.history_log.push(`🔥 ${player.name} harvested '${this.payload.target.name}' for +1 Max Carnie & +1 Max ${resKey} Res!`);
+                player.resources[sTribe].max += 1;
+                player.resources[sTribe].current += 1;
+                engine.state.history_log.push(`🔥 ${player.name} harvested '${this.payload.target.name}' for +1 Max Carnie & +1 Max Tribe Res!`);
             }
         }
     }

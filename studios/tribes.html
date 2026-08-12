@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Henchies 2 - Tribe Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
+  
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
+
+  <main-nav active-page="tribe_studio" subtitle="Tribe & Identity Studio"></main-nav>
+
+  <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
+    <!-- Catalog (Left) -->
+    <div class="w-full md:w-80 flex flex-col gap-4">
+      <studio-catalog id="tribe-catalog" title="Tribe Catalog"></studio-catalog>
+      
+      <div class="glass-panel rounded-2xl p-4 shadow-xl border border-slate-800 text-center">
+        <h3 class="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Admin Tools</h3>
+        <button id="seed-tribes-btn" onclick="window.seedDefaultTribes()" class="bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-200 font-bold text-[10px] px-4 py-2 rounded shadow transition w-full">
+            🌱 Seed Default Tribes (One-Time)
+        </button>
+      </div>
+
+      <div id="json-preview-container" class="hidden md:block"></div>
+    </div>
+
+    <!-- Editor (Right) -->
+    <div class="flex-1 flex flex-col gap-4">
+      <div class="glass-panel rounded-2xl p-5 shadow-2xl border border-slate-800 flex flex-col xl:flex-row gap-6">
+        
+        <!-- Form Column -->
+        <div class="flex-1 flex flex-col gap-4">
+          <!-- Form Header -->
+          <div class="flex justify-between items-end border-b border-slate-800 pb-2">
+            <div>
+              <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider" id="form-title">⚡ Design Tribe</h2>
+              <p id="default-lock-warning" class="text-[10px] text-red-400 mt-1 hidden font-bold">🔒 This is a core systemic tribe. It cannot be deleted.</p>
+            </div>
+            <studio-topbar id="studio-topbar"></studio-topbar>
+          </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+          
+          <!-- Basic Info -->
+          <div class="flex flex-col gap-3 lg:col-span-2">
+             <div>
+                <label class="font-bold text-slate-300 block mb-1">Tribe Name <span class="text-red-500">*</span></label>
+                <input type="text" id="tribe-name" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none font-bold" />
+             </div>
+             <div>
+                <label class="font-bold text-slate-300 block mb-1">Valid Genuses (comma-separated)</label>
+                <input type="text" id="tribe-genuses" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="e.g. Melee, Ranged, Magic" />
+             </div>
+             <div>
+                <label class="font-bold text-slate-300 block mb-1">Background Image URL (Wallpaper)</label>
+                <input type="text" id="tribe-bg-image" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="https://..." />
+             </div>
+          </div>
+
+          <!-- Color Definitions (Tailwind vs Hex) -->
+          <div class="flex flex-col gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+             <h3 class="font-black text-sky-400 uppercase tracking-wider border-b border-slate-800 pb-1 text-[10px]">Tailwind Classes</h3>
+             <p class="text-[9px] text-slate-500 italic mb-1">Fallback classes for quick rendering (e.g. 'bg-pink-900').</p>
+             
+             <div>
+                <label class="font-bold text-slate-300 block mb-1">Card Background Class</label>
+                <input type="text" id="tw-bg" class="bg-slate-950 border border-slate-800 p-1.5 rounded text-white w-full font-mono text-[10px]" />
+             </div>
+             <div>
+                <label class="font-bold text-slate-300 block mb-1">Light Text Box Class</label>
+                <input type="text" id="tw-light" class="bg-slate-950 border border-slate-800 p-1.5 rounded text-white w-full font-mono text-[10px]" />
+             </div>
+             <div>
+                <label class="font-bold text-slate-300 block mb-1">Text Color Class</label>
+                <input type="text" id="tw-text" class="bg-slate-950 border border-slate-800 p-1.5 rounded text-white w-full font-mono text-[10px]" />
+             </div>
+             <div>
+                <label class="font-bold text-slate-300 block mb-1">Border Class</label>
+                <input type="text" id="tw-border" class="bg-slate-950 border border-slate-800 p-1.5 rounded text-white w-full font-mono text-[10px]" />
+             </div>
+          </div>
+
+          <div class="flex flex-col gap-3 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+             <h3 class="font-black text-fuchsia-400 uppercase tracking-wider border-b border-slate-800 pb-1 text-[10px]">Hex Color Overrides</h3>
+             <p class="text-[9px] text-slate-500 italic mb-1">If provided, these exact colors override Tailwind classes.</p>
+             
+             <div class="flex items-center gap-2">
+                <input type="color" id="hex-bg-picker" class="w-8 h-8 rounded cursor-pointer bg-slate-950 border-slate-800" />
+                <div class="flex-1">
+                    <label class="font-bold text-slate-300 block mb-1">Card Background Hex</label>
+                    <input type="text" id="hex-bg" placeholder="#000000" class="bg-slate-950 border border-slate-800 p-1.5 rounded text-white w-full font-mono text-[10px]" />
+                </div>
+             </div>
+             <div class="flex items-center gap-2">
+                <input type="color" id="hex-light-picker" class="w-8 h-8 rounded cursor-pointer bg-slate-950 border-slate-800" />
+                <div class="flex-1">
+                    <label class="font-bold text-slate-300 block mb-1">Light Text Box Hex</label>
+                    <input type="text" id="hex-light" placeholder="#000000" class="bg-slate-950 border border-slate-800 p-1.5 rounded text-white w-full font-mono text-[10px]" />
+                </div>
+             </div>
+             <div class="flex items-center gap-2">
+                <input type="color" id="hex-text-picker" class="w-8 h-8 rounded cursor-pointer bg-slate-950 border-slate-800" />
+                <div class="flex-1">
+                    <label class="font-bold text-slate-300 block mb-1">Text Color Hex</label>
+                    <input type="text" id="hex-text" placeholder="#ffffff" class="bg-slate-950 border border-slate-800 p-1.5 rounded text-white w-full font-mono text-[10px]" />
+                </div>
+             </div>
+             <div class="flex items-center gap-2">
+                <input type="color" id="hex-border-picker" class="w-8 h-8 rounded cursor-pointer bg-slate-950 border-slate-800" />
+                <div class="flex-1">
+                    <label class="font-bold text-slate-300 block mb-1">Border Hex</label>
+                    <input type="text" id="hex-border" placeholder="#000000" class="bg-slate-950 border border-slate-800 p-1.5 rounded text-white w-full font-mono text-[10px]" />
+                </div>
+             </div>
+          </div>
+
+          <!-- Raw SVG -->
+          <div class="flex flex-col gap-2 lg:col-span-2">
+             <label class="font-bold text-amber-400 block flex justify-between items-end">
+                <span>Resource Icon (Raw SVG HTML)</span>
+                <span class="text-slate-500 font-normal italic text-[10px]">Use viewBox="0 0 24 24" and fill="currentColor"</span>
+             </label>
+             <div class="flex gap-4 items-stretch">
+                <div class="w-20 h-20 shrink-0 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center p-2 shadow-inner" id="tribe-svg-large-preview">
+                    <span class="text-slate-600 text-[10px] font-bold text-center">No Icon</span>
+                </div>
+                <textarea id="tribe-svg" rows="4" class="bg-slate-900 border border-slate-700 p-3 rounded text-amber-100 font-mono text-[10px] w-full focus:outline-none focus:border-amber-500 placeholder-slate-600" placeholder='<svg viewBox="0 0 24 24" ...></svg>'></textarea>
+             </div>
+          </div>
+
+        </div>
+
+        <button id="save-tribe-btn" class="mt-2 bg-amber-500 hover:bg-amber-400 text-black font-extrabold p-3 rounded-xl shadow-xl transition text-sm uppercase tracking-wider">💾 Save Tribe</button>
+        </div>
+
+        <!-- Preview Column -->
+        <div class="w-full xl:w-[400px] flex flex-col items-center gap-4 bg-slate-900/50 rounded-xl p-6 border border-slate-800 shrink-0">
+          <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 w-full text-center pb-2">Live Preview</h3>
+          <div id="tribe-preview-container" class="w-full flex flex-col items-center"></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+  
+  <script type="module">
+    import { fetchCustomTribes, saveTribeToCatalog, deleteTribeFromCatalog } from '../src/firebase.js';
+    import { showToast, renderJSONPreview, renderCardHTML, TRIBE_STYLES } from '../src/ui.js';
+    import '../components/main_nav.js';
+    import '../components/catalog.js'; 
+    import '../components/topbar.js';
+
+    let allTribes = [];
+    let currentEditingId = null;
+    let isCurrentDefault = false;
+
+    // The legacy color map for seeder
+    const LEGACY_TRIBES = {
+        Robot: { bg: 'bg-pink-900', lightBg: 'bg-pink-950/90', border: 'border-black', text: 'text-pink-300' },
+        Mythic: { bg: 'bg-emerald-900', lightBg: 'bg-emerald-950/90', border: 'border-black', text: 'text-emerald-300' },
+        Elemental: { bg: 'bg-orange-900', lightBg: 'bg-orange-950/90', border: 'border-black', text: 'text-orange-300' },
+        Pirate: { bg: 'bg-amber-900', lightBg: 'bg-amber-950/90', border: 'border-black', text: 'text-amber-300' },
+        Undead: { bg: 'bg-slate-800', lightBg: 'bg-slate-900/90', border: 'border-black', text: 'text-blue-300' },
+        Carnie: { bg: 'bg-purple-900', lightBg: 'bg-purple-950/90', border: 'border-black', text: 'text-purple-300' },
+        Viking: { bg: 'bg-cyan-900', lightBg: 'bg-cyan-950/90', border: 'border-black', text: 'text-cyan-300' },
+        Ninja: { bg: 'bg-slate-900', lightBg: 'bg-slate-950/90', border: 'border-black', text: 'text-slate-300' },
+        Stalker: { bg: 'bg-red-900', lightBg: 'bg-red-950/90', border: 'border-black', text: 'text-red-300' },
+        Alien: { bg: 'bg-lime-900', lightBg: 'bg-lime-950/90', border: 'border-black', text: 'text-lime-300' },
+        Luchador: { bg: 'bg-yellow-900', lightBg: 'bg-yellow-950/90', border: 'border-black', text: 'text-yellow-300' },
+        Generic: { bg: 'bg-slate-900', lightBg: 'bg-slate-950/90', border: 'border-black', text: 'text-slate-300' }
+    };
+
+    window.seedDefaultTribes = async () => {
+        if (!confirm("This will inject the 12 base tribes into the database. Existing default tribes will be overwritten. Proceed?")) return;
+        
+        const btn = document.getElementById('seed-tribes-btn');
+        btn.innerHTML = 'Seeding...';
+        btn.disabled = true;
+
+        for (const [name, styles] of Object.entries(LEGACY_TRIBES)) {
+            const id = `tribe_${name.toLowerCase()}`;
+            
+            // Keep existing SVG/Image if it's already in the DB during a re-seed
+            let existingSvg = '';
+            let existingImg = '';
+            const existingTribe = allTribes.find(t => t.id === id);
+            if (existingTribe) {
+                existingSvg = existingTribe.iconSvg || '';
+                existingImg = existingTribe.bgImageUrl || '';
+            } else if (name === 'Carnie') {
+                existingSvg = `<svg viewBox="0 0 24 24" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><defs><mask id="tent-mask"><path fill="#fff" d="M0 0h24v24H0z"/><path d="M16.93 20.63 13.86 13a2 2 0 0 0-3.72 0l-3.07 7.63A1 1 0 0 0 8 22h8a1 1 0 0 0 .93-1.37"/></mask></defs><path d="M21.2 8c-4.58-.92-8.38-5.6-8.42-5.64a1 1 0 0 0-1.56 0S7.38 7.1 2.8 8a1 1 0 0 0 .4 2c.23-.05.45-.13.68-.19l-.79 10.03a2 2 0 0 0 2 2.16h13.83a2 2 0 0 0 2-2.16l-.79-10c.23.06.45.14.68.19h.2a1 1 0 0 0 .2-2Z" mask="url(#tent-mask)"/></svg>`;
+            }
+
+            const payload = {
+                id: id,
+                name: name,
+                isDefault: true,
+                colorBgClass: styles.bg,
+                colorLightBgClass: styles.lightBg,
+                colorBorderClass: styles.border,
+                colorTextClass: styles.text,
+                colorBgHex: '',
+                colorLightBgHex: '',
+                colorBorderHex: '',
+                colorTextHex: '',
+                validGenuses: [],
+                iconSvg: existingSvg,
+                bgImageUrl: existingImg,
+                updatedAt: Date.now()
+            };
+
+            await saveTribeToCatalog(payload);
+            const idx = allTribes.findIndex(t => t.id === id);
+            if (idx > -1) allTribes[idx] = payload;
+            else allTribes.push(payload);
+        }
+
+        btn.innerHTML = '🌱 Seed Default Tribes (One-Time)';
+        btn.disabled = false;
+        showToast('Default tribes seeded successfully!', 'success');
+        renderCatalog();
+    };
+
+    init();
+
+    async function init() {
+      allTribes = await fetchCustomTribes();
+
+      const inputs = document.querySelectorAll('input:not(#catalog-search-input), textarea');
+      inputs.forEach(el => {
+          el.addEventListener('input', updatePreview);
+          el.addEventListener('change', updatePreview);
+      });
+
+      // Sync color pickers with text inputs
+      const syncHex = (pickerId, inputId) => {
+          const picker = document.getElementById(pickerId);
+          const input = document.getElementById(inputId);
+          picker.addEventListener('input', (e) => { input.value = e.target.value; updatePreview(); });
+          input.addEventListener('input', (e) => { if(/^#[0-9A-F]{6}$/i.test(e.target.value)) picker.value = e.target.value; });
+      };
+      syncHex('hex-bg-picker', 'hex-bg');
+      syncHex('hex-light-picker', 'hex-light');
+      syncHex('hex-text-picker', 'hex-text');
+      syncHex('hex-border-picker', 'hex-border');
+
+      const catalogEl = document.getElementById('tribe-catalog');
+      catalogEl.addEventListener('new-item', resetForm);
+
+      document.getElementById('save-tribe-btn').addEventListener('click', saveTribe);
+      
+      const topbar = document.getElementById('studio-topbar');
+      topbar.addEventListener('save', saveTribe);
+      topbar.addEventListener('clone', cloneTribe);
+      topbar.addEventListener('delete', deleteTribe);
+      
+      // Hide irrelevant topbar buttons
+      topbar.querySelector('#btn-test').classList.add('hidden');
+      topbar.querySelector('#btn-import').classList.add('hidden');
+
+      renderCatalog();
+      resetForm();
+
+      const hashId = window.location.hash.replace('#', '');
+      if (hashId) setTimeout(() => window.loadTribe(hashId), 50);
+    }
+
+    function buildTribeState() {
+        return {
+            id: currentEditingId || ('tribe_' + Date.now()),
+            updatedAt: Date.now(),
+            name: document.getElementById('tribe-name').value || 'Unnamed Tribe',
+            isDefault: isCurrentDefault,
+            colorBgClass: document.getElementById('tw-bg').value || 'bg-slate-900',
+            colorLightBgClass: document.getElementById('tw-light').value || 'bg-slate-950/90',
+            colorBorderClass: document.getElementById('tw-border').value || 'border-black',
+            colorTextClass: document.getElementById('tw-text').value || 'text-slate-300',
+            colorBgHex: document.getElementById('hex-bg').value,
+            colorLightBgHex: document.getElementById('hex-light').value,
+            colorBorderHex: document.getElementById('hex-border').value,
+            colorTextHex: document.getElementById('hex-text').value,
+            validGenuses: document.getElementById('tribe-genuses').value.split(',').map(s => s.trim()).filter(Boolean),
+            iconSvg: document.getElementById('tribe-svg').value,
+            bgImageUrl: document.getElementById('tribe-bg-image').value
+        };
+    }
+
+    window.copyTribeJSON = () => {
+        const tribe = buildTribeState();
+        navigator.clipboard.writeText(JSON.stringify(tribe, null, 2)).then(() => {
+            showToast('Tribe JSON Copied!', 'success');
+        });
+    };
+
+    function updatePreview() {
+        const tribe = buildTribeState();
+        renderJSONPreview('json-preview-container', tribe, 'copyTribeJSON');
+
+        const svgContainer = document.getElementById('tribe-svg-large-preview');
+        if (svgContainer) {
+            if (tribe.iconSvg) {
+                svgContainer.innerHTML = `<div class="w-full h-full raw-user-svg-container overflow-hidden">${tribe.iconSvg}</div>`;
+            } else {
+                svgContainer.innerHTML = `<span class="text-slate-600 text-[10px] font-bold text-center">No Icon</span>`;
+            }
+        }
+
+        TRIBE_STYLES['preview_tribe'] = {
+            bg: tribe.colorBgClass || 'bg-slate-900',
+            lightBg: tribe.colorLightBgClass || 'bg-slate-950/90',
+            border: tribe.colorBorderClass || 'border-black',
+            text: tribe.colorTextClass || 'text-slate-300',
+            hexBg: tribe.colorBgHex,
+            hexLightBg: tribe.colorLightBgHex,
+            hexBorder: tribe.colorBorderHex,
+            hexText: tribe.colorTextHex,
+            iconSvg: tribe.iconSvg,
+            name: tribe.name || 'Preview'
+        };
+
+        const dummyCard = {
+            id: 'dummy_preview',
+            name: tribe.name || 'Tribe Preview',
+            tribe: 'preview_tribe',
+            type: 'unit',
+            cost: 2,
+            power: 1,
+            health: 3,
+            strength: 2,
+            description: 'A visual preview of your custom tribe settings on a standard unit card.',
+            artUrl: tribe.bgImageUrl || '',
+            abilities: [{
+                name: 'Sample Ability', 
+                trigger: 'PLAY_OPTIONAL', 
+                cost: { tribeAmount: 1, tribeType: 'preview_tribe' },
+                displayDescription: 'This represents how abilities will look using this tribe.'
+            }]
+        };
+
+        const container = document.getElementById('tribe-preview-container');
+        if (container) {
+            container.innerHTML = `<card-preview card-data="${encodeURIComponent(JSON.stringify(dummyCard)).replace(/'/g, "%27")}"></card-preview>`;
+        }
+    }
+
+    async function saveTribe() {
+        const tribe = buildTribeState();
+        if (!tribe.name || tribe.name.trim() === 'Unnamed Tribe') {
+            showToast('Please provide a name for the tribe.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('save-tribe-btn');
+        const origText = btn.innerHTML;
+        btn.innerHTML = 'Saving...';
+        btn.disabled = true;
+        
+        const topbar = document.getElementById('studio-topbar');
+        if (topbar && topbar.setLoading) topbar.setLoading('save', true);
+
+        const cloudSaveSuccess = await saveTribeToCatalog(tribe);
+        
+        allTribes = [...allTribes.filter(t => t.id !== tribe.id), tribe];
+        currentEditingId = tribe.id;
+        
+        document.getElementById('form-title').innerText = `⚡ Edit: ${tribe.name}`;
+        document.getElementById('studio-topbar').showButtons(true);
+
+        btn.innerHTML = origText;
+        btn.disabled = false;
+        
+        if (topbar && topbar.setLoading) topbar.setLoading('save', false);
+
+        if (cloudSaveSuccess) {
+            showToast(`Tribe '${tribe.name}' saved successfully!`, 'success');
+        } else {
+            showToast(`⚠️ Cloud save failed! Saved locally.`, 'error');
+        }
+        renderCatalog();
+    }
+
+    function cloneTribe() {
+        if (!currentEditingId) return;
+        currentEditingId = null;
+        isCurrentDefault = false; // Clones are never locked
+        
+        document.getElementById('form-title').innerText = `⚡ Design New Tribe (Cloned)`;
+        document.getElementById('tribe-name').value += ' (Copy)';
+        
+        document.getElementById('studio-topbar').showButtons(false);
+        document.getElementById('default-lock-warning').classList.add('hidden');
+        
+        updatePreview();
+        showToast('Tribe cloned! Save to keep it.', 'info');
+    }
+
+    async function deleteTribe() {
+        if (!currentEditingId) return;
+        if (isCurrentDefault) {
+            showToast('Cannot delete a core systemic tribe.', 'error');
+            return;
+        }
+        await deleteTribeFromCatalog(currentEditingId);
+        allTribes = allTribes.filter(t => t.id !== currentEditingId);
+        showToast('Tribe deleted.', 'success');
+        resetForm();
+        renderCatalog();
+    }
+
+    function renderCatalog() {
+        const catalogEl = document.getElementById('tribe-catalog');
+        if (!catalogEl) return;
+        
+        catalogEl.setItems(allTribes, (t) => {
+            return `
+            <div onclick="window.loadTribe('${t.id}')" class="p-2 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex justify-between items-center cursor-pointer transition">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded flex items-center justify-center shadow-sm ${t.colorBgClass}" style="${t.colorBgHex ? 'background-color:'+t.colorBgHex : ''}">
+                       ${t.iconSvg ? `<div class="w-5 h-5 overflow-hidden"><div class="w-full h-full raw-user-svg-container">${t.iconSvg}</div></div>` : ''}
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="font-bold ${t.colorTextClass}" style="${t.colorTextHex ? 'color:'+t.colorTextHex : ''}">${t.name}</span>
+                        ${t.isDefault ? '<span class="text-[9px] text-red-400 font-bold uppercase">Core Locked</span>' : '<span class="text-[9px] text-slate-400 capitalize">Custom Tribe</span>'}
+                    </div>
+                </div>
+            </div>
+            `;
+        });
+    }
+
+    window.loadTribe = (id) => {
+        const tribe = allTribes.find(t => t.id === id);
+        if (!tribe) return;
+
+        currentEditingId = tribe.id;
+        isCurrentDefault = tribe.isDefault || false;
+        
+        window.location.hash = id;
+        document.getElementById('form-title').innerText = `⚡ Edit: ${tribe.name}`;
+        
+        const setVal = (id, val) => { document.getElementById(id).value = val || ''; };
+        
+        setVal('tribe-name', tribe.name);
+        setVal('tw-bg', tribe.colorBgClass);
+        setVal('tw-light', tribe.colorLightBgClass);
+        setVal('tw-border', tribe.colorBorderClass);
+        setVal('tw-text', tribe.colorTextClass);
+        setVal('hex-bg', tribe.colorBgHex);
+        setVal('hex-light', tribe.colorLightBgHex);
+        setVal('hex-border', tribe.colorBorderHex);
+        setVal('hex-text', tribe.colorTextHex);
+        setVal('tribe-genuses', (tribe.validGenuses || []).join(', '));
+        setVal('tribe-svg', tribe.iconSvg);
+        setVal('tribe-bg-image', tribe.bgImageUrl);
+        
+        const syncColor = (pickerId, hex) => { if(/^#[0-9A-F]{6}$/i.test(hex)) document.getElementById(pickerId).value = hex; else document.getElementById(pickerId).value = '#000000'; };
+        syncColor('hex-bg-picker', tribe.colorBgHex);
+        syncColor('hex-light-picker', tribe.colorLightBgHex);
+        syncColor('hex-text-picker', tribe.colorTextHex);
+        syncColor('hex-border-picker', tribe.colorBorderHex);
+
+        const topbar = document.getElementById('studio-topbar');
+        topbar.showButtons(true);
+        
+        if (isCurrentDefault) {
+            topbar.querySelector('#btn-delete').classList.add('hidden');
+            document.getElementById('default-lock-warning').classList.remove('hidden');
+        } else {
+            topbar.querySelector('#btn-delete').classList.remove('hidden');
+            document.getElementById('default-lock-warning').classList.add('hidden');
+        }
+        
+        updatePreview();
+    };
+
+    function resetForm() {
+        currentEditingId = null;
+        isCurrentDefault = false;
+        window.location.hash = '';
+        
+        document.getElementById('form-title').innerText = '⚡ Design New Tribe';
+        document.getElementById('default-lock-warning').classList.add('hidden');
+        
+        const setVal = (id, val) => { document.getElementById(id).value = val || ''; };
+        
+        setVal('tribe-name', '');
+        setVal('tw-bg', 'bg-slate-900');
+        setVal('tw-light', 'bg-slate-950/90');
+        setVal('tw-border', 'border-black');
+        setVal('tw-text', 'text-slate-300');
+        setVal('hex-bg', ''); setVal('hex-bg-picker', '#000000');
+        setVal('hex-light', ''); setVal('hex-light-picker', '#000000');
+        setVal('hex-border', ''); setVal('hex-border-picker', '#000000');
+        setVal('hex-text', ''); setVal('hex-text-picker', '#000000');
+        setVal('tribe-genuses', '');
+        setVal('tribe-svg', '');
+        setVal('tribe-bg-image', '');
+        
+        const topbar = document.getElementById('studio-topbar');
+        topbar.showButtons(false);
+        topbar.querySelector('#btn-delete').classList.remove('hidden'); // Ensure it's visible for new items until saved
+        
+        updatePreview();
+    }
+  </script>
+</body>
+</html>

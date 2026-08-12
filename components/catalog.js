@@ -78,6 +78,7 @@ export class StudioCatalog extends HTMLElement {
                     item.description,
                     item.displayDescription,
                     item.trigger,
+                    item.searchTags,
                     item.passiveFlags ? item.passiveFlags.join(' ') : '',
                     payloadTypes
                 ].filter(Boolean).join(' ').toLowerCase();

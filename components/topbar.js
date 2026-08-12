@@ -1,8 +1,3 @@
-/**
- * src/studio_topbar.js
- * Abstracted Topbar Web Component for Studio tools (Save, Clone, Test, Import, Delete)
- */
-
 export class StudioTopbar extends HTMLElement {
     connectedCallback() {
         this.innerHTML = `

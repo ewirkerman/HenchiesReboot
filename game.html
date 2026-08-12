@@ -22,24 +22,7 @@
   <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
 
   <!-- Header Navigation -->
-  <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-2 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
-    <div class="flex items-center gap-3">
-      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
-        HENCHIES 2
-      </span>
-      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold" id="header-room-badge">
-        Match Setup Lobby
-      </span>
-    </div>
-
-    <!-- Multi-Page Navigation Links -->
-    <nav class="flex items-center gap-3 text-xs font-semibold">
-      <a href="game.html" class="text-amber-400 border-b-2 border-amber-400 pb-0.5">Game Table</a>
-      <a href="deckbuilder.html" class="text-slate-400 hover:text-slate-200">Deckbuilder</a>
-      <a href="card_editor.html" class="text-slate-400 hover:text-slate-200">Card Studio</a>
-      <a href="ability_editor.html" class="text-slate-400 hover:text-slate-200">Ability Studio</a>
-    </nav>
-  </header>
+  <main-nav active-page="game" subtitle="Match Setup Lobby"></main-nav>
 
   <!-- ================= SCREEN 1: MATCH SETUP & DECK SELECTOR ================= -->
   <div id="match-setup-screen" class="flex-1 max-w-xl w-full mx-auto p-4 flex flex-col justify-center my-auto">
@@ -282,9 +265,10 @@
       playCard, endTurn, getValidAttackTargets, cloneGameState, 
       getEntityAvailableActions, executeEntityAction, getValidAbilityTargets
     } from './src/engine.js';
-    import { renderCardHTML, openInspectionModal, renderHistorySlider, showToast, CARD_BASE_CLASSES } from './src/ui.js';
-    import { createGameRoom, subscribeToGameRoom, pushActionToLog, fetchCustomAbilities, fetchCustomCards, fetchUserDecks } from './src/firebase.js';
+    import { renderCardHTML, openInspectionModal, renderHistorySlider, showToast, CARD_BASE_CLASSES, loadUI } from './src/ui.js';
+    import { createGameRoom, subscribeToGameRoom, pushActionToLog, fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
+    import './components/main_nav.js';
 
     // Global Fallback Error Handlers to catch silent hangs
     window.onerror = function(msg, url, lineNo, columnNo, error) {
@@ -314,8 +298,8 @@
     let allAbilitiesRegistry = [];
     let allCardsRegistry = [];
     let loadedUserDecks = {};
+    let customTribesList = [];
 
-    // Fetch abilities for glossary tooltips
     // Fetch abilities for glossary tooltips
     fetchCustomAbilities().then(abs => {
         allAbilitiesRegistry = abs.map(ab => ({
@@ -329,6 +313,12 @@
         allCardsRegistry = [...CARD_CATALOG, ...cards];
         console.log("[INIT] Catalog loaded for engine.");
     }).catch(e => console.warn('[INIT] Catalog fetch failed:', e));
+
+    fetchCustomTribes().then(tribes => {
+        customTribesList = tribes;
+    }).catch(e => console.warn('[INIT] Tribes fetch failed:', e));
+
+    loadUI().then(() => console.log("[INIT] UI Styles loaded.")).catch(e => console.warn(e));
 
     // Restore saved username immediately
     const savedName = localStorage.getItem('henchies_last_username');
@@ -470,7 +460,7 @@
         return;
       }
       
-      const loadedData = loadedUserDecks[deckOption];
+      const loadedData = loadedUserDecks[deckOption]?.deckData;
 
       if (!loadedData || loadedData.length !== 41) {
         showToast('The selected deck is invalid or corrupted!', 'error');
@@ -512,6 +502,30 @@
 
         if (missingCards > 0) {
             showToast(`Error: Deck is missing ${missingCards} cards that were deleted from the studio. Please edit your deck.`, 'error');
+            const launchBtn = document.getElementById('launch-match-btn');
+            launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
+            launchBtn.disabled = false;
+            return;
+        }
+
+        const avatars = hydratedDeck.filter(c => c.type === 'avatar');
+        const standardCards = hydratedDeck.filter(c => c.type !== 'avatar');
+        
+        if (avatars.length !== 1 || standardCards.length !== 40) {
+            showToast(`Invalid Deck! Must contain exactly 1 Avatar and 40 cards (Found ${avatars.length} Avatars, ${standardCards.length} Cards).`, 'error');
+            const launchBtn = document.getElementById('launch-match-btn');
+            launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
+            launchBtn.disabled = false;
+            return;
+        }
+        
+        const counts = {};
+        standardCards.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
+        const overFour = Object.values(counts).filter(cnt => cnt > 4);
+        const exactlyFour = Object.values(counts).filter(cnt => cnt === 4);
+        
+        if (overFour.length > 0 || exactlyFour.length > 1) {
+            showToast('Invalid Deck! Violates copy limits (Max 3 copies, up to 1 card with 4 copies).', 'error');
             const launchBtn = document.getElementById('launch-match-btn');
             launchBtn.innerHTML = '🚀 Launch Battleboard Tabletop';
             launchBtn.disabled = false;
@@ -729,8 +743,13 @@
       
       let myResStr = '';
       if (myP.resources) {
-          for (const [tribe, res] of Object.entries(myP.resources)) {
-              myResStr += `${tribe}: ${res.current}/${res.max} | `;
+          for (const [resKey, res] of Object.entries(myP.resources)) {
+              let name = resKey;
+              if (resKey !== 'Carnie' && resKey !== 'Generic') {
+                  const t = customTribesList.find(t => t.id === resKey);
+                  if (t) name = t.name;
+              }
+              myResStr += `${name}: ${res.current}/${res.max} | `;
           }
       }
       document.getElementById('player-resources').innerText = myResStr.replace(/ \| $/, '');
@@ -747,8 +766,13 @@
       
       let oppResStr = '';
       if (oppP.resources) {
-          for (const [tribe, res] of Object.entries(oppP.resources)) {
-              oppResStr += `${tribe}: ${res.current}/${res.max} | `;
+          for (const [resKey, res] of Object.entries(oppP.resources)) {
+              let name = resKey;
+              if (resKey !== 'Carnie' && resKey !== 'Generic') {
+                  const t = customTribesList.find(t => t.id === resKey);
+                  if (t) name = t.name;
+              }
+              oppResStr += `${name}: ${res.current}/${res.max} | `;
           }
       }
       document.getElementById('opp-resources').innerText = oppResStr.replace(/ \| $/, '');
