@@ -15,6 +15,23 @@ export function getResKey(tribeStr) {
     return tribeStr; 
 }
 
+export function resolveResourceKey(player, tribeKey) {
+    const baseKey = getResKey(tribeKey);
+    if (baseKey === 'Carnie') return 'Carnie';
+    if (player && player.resources[baseKey]) return baseKey;
+    
+    if (player) {
+        const tkLower = baseKey.toLowerCase();
+        for (const key in player.resources) {
+            const kLower = key.toLowerCase();
+            if (kLower === tkLower || kLower === `tribe_${tkLower}` || tkLower === `tribe_${kLower}`) {
+                return key;
+            }
+        }
+    }
+    return baseKey;
+}
+
 import { nextRandom, randomInt, generateId, shuffleArray as prandomShuffle } from './prandom.js';
 import { ACTION_REGISTRY, ACTION_MANIFEST, HarvestAction, PlayAction, KillAction, UnfieldAction, sweepTurnEffects } from './actions.js';
 
@@ -437,8 +454,8 @@ export class GameEngine {
         
         let tribeResKey = null;
         if (cost.tribeAmount > 0) {
-            const entityTribe = getResKey(source.tribe);
-            if (entityTribe === 'Carnie' || entityTribe === 'Generic') {
+            const entityTribe = resolveResourceKey(p, source.tribe);
+            if (entityTribe === 'Carnie') {
                 if ((p.resources['Carnie']?.current || 0) < cost.tribeAmount) canAfford = false;
             } else {
                 tribeResKey = entityTribe;
@@ -464,8 +481,8 @@ export class GameEngine {
         if (cost.power > 0) source.power -= cost.power;
         
         if (cost.tribeAmount > 0) {
-            const entityTribe = getResKey(source.tribe);
-            if (entityTribe === 'Carnie' || entityTribe === 'Generic') {
+            const entityTribe = resolveResourceKey(p, source.tribe);
+            if (entityTribe === 'Carnie') {
                 p.resources['Carnie'].current -= cost.tribeAmount;
             } else if (tribeResKey) {
                 p.resources[tribeResKey].current -= cost.tribeAmount;
@@ -835,11 +852,11 @@ export function canPlayCard(state, playerId, card) {
     if (!player) return false;
 
     let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
-    let cTribe = getResKey(card.tribe);
+    let cTribe = resolveResourceKey(player, card.tribe);
     let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
     if (baseCost > 0) {
-        if (cTribe === 'Carnie' || cTribe === 'Generic') {
+        if (cTribe === 'Carnie') {
             if (carnieRes < baseCost) return false;
         } else {
             const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
@@ -873,11 +890,11 @@ export function playCard(state, playerId, cardId, targetLine = 'back', abilityTa
     const card = player.hand[cardIdx];
 
     let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
-    let cTribe = getResKey(card.tribe);
+    let cTribe = resolveResourceKey(player, card.tribe);
     let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
     if (baseCost > 0) {
-        if (cTribe === 'Carnie' || cTribe === 'Generic') {
+        if (cTribe === 'Carnie') {
             if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Cost: ${baseCost})` };
             player.resources['Carnie'].current -= baseCost;
         } else {
@@ -1102,9 +1119,9 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                     if (cost.power > 0 && (entity.power || 0) < cost.power) canAfford = false;
                     
                     if (canAfford && cost.tribeAmount > 0) {
-                        const entityTribe = getResKey(entity.tribe);
+                        const entityTribe = resolveResourceKey(player, entity.tribe);
                         const tribeRes = player.resources[entityTribe] ? player.resources[entityTribe].current : 0;
-                        if (entityTribe === 'Carnie' || entityTribe === 'Generic') {
+                        if (entityTribe === 'Carnie') {
                             if ((player.resources['Carnie']?.current || 0) < cost.tribeAmount) canAfford = false;
                         } else {
                             if (tribeRes < 1) canAfford = false;

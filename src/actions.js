@@ -45,6 +45,7 @@ export const ACTION_MANIFEST = {
 };
 
 import { shuffleArray, generateId } from './prandom.js';
+import { resolveResourceKey } from './engine.js';
 
 export class Action {
     constructor(payload) {
@@ -100,12 +101,16 @@ export class Action {
                 }
                 
                 if (t.activeEffects) {
+                    const effectsToRevert = [];
                     for (let i = t.activeEffects.length - 1; i >= 0; i--) {
                         const eff = t.activeEffects[i];
                         if (eff.duration !== 'PERMANENT') {
+                            effectsToRevert.push(eff);
                             t.activeEffects.splice(i, 1);
-                            revertEffect(engine, t, eff);
                         }
+                    }
+                    for (const eff of effectsToRevert) {
+                        if (eff.type !== 'SUMMON') revertEffect(engine, t, eff);
                     }
                 }
                 
@@ -142,7 +147,8 @@ export class Action {
             if (ent && ent.activeEffects) {
                 for (let i = ent.activeEffects.length - 1; i >= 0; i--) {
                     if (ent.activeEffects[i].duration === 'ACTION') {
-                        const eff = ent.activeEffects.splice(i, 1)[0];
+                        const eff = ent.activeEffects[i];
+                        ent.activeEffects.splice(i, 1);
                         revertEffect(engine, ent, eff);
                     }
                 }
@@ -288,6 +294,9 @@ export function registerEffect(engine, target, payload, extraData = {}) {
 export function revertEffect(engine, target, effect) {
     if (effect.type === 'MODIFY_STAT') {
         target[effect.stat] -= effect.delta;
+        if (effect.stat === 'health' && target.maxHealth !== undefined) {
+            target.health = Math.min(target.health, target.maxHealth);
+        }
     } else if (effect.type === 'MODIFY_RESOURCE') {
         const loc = findEntityLocation(engine, target);
         const pId = loc ? loc.playerId : null;
@@ -462,6 +471,12 @@ export class ModifyStatAction extends Action {
 
         target[stat] = (target[stat] || 0) + actualDelta;
 
+        if (stat === 'maxHealth') {
+            if (target.health > target.maxHealth) {
+                target.health = Math.max(0, target.maxHealth);
+            }
+        }
+
         // Push tracking entries (1 per +1 amount) to maintain limits across turns
         if (actualDelta > 0 && sourceAbilityId) {
             if (!target.statSources) target.statSources = {};
@@ -477,8 +492,6 @@ export class ModifyStatAction extends Action {
             }
         }
 
-        // NOTE: Units dropping to 0 HP via ModifyStat (e.g. Wither) are NOT killed here.
-        // They survive at 0 HP until actual combat damage or a direct KillAction resolves.
         registerEffect(engine, target, this.payload, { delta: actualDelta });
     }
 }
@@ -493,7 +506,8 @@ export class ModifyResourceAction extends Action {
         const res = this.payload.resource || 'Carnie';
         const amt = this.payload.amount || 0;
 
-        let actualKey = res;
+        let actualKey = res === 'maxCarnie' ? 'maxCarnie' : resolveResourceKey(p, res);
+
         if (actualKey === 'maxCarnie') {
             if (!p.resources['Carnie']) p.resources['Carnie'] = { current: 0, max: 0 };
             p.resources['Carnie'].max += amt;
@@ -528,6 +542,18 @@ export class SetStatAction extends Action {
                 }
             }
 
+            if (target.activeEffects) {
+                for (let i = target.activeEffects.length - 1; i >= 0; i--) {
+                    const eff = target.activeEffects[i];
+                    if (eff.type === 'MODIFY_STAT' && eff.stat === stat) {
+                        target.activeEffects.splice(i, 1);
+                    }
+                }
+            }
+            if (target.statSources && target.statSources[stat]) {
+                delete target.statSources[stat];
+            }
+
             let oldVal = target[stat];
             if (oldVal === undefined) {
                 if (stat === 'line') oldVal = target.type === 'avatar' ? 'avatar' : (target.defaultLine || 'mid');
@@ -547,9 +573,13 @@ export class SetStatAction extends Action {
             if (typeof oldVal === 'number' && typeof amount === 'number') {
                 delta = amount - oldVal;
             }
-            
-            // NOTE: Units dropping to 0 HP via SetStat are NOT killed here.
-            // They survive at 0 HP.
+
+            if (stat === 'maxHealth') {
+                if (target.health > target.maxHealth) {
+                    target.health = Math.max(0, target.maxHealth);
+                }
+            }
+
             registerEffect(engine, target, this.payload, { originalValue: trueOriginal, delta: delta });
             
             if (stat === 'line') {
@@ -710,42 +740,27 @@ export class AttackAction extends Action {
 
         // Execute sequential combat phases: Fast (1) -> Normal (0) -> Slow (-1)
         for (const phase of [1, 0, -1]) {
-            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined ? Math.max(0, attacker.strength) : null;
+            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
             const defBlockRetaliate = engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_RETALIATE') || engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_ACT');
-            const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? Math.max(0, defender.strength) : null);
+            const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
 
-            // Re-validate combatants: if they changed teams or left valid zones during wind-up (like Rebel), the strike fizzles.
-            const atkLoc = findEntityLocation(engine, attacker);
-            const defLoc = findEntityLocation(engine, defender);
-            const atkOwner = atkLoc ? atkLoc.playerId : attacker.ownerId;
-            const defOwner = defLoc ? defLoc.playerId : defender.ownerId;
-            const stillValidEnemies = atkOwner && defOwner && atkOwner !== defOwner;
-
-            let atkStrikes = stillValidEnemies && atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker);
-            let defStrikes = stillValidEnemies && defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender);
+            let atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker);
+            let defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender);
 
             const strikesHappened = atkStrikes || defStrikes;
 
             if (atkStrikes) new DealDamageAction({ source: attacker, target: defender, amount: currentAtkDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
             if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: currentDefDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
             
-            // Re-evaluate death state AFTER damage resolves in case replacement effects saved them
-            atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker);
-            defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender);
-
-            // If a unit survived the phase (or was revived by a replacement effect), it gets to strike back if it hasn't yet
-            if (atkSpeed < phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker)) atkStrikes = true;
-            if (defSpeed < phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender)) defStrikes = true;
-
             // After simultaneous strikes resolve in this speed phase, evaluate deaths
             if (strikesHappened) {
                 const atkLKI = attacker.abilities ? [...attacker.abilities] : [];
                 const defLKI = defender.abilities ? [...defender.abilities] : [];
 
-                if (defender.health <= 0 && defender.type !== 'avatar' && !defender._isDying) {
+                if (atkStrikes && defender.health <= 0 && defender.type !== 'avatar' && !defender._isDying) {
                     new KillAction({ source: attacker, target: defender, _lkiSourceAbilities: atkLKI, _lkiTargetAbilities: defLKI, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
                 }
-                if (attacker.health <= 0 && attacker.type !== 'avatar' && !attacker._isDying) {
+                if (defStrikes && attacker.health <= 0 && attacker.type !== 'avatar' && !attacker._isDying) {
                     new KillAction({ source: defender, target: attacker, _lkiSourceAbilities: defLKI, _lkiTargetAbilities: atkLKI, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
                 }
             }
@@ -760,15 +775,7 @@ export class HarvestAction extends Action {
             const player = engine.state.players[loc.playerId];
             moveEntity(engine, this.payload.target, loc.playerId, 'banish');
             
-            const getResKey = (ts) => {
-                if (!ts) return 'Generic';
-                const t = ts.toLowerCase();
-                if (t === 'carnie' || t === 'tribe_carnie') return 'Carnie';
-                if (t === 'generic' || t === 'tribe_generic') return 'Generic';
-                return ts;
-            };
-
-            let sTribe = getResKey(this.payload.target.tribe);
+            let sTribe = resolveResourceKey(player, this.payload.target.tribe);
             
             if (!player.resources['Carnie']) player.resources['Carnie'] = { current: 0, max: 0 };
 
@@ -1109,8 +1116,8 @@ export class CleanseAction extends Action {
             }
 
             if (shouldRemove) {
-                const effToRevert = target.activeEffects.splice(i, 1)[0];
-                revertEffect(engine, target, effToRevert);
+                target.activeEffects.splice(i, 1);
+                revertEffect(engine, target, eff);
                 cleansedCount++;
             }
         }

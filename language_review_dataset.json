@@ -1,0 +1,7751 @@
+[
+  {
+    "input": {
+      "abilityId": "ab_random_5880",
+      "name": "Randomized Skill",
+      "trigger": "WOULD_BE_KILLED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AVATAR",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "PLAY",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When it would be destroyed, play your avatar, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_9796",
+      "name": "Randomized Skill",
+      "trigger": "SUMMON",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CUSTOM_SCRIPT",
+              "duration": "INSTANT",
+              "invertRoles": true,
+              "script": "target.health += 1;",
+              "description": "do something mysterious"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy is summoned, force all allies on the field to do something mysterious."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1229",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_DAMAGED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 2,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "DISCARD",
+              "DECK"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "EQUIPMENT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REBEL",
+              "duration": "WHILE_ATTACHED"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When it takes damage, take control of all ally equipment cards in the discard pile or in the deck while attached."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2295",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HARVEST",
+              "duration": "INSTANT",
+              "isCost": true
+            },
+            {
+              "type": "DRAW_CARD",
+              "duration": "INSTANT",
+              "isCost": false
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, Harvest this card to draw it."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_4528",
+      "name": "Randomized Skill",
+      "trigger": "SUMMON",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REVIVE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When summoned, revive all allies."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1336",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "DISCARD"
+            ],
+            "alignment": [
+              "FRIENDLY",
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT",
+              "AVATAR"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "KILL",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, destroy this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8643",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": true,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "BANISH",
+            "DISCARD"
+          ],
+          "alignment": [
+            "FRIENDLY",
+            "ENEMY"
+          ],
+          "entityType": [
+            "EQUIPMENT",
+            "AVATAR"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REMOVE_ABILITY",
+              "duration": "INSTANT",
+              "grantedAbilityId": "ab_1"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Remove **Piercing Strike** from this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3370",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 2,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": true,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "DISCARD",
+            "DECK"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "EQUIPMENT",
+            "AVATAR"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SUMMON",
+              "duration": "WHILE_ATTACHED",
+              "amount": 4,
+              "cardId": "card_1",
+              "zone": "BANISH",
+              "zoneOwner": "CASTER"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy equipment card or avatar card in the discard pile or in the deck is attacking, summon 4 attached Goblin Bruisers to banish."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2669",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": true
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "BANISH"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "BOON"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "MODIFY_EVENT",
+              "duration": "INSTANT",
+              "amount": 2,
+              "stat": "armor"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy is attacking, increase the event's armor by 2."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5414",
+      "name": "Randomized Skill",
+      "trigger": "WOULD_BE_KILLED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DRAW_CARD",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "FIELD",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "SUMMON",
+              "duration": "INDEFINITE",
+              "amount": 1,
+              "cardId": "card_1",
+              "zone": "DECK",
+              "zoneOwner": "CASTER"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy would be destroyed, draw the targeted card, then field all allies and summon a Goblin Bruiser to deck."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1471",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "KILL",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, destroy the targeted card, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7899",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 2,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNATTACH",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "TRASH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, unattach this card and trash it."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3687",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CUSTOM_SCRIPT",
+              "duration": "INSTANT",
+              "script": "target.health += 1;",
+              "description": "bless the target"
+            },
+            {
+              "type": "DRAW_CARD",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "AUTO_RANDOM",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "DECK"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "SPELL"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CLEANSE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, bless the target and draw them, then cleanse temporary effects from a random ally spell card in the deck."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2166",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CUSTOM_SCRIPT",
+              "duration": "INSTANT",
+              "script": "target.health += 1;",
+              "description": "bless the target"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, bless the target."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5881",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AVATAR",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNATTACH",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "CANCEL_EVENT",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, unattach your avatar and cancel the triggering event instead."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_4614",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": true
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "HAND",
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY",
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DEAL_DAMAGE",
+              "duration": "INSTANT",
+              "amount": 2
+            }
+          ]
+        },
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT",
+              "invertRoles": true
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever a character in hand or on the field is attacking, deal 2 damage to this card, then attach to all enemies, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6800",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 1,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_LAST",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DRAW_CARD",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "KILL",
+              "duration": "INSTANT",
+              "invertRoles": true
+            }
+          ]
+        },
+        {
+          "targetMethod": "ENEMY_AVATAR",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HEAL",
+              "duration": "INSTANT",
+              "amount": 0
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an enemy, draw the last 2 allies on the field and force them to destroy themselves, then restore 1 health to the enemy avatar."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3534",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RETURN",
+              "duration": "INSTANT",
+              "isCost": true
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, return all allies on the field to hand."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_4362",
+      "name": "Randomized Skill",
+      "trigger": "TURN_ENDED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 1,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH_TO",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "After the turn ends, attach to this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2195",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 2,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "GRANT_ABILITY",
+              "duration": "INSTANT",
+              "grantedAbilityId": "ab_3",
+              "blockDuplicates": true
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, grant **Frenzied Blood** to this card (if not present)."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3020",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 1,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT",
+            "SPELL"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "PLAY",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "ENEMY_AVATAR",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "MODIFY_RESOURCE",
+              "duration": "PERMANENT",
+              "amount": -2,
+              "resource": "Carnie"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, play all allies, then permanently lose 2 Carnie, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6482",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When you play this card, unattach this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3335",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "SPELL"
+          ],
+          "ignoreBattlelines": true
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HEAL",
+              "duration": "INSTANT",
+              "amount": 4
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, restore 4 health to the targeted card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1576",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 2,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "TRASH",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SHUFFLE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an ally, trash this card, then shuffle this card into deck."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1164",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "HEAL",
+              "duration": "INSTANT",
+              "amount": -1
+            }
+          ]
+        },
+        {
+          "targetMethod": "ENEMY_AVATAR",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HEAL",
+              "duration": "INSTANT",
+              "amount": 3
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, attach this card to this card and deal 1 damage to it, then restore 3 health to the enemy avatar."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6628",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 1,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_LAST",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REVIVE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, revive the last enemy, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1058",
+      "name": "Randomized Skill",
+      "trigger": "SUMMON",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "DECK",
+            "DISCARD"
+          ],
+          "alignment": [
+            "ENEMY",
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "BOON",
+            "SPELL"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DRAW_CARD",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "BANISH"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "SPELL",
+              "EQUIPMENT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RECOVER",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "REVIVE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever a boon card or spell card in the deck or in the discard pile is summoned, draw the target, then recover this card and revive it, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3148",
+      "name": "Randomized Skill",
+      "trigger": "TURN_ENDED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DISCARD",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "AUTO_LAST",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REBEL",
+              "duration": "WHILE_ATTACHED"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "After the turn ends, discard this card, then take control of the last 2 allies on the field while attached."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7942",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [
+        "IGNORE_BLOCK_TARGETING"
+      ],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Ignores enemy stealth and targeting restrictions. At the start of the turn, attach this card to this card, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5126",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_SOURCE",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REVIVE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, revive the triggering card, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2965",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH_TO",
+              "duration": "INSTANT",
+              "invertRoles": true
+            },
+            {
+              "type": "MODIFY_RESOURCE",
+              "duration": "INSTANT",
+              "amount": 3,
+              "resource": "Carnie"
+            }
+          ]
+        },
+        {
+          "targetMethod": "ENEMY_AVATAR",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HEAL",
+              "duration": "INSTANT",
+              "amount": -2
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, attach this card to this card and gain 3 Carnie, then deal 2 damage to the enemy avatar."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5816",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_DAMAGED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_SOURCE",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "TRASH",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "SET_STAT",
+              "duration": "PERMANENT",
+              "amount": -3,
+              "stat": "armor"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally takes damage, trash the triggering card and permanently set its armor to -3."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1751",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "TRANSFORM",
+              "duration": "INSTANT",
+              "cardId": "card_2"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an ally, transform all allies on the field into a Skeleton."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6276",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CHANGE_DESTINATION",
+              "duration": "INSTANT",
+              "zone": "HAND"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, return this card to hand instead."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8739",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNFIELD",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Unfield the target."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_9306",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AVATAR",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "DISCARD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT",
+              "AVATAR"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SHUFFLE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Shuffle your avatar into deck."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5484",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY",
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT",
+            "AVATAR"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNFIELD",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD",
+              "DECK"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "GRANT_ABILITY",
+              "duration": "INDEFINITE",
+              "grantedAbilityId": "ab_1"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Unfield all enemies on the field, then grant **Piercing Strike** to all enemies on the field or in the deck."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8634",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HARVEST",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DISCARD",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, harvest all allies on the field, then discard this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1092",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "MODIFY_STAT",
+              "duration": "ACTION",
+              "amount": -1,
+              "stat": "power"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy is attacking, cause the defender to lose 1 power for the current action."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8337",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 1,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "BANISH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an enemy, banish this card, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5160",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD",
+              "DISCARD"
+            ],
+            "alignment": [
+              "ENEMY",
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, attach this card to this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8684",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 2,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DISCARD_CARD",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "ENEMY_AVATAR",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HARVEST",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Discard all enemies on the field, then harvest the enemy avatar."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7591",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [
+        "IGNORE_BLOCK_TARGETING"
+      ],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "HAND",
+            "DISCARD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "EQUIPMENT",
+            "AVATAR"
+          ],
+          "ignoreBattlelines": true
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SUMMON",
+              "duration": "PERMANENT",
+              "amount": -2,
+              "cardId": "card_2",
+              "zone": "BANISH",
+              "zoneOwner": "TARGET"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DEAL_DAMAGE",
+              "duration": "INSTANT",
+              "amount": -3
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Ignores enemy stealth and targeting restrictions. At the start of the turn, summon 2 permanent Skeletons to its banish, then restore 3 health to this card, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6594",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "KILL",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "DISCARD",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When you play this card, destroy all enemies on the field and discard them."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8395",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_DAMAGED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "MODIFY_EVENT",
+              "duration": "INSTANT",
+              "amount": 2,
+              "stat": "strength"
+            }
+          ]
+        },
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "HAND"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "BOON"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DRAW_CARD",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When it takes damage, increase the event's strength by 2, then draw the targeted card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6555",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy is attacking, attach the targeted card to this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7667",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": true,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY",
+              "ENEMY"
+            ],
+            "entityType": [
+              "BOON",
+              "SPELL"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an enemy, unattach this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1745",
+      "name": "Randomized Skill",
+      "trigger": "WOULD_BE_KILLED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [
+        "BLOCK_ACT"
+      ],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SHUFFLE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Unable to act. When it would be destroyed, shuffle all enemies on the field into deck, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2535",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 2,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": true
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNATTACH",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "DISCARD",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an ally, unattach the targeted card and discard it."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5204",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REVIVE",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "AUTO_RANDOM",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CHANGE_DESTINATION",
+              "duration": "INSTANT",
+              "zone": "BANISH"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an ally, revive the targeted card, then banish 2 random enemies on the field instead."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1951",
+      "name": "Randomized Skill",
+      "trigger": "WOULD_BE_KILLED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 2,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACK",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "MODIFY_EVENT",
+              "duration": "INSTANT",
+              "amount": -3,
+              "stat": "strength"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When it would be destroyed, attack all enemies, then decrease the event's strength by 3."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5206",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 2,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SUMMON",
+              "duration": "PERMANENT",
+              "amount": -1,
+              "cardId": "card_1",
+              "zone": "DECK",
+              "zoneOwner": "CASTER"
+            },
+            {
+              "type": "SHUFFLE",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DEAL_DAMAGE",
+              "duration": "INSTANT",
+              "amount": 3
+            },
+            {
+              "type": "MODIFY_EVENT",
+              "duration": "INSTANT",
+              "amount": 5,
+              "stat": "health"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, summon a permanent Goblin Bruiser to deck and shuffle them into deck, then deal 3 damage to the defender and increase the event's health by 5."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1447",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY",
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "EQUIPMENT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "UNFIELD",
+              "duration": "INSTANT",
+              "invertRoles": true
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When you play this card, attach all equipments on the field to this card and force them to unfield themselves."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2773",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "MODIFY_STAT",
+              "duration": "INSTANT",
+              "amount": -3,
+              "stat": "acts"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy is attacking, reduce their acts by 3."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_9056",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 0,
+        "power": 2,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD",
+            "HAND"
+          ],
+          "alignment": [
+            "FRIENDLY",
+            "ENEMY"
+          ],
+          "entityType": [
+            "EQUIPMENT",
+            "SPELL"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DEAL_DAMAGE",
+              "duration": "INSTANT",
+              "amount": 2
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When you play this card, deal 2 damage to this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6517",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "DISCARD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "SPELL"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH_TO",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When you play this card, attach to this card, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8208",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CANCEL_EVENT",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "DISCARD",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, cancel the triggering event instead and discard it."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_4864",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 1,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD",
+            "HAND"
+          ],
+          "alignment": [
+            "ENEMY",
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT",
+            "AVATAR"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RECOVER",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, recover this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5891",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "HAND"
+            ],
+            "alignment": [
+              "FRIENDLY",
+              "ENEMY"
+            ],
+            "entityType": [
+              "SPELL",
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CUSTOM_SCRIPT",
+              "duration": "INSTANT",
+              "script": "target.health += 1;",
+              "description": "do something mysterious"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an enemy, do something mysterious."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_9369",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "DISCARD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "AVATAR",
+            "EQUIPMENT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Attach a chosen ally avatar card or equipment card in the discard pile to this card, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7552",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DEAL_DAMAGE",
+              "duration": "INSTANT",
+              "amount": 5
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, deal 5 damage to the targeted card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3955",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [
+        "IGNORE_BLOCK_TARGETING"
+      ],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACK",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Ignores enemy stealth and targeting restrictions. Attack all enemies."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8795",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 2,
+        "carnie": 0,
+        "power": 1,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "DISCARD",
+            "BANISH"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "BOON"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "BANISH",
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY",
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "SPELL",
+              "EQUIPMENT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CUSTOM_SCRIPT",
+              "duration": "INSTANT",
+              "script": "target.health += 1;",
+              "description": "do something mysterious"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, do something mysterious."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_9555",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "GRANT_ABILITY",
+              "duration": "BRIEF",
+              "grantedAbilityId": "ab_1"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Briefly grant **Piercing Strike** to a chosen ally."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3279",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REMOVE_ABILITY",
+              "duration": "INSTANT",
+              "grantedAbilityId": "ab_3"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, remove **Frenzied Blood** from this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6722",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [
+        "BLOCK_ACT"
+      ],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SUMMON",
+              "duration": "PERMANENT",
+              "amount": 3,
+              "cardId": "card_2",
+              "zone": "HAND",
+              "zoneOwner": "TARGET"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Unable to act. At the start of the turn, summon 3 permanent Skeletons to its hand, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2383",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_SOURCE",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "GRANT_ABILITY",
+              "duration": "INDEFINITE",
+              "grantedAbilityId": "ab_1"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, grant **Piercing Strike** to the triggering card, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1138",
+      "name": "Randomized Skill",
+      "trigger": "PLAY_OPTIONAL",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": true,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "KILL",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DISCARD",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "(Subsequent uses this round ignore readiness cost) Whenever you play an enemy (respecting battlelines), you may destroy all enemies (respecting battlelines), then discard this card, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7911",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "TRASH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, trash the targeted card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6989",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_RANDOM",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "DISCARD",
+              "DECK"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "SPELL",
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HARVEST",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, harvest a random ally spell card or unit card in the discard pile or in the deck."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5752",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RECOVER",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Recover this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6673",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": true
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REBEL",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, take control of all allies on the field."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3934",
+      "name": "Randomized Skill",
+      "trigger": "PLAY_OPTIONAL",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH_TO",
+              "duration": "INSTANT",
+              "isCost": true
+            },
+            {
+              "type": "CHANGE_DESTINATION",
+              "duration": "INSTANT",
+              "zone": "BANISH",
+              "isCost": false
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an ally (respecting battlelines), you may Attach to this card to banish it instead."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1681",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "BANISH",
+              "DISCARD"
+            ],
+            "alignment": [
+              "ENEMY",
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CLEANSE",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "ATTACH_TO",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When attacking, cleanse temporary effects from the targeted card and attach to it."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2142",
+      "name": "Randomized Skill",
+      "trigger": "MODIFY_DEAL_DAMAGE",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [
+        "IGNORE_BLOCK_TARGETING"
+      ],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_SOURCE",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "DISCARD",
+              "BANISH"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DRAW_CARD",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Ignores enemy stealth and targeting restrictions. When dealing damage, draw the triggering card, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6652",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": true
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REVIVE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an enemy, revive all enemies."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_3934",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RETURN",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "RETURN",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an ally, return all allies on the field to hand, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_8592",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HEAL",
+              "duration": "INSTANT",
+              "amount": 4
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, restore 4 health to the targeted card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7836",
+      "name": "Randomized Skill",
+      "trigger": "TURN_ENDED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "HAND"
+            ],
+            "alignment": [
+              "FRIENDLY",
+              "ENEMY"
+            ],
+            "entityType": [
+              "SPELL"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNFIELD",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "KILL",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "After the turn ends, unfield all spell cards in hand and destroy them."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_9311",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_DAMAGED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD",
+            "DISCARD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "BOON",
+            "AVATAR"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RECOVER",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When it takes damage, recover the damage source."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1393",
+      "name": "Randomized Skill",
+      "trigger": "WOULD_BE_KILLED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_SOURCE",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CLEANSE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally would be destroyed, cleanse temporary effects from the triggering card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_9520",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SET_STAT",
+              "duration": "TEMPORARY",
+              "amount": 5,
+              "stat": "readiness"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an ally, temporarily over-ready all allies on the field."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7708",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_DAMAGED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": true
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "DISCARD",
+              "DECK"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "KILL",
+              "duration": "INSTANT",
+              "invertRoles": true,
+              "isCost": true
+            },
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT",
+              "isCost": false
+            }
+          ]
+        },
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "UNFIELD",
+              "duration": "INSTANT"
+            },
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy takes damage, Destroy this card to attach it to this card, then unfield the targeted card and attach it to this card, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5867",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [
+        "BLOCK_ACT"
+      ],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": true
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "ENEMY_AVATAR",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Unable to act. When you play this card, attach the enemy avatar to this card, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_4232",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_PLAYED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": true
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "TRANSFORM",
+              "duration": "INSTANT",
+              "cardId": "card_2"
+            },
+            {
+              "type": "CLEANSE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When you play this card, transform all allies on the field into a Skeleton and cleanse temporary effects from them, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7480",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "HAND"
+            ],
+            "alignment": [
+              "FRIENDLY",
+              "ENEMY"
+            ],
+            "entityType": [
+              "BOON",
+              "SPELL"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DISCARD_CARD",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "DECK",
+              "BANISH"
+            ],
+            "alignment": [
+              "FRIENDLY",
+              "ENEMY"
+            ],
+            "entityType": [
+              "BOON",
+              "SPELL"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "MODIFY_RESOURCE",
+              "duration": "INSTANT",
+              "amount": -2,
+              "resource": "Carnie"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, discard the defender, then lose 2 Carnie."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5069",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "DISCARD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "SPELL",
+            "AVATAR"
+          ],
+          "ignoreBattlelines": true
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CANCEL_EVENT",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "PLAY",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Cancel the triggering event instead, then play all allies."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_4373",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_DAMAGED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REMOVE_ABILITY",
+              "duration": "INSTANT",
+              "grantedAbilityId": "ab_1"
+            }
+          ]
+        },
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "CLEANSE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an enemy takes damage, remove **Piercing Strike** from all allies on the field, then cleanse temporary effects from all allies on the field."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7967",
+      "name": "Randomized Skill",
+      "trigger": "WOULD_BE_KILLED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": true,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "DECK",
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "BOON"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "GRANT_ABILITY",
+              "duration": "INSTANT",
+              "grantedAbilityId": "ab_2"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When it would be destroyed, grant **Shadow Cloak** to the target, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1501",
+      "name": "Randomized Skill",
+      "trigger": "ON_BE_DAMAGED",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "FIELD",
+              "duration": "INSTANT",
+              "isCost": true
+            },
+            {
+              "type": "REMOVE_ABILITY",
+              "duration": "INSTANT",
+              "grantedAbilityId": "ab_2",
+              "isCost": false
+            }
+          ]
+        },
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RECOVER",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When it takes damage, Field the damage source to remove **Shadow Cloak** from it, then recover the targeted card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1157",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_SOURCE",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "DEAL_DAMAGE",
+              "duration": "INSTANT",
+              "amount": 3
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, deal 3 damage to the triggering card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_6818",
+      "name": "Randomized Skill",
+      "trigger": "PLAY_OPTIONAL",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "GRANT_ABILITY",
+              "duration": "INSTANT",
+              "grantedAbilityId": "ab_3"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever you play an ally (respecting battlelines), you may grant **Frenzied Blood** to all enemies on the field (respecting battlelines)."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_1125",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "MODIFY_STAT",
+              "duration": "INDEFINITE",
+              "amount": 0,
+              "stat": "acts"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, increase its acts by 1."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7981",
+      "name": "Randomized Skill",
+      "trigger": "PLAY_OPTIONAL",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RECOVER",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "When you play this card, you may recover this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5602",
+      "name": "Randomized Skill",
+      "trigger": "MANUAL",
+      "triggerScope": "PERSONAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 2,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "PLAYER_CHOICE",
+        "quickTargeting": {
+          "zones": [
+            "DECK",
+            "DISCARD"
+          ],
+          "alignment": [
+            "ENEMY",
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "AUTO_ALL",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "DECK"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "REVIVE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Revive all ally unit cards in the deck, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_2237",
+      "name": "Randomized Skill",
+      "trigger": "ON_ATTACK",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SELF",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "PLAY",
+              "duration": "INSTANT"
+            }
+          ]
+        },
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "KILL",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "Whenever an ally is attacking, play this card, then destroy the defender."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_4332",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "ONCE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "NONE",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "RETURN",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, return the targeted card to hand, once per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_5894",
+      "name": "Randomized Skill",
+      "trigger": "TURN_ENDED",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 1,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [
+        "STRIKE_FAST"
+      ],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "ENEMY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 1,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": true
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "**Fast.** After the turn ends, attach this card to this card."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_9347",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "TWICE_PER_ROUND",
+      "cost": {
+        "tribeAmount": 0,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "UNREADIES",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "UNIT"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "SAME_AS_ACTIVATION",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "ENEMY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "SHUFFLE",
+              "duration": "INSTANT"
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, shuffle this card into deck, twice per round."
+  },
+  {
+    "input": {
+      "abilityId": "ab_random_7168",
+      "name": "Randomized Skill",
+      "trigger": "TURN_STARTING",
+      "triggerScope": "GLOBAL",
+      "triggerLimit": "UNLIMITED",
+      "cost": {
+        "tribeAmount": 1,
+        "carnie": 0,
+        "power": 0,
+        "readinessCost": "EXHAUSTS",
+        "reuseIgnoresReadiness": false,
+        "freeAction": false
+      },
+      "passiveFlags": [],
+      "activation": {
+        "method": "NONE",
+        "quickTargeting": {
+          "zones": [
+            "FIELD",
+            "HAND"
+          ],
+          "alignment": [
+            "FRIENDLY"
+          ],
+          "entityType": [
+            "SPELL"
+          ],
+          "ignoreBattlelines": false
+        },
+        "logicTree": {
+          "type": "group",
+          "logicalOperator": "AND",
+          "children": []
+        }
+      },
+      "effects": [
+        {
+          "targetMethod": "EVENT_TARGET",
+          "targetCount": 2,
+          "quickTargeting": {
+            "zones": [
+              "FIELD"
+            ],
+            "alignment": [
+              "FRIENDLY"
+            ],
+            "entityType": [
+              "UNIT"
+            ],
+            "ignoreBattlelines": false
+          },
+          "logicTree": {
+            "type": "group",
+            "logicalOperator": "AND",
+            "children": []
+          },
+          "payloads": [
+            {
+              "type": "HEAL",
+              "duration": "INSTANT",
+              "amount": -1,
+              "isCost": true
+            },
+            {
+              "type": "ATTACH",
+              "duration": "INSTANT",
+              "isCost": false
+            }
+          ]
+        }
+      ]
+    },
+    "output": "At the start of the turn, Deal 1 damage to the targeted card to attach it to this card."
+  }
+]

@@ -126,6 +126,7 @@
     import { renderCardHTML, openInspectionModal, showToast, TRIBE_STYLES, loadUI } from './src/ui.js';
     import { fetchCustomCards, fetchCustomAbilities, saveDeckToCatalog, fetchUserDecks, fetchCustomTribes, deleteDeckFromCatalog } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
+    import { launchSandboxMatch } from './src/testing.js';
     import './components/main_nav.js';
     import './components/catalog.js';
     import './components/topbar.js';
@@ -217,9 +218,9 @@
       topbar.addEventListener('save', saveDeck);
       topbar.addEventListener('clone', cloneDeck);
       topbar.addEventListener('delete', deleteDeck);
+      topbar.addEventListener('test', () => { if(window.launchTestMatch) window.launchTestMatch(); });
       
       // Hide irrelevant topbar buttons
-      topbar.querySelector('#btn-test').classList.add('hidden');
       topbar.querySelector('#btn-import').classList.add('hidden');
 
       const deckCatalogEl = document.getElementById('deck-catalog');
@@ -422,45 +423,81 @@
       };
     }
 
+    window.launchTestMatch = async () => {
+        const check = validateDeckRules();
+        if (!check.valid) {
+            showToast(`Cannot test invalid deck: ${check.reason}`, 'error');
+            return;
+        }
+
+        const topbar = document.getElementById('studio-topbar');
+        if (topbar && topbar.setLoading) topbar.setLoading('test', true);
+
+        try {
+            const rawAbs = await fetchCustomAbilities();
+            const rawCards = await fetchCustomCards();
+            const combinedCatalog = [...CARD_CATALOG, ...rawCards];
+
+            const hydratedDeck = [currentAvatar, ...currentDeck].filter(Boolean).map(c => {
+                const fresh = combinedCatalog.find(cat => cat.id === c.id);
+                if (!fresh) return null;
+                const clone = JSON.parse(JSON.stringify(fresh));
+                if (clone.abilities) {
+                    clone.abilities = clone.abilities.map(ab => {
+                        const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
+                        const match = rawAbs.find(a => a.abilityId === abId);
+                        return match ? JSON.parse(JSON.stringify(match)) : null;
+                    }).filter(Boolean);
+                }
+                return clone;
+            }).filter(Boolean);
+
+            await launchSandboxMatch(hydratedDeck, 'deck');
+        } catch(e) {
+            console.error("Test match error:", e);
+            showToast('Failed to launch test match.', 'error');
+        }
+
+        if (topbar && topbar.setLoading) topbar.setLoading('test', false);
+    };
+
     async function saveDeck() {
-      const owner = document.getElementById('deck-owner-input').value.trim();
-      const deckName = document.getElementById('deck-name-input').value.trim();
-      
-      if (!owner || !deckName) {
-        showToast('You must provide a Username and Deck Name to save.', 'error');
-        return;
-      }
+        const check = validateDeckRules();
+        if (!check.valid) {
+            showToast(`Cannot save: ${check.reason}`, 'error');
+            return;
+        }
 
-      const check = validateDeckRules();
-      if (!check.valid) {
-        showToast(`Saved as Work In Progress (WIP): ${check.reason}`, 'warning');
-      } else {
-        showToast(`Deck rules verified. Saving...`, 'success');
-      }
+        const deckName = document.getElementById('deck-name-input').value.trim();
+        const owner = document.getElementById('deck-owner-input').value.trim();
 
-      const topbar = document.getElementById('studio-topbar');
-      if (topbar && topbar.setLoading) topbar.setLoading('save', true);
+        if (!deckName || !owner) {
+            showToast('Please provide a Deck Name and Cloud Account (Username).', 'error');
+            return;
+        }
 
-      // Construct final deck payload as pure ID references
-      const fullDeckData = [currentAvatar, ...currentDeck].filter(Boolean).map(c => ({ id: c.id }));
-      
-      const success = await saveDeckToCatalog(owner, deckName, fullDeckData);
-      
-      if (topbar && topbar.setLoading) topbar.setLoading('save', false);
+        const topbar = document.getElementById('studio-topbar');
+        if (topbar && topbar.setLoading) topbar.setLoading('save', true);
 
-      if (success) {
-          currentEditingId = deckName;
-          document.getElementById('form-title').innerText = `⚡ Edit: ${deckName}`;
-          topbar.showButtons(true);
-          await refreshLoadDropdown();
-          showToast('Deck saved successfully to cloud!', 'success');
-      } else {
-          showToast('Failed to save deck to cloud.', 'error');
-      }
+        // Map full objects down to IDs for storage
+        const payload = [currentAvatar.id, ...currentDeck.map(c => c.id)];
+
+        const success = await saveDeckToCatalog(owner, deckName, payload);
+
+        if (topbar && topbar.setLoading) topbar.setLoading('save', false);
+
+        if (success) {
+            showToast(`Deck '${deckName}' saved successfully!`, 'success');
+            currentEditingId = deckName;
+            document.getElementById('form-title').innerText = `⚡ Edit: ${deckName}`;
+            document.getElementById('studio-topbar').showButtons(true);
+            await refreshLoadDropdown();
+        } else {
+            showToast(`Failed to save deck to cloud.`, 'error');
+        }
     }
 
     function cloneDeck() {
-        if (!currentEditingId) return;
         currentEditingId = null;
         document.getElementById('form-title').innerText = `⚡ Design New Deck (Cloned)`;
         document.getElementById('deck-name-input').value += ' (Copy)';
