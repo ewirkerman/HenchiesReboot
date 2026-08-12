@@ -511,7 +511,16 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         let destZone = (eff.zone || 'FIELD').toLowerCase();
                         let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
 
-                        effText = `summon ${summonAmt} ${cardName}${pluralSuffix}{OMIT_TARGET}`;
+                        let durAdj = '';
+                        if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
+                            if (eff.duration === 'TEMPORARY') durAdj = 'temporary ';
+                            else if (eff.duration === 'BRIEF') durAdj = 'brief ';
+                            else if (eff.duration === 'PERMANENT') durAdj = 'permanent ';
+                            else if (eff.duration === 'ACTION') durAdj = 'action-bound ';
+                            else if (eff.duration === 'WHILE_ATTACHED') durAdj = 'attached ';
+                        }
+
+                        effText = `summon ${summonAmt} ${durAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
                         
                         if (isCasterZone) {
                             if (destZone !== 'field') effText += ` to ${destZone}`;
@@ -547,11 +556,163 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     effText = `force {TARGET} to ${effText}`;
                 }
 
+                let adverb = '';
+                let suffix = '';
+                
                 if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
-                    let durText = eff.duration.toLowerCase();
-                    if (eff.duration === 'WHILE_ATTACHED') durText = 'while attached';
-                    else if (eff.duration === 'ACTION') durText = 'for the current action';
-                    effText += ` (${durText})`;
+                    if (eff.duration === 'WHILE_ATTACHED') {
+                        suffix = ' while attached';
+                    } else if (eff.duration === 'ACTION') {
+                        suffix = ' for the current action';
+                    } else if (eff.duration === 'TEMPORARY') {
+                        adverb = 'temporarily ';
+                    } else if (eff.duration === 'BRIEF') {
+                        adverb = 'briefly ';
+                    } else if (eff.duration === 'PERMANENT') {
+                        adverb = 'permanently ';
+                    }
+                }
+
+                if (adverb && eff.type !== 'SUMMON') {
+                    if (effText.startsWith('instead, ')) {
+                        effText = effText.replace('instead, ', `instead, ${adverb}`);
+                    } else if (effText.startsWith('force {TARGET} to ')) {
+                        effText = effText.replace('force {TARGET} to ', `force {TARGET} to ${adverb}`);
+                    } else {
+                        effText = adverb + effText;
+                    }
+                }
+
+                if (suffix && eff.type !== 'SUMMON') {
+                    effText += suffix;
+                }
+
+                return effText;
+            };
+
+            const getSimilarityKey = (eff) => {
+                if (['GRANT_ABILITY', 'REMOVE_ABILITY', 'SET_STAT'].includes(eff.type)) {
+                    return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${eff.blockDuplicates}`;
+                }
+                if (eff.type === 'MODIFY_STAT') {
+                    return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${Math.sign(eff.amount)}_${eff.maxStacks}`;
+                }
+                if (eff.type === 'MODIFY_RESOURCE') {
+                     return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${Math.sign(eff.amount)}`;
+                }
+                if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(eff.type)) {
+                    return `BLOCKS_${eff.duration}_${eff.invertRoles}_${eff.isCost}`;
+                }
+                return `${eff.type}_${Math.random()}`; // unique
+            };
+
+            const formatCombinedPayloads = (effs) => {
+                if (effs.length === 1) return formatPayload(effs[0]);
+                
+                const first = effs[0];
+                let effText = '';
+                
+                if (first.type === 'GRANT_ABILITY') {
+                    let abNames = effs.map(eff => {
+                        let abilityName = eff.grantedAbilityId;
+                        if (allAbilities && Array.isArray(allAbilities)) {
+                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
+                            if (match) abilityName = match.name;
+                        } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
+                             const grantedAb = getAbility(eff.grantedAbilityId);
+                             if(grantedAb) abilityName = grantedAb.name;
+                        }
+                        return `'${abilityName}'`;
+                    });
+                    effText = `grant abilities ${joinWithAnd(abNames)} to {TARGET}`;
+                    if (first.blockDuplicates) effText += ` (if not present)`;
+                } else if (first.type === 'REMOVE_ABILITY') {
+                    let abNames = effs.map(eff => {
+                        let rmAbilityName = eff.grantedAbilityId;
+                        if (allAbilities && Array.isArray(allAbilities)) {
+                            const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId || a.id === eff.grantedAbilityId);
+                            if (match) rmAbilityName = match.name;
+                        } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
+                             const grantedAb = getAbility(eff.grantedAbilityId);
+                             if(grantedAb) rmAbilityName = grantedAb.name;
+                        }
+                        return `'${rmAbilityName}'`;
+                    });
+                    effText = `remove abilities ${joinWithAnd(abNames)} from {TARGET}`;
+                } else if (first.type === 'MODIFY_STAT') {
+                    let isDecrease = first.amount < 0;
+                    let changes = effs.map(eff => {
+                         let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
+                         return `${Math.abs(eff.amount || 1)} ${modStat}`;
+                    });
+                    if (isDecrease) {
+                        effText = `decrease {POSS} ${joinWithAnd(changes)}`;
+                    } else {
+                        effText = `increase {POSS} ${joinWithAnd(changes)}`;
+                        if (first.maxStacks > 0) effText += ` (max ${first.maxStacks})`;
+                    }
+                } else if (first.type === 'SET_STAT') {
+                    let changes = effs.map(eff => {
+                         let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
+                         return `${setStat} to ${eff.amount || 1}`;
+                    });
+                    effText = `set {POSS} ${joinWithAnd(changes)}`;
+                } else if (first.type === 'MODIFY_RESOURCE') {
+                    let isSpend = first.amount < 0;
+                    let changes = effs.map(eff => {
+                         let resName = eff.resource || 'resource';
+                         return `${Math.abs(eff.amount || 1)} ${resName}`;
+                    });
+                    if (isSpend) {
+                        effText = `spend ${joinWithAnd(changes)}{OMIT_TARGET}`;
+                    } else {
+                        effText = `gain ${joinWithAnd(changes)}{OMIT_TARGET}`;
+                    }
+                } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(first.type)) {
+                    let blockedActions = effs.map(eff => {
+                        if (eff.type === 'BLOCK_ACT') return 'acting';
+                        if (eff.type === 'BLOCK_ATTACK') return 'attacking';
+                        if (eff.type === 'BLOCK_RETALIATE') return 'retaliating';
+                        return '';
+                    }).filter(Boolean);
+                    effText = `block {TARGET} from ${joinWithAnd(blockedActions)}`;
+                } else {
+                    return effs.map(formatPayload).join(' and ');
+                }
+                
+                if (first.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL'].includes(first.type)) {
+                    effText = `force {TARGET} to ${effText}`;
+                }
+
+                let adverb = '';
+                let suffix = '';
+                
+                if (first.duration && first.duration !== 'INSTANT' && first.duration !== 'INDEFINITE') {
+                    if (first.duration === 'WHILE_ATTACHED') {
+                        suffix = ' while attached';
+                    } else if (first.duration === 'ACTION') {
+                        suffix = ' for the current action';
+                    } else if (first.duration === 'TEMPORARY') {
+                        adverb = 'temporarily ';
+                    } else if (first.duration === 'BRIEF') {
+                        adverb = 'briefly ';
+                    } else if (first.duration === 'PERMANENT') {
+                        adverb = 'permanently ';
+                    }
+                }
+
+                if (adverb && first.type !== 'SUMMON') {
+                    if (effText.startsWith('instead, ')) {
+                        effText = effText.replace('instead, ', `instead, ${adverb}`);
+                    } else if (effText.startsWith('force {TARGET} to ')) {
+                        effText = effText.replace('force {TARGET} to ', `force {TARGET} to ${adverb}`);
+                    } else {
+                        effText = adverb + effText;
+                    }
+                }
+
+                if (suffix && first.type !== 'SUMMON') {
+                    effText += suffix;
                 }
 
                 return effText;
@@ -597,8 +758,23 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                 return combined;
             };
             
-            let costs = group.payloads.filter(p => p.isCost).map(formatPayload);
-            let effects = group.payloads.filter(p => !p.isCost).map(formatPayload);
+            const groupPayloads = (payloadsToGroup) => {
+                const grouped = new Map();
+                const result = [];
+                payloadsToGroup.forEach(eff => {
+                    const key = getSimilarityKey(eff);
+                    if (!grouped.has(key)) {
+                        const arr = [];
+                        grouped.set(key, arr);
+                        result.push(arr);
+                    }
+                    grouped.get(key).push(eff);
+                });
+                return result.map(formatCombinedPayloads);
+            };
+
+            let costs = groupPayloads(group.payloads.filter(p => p.isCost));
+            let effects = groupPayloads(group.payloads.filter(p => !p.isCost));
             
             let cStr = finalizeString(costs);
             if (cStr) allCostSentences.push(cStr);

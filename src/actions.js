@@ -712,8 +712,10 @@ export class AttackAction extends Action {
             const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
 
             // Re-validate combatants: if they changed teams or left valid zones during wind-up (like Rebel), the strike fizzles.
-            const atkOwner = getOwnerId(engine.state, attacker);
-            const defOwner = getOwnerId(engine.state, defender);
+            const atkLoc = findEntityLocation(engine, attacker);
+            const defLoc = findEntityLocation(engine, defender);
+            const atkOwner = atkLoc ? atkLoc.playerId : attacker.ownerId;
+            const defOwner = defLoc ? defLoc.playerId : defender.ownerId;
             const stillValidEnemies = atkOwner && defOwner && atkOwner !== defOwner;
 
             let atkStrikes = stillValidEnemies && atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
