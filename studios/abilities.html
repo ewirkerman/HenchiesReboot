@@ -1349,7 +1349,7 @@
                       <option value="bodyguard" ${payload.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
                   </select></div>`;
                 } else {
-                  basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude/Amt</label><input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
+                  basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude/Amt</label><input type="number" value="${payload.amount !== undefined ? payload.amount : 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
                 }
             }
 
@@ -1451,7 +1451,7 @@
                                <option value="bodyguard" ${np.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
                            </select></div>`;
                        } else {
-                           amountHtml = `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                           amountHtml = `<div class="w-16"><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
                        }
                        
                        let nestedStatOptions = `
@@ -1478,7 +1478,7 @@
                           </div>
                        `;
                     } else if (nMan.requiresAmount) {
-                       npParamsHtml += `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                       npParamsHtml += `<div class="w-16"><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
                     } 
                     
                     if (nMan.canLimitStacks) {

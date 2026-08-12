@@ -103,10 +103,10 @@ export class Action {
                     for (let i = t.activeEffects.length - 1; i >= 0; i--) {
                         const eff = t.activeEffects[i];
                         if (eff.duration !== 'PERMANENT') {
+                            t.activeEffects.splice(i, 1);
                             revertEffect(engine, t, eff);
                         }
                     }
-                    t.activeEffects = t.activeEffects.filter(e => e.duration === 'PERMANENT');
                 }
                 
                 if (t.originalOwnerId && t.ownerId !== t.originalOwnerId) t.ownerId = t.originalOwnerId;
@@ -142,8 +142,8 @@ export class Action {
             if (ent && ent.activeEffects) {
                 for (let i = ent.activeEffects.length - 1; i >= 0; i--) {
                     if (ent.activeEffects[i].duration === 'ACTION') {
-                        revertEffect(engine, ent, ent.activeEffects[i]);
-                        ent.activeEffects.splice(i, 1);
+                        const eff = ent.activeEffects.splice(i, 1)[0];
+                        revertEffect(engine, ent, eff);
                     }
                 }
             }
@@ -477,6 +477,8 @@ export class ModifyStatAction extends Action {
             }
         }
 
+        // NOTE: Units dropping to 0 HP via ModifyStat (e.g. Wither) are NOT killed here.
+        // They survive at 0 HP until actual combat damage or a direct KillAction resolves.
         registerEffect(engine, target, this.payload, { delta: actualDelta });
     }
 }
@@ -545,6 +547,9 @@ export class SetStatAction extends Action {
             if (typeof oldVal === 'number' && typeof amount === 'number') {
                 delta = amount - oldVal;
             }
+            
+            // NOTE: Units dropping to 0 HP via SetStat are NOT killed here.
+            // They survive at 0 HP.
             registerEffect(engine, target, this.payload, { originalValue: trueOriginal, delta: delta });
             
             if (stat === 'line') {
@@ -705,12 +710,19 @@ export class AttackAction extends Action {
 
         // Execute sequential combat phases: Fast (1) -> Normal (0) -> Slow (-1)
         for (const phase of [1, 0, -1]) {
-            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
+            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined ? Math.max(0, attacker.strength) : null;
             const defBlockRetaliate = engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_RETALIATE') || engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_ACT');
-            const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
+            const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? Math.max(0, defender.strength) : null);
 
-            let atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
-            let defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
+            // Re-validate combatants: if they changed teams or left valid zones during wind-up (like Rebel), the strike fizzles.
+            const atkLoc = findEntityLocation(engine, attacker);
+            const defLoc = findEntityLocation(engine, defender);
+            const atkOwner = atkLoc ? atkLoc.playerId : attacker.ownerId;
+            const defOwner = defLoc ? defLoc.playerId : defender.ownerId;
+            const stillValidEnemies = atkOwner && defOwner && atkOwner !== defOwner;
+
+            let atkStrikes = stillValidEnemies && atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker);
+            let defStrikes = stillValidEnemies && defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender);
 
             const strikesHappened = atkStrikes || defStrikes;
 
@@ -718,12 +730,12 @@ export class AttackAction extends Action {
             if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: currentDefDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
             
             // Re-evaluate death state AFTER damage resolves in case replacement effects saved them
-            atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
-            defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
+            atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker);
+            defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender);
 
             // If a unit survived the phase (or was revived by a replacement effect), it gets to strike back if it hasn't yet
-            if (atkSpeed < phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker)) atkStrikes = true;
-            if (defSpeed < phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender)) defStrikes = true;
+            if (atkSpeed < phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker)) atkStrikes = true;
+            if (defSpeed < phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender)) defStrikes = true;
 
             // After simultaneous strikes resolve in this speed phase, evaluate deaths
             if (strikesHappened) {
@@ -892,8 +904,8 @@ export class UnattachAction extends Action {
                 for (let i = host.activeEffects.length - 1; i >= 0; i--) {
                     const eff = host.activeEffects[i];
                     if (eff.duration === 'WHILE_ATTACHED' && eff.sourceId === this.payload.target.instanceId) {
-                        revertEffect(engine, host, eff);
                         host.activeEffects.splice(i, 1);
+                        revertEffect(engine, host, eff);
                     }
                 }
             }
@@ -1097,8 +1109,8 @@ export class CleanseAction extends Action {
             }
 
             if (shouldRemove) {
-                revertEffect(engine, target, eff);
-                target.activeEffects.splice(i, 1);
+                const effToRevert = target.activeEffects.splice(i, 1)[0];
+                revertEffect(engine, target, effToRevert);
                 cleansedCount++;
             }
         }
