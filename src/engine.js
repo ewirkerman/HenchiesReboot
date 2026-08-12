@@ -682,6 +682,8 @@ export function endTurn(state) {
 
     sweepTurnEffects(engine, prevPlayer);
 
+    engine.emit('TURN_ENDED', { playerId: prevPlayer });
+
     state.activePlayerId = state.activePlayerId === 'player1' ? 'player2' : 'player1';
     if (state.activePlayerId === 'player1') state.turnNumber++;
 

@@ -707,9 +707,9 @@ export class AttackAction extends Action {
 
         // Execute sequential combat phases: Fast (1) -> Normal (0) -> Slow (-1)
         for (const phase of [1, 0, -1]) {
-            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
+            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined ? Math.max(0, attacker.strength) : null;
             const defBlockRetaliate = engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_RETALIATE') || engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_ACT');
-            const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
+            const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? Math.max(0, defender.strength) : null);
 
             // Re-validate combatants: if they changed teams or left valid zones during wind-up (like Rebel), the strike fizzles.
             const atkLoc = findEntityLocation(engine, attacker);
@@ -718,8 +718,8 @@ export class AttackAction extends Action {
             const defOwner = defLoc ? defLoc.playerId : defender.ownerId;
             const stillValidEnemies = atkOwner && defOwner && atkOwner !== defOwner;
 
-            let atkStrikes = stillValidEnemies && atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
-            let defStrikes = stillValidEnemies && defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
+            let atkStrikes = stillValidEnemies && atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker);
+            let defStrikes = stillValidEnemies && defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender);
 
             const strikesHappened = atkStrikes || defStrikes;
 
@@ -727,12 +727,12 @@ export class AttackAction extends Action {
             if (defStrikes) new DealDamageAction({ source: defender, target: attacker, amount: currentDefDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
             
             // Re-evaluate death state AFTER damage resolves in case replacement effects saved them
-            atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker);
-            defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender);
+            atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker);
+            defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender);
 
             // If a unit survived the phase (or was revived by a replacement effect), it gets to strike back if it hasn't yet
-            if (atkSpeed < phase && currentAtkDmg !== null && currentAtkDmg >= 0 && attacker.health > 0 && !attacker._isDying && checkBoard(attacker)) atkStrikes = true;
-            if (defSpeed < phase && currentDefDmg !== null && currentDefDmg >= 0 && defender.health > 0 && !defender._isDying && checkBoard(defender)) defStrikes = true;
+            if (atkSpeed < phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker)) atkStrikes = true;
+            if (defSpeed < phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender)) defStrikes = true;
 
             // After simultaneous strikes resolve in this speed phase, evaluate deaths
             if (strikesHappened) {

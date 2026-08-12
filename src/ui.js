@@ -284,7 +284,7 @@
             ` : ''}
             ${isUnit ? `
               <div class="flex justify-between items-end w-full mt-auto relative z-20">
-                ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `<div class="text-yellow-400 font-black text-[11px] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">${card.strength}</div>` : '<div></div>'}
+                ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `<div class="text-yellow-400 font-black text-[11px] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">${Math.max(0, card.strength)}</div>` : '<div></div>'}
                 <div class="text-red-400 font-black text-[11px] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
               </div>
             ` : ''}
@@ -313,7 +313,7 @@
             </div>
             ${isUnit ? `
               <div class="flex justify-between items-end w-full px-0.5 mt-auto">
-                ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `<div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[10px] flex items-center justify-center shadow">${card.strength}</div>` : '<div></div>'}
+                ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `<div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[10px] flex items-center justify-center shadow">${Math.max(0, card.strength)}</div>` : '<div></div>'}
                 ${(card.armor > 0) ? `<div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[9px] flex items-center justify-center shadow"><div class="w-2.5 h-2.5 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>` : '<div></div>'}
                 <div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
               </div>
@@ -364,7 +364,7 @@
           ${isUnit ? `
             <div class="absolute bottom-1.5 left-1.5 right-1.5 flex justify-between items-end pointer-events-none">
               ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `
-                <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${card.strength}</div>
+                <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${Math.max(0, card.strength)}</div>
               ` : '<div></div>'}
               ${(card.armor > 0) ? `
                 <div class="w-6 h-6 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow" title="Armor: ${card.armor}"><div class="w-3 h-3 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
@@ -712,7 +712,7 @@
                 
                 <!-- Left: Strength -->
                 ${(isUnit && !isAvatar && cardOrUnit.strength !== undefined && cardOrUnit.strength !== null) ? `
-                  <div class="w-12 h-12 rounded-full bg-yellow-500 border-2 border-black text-black font-black text-xl flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Strength">${cardOrUnit.strength}</div>
+                  <div class="w-12 h-12 rounded-full bg-yellow-500 border-2 border-black text-black font-black text-xl flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Strength">${Math.max(0, cardOrUnit.strength)}</div>
                 ` : '<div class="w-12 h-12 shrink-0"></div>'}
                 
                 <!-- Center: Armor & Flavor Text -->
