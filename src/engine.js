@@ -900,20 +900,31 @@ export function getValidAttackTargets(state, attackerOwnerId, attackerEntity = n
         return !isTargetHidden || hasPerception;
     };
 
-    if (defPlayer.lines['taunt'] && defPlayer.lines['taunt'].length > 0) {
-        defPlayer.lines['taunt'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'taunt' }));
-        if (targets.some(t => t.line === 'taunt')) return targets;
+    // Group by logical line in case of physical array desync (e.g. from SET_STAT)
+    const logicalLines = { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] };
+    for (const line of ['taunt', 'bodyguard', 'avatar', 'front', 'mid', 'back', 'sheltered', 'sideline']) {
+        if (defPlayer.lines[line]) {
+            defPlayer.lines[line].forEach(u => {
+                const currentLine = u.line || line;
+                if (logicalLines[currentLine]) logicalLines[currentLine].push(u);
+            });
+        }
     }
 
-    if (defPlayer.lines['bodyguard'] && defPlayer.lines['bodyguard'].length > 0) {
-        defPlayer.lines['bodyguard'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
-    } else if (defPlayer.lines['avatar'] && defPlayer.lines['avatar'].length > 0) {
-        defPlayer.lines['avatar'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
+    if (logicalLines['taunt'].length > 0) {
+        logicalLines['taunt'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'taunt' }));
+        return targets;
+    }
+
+    if (logicalLines['bodyguard'].length > 0) {
+        logicalLines['bodyguard'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'bodyguard' }));
+    } else if (logicalLines['avatar'].length > 0) {
+        logicalLines['avatar'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'avatar' }));
     }
 
     for (const line of ['front', 'mid', 'back', 'sheltered']) {
-        if (defPlayer.lines[line] && defPlayer.lines[line].length > 0) {
-            const valid = defPlayer.lines[line].filter(isValidTarget);
+        if (logicalLines[line].length > 0) {
+            const valid = logicalLines[line].filter(isValidTarget);
             if (valid.length > 0) {
                 valid.forEach(u => targets.push({ id: u.instanceId, line: line }));
                 break;
@@ -921,8 +932,8 @@ export function getValidAttackTargets(state, attackerOwnerId, attackerEntity = n
         }
     }
 
-    if (defPlayer.lines['sideline'] && defPlayer.lines['sideline'].length > 0) {
-        defPlayer.lines['sideline'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'sideline' }));
+    if (logicalLines['sideline'].length > 0) {
+        logicalLines['sideline'].filter(isValidTarget).forEach(u => targets.push({ id: u.instanceId, line: 'sideline' }));
     }
     
     return targets;
@@ -953,6 +964,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
 
     let targets = [];
     const oppId = playerId === 'player1' ? 'player2' : 'player1';
+    const isAttack = ability.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
 
     if (qt.zones) {
         const checkPlayer = (pId, isFriendly) => {
@@ -971,12 +983,12 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
                     const isTargetHidden = hasEngineFlag(state, ent, 'BLOCK_TARGETING');
                     if (isTargetHidden && !hasPerception) return;
                 }
-                if (qt.entityType.includes(entType)) targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
+                if (qt.entityType.includes(entType) || (isAttack && entType === 'AVATAR')) targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
             };
 
             if (qt.zones.includes('FIELD')) {
                 for (const line of LINES) {
-                    if (p.lines[line]) p.lines[line].forEach(u => { if (u.type !== 'boon') checkEntity(u, line); });
+                    if (p.lines[line]) p.lines[line].forEach(u => { if (u.type !== 'boon') checkEntity(u, u.line || line); });
                 }
             }
             ['hand', 'discard', 'deck', 'banish'].forEach(z => {
@@ -1234,6 +1246,9 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCata
             const c = state.players.player1.deck.pop();
             c.readiness = 0; state.players.player1.hand.push(c);
         }
+    }
+
+    for(let i = 0; i < 5; i++) {
         if (state.players.player2.deck.length > 0) {
             const c = state.players.player2.deck.pop();
             c.readiness = 0; state.players.player2.hand.push(c);
@@ -1283,7 +1298,7 @@ export function joinGame(state, p2Name, p2Deck) {
     shuffleArray(state, state.players.player2.deck);
     
     state.players.player2.hand = [];
-    for(let i = 0; i < 4; i++) {
+    for(let i = 0; i < 5; i++) {
         if (state.players.player2.deck.length > 0) {
             const c = state.players.player2.deck.pop();
             c.readiness = 0; state.players.player2.hand.push(c);
