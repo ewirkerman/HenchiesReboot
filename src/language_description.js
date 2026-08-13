@@ -61,9 +61,14 @@ function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, implied
                 } else {
                     suffixes.push(`that is ${opText} ${displayValue}`.trim());
                 }
-            } else if (['health', 'strength', 'readiness', 'maxHealth'].includes(node.attribute)) {
-                let statName = node.attribute === 'maxHealth' ? 'max health' : node.attribute;
+            } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs'].includes(node.attribute)) {
+                let statName = node.attribute.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
                 suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
+            } else if (node.attribute === 'alignment') {
+                let val = String(node.value).toLowerCase();
+                if (val === 'friendly') val = 'ally';
+                if (node.operator === '==') adjectives.push(val);
+                else suffixes.push(`that is ${opText} ${val}`.trim());
             } else if (node.attribute === 'isCombat') {
                 if (String(node.value) === 'true') suffixes.push(`during combat`);
                 else suffixes.push(`outside of combat`);
@@ -217,17 +222,17 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         'PLAY_OPTIONAL': 'When you play this card, you may',
         'ON_BE_PLAYED': 'When you play this card',
         'SUMMON': 'When this card is summoned',
-        'KILL': 'When this card destroys an enemy',
+        'KILL': 'When this card kills an enemy',
         'UNFIELD': 'When this card is unfielded',
         'WOULD_BE_PLAYED': 'When this card would be played',
         'ON_SUMMON': 'When this card summons',
         'ON_BE_SUMMONED': 'When this card is summoned',
         'WOULD_SUMMON': 'When this card would summon',
         'WOULD_BE_SUMMONED': 'When this card would be summoned',
-        'ON_KILL': 'When this card destroys an enemy',
-        'ON_BE_KILLED': 'When this card is destroyed',
-        'WOULD_KILL': 'When this card would destroy an enemy',
-        'WOULD_BE_KILLED': 'When this card would be destroyed',
+        'ON_KILL': 'When this card kills an enemy',
+        'ON_BE_KILLED': 'When this card is killed',
+        'WOULD_KILL': 'When this card would kill an enemy',
+        'WOULD_BE_KILLED': 'When this card would be killed',
         'ON_ATTACK': 'When this card attacks',
         'ON_BE_ATTACKED': 'When this card is attacked',
         'WOULD_ATTACK': 'When this card would attack',
@@ -298,13 +303,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             else if (lowerTxt.startsWith('when this card would ')) lowerTxt = lowerTxt.replace('when this card would ', `whenever ${targetDesc} would `);
             else if (lowerTxt.startsWith('when you play this card, you may')) lowerTxt = `whenever you play ${targetDesc}, you may`;
             else if (lowerTxt.startsWith('when you play this card')) lowerTxt = `whenever you play ${targetDesc}`;
-            else if (lowerTxt.startsWith('when this card ')) {
-                if (lowerTxt.includes('takes') || lowerTxt.includes('deals') || lowerTxt.includes('kills') || lowerTxt.includes('draws') || lowerTxt.includes('heals') || lowerTxt.includes('recovers') || lowerTxt.includes('revives') || lowerTxt.includes('discards') || lowerTxt.includes('destroys')) {
-                    lowerTxt = lowerTxt.replace('when this card ', `whenever ${targetDesc} `);
-                } else {
-                    lowerTxt = lowerTxt.replace('when this card ', `whenever ${targetDesc} is `);
-                }
-            } else if (lowerTxt.startsWith('when ')) {
+            else if (lowerTxt.startsWith('when this card is ')) lowerTxt = lowerTxt.replace('when this card is ', `whenever ${targetDesc} is `);
+            else if (lowerTxt.startsWith('when this card ')) lowerTxt = lowerTxt.replace('when this card ', `whenever ${targetDesc} `);
+            else if (lowerTxt.startsWith('when ')) {
                 if (lowerTxt.includes('ing ')) {
                     lowerTxt = lowerTxt.replace('when ', `whenever ${targetDesc} is `);
                 } else if (lowerTxt.includes('deals ') || lowerTxt.includes('kills ') || lowerTxt.includes('draws ') || lowerTxt.includes('heals ') || lowerTxt.includes('recovers ') || lowerTxt.includes('revives ')) {
@@ -318,6 +319,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         } else {
             let combatSuffix = '';
             let attackSuffix = '';
+            let conditionPhrases = [];
             const scan = (node) => {
                 if (!node) return;
                 if (node.type === 'condition') {
@@ -325,11 +327,42 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         combatSuffix = String(node.value) === 'true' ? ' during combat' : ' outside of combat';
                     } else if (node.attribute === 'isAttacking') {
                         attackSuffix = String(node.value) === 'true' ? ' as the attacker' : ' as the defender';
+                    } else {
+                        const opMap = { '==': 'is', '!=': 'is not', '>': 'is more than', '<': 'is less than', '>=': 'is at least', '<=': 'is at most' };
+                        let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
+                        
+                        if (['tribe', 'family', 'genus'].includes(node.attribute)) {
+                            let displayValue = String(node.value);
+                            if (node.attribute === 'tribe' && displayValue.toLowerCase().startsWith('tribe_')) {
+                                displayValue = displayValue.substring(6).replace(/_/g, ' ');
+                                displayValue = displayValue.replace(/\b\w/g, l => l.toUpperCase());
+                            }
+                            conditionPhrases.push(`{POSS} ${node.attribute} ${opText} ${displayValue}`);
+                        } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs'].includes(node.attribute)) {
+                            let statName = node.attribute.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+                            conditionPhrases.push(`{POSS} ${statName} ${opText} ${node.value}`);
+                        } else if (node.attribute === 'alignment') {
+                            conditionPhrases.push(`{PRONOUN} ${opText} ${String(node.value).toLowerCase()}`);
+                        } else if (node.attribute === 'hasAbility') {
+                            if (node.operator === '==') conditionPhrases.push(`{PRONOUN} has ability '${node.value}'`);
+                            else conditionPhrases.push(`{PRONOUN} does not have ability '${node.value}'`);
+                        }
                     }
                 } else if (node.children) node.children.forEach(scan);
             };
             scan(ability.activation?.logicTree);
-            return txt + attackSuffix + combatSuffix;
+            
+            let finalTxt = txt + attackSuffix + combatSuffix;
+            if (conditionPhrases.length > 0) {
+                let hasThisCard = finalTxt.toLowerCase().includes('this card');
+                let poss = hasThisCard ? 'its' : "this card's";
+                let pro = hasThisCard ? 'it' : 'this card';
+                
+                let joined = conditionPhrases.join(' and ');
+                joined = joined.replace(/\{POSS\}/g, poss).replace(/\{PRONOUN\}/g, pro);
+                finalTxt += `, if ${joined}`;
+            }
+            return finalTxt;
         }
     });
 
@@ -532,7 +565,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     case 'UNATTACH': effText = `unattach {TARGET}`; break;
                     case 'FIELD': effText = `field {TARGET}`; break;
                     case 'BANISH': effText = `banish {TARGET}`; break;
-                    case 'KILL': effText = `destroy {TARGET}`; break;
+                    case 'KILL': effText = `kill {TARGET}`; break;
                     case 'ATTACK': effText = `attack {TARGET}`; break;
                     case 'CANCEL_EVENT': effText = `cancel the triggering event instead{OMIT_TARGET}`; break;
                     case 'CLEANSE': effText = `cleanse temporary effects from {TARGET}`; break;
@@ -785,10 +818,10 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     let isDecrease = first.amount < 0;
                     let changes = effs.map(eff => {
                          let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                         return `${Math.abs(eff.amount || 1)} ${modStat}`;
+                         return `${modStat} by ${Math.abs(eff.amount || 1)}`;
                     });
                     if (isDecrease) {
-                        effText = `reduce {POSS} ${joinWithAnd(changes)}`;
+                        effText = `decrease {POSS} ${joinWithAnd(changes)}`;
                     } else {
                         effText = `increase {POSS} ${joinWithAnd(changes)}`;
                     }

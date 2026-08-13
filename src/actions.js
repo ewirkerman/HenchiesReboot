@@ -24,7 +24,7 @@ export const ACTION_MANIFEST = {
     'CANCEL_EVENT': { passiveType: null, canInvert: false, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CLEANSE': { passiveType: 'BE_CLEANSED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CHANGE_DESTINATION': { passiveType: null, canInvert: false, canBeCost: false, requiresZone: true, validZones: 'ALL', validDurations: ['INSTANT'] },
-    'REMOVE_ABILITY': { passiveType: null, canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT'] },
+    'REMOVE_ABILITY': { passiveType: null, canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'MODIFY_EVENT': { passiveType: null, canInvert: false, canBeCost: false, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'TRANSFORM': { passiveType: 'BE_TRANSFORMED', canInvert: false, canBeCost: true, requiresCardId: true, validZones: 'ALL', validDurations: ['INSTANT'] },
@@ -354,6 +354,15 @@ export function revertEffect(engine, target, effect) {
             const idx = target.abilities.findIndex(a => a.abilityId === effect.grantedAbilityId);
             if (idx > -1) target.abilities.splice(idx, 1);
         }
+    } else if (effect.type === 'REMOVE_ABILITY') {
+        if (effect.restoredAbilities && effect.restoredAbilities.length > 0) {
+            if (!target.abilities) target.abilities = [];
+            effect.restoredAbilities.forEach(ab => target.abilities.push(ab));
+        }
+        if (effect.restoredEffects && effect.restoredEffects.length > 0) {
+            if (!target.activeEffects) target.activeEffects = [];
+            effect.restoredEffects.forEach(e => target.activeEffects.push(e));
+        }
     } else if (effect.type === 'SUMMON') {
         new UnfieldAction({ target: target }).run(engine);
     } else if (effect.type === 'ATTACH') {
@@ -627,11 +636,22 @@ export class RemoveAbilityAction extends Action {
     execute(engine) {
         if (this.payload.target && this.payload.grantedAbilityId) {
             const targetId = this.payload.grantedAbilityId;
+            
+            let removedAbs = [];
+            let removedEffects = [];
+            
             if (this.payload.target.abilities) {
+                removedAbs = this.payload.target.abilities.filter(a => a.abilityId === targetId || a.name === targetId);
                 this.payload.target.abilities = this.payload.target.abilities.filter(a => a.abilityId !== targetId && a.name !== targetId);
             }
+            
             if (this.payload.target.activeEffects) {
+                removedEffects = this.payload.target.activeEffects.filter(e => e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === targetId || e.traitId === targetId));
                 this.payload.target.activeEffects = this.payload.target.activeEffects.filter(e => !(e.type === 'GRANT_ABILITY' && (e.grantedAbilityId === targetId || e.traitId === targetId)));
+            }
+            
+            if (this.payload.duration && !['INSTANT', 'PERMANENT'].includes(this.payload.duration)) {
+                registerEffect(engine, this.payload.target, this.payload, { restoredAbilities: removedAbs, restoredEffects: removedEffects });
             }
         }
     }
