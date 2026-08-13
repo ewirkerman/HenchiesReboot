@@ -201,11 +201,26 @@
 
     </div>
 
-    <!-- HISTORY LOG DISPLAY (Hidden completely per layout request) -->
-    <div class="hidden glass-panel rounded-xl p-3 flex-col gap-1 max-h-36 overflow-y-auto text-xs font-mono text-slate-300 border border-slate-800">
-      <div class="font-extrabold text-[10px] uppercase text-amber-400 tracking-wider">📜 Action & Combat Log:</div>
-      <div id="history-log-text" class="flex flex-col gap-0.5">
-        <div class="text-slate-500 italic">Match tabletop initialized.</div>
+    <!-- ================= ACTION LOG TICKER & DRAWER ================= -->
+    <div id="action-log-drawer-container" class="fixed bottom-0 left-0 right-0 z-[60] flex flex-col items-center pointer-events-none transition-transform duration-300 translate-y-[calc(100%-2rem)]">
+      <!-- Ticker Bar -->
+      <div class="pointer-events-auto bg-slate-900 border-t border-x border-slate-700 rounded-t-xl px-4 h-8 flex items-center justify-between gap-4 shadow-[0_-5px_25px_rgba(0,0,0,0.6)] cursor-pointer hover:bg-slate-800 transition-colors w-full max-w-3xl" onclick="window.toggleActionLog()">
+        <div class="flex items-center gap-2 overflow-hidden w-full">
+          <span class="text-[10px] font-black uppercase text-amber-400 tracking-wider shrink-0">📜 Log:</span>
+          <div id="action-log-ticker-text" class="text-[11px] text-slate-300 truncate font-mono leading-none mt-0.5">Waiting for match to start...</div>
+        </div>
+        <div id="action-log-chevron" class="text-slate-400 font-bold transform transition-transform shrink-0 leading-none">&#x25B2;</div>
+      </div>
+      
+      <!-- Drawer Content -->
+      <div class="pointer-events-auto bg-slate-950/95 backdrop-blur-xl border-x border-slate-800 w-full max-w-3xl h-64 flex flex-col shadow-2xl">
+        <div class="p-2 border-b border-slate-800/60 flex justify-between items-center bg-slate-900/50 shadow-inner">
+          <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Full Action History</span>
+          <button onclick="window.toggleActionLog()" class="text-slate-500 hover:text-white font-bold leading-none px-2">&times;</button>
+        </div>
+        <div id="history-log-text" class="flex-1 overflow-y-auto p-3 flex flex-col gap-0.5 text-xs font-mono text-slate-300 minimal-scrollbar pb-6 select-text">
+          <div class="text-slate-500 italic">Match tabletop initialized.</div>
+        </div>
       </div>
     </div>
 
@@ -359,6 +374,22 @@
         validTargets = [];
         updateUI();
     });
+
+    window.toggleActionLog = () => {
+        const container = document.getElementById('action-log-drawer-container');
+        const chevron = document.getElementById('action-log-chevron');
+        const isOpen = !container.classList.contains('translate-y-[calc(100%-2rem)]');
+        
+        if (isOpen) {
+            container.classList.add('translate-y-[calc(100%-2rem)]');
+            chevron.style.transform = 'rotate(0deg)';
+        } else {
+            container.classList.remove('translate-y-[calc(100%-2rem)]');
+            chevron.style.transform = 'rotate(180deg)';
+            const logBox = document.getElementById('history-log-text');
+            if (logBox) logBox.scrollTop = logBox.scrollHeight;
+        }
+    };
 
     async function updateDeckDropdown() {
       const username = document.getElementById('setup-username').value.trim();
@@ -744,15 +775,17 @@
       let myResStr = '';
       if (myP.resources) {
           for (const [resKey, res] of Object.entries(myP.resources)) {
+              if (res.max <= 0 && res.current <= 0) continue;
               let name = resKey;
               if (resKey !== 'Carnie' && resKey !== 'Generic') {
                   const t = customTribesList.find(t => t.id === resKey);
                   if (t) name = t.name;
+                  else if (resKey.startsWith('tribe_')) name = resKey.substring(6).charAt(0).toUpperCase() + resKey.substring(7);
               }
               myResStr += `${name}: ${res.current}/${res.max} | `;
           }
       }
-      document.getElementById('player-resources').innerText = myResStr.replace(/ \| $/, '');
+      document.getElementById('player-resources').innerText = myResStr.replace(/ \| $/, '') || 'No Resources';
 
       let oppAvatar = null;
       for (const line in oppP.lines) {
@@ -767,15 +800,17 @@
       let oppResStr = '';
       if (oppP.resources) {
           for (const [resKey, res] of Object.entries(oppP.resources)) {
+              if (res.max <= 0 && res.current <= 0) continue;
               let name = resKey;
               if (resKey !== 'Carnie' && resKey !== 'Generic') {
                   const t = customTribesList.find(t => t.id === resKey);
                   if (t) name = t.name;
+                  else if (resKey.startsWith('tribe_')) name = resKey.substring(6).charAt(0).toUpperCase() + resKey.substring(7);
               }
               oppResStr += `${name}: ${res.current}/${res.max} | `;
           }
       }
-      document.getElementById('opp-resources').innerText = oppResStr.replace(/ \| $/, '');
+      document.getElementById('opp-resources').innerText = oppResStr.replace(/ \| $/, '') || 'No Resources';
 
       const isHarvestPhase = state.turnPhase === 'SACRIFICE_DECISION' && isMyTurn();
       document.getElementById('harvest-overlay').classList.toggle('hidden', !isHarvestPhase);
@@ -810,8 +845,42 @@
       renderHand(myP.hand);
 
       const logBox = document.getElementById('history-log-text');
-      logBox.innerHTML = state.history_log.map(msg => `<div class="py-0.5 border-b border-slate-900/50">${msg}</div>`).join('');
+      logBox.innerHTML = state.history_log.map(msg => {
+        const text = typeof msg === 'string' ? msg : msg.text;
+        const depth = typeof msg === 'object' && msg.depth ? msg.depth : 0;
+        let indentClass = '';
+        let textClass = 'text-slate-300';
+        let iconHtml = '';
+        if (depth === 1) {
+            indentClass = 'ml-4 pl-2 border-l border-slate-600';
+            textClass = 'text-slate-400';
+            iconHtml = '<span class="text-slate-500 mr-1 text-[10px]">↳</span>';
+        } else if (depth === 2) {
+            indentClass = 'ml-8 pl-2 border-l border-slate-700/50';
+            textClass = 'text-slate-500';
+            iconHtml = '<span class="text-slate-600 mr-1 text-[10px]">↳</span>';
+        } else if (depth === 3) {
+            indentClass = 'ml-12 pl-2 border-l border-slate-700/30';
+            textClass = 'text-slate-500';
+            iconHtml = '<span class="text-slate-700 mr-1 text-[10px]">↳</span>';
+        } else if (depth === 4) {
+            indentClass = 'ml-16 pl-2 border-l border-slate-800/80';
+            textClass = 'text-slate-600';
+            iconHtml = '<span class="text-slate-700 mr-1 text-[10px]">↳</span>';
+        } else if (depth >= 5) {
+            indentClass = 'ml-20 pl-2 border-l border-slate-800/50';
+            textClass = 'text-slate-600';
+            iconHtml = '<span class="text-slate-700 mr-1 text-[10px]">↳</span>';
+        }
+        return `<div class="py-0.5 border-b border-slate-900/50 ${indentClass} ${textClass}">${iconHtml}${text}</div>`;
+      }).join('');
       logBox.scrollTop = logBox.scrollHeight;
+
+      const tickerBox = document.getElementById('action-log-ticker-text');
+      if (tickerBox && state.history_log.length > 0) {
+        const lastMsg = state.history_log[state.history_log.length - 1];
+        tickerBox.innerHTML = typeof lastMsg === 'string' ? lastMsg : lastMsg.text;
+      }
     }
 
     function renderEquator(equatorItems) {

@@ -6,6 +6,7 @@ import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbi
 import { CARD_CATALOG } from './engine.js';
 import { generateAbilityDescription } from './language_description.js';
 import { getActionTriggers, EFFECT_TYPES, ACTION_MANIFEST } from './actions.js';
+export { validateAbilityLogic, getValidScopes, getValidActivationMethods, getValidTargetMethods, getValidEffectTypes } from './ability_validation.js';
 
 // --- STATE MANAGEMENT ---
 const state = {
@@ -197,13 +198,13 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
         const type = value;
         // Centralized logic for sanitizing parameterized effects based on type
         if (['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD_CARD', 'DISCARD', 'TRASH', 'RECOVER'].includes(type)) { 
-            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone;
+            payload.amount = 1; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource;
         } else if (type === 'MODIFY_STAT' || type === 'SET_STAT') { 
-            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone;
+            payload.amount = 1; payload.stat = 'strength'; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.resource;
+        } else if (type === 'MODIFY_RESOURCE') { 
+            payload.amount = 1; payload.resource = 'Carnie'; delete payload.stat; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
         } else if (type === 'GRANT_ABILITY') { 
-            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
-        } else if (type === 'TRANSFORM') {
-            payload.cardId = ''; delete payload.amount; delete payload.stat; delete payload.grantedAbilityId; delete payload.script; delete payload.description; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
+            payload.grantedAbilityId = ''; delete payload.amount; delete payload.stat; delete payload.cardId; delete payload.script; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner; delete payload.resource;
         } else if (type === 'SUMMON') { 
             payload.cardId = ''; payload.amount = 1; payload.zone = 'FIELD'; payload.zoneOwner = 'CASTER'; delete payload.grantedAbilityId; delete payload.script; delete payload.description; delete payload.stat; 
             // Initialize a nested group specifically for SUMMON
@@ -220,35 +221,6 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
             delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
         }
     }
-}
-
-export function validateAbilityLogic(ability) {
-    const errors = [];
-    const trigger = ability.trigger || 'MANUAL';
-    const unpreventableTriggers = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
-    
-    let hasCancel = false;
-    let hasModifyEvent = false;
-
-    if (ability.effects) {
-        for (const group of ability.effects) {
-            if (group.payloads) {
-                for (const p of group.payloads) {
-                    if (p.type === 'CANCEL_EVENT') hasCancel = true;
-                    if (p.type === 'MODIFY_EVENT') hasModifyEvent = true;
-                }
-            }
-        }
-    }
-
-    if (hasCancel && unpreventableTriggers.includes(trigger)) {
-        errors.push(`CANCEL_EVENT cannot be used with the ${trigger} trigger.`);
-    }
-    if (hasModifyEvent && unpreventableTriggers.includes(trigger)) {
-        errors.push(`MODIFY_EVENT cannot be used with the ${trigger} trigger.`);
-    }
-
-    return errors;
 }
 
 // --- DATA EXPORT & MIGRATION ---
@@ -282,6 +254,7 @@ export function exportCurrentState(formData, sourceState = state) {
             if (['SELF', 'EVENT_SOURCE', 'EVENT_TARGET', 'AVATAR', 'ENEMY_AVATAR', 'SAME_AS_ACTIVATION'].includes(group.targetMethod)) {
                 delete group.quickTargeting;
                 delete group.logicTree;
+                delete group.targetCount;
             }
             return group;
         })

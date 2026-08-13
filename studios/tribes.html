@@ -272,6 +272,15 @@
 
       const hashId = window.location.hash.replace('#', '');
       if (hashId) setTimeout(() => window.loadTribe(hashId), 50);
+
+      window.addEventListener('hashchange', () => {
+          const newHash = window.location.hash.replace('#', '');
+          if (newHash && newHash !== currentEditingId) {
+              window.loadTribe(newHash);
+          } else if (!newHash && currentEditingId) {
+              resetForm();
+          }
+      });
     }
 
     function buildTribeState() {

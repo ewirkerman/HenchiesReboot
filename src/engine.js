@@ -410,7 +410,7 @@ export class GameEngine {
         const sId = source?.instanceId || source?.id || 'none';
         log(this.state, `  ▶ [ABILITY] '${ability.name}' from source '${source?.name} (${sId})'`);
         try {
-            this.state.history_log.push(`✨ ${source.name || 'Entity'} activated '${ability.name}'`);
+            this.state.history_log.push({ text: `✨ ${source.name || 'Entity'} activated '${ability.name}'`, depth: Math.max(0, (this.state._actionDepth || 0) + (this.processingDepth || 0) - 1) });
             
             if (!ability.effects || !Array.isArray(ability.effects)) {
                 warn(this.state, `[Engine] Ability '${ability.name}' has no effects array. Skipping.`);
@@ -489,6 +489,13 @@ export class GameEngine {
             }
         }
 
+        if (!canAfford) {
+            log(this.state, `[Engine] Could not afford trigger cost for '${ability.name}'.`);
+            if (ability.trigger !== 'MANUAL') this.state.history_log.push({ text: `⚠️ ${source.name} tried to trigger '${ability.name}', but lacked resources.`, depth: this.state._actionDepth || this.processingDepth || 0 });
+            return false;
+        }
+
+        if (!this.state.abilityUses) this.state.abilityUses = {};
         return true;
     }
 
@@ -715,7 +722,7 @@ export function endTurn(state) {
     const prevPlayer = state.activePlayerId;
     
     engine.emit('TURN_ENDING', { playerId: prevPlayer });
-    state.history_log.push(`🏁 ${state.players[prevPlayer].name} ended their turn.`);
+    state.history_log.push({ text: `🏁 ${state.players[prevPlayer].name} ended their turn.`, depth: 0 });
 
     sweepTurnEffects(engine, prevPlayer);
 
@@ -748,14 +755,14 @@ export function startTurn(state, engine) {
             if (dummy.health === undefined) dummy.health = dummy.maxHealth;
             if (!player.lines['front']) player.lines['front'] = [];
             player.lines['front'].push(dummy);
-            state.history_log.push(`🤖 Dummy opponent deployed Avatar and summoned Target Dummy.`);
+            state.history_log.push({ text: `🤖 Dummy opponent deployed Avatar and summoned Target Dummy.`, depth: 0 });
         } else {
-            state.history_log.push(`👤 ${player.name} deployed their Avatar.`);
+            state.history_log.push({ text: `👤 ${player.name} deployed their Avatar.`, depth: 0 });
         }
     }
 
     if (pId === 'player2' && player.isDummy) {
-        state.history_log.push(`⏭️ Player 2 auto-skipped (Waiting for opponent to join).`);
+        state.history_log.push({ text: `⏭️ Player 2 auto-skipped (Waiting for opponent to join).`, depth: 0 });
         if (engine) {
             engine.emit('TURN_STARTING', { playerId: pId });
             engine.emit('TURN_STARTED', { playerId: pId });
@@ -820,7 +827,7 @@ export function startTurn(state, engine) {
     }
 
     state.turnPhase = 'SACRIFICE_DECISION';
-    state.history_log.push(`🌅 Turn ${state.turnNumber} begins for ${player.name}. Drew ${drawn} cards.`);
+    state.history_log.push({ text: `🌅 Turn ${state.turnNumber} begins for ${player.name}. Drew ${drawn} cards.`, depth: 0 });
     
     if (engine) {
         engine.emit('TURN_STARTING', { playerId: pId });
@@ -829,6 +836,7 @@ export function startTurn(state, engine) {
 }
 
 export function executeSacrificeDecision(state, option, cardId) {
+    state._actionDepth = 0; // Hard reset to prevent depth leaks from previous errors
     if (state.turnPhase !== 'SACRIFICE_DECISION') return;
     const player = state.players[state.activePlayerId];
 
@@ -842,7 +850,7 @@ export function executeSacrificeDecision(state, option, cardId) {
             harvest.run(engine);
         }
     } else {
-        state.history_log.push(`⏭️ ${player.name} skipped the Sacrifice Phase.`);
+        state.history_log.push({ text: `⏭️ ${player.name} skipped the Sacrifice Phase.`, depth: 0 });
     }
     state.turnPhase = 'ACTION_PHASE';
 }
@@ -884,6 +892,7 @@ export function canPlayCard(state, playerId, card) {
 }
 
 export function playCard(state, playerId, cardId, targetLine = 'back', abilityTargetId = null) {
+    state._actionDepth = 0; // Hard reset to prevent depth leaks from previous errors
     const player = state.players[playerId];
     const cardIdx = player.hand.findIndex(c => c.instanceId === cardId || c.id === cardId);
     if (cardIdx === -1) return { success: false, reason: "Card not in hand" };
@@ -1175,6 +1184,7 @@ export function getEntityAvailableActions(state, playerId, entityId) {
 }
 
 export function executeEntityAction(state, playerId, entityId, actionType, abilityId, targetId, targetLine) {
+    state._actionDepth = 0; // Hard reset to prevent depth leaks from previous errors
     if (actionType === 'ABILITY' || actionType === 'ATTACK') {
         let entity = state.equator?.find(i => i.instanceId === entityId);
         if (!entity) {
@@ -1207,6 +1217,7 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         }
 
         const engine = new GameEngine(state);
+        engine.processingDepth = 1;
         engine.executeAbility(ability, entity, { target: targetEntity });
         return { success: true };
     }
@@ -1291,7 +1302,7 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog = null, cardCata
         }
     }
     
-    state.history_log.push(`Match initialized. Players drew starting hands.`);
+    state.history_log.push({ text: `Match initialized. Players drew starting hands.`, depth: 0 });
     startTurn(state, null);
     return state;
 }
@@ -1341,6 +1352,6 @@ export function joinGame(state, p2Name, p2Deck) {
         }
     }
     
-    state.history_log.push(`${p2Name} joined the match.`);
+    state.history_log.push({ text: `${p2Name} joined the match.`, depth: 0 });
     return state;
 }

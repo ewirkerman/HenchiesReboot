@@ -187,7 +187,7 @@
         btn.disabled = true;
 
         await saveCardToCatalog(card);
-        window.location.href = `abilities.html?returnToCard=${card.id}`;
+        window.location.href = `abilities.html`;
     };
 
     init();
@@ -366,6 +366,15 @@
       if (loadId) {
           setTimeout(() => window.loadCard(loadId), 50);
       }
+
+      window.addEventListener('hashchange', () => {
+          const newHash = window.location.hash.replace('#', '');
+          if (newHash && newHash !== currentEditingId) {
+              window.loadCard(newHash);
+          } else if (!newHash && currentEditingId) {
+              resetForm();
+          }
+      });
     }
 
     function toggleStatFields() {

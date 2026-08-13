@@ -1,5 +1,56 @@
 import { ACTION_MANIFEST } from './actions.js';
 
+class ReferenceTracker {
+    constructor() {
+        this.activeEntities = {};
+        this.lastMentionedId = { singular: null, plural: null };
+    }
+
+    mention(id, fullDesc, isPlural) {
+        const pluralKey = isPlural ? 'plural' : 'singular';
+        const isFocused = this.lastMentionedId[pluralKey] === id;
+        let samePluralityCount = Object.values(this.activeEntities).filter(e => e.isPlural === isPlural).length;
+
+        if (!this.activeEntities[id]) {
+            this.activeEntities[id] = { isPlural, mentions: 1 };
+            this.lastMentionedId[pluralKey] = id;
+            return fullDesc;
+        } else {
+            this.activeEntities[id].mentions++;
+            if (samePluralityCount >= 2 && !isFocused) {
+                this.lastMentionedId[pluralKey] = id;
+                return fullDesc;
+            }
+            this.lastMentionedId[pluralKey] = id;
+            return isPlural ? 'them' : 'it';
+        }
+    }
+    
+    mentionPoss(id, fullDescPoss, isPlural) {
+        const pluralKey = isPlural ? 'plural' : 'singular';
+        const isFocused = this.lastMentionedId[pluralKey] === id;
+        let samePluralityCount = Object.values(this.activeEntities).filter(e => e.isPlural === isPlural).length;
+
+        if (!this.activeEntities[id]) {
+            this.activeEntities[id] = { isPlural, mentions: 1 };
+            this.lastMentionedId[pluralKey] = id;
+            return fullDescPoss;
+        } else {
+            this.activeEntities[id].mentions++;
+            if (samePluralityCount >= 2 && !isFocused) {
+                this.lastMentionedId[pluralKey] = id;
+                return fullDescPoss;
+            }
+            this.lastMentionedId[pluralKey] = id;
+            return isPlural ? 'their' : 'its';
+        }
+    }
+
+    hasMentioned(id) {
+        return !!this.activeEntities[id];
+    }
+}
+
 const ZONE_NAMES = {
     'FIELD': 'the field',
     'HAND': 'hand',
@@ -178,7 +229,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         return ability.description;
     }
 
+    const tracker = new ReferenceTracker();
     let descriptionParts = [];
+    let globalTargetNoun = null;
 
     // --- PASSIVE FLAGS ---
     const flags = ability.passiveFlags || [];
@@ -292,6 +345,8 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             const lt = ability.activation?.logicTree;
             let targetDesc = buildTargetDesc(qt, lt, t, true, 'FIELD', false);
             
+            globalTargetNoun = targetDesc.replace(/^(a|an|the|some|any|all)\s+/i, '');
+            
             const addArticle = (word) => {
                 if (/^(allies|enemies|cards|characters|entities|all|any)\b/i.test(word)) return word;
                 if (/^u[ni]/i.test(word)) return 'a ' + word;
@@ -401,6 +456,23 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         if (triggerAndCostStr.trim() !== '') {
             descriptionParts.push(triggerAndCostStr.trim());
         }
+
+        if (triggerText) {
+             let tLower = triggerText.toLowerCase();
+             if (tLower.includes('this card')) tracker.mention('self', 'this card', false);
+             if (tLower.includes('the targeted card')) tracker.mention('targeted_card', 'the targeted card', false);
+             if (tLower.includes('the attacker')) tracker.mention('attacker', 'the attacker', false);
+             if (tLower.includes('the defender')) tracker.mention('defender', 'the defender', false);
+             if (tLower.includes('the damaged character')) tracker.mention('damaged_character', 'the damaged character', false);
+             if (tLower.includes('the damage source')) tracker.mention('damage_source', 'the damage source', false);
+             if (tLower.includes('the healed character')) tracker.mention('healed_character', 'the healed character', false);
+             
+             if (ability.triggerScope === 'GLOBAL' && globalTargetNoun) {
+                 let isPl = /(allies|enemies|cards|characters|entities|all\b)/i.test(globalTargetNoun) || globalTargetNoun.endsWith('s');
+                 tracker.activeEntities['global_target'] = { isPlural: isPl, mentions: 1 };
+                 tracker.lastMentionedId[isPl ? 'plural' : 'singular'] = 'global_target';
+             }
+        }
     }
 
     // 3. LIMITS
@@ -419,7 +491,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         let allCostSentences = [];
         let allEffectSentences = [];
 
-        targetGroups.forEach(group => {
+        targetGroups.forEach((group, gIdx) => {
             if (!group.payloads || group.payloads.length === 0) return;
 
             let allHaveSameImpliedZone = group.payloads.length > 0;
@@ -442,38 +514,88 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             let possessiveStr = 'their';
             let singularDesc = '';
 
+            let isPlural = false;
+
             if (group.targetMethod === 'SELF') {
                 targetStr = 'this card';
                 possessiveStr = "this card's";
+                isPlural = false;
             } else if (group.targetMethod === 'AVATAR') {
                 targetStr = 'your avatar';
                 possessiveStr = "your avatar's";
+                isPlural = false;
             } else if (group.targetMethod === 'ENEMY_AVATAR') {
                 targetStr = 'the enemy avatar';
                 possessiveStr = "the enemy avatar's";
+                isPlural = false;
             } else if (group.targetMethod === 'EVENT_SOURCE') {
-                targetStr = 'the triggering card';
-                possessiveStr = "the triggering card's";
+                if (trigger === 'MANUAL' || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
+                    targetStr = 'this card';
+                    possessiveStr = "this card's";
+                } else {
+                    targetStr = 'the triggering card';
+                    possessiveStr = "the triggering card's";
+                }
+                isPlural = false;
             } else if (group.targetMethod === 'EVENT_TARGET') {
-                targetStr = 'the targeted card';
-                possessiveStr = "the targeted card's";
+                const hasExternalTarget = ['ON_ATTACK', 'WOULD_ATTACK', 'MODIFY_ATTACK', 'ON_BE_ATTACKED', 'WOULD_BE_ATTACKED', 'ON_DEAL_DAMAGE', 'WOULD_DEAL_DAMAGE', 'MODIFY_DEAL_DAMAGE', 'ON_BE_DAMAGED', 'WOULD_BE_DAMAGED', 'MODIFY_BE_DAMAGED', 'ON_HEAL', 'WOULD_HEAL', 'MODIFY_HEAL', 'ON_BE_HEALED', 'WOULD_BE_HEALED', 'ON_KILL', 'WOULD_KILL', 'KILL'].includes(trigger) || (['MANUAL', 'PLAY', 'PLAY_OPTIONAL'].includes(trigger) && ability.activation?.method === 'PLAYER_CHOICE');
+                
+                if (!hasExternalTarget) {
+                    isPlural = group.targetCount > 1;
+                    let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural);
+                    
+                    if (isPlural) {
+                        targetStr = `${group.targetCount} random ${baseDesc}`;
+                        possessiveStr = `their`;
+                    } else {
+                        targetStr = `a random ${baseDesc}`;
+                        possessiveStr = `${targetStr}'s`;
+                    }
+                } else {
+                    if (ability.triggerScope === 'GLOBAL' && globalTargetNoun) {
+                        targetStr = `that ${globalTargetNoun}`;
+                        isPlural = /(allies|enemies|cards|characters|entities|all\b)/i.test(globalTargetNoun) || globalTargetNoun.endsWith('s');
+                    } else if (trigger.includes('ATTACK')) targetStr = trigger.includes('BE_ATTACKED') ? 'the attacker' : 'the defender';
+                    else if (trigger.includes('DAMAGE')) targetStr = trigger.includes('BE_DAMAGED') ? 'the damage source' : 'the damaged character';
+                    else if (trigger.includes('HEAL')) targetStr = trigger.includes('BE_HEALED') ? 'the healer' : 'the healed character';
+                    else if (trigger.includes('KILL')) targetStr = trigger.includes('BE_KILLED') ? 'the killer' : 'the killed unit';
+                    else if (trigger.includes('PLAY')) targetStr = 'the played card';
+                    else if (trigger.includes('SUMMON')) targetStr = 'the summoned unit';
+                    else if (trigger.includes('DRAW')) targetStr = 'the drawn card';
+                    else if (trigger.includes('DISCARD')) targetStr = 'the discarded card';
+                    else if (trigger.includes('HARVEST')) targetStr = 'the harvested card';
+                    else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) targetStr = 'this card';
+                    else targetStr = `the target`;
+                    possessiveStr = `${targetStr}'s`;
+                }
             } else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
                 const actMethod = ability.activation?.method || 'NONE';
-                if (actMethod === 'PLAYER_CHOICE') {
+                if (ability.triggerScope === 'GLOBAL' && globalTargetNoun) {
+                    targetStr = `that ${globalTargetNoun}`;
+                    isPlural = /(allies|enemies|cards|characters|entities|all\b)/i.test(globalTargetNoun) || globalTargetNoun.endsWith('s');
+                    possessiveStr = `${targetStr}'s`;
+                } else if (actMethod === 'PLAYER_CHOICE') {
                     let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, true, 'FIELD', false);
                     targetStr = `a chosen ${actDesc}`;
-                    possessiveStr = `that target's`;
+                    possessiveStr = `${targetStr}'s`;
+                } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
+                    targetStr = 'this card';
+                    possessiveStr = "its";
                 } else {
-                    if (['ON_ATTACK', 'WOULD_ATTACK', 'MODIFY_ATTACK'].includes(trigger)) { targetStr = 'the defender'; possessiveStr = "the defender's"; }
-                    else if (['ON_BE_ATTACKED', 'WOULD_BE_ATTACKED'].includes(trigger)) { targetStr = 'the attacker'; possessiveStr = "the attacker's"; }
-                    else if (['ON_DEAL_DAMAGE', 'WOULD_DEAL_DAMAGE', 'MODIFY_DEAL_DAMAGE'].includes(trigger)) { targetStr = 'the damaged character'; possessiveStr = "the damaged character's"; }
-                    else if (['ON_BE_DAMAGED', 'WOULD_BE_DAMAGED', 'MODIFY_BE_DAMAGED'].includes(trigger)) { targetStr = 'the damage source'; possessiveStr = "the damage source's"; }
-                    else if (['ON_HEAL', 'WOULD_HEAL', 'MODIFY_HEAL'].includes(trigger)) { targetStr = 'the healed character'; possessiveStr = "the healed character's"; }
-                    else if (['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED'].includes(trigger)) { targetStr = 'this card'; possessiveStr = "this card's"; }
-                    else { targetStr = `the target`; possessiveStr = `that target's`; }
+                    if (trigger.includes('ATTACK')) targetStr = trigger.includes('BE_ATTACKED') ? 'the attacker' : 'the defender';
+                    else if (trigger.includes('DAMAGE')) targetStr = trigger.includes('BE_DAMAGED') ? 'the damage source' : 'the damaged character';
+                    else if (trigger.includes('HEAL')) targetStr = trigger.includes('BE_HEALED') ? 'the healer' : 'the healed character';
+                    else if (trigger.includes('KILL')) targetStr = trigger.includes('BE_KILLED') ? 'the killer' : 'the killed unit';
+                    else if (trigger.includes('PLAY')) targetStr = 'the played card';
+                    else if (trigger.includes('SUMMON')) targetStr = 'the summoned unit';
+                    else if (trigger.includes('DRAW')) targetStr = 'the drawn card';
+                    else if (trigger.includes('DISCARD')) targetStr = 'the discarded card';
+                    else if (trigger.includes('HARVEST')) targetStr = 'the harvested card';
+                    else targetStr = `the triggered entity`;
+                    possessiveStr = `its`;
                 }
             } else {
-                let isPlural = group.targetMethod === 'AUTO_ALL' || group.targetCount > 1;
+                isPlural = group.targetMethod === 'AUTO_ALL' || group.targetCount > 1;
                 let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural);
                 singularDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false);
                 
@@ -484,11 +606,70 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                 else targetStr = baseDesc;
                 
                 if (targetStr === 'them' || targetStr === 'it') possessiveStr = targetStr === 'them' ? 'their' : 'its';
-                else if (isPlural) possessiveStr = 'their';
-                else possessiveStr = `that target's`;
+                else if (isPlural) possessiveStr = targetStr.endsWith('s') ? `${targetStr}'` : `${targetStr}'s`;
+                else possessiveStr = `${targetStr}'s`;
             }
 
-            let groupMentioned = false;
+            let groupId = `group_${gIdx}`;
+            if (ability.triggerScope === 'GLOBAL' && globalTargetNoun && targetStr === `that ${globalTargetNoun}`) groupId = 'global_target';
+            else if (targetStr === 'this card') groupId = 'self';
+            else if (targetStr === 'your avatar') groupId = 'your_avatar';
+            else if (targetStr === 'the enemy avatar') groupId = 'enemy_avatar';
+            else if (targetStr === 'the attacker') groupId = 'attacker';
+            else if (targetStr === 'the defender') groupId = 'defender';
+            else if (targetStr === 'the damaged character') groupId = 'damaged_character';
+            else if (targetStr === 'the damage source') groupId = 'damage_source';
+            else if (targetStr === 'the healed character') groupId = 'healed_character';
+            else if (targetStr === 'the targeted card') groupId = 'targeted_card';
+
+            const resolveTokens = (text) => {
+                text = text.replace(/\{SELF_POSS\}/g, () => tracker.mentionPoss('self', "this card's", false));
+                text = text.replace(/\{SELF\}/g, () => tracker.mention('self', "this card", false));
+
+                text = text.replace(/\{REFLEXIVE_POSS\}/g, isPlural ? 'their own' : 'its own');
+                text = text.replace(/\{REFLEXIVE\}/g, isPlural ? 'themselves' : 'itself');
+
+                if (text.includes('{OMIT_TARGET}')) {
+                    tracker.mention(groupId, targetStr, isPlural);
+                    text = text.replace(/\{OMIT_TARGET\}/g, '');
+                }
+
+                if (text.includes('{PER_TARGET}')) {
+                    tracker.mention(groupId, targetStr, isPlural);
+                    if (['this card', 'it', 'the triggering card', 'the targeted card', 'the attacker', 'the defender', 'the damaged character', 'the damage source', 'the healed character', 'the target', 'your avatar', 'the enemy avatar'].includes(targetStr) || targetStr.startsWith('a chosen')) {
+                        text = text.replace(/\{PER_TARGET\}/g, '');
+                    } else if (group.targetMethod === 'AUTO_ALL') {
+                        text = text.replace(/\{PER_TARGET\}/g, ` for each ${singularDesc}`);
+                    } else {
+                        text = text.replace(/\{PER_TARGET\}/g, ` for each of ${targetStr}`);
+                    }
+                }
+
+                text = text.replace(/\{TARGET\}|\{POSS\}|\{DYNAMIC_STAT:(.*?)\|(.*?)\}/g, (match, action, statText) => {
+                    if (match === '{TARGET}') {
+                        return tracker.mention(groupId, targetStr, isPlural);
+                    } else if (match === '{POSS}') {
+                        return tracker.mentionPoss(groupId, possessiveStr, isPlural);
+                    } else {
+                        let resolvedEntity = tracker.mention(groupId, targetStr, isPlural);
+                        if (resolvedEntity === 'them') {
+                            return `${action} their ${statText}`;
+                        } else if (resolvedEntity === 'it') {
+                            return `${action} its ${statText}`;
+                        } else {
+                            const isComplex = /\b(on|in|with|that|during)\b/i.test(resolvedEntity);
+                            if (isComplex) {
+                                return `${action} the ${statText} of ${resolvedEntity}`;
+                            } else {
+                                let dynamicPoss = resolvedEntity.endsWith('s') ? `${resolvedEntity}'` : `${resolvedEntity}'s`;
+                                return `${action} ${dynamicPoss} ${statText}`;
+                            }
+                        }
+                    }
+                });
+
+                return text;
+            };
 
             const formatPayload = (eff) => {
                 let effText = '';
@@ -526,20 +707,24 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                             else if (eff.amount === -1) effText = `unready {TARGET}`;
                             else if (eff.amount === 1) effText = `ready {TARGET}`;
                             else if (eff.amount >= 2) effText = `over-ready {TARGET}`;
-                            else effText = `modify {POSS} readiness by ${eff.amount}`;
+                            else effText = `{DYNAMIC_STAT:modify|readiness by ${eff.amount}}`;
                         } else if (eff.stat === 'power') {
                             if (eff.amount < 0) effText = `cause {TARGET} to lose ${Math.abs(eff.amount)} power`;
                             else effText = `give {TARGET} ${eff.amount || 1} power`;
                         } else {
                             let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                            if (eff.amount < 0) effText = `reduce {POSS} ${modStat} by ${Math.abs(eff.amount)}`;
-                            else effText = `increase {POSS} ${modStat} by ${eff.amount || 1}`;
+                            if (eff.amount < 0) effText = `{DYNAMIC_STAT:reduce|${modStat} by ${Math.abs(eff.amount)}}`;
+                            else effText = `{DYNAMIC_STAT:increase|${modStat} by ${eff.amount || 1}}`;
                         }
                         break;
                     case 'MODIFY_RESOURCE': 
                         let resName = eff.resource || 'resource';
                         if (resName === 'maxCarnie') resName = 'Max Carnie';
-                        else resName = resName.replace(/_/g, ' ');
+                        else {
+                            if (resName.toLowerCase().startsWith('tribe_')) resName = resName.substring(6);
+                            resName = resName.replace(/_/g, ' ');
+                            resName = resName.replace(/\b\w/g, l => l.toUpperCase());
+                        }
                         if (eff.amount < 0) effText = `lose ${Math.abs(eff.amount)} ${resName}{PER_TARGET}`;
                         else effText = `gain ${eff.amount || 1} ${resName}{PER_TARGET}`;
                         break;
@@ -549,19 +734,19 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                             else if (eff.amount === 0) effText = `unready {TARGET}`;
                             else if (eff.amount === 1) effText = `ready {TARGET}`;
                             else if (eff.amount >= 2) effText = `over-ready {TARGET}`;
-                            else effText = `set {POSS} readiness to ${eff.amount}`;
+                            else effText = `{DYNAMIC_STAT:set|readiness to ${eff.amount}}`;
                             break;
                         }
                         let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        effText = `set {POSS} ${setStat} to ${eff.amount || 1}`; break;
+                        effText = `{DYNAMIC_STAT:set|${setStat} to ${eff.amount || 1}}`;
+                        break;
                     case 'BLOCK_ACT': effText = `block {TARGET} from acting`; break;
                     case 'BLOCK_ATTACK': effText = `block {TARGET} from attacking`; break;
                     case 'BLOCK_RETALIATE': effText = `block {TARGET} from retaliating`; break;
                     case 'BLOCK_TARGETING': effText = `prevent enemies from targeting {TARGET}`; break;
                     case 'SHUFFLE': effText = `shuffle {TARGET} into deck`; break;
                     case 'RETURN': effText = `return {TARGET} to hand`; break;
-                    case 'ATTACH': effText = eff.invertRoles ? `attach to {TARGET}` : `attach {TARGET} to this card`; break;
-                    case 'ATTACH_TO': effText = eff.invertRoles ? `attach {TARGET} to this card` : `attach to {TARGET}`; break;
+                    case 'ATTACH': effText = eff.invertRoles ? `attach to {TARGET}` : `attach {TARGET} to {SELF}`; break;
                     case 'UNATTACH': effText = `unattach {TARGET}`; break;
                     case 'FIELD': effText = `field {TARGET}`; break;
                     case 'BANISH': effText = `banish {TARGET}`; break;
@@ -579,17 +764,21 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                         else if (targetDest === 'BANISH') effText = `banish {TARGET} instead`;
                         else effText = `move {TARGET} to ${destName} instead`;
                         break;
-                    case 'REBEL': effText = eff.invertRoles ? `give control of this card to {TARGET}` : `take control of {TARGET}`; break;
+                    case 'REBEL': effText = eff.invertRoles ? `give control of {SELF} to {TARGET}` : `take control of {TARGET}`; break;
                     case 'MODIFY_EVENT': 
-                        let eventNoun = "effect's amount";
+                        let eventNoun = "amount";
                         if (trigger.includes('DAMAGE') || trigger.includes('ATTACK')) eventNoun = "damage";
                         else if (trigger.includes('HEAL')) eventNoun = "healing";
+                        else if (trigger.includes('DRAW')) eventNoun = "cards drawn";
+                        else if (trigger.includes('DISCARD') || trigger.includes('TRASH')) eventNoun = "cards discarded";
+                        else if (trigger.includes('RESOURCE')) eventNoun = "resources";
+                        else if (trigger.includes('SUMMON')) eventNoun = "units summoned";
                         
                         if (eff.stat === 'amount') {
-                            effText = eff.amount < 0 ? `decrease the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${eventNoun} by ${eff.amount}{OMIT_TARGET}`;
+                            effText = eff.amount < 0 ? `decrease the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}`;
                         } else {
                             let statName = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                            effText = eff.amount < 0 ? `decrease the event's ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the event's ${statName} by ${eff.amount}{OMIT_TARGET}`;
+                            effText = eff.amount < 0 ? `decrease the ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}`;
                         }
                         break;
                     case 'CUSTOM_SCRIPT': effText = eff.description ? eff.description + '{OMIT_TARGET}' : `execute custom script on {TARGET}`; break;
@@ -602,7 +791,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                              const grantedAb = getAbility(eff.grantedAbilityId);
                              if(grantedAb) abilityName = grantedAb.name;
                         }
-                        effText = `grant **${abilityName}** to {TARGET}`;
+                        effText = `grant @[${abilityName}] to {TARGET}`;
                         if (eff.blockDuplicates) effText += ` (if not present)`;
                         break;
                     case 'TRANSFORM':
@@ -614,11 +803,21 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                             const foundCard = getCard(eff.cardId);
                             if (foundCard) transCardName = foundCard.name;
                         }
-                        let article = /^[aeiou]/i.test(transCardName) ? 'an' : 'a';
-                        if (targetStr === 'self' || targetStr === 'itself') {
-                            effText = `transform into ${article} ${transCardName}{OMIT_TARGET}`;
+                        
+                        if (isPlural) {
+                            let pluralSuffix = transCardName.endsWith('s') ? '' : 's';
+                            if (targetStr === 'self' || targetStr === 'itself') {
+                                effText = `transform into ${transCardName}${pluralSuffix}{OMIT_TARGET}`;
+                            } else {
+                                effText = `transform {TARGET} into ${transCardName}${pluralSuffix}`;
+                            }
                         } else {
-                            effText = `transform {TARGET} into ${article} ${transCardName}`;
+                            let article = /^[aeiou]/i.test(transCardName) ? 'an' : 'a';
+                            if (targetStr === 'self' || targetStr === 'itself') {
+                                effText = `transform into ${article} ${transCardName}{OMIT_TARGET}`;
+                            } else {
+                                effText = `transform {TARGET} into ${article} ${transCardName}`;
+                            }
                         }
                         break;
                 case 'REMOVE_ABILITY':
@@ -630,7 +829,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                          const grantedAb = getAbility(eff.grantedAbilityId);
                          if(grantedAb) rmAbilityName = grantedAb.name;
                     }
-                    effText = `remove **${rmAbilityName}** from {TARGET}`;
+                    effText = `remove @[${rmAbilityName}] from {TARGET}`;
                     break;
                 case 'SUMMON':
                     let cardName = eff.cardId;
@@ -720,9 +919,8 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
                 if (eff.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL'].includes(eff.type)) {
                     if (!['this card', 'it', 'the triggering card', 'the targeted card', 'the target'].includes(targetStr)) {
-                        let isPl = targetStr === 'them' || targetStr.startsWith('all ') || targetStr.includes(' random ') || targetStr.includes(' first ') || targetStr.includes(' last ') || targetStr.endsWith('s');
-                        let reflexive = isPl ? 'themselves' : 'itself';
-                        let reflexivePoss = isPl ? 'their own' : 'its own';
+                        let reflexive = isPlural ? 'themselves' : 'itself';
+                        let reflexivePoss = isPlural ? 'their own' : 'its own';
                         effText = `force {TARGET} to ${effText.replace(/\{TARGET\}/g, reflexive).replace(/\{POSS\}/g, reflexivePoss)}`;
                     }
                 }
@@ -759,7 +957,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     effText += suffix;
                 }
 
-                return effText;
+                return resolveTokens(effText);
             };
 
             const getSimilarityKey = (eff) => {
@@ -797,7 +995,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                              const grantedAb = getAbility(eff.grantedAbilityId);
                              if(grantedAb) abilityName = grantedAb.name;
                         }
-                        return `**${abilityName}**`;
+                        return `@[${abilityName}]`;
                     });
                     effText = `grant abilities ${joinWithAnd(abNames)} to {TARGET}`;
                     if (first.blockDuplicates) effText += ` (if not present)`;
@@ -811,7 +1009,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                              const grantedAb = getAbility(eff.grantedAbilityId);
                              if(grantedAb) rmAbilityName = grantedAb.name;
                         }
-                        return `**${rmAbilityName}**`;
+                        return `@[${rmAbilityName}]`;
                     });
                     effText = `remove abilities ${joinWithAnd(abNames)} from {TARGET}`;
                 } else if (first.type === 'MODIFY_STAT' && first.stat !== 'readiness') {
@@ -821,9 +1019,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                          return `${modStat} by ${Math.abs(eff.amount || 1)}`;
                     });
                     if (isDecrease) {
-                        effText = `decrease {POSS} ${joinWithAnd(changes)}`;
+                        effText = `{DYNAMIC_STAT:decrease|${joinWithAnd(changes)}}`;
                     } else {
-                        effText = `increase {POSS} ${joinWithAnd(changes)}`;
+                        effText = `{DYNAMIC_STAT:increase|${joinWithAnd(changes)}}`;
                     }
                 } else if (first.type === 'MODIFY_RESOURCE') {
                     let isSpend = first.amount < 0;
@@ -841,7 +1039,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                          let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
                          return `${setStat} to ${eff.amount || 1}`;
                     });
-                    effText = `set {POSS} ${joinWithAnd(changes)}`;
+                    effText = `{DYNAMIC_STAT:set|${joinWithAnd(changes)}}`;
                 } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(first.type)) {
                     let blockedActions = effs.map(eff => {
                         if (eff.type === 'BLOCK_ACT') return 'acting';
@@ -858,9 +1056,8 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                 
                 if (first.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL'].includes(first.type)) {
                     if (!['this card', 'it', 'the triggering card', 'the targeted card', 'the target'].includes(targetStr)) {
-                        let isPl = targetStr === 'them' || targetStr.startsWith('all ') || targetStr.includes(' random ') || targetStr.includes(' first ') || targetStr.includes(' last ') || targetStr.endsWith('s');
-                        let reflexive = isPl ? 'themselves' : 'itself';
-                        let reflexivePoss = isPl ? 'their own' : 'its own';
+                        let reflexive = isPlural ? 'themselves' : 'itself';
+                        let reflexivePoss = isPlural ? 'their own' : 'its own';
                         effText = `force {TARGET} to ${effText.replace(/\{TARGET\}/g, reflexive).replace(/\{POSS\}/g, reflexivePoss)}`;
                     }
                 }
@@ -897,58 +1094,20 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
                     effText += suffix;
                 }
 
-                return effText;
+                return resolveTokens(effText);
             };
 
             const finalizeString = (arr) => {
                 if(arr.length === 0) return null;
                 
-                let processedArr = arr.map(str => {
-                    let t, p;
-                    if (['this card', 'it', 'the triggering card', 'the targeted card', 'the target', 'the defender', 'the attacker', 'the damaged character', 'the damage source', 'the healed character'].includes(targetStr)) {
-                        t = groupMentioned ? 'it' : targetStr;
-                        p = groupMentioned ? 'its' : possessiveStr;
-                    } else if (targetStr === 'your avatar' || targetStr === 'the enemy avatar') {
-                        t = groupMentioned ? 'it' : targetStr;
-                        p = groupMentioned ? 'its' : possessiveStr;
-                    } else {
-                        let isPlural = targetStr.startsWith('all ') || targetStr.includes(' random ') || targetStr.includes(' first ') || targetStr.includes(' last ') || targetStr.endsWith('s');
-                        t = groupMentioned ? (isPlural ? 'them' : 'it') : targetStr;
-                        p = groupMentioned ? (isPlural ? 'their' : 'its') : possessiveStr;
-                    }
-
-                    if (str.includes('{OMIT_TARGET}')) {
-                        groupMentioned = true;
-                        str = str.replace('{OMIT_TARGET}', '');
-                    }
-
-                    if (str.includes('{PER_TARGET}')) {
-                        groupMentioned = true;
-                        if (['this card', 'it', 'the initiating card', 'the target', 'your avatar', 'the enemy avatar'].includes(targetStr) || targetStr.startsWith('a chosen')) {
-                            str = str.replace('{PER_TARGET}', '');
-                        } else if (group.targetMethod === 'AUTO_ALL') {
-                            str = str.replace('{PER_TARGET}', ` for each ${singularDesc}`);
-                        } else {
-                            str = str.replace('{PER_TARGET}', ` for each of ${targetStr}`);
-                        }
-                    }
-
-                    if (str.includes('{TARGET}') || str.includes('{POSS}')) {
-                        groupMentioned = true;
-                    }
-                    
-                    return str.replace(/\{POSS\}/g, p).replace(/\{TARGET\}/g, t);
-                });
-
-                let combined = joinWithAnd(processedArr);
+                let combined = joinWithAnd(arr);
                 
-                if (!groupMentioned && !combined.includes(targetStr) && !combined.includes('this card') && !combined.includes('its') && !combined.includes('their') && !combined.includes(possessiveStr) && !combined.includes('them') && !combined.includes('it')) {
+                if (!tracker.hasMentioned(groupId)) {
                     if (combined.includes(' for each ')) {
-                        combined = combined.replace(' for each ', ` to ${targetStr} for each `);
+                        combined = combined.replace(' for each ', ` to ${tracker.mention(groupId, targetStr, isPlural)} for each `);
                     } else {
-                        combined += ` to ${targetStr}`;
+                        combined += ` to ${tracker.mention(groupId, targetStr, isPlural)}`;
                     }
-                    groupMentioned = true;
                 }
                 return combined;
             };

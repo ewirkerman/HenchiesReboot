@@ -35,23 +35,7 @@
 
   <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
 
-  <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
-    <div class="flex items-center gap-3">
-      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
-        HENCHIES 2
-      </span>
-      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold">
-        Ability Logic Studio
-      </span>
-    </div>
-
-    <nav class="flex items-center gap-3 text-xs font-semibold">
-      <a href="game.html" class="text-slate-400 hover:text-slate-200">Game Table</a>
-      <a href="deckbuilder.html" class="text-slate-400 hover:text-slate-200">Deckbuilder</a>
-      <a href="card_editor.html" class="text-slate-400 hover:text-slate-200">Card Studio</a>
-      <a href="ability_editor.html" class="text-amber-400 border-b-2 border-amber-400 pb-0.5">Ability Studio</a>
-    </nav>
-  </header>
+  <main-nav active-page="ability_studio" subtitle="Ability Logic Studio"></main-nav>
 
   <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
 
@@ -304,20 +288,20 @@
   </main>
 
   <script type="module">
-    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, createGameRoom, saveCardToCatalog } from './src/firebase.js';
-    import { CARD_CATALOG } from './src/engine.js';
-    import { generateAbilityDescription } from './src/language_description.js';
-    import { TRIGGER_EVENTS, getValidActionsForZones, exportCurrentState, calculateEffectiveZones, validateAbilityLogic } from './src/abilities.js';
-    import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from './src/actions.js';
-    import { renderJSONPreview } from './src/ui.js';
-    import { launchSandboxMatch } from './src/testing.js';
-    import './src/catalog_component.js'; 
-    import './src/studio_topbar.js';
+    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, createGameRoom, saveCardToCatalog, fetchCustomTribes } from '../src/firebase.js';
+    import { CARD_CATALOG } from '../src/engine.js';
+    import { generateAbilityDescription } from '../src/language_description.js';
+    import { TRIGGER_EVENTS, getValidActionsForZones, exportCurrentState, calculateEffectiveZones, validateAbilityLogic, getValidScopes, getValidActivationMethods, getValidTargetMethods, getValidEffectTypes } from '../src/abilities.js';
+    import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from '../src/actions.js';
+    import { renderJSONPreview } from '../src/ui.js';
+    import { launchSandboxMatch } from '../src/testing.js';
+    import '../components/main_nav.js';
+    import '../components/catalog.js'; 
+    import '../components/topbar.js';
 
     let allAbilities = [];
     let allCards = [];
     let currentEditingId = null;
-    let returnToCardId = null;
     
     // UI State
     let activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
@@ -601,17 +585,21 @@
         const baseTrigger = document.getElementById('ab-base-trigger').value.toUpperCase();
         const actMethodSelect = document.getElementById('ab-act-method');
         const triggerLimitSelect = document.getElementById('ab-trigger-limit');
+        const scopeSelect = document.getElementById('ab-trigger-scope');
 
-        const isEvent = EFFECT_TYPES.includes(baseTrigger) || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'ON_BE_PLAYED'].includes(baseTrigger);
+        // Dynamic Scopes
+        const validScopes = getValidScopes(baseTrigger);
         const scopeContainer = document.getElementById('trigger-scope-container');
-        if (isEvent && !['MANUAL', 'UNTRIGGERABLE', 'PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED'].includes(baseTrigger)) {
+        
+        if (validScopes.length > 1) {
              scopeContainer.classList.remove('hidden');
+             scopeSelect.innerHTML = validScopes.map(s => `<option value="${s}" ${scopeSelect.value === s ? 'selected' : ''}>${s === 'PERSONAL' ? 'Personal (Self only)' : 'Global (Board-wide)'}</option>`).join('');
         } else {
              scopeContainer.classList.add('hidden');
-             document.getElementById('ab-trigger-scope').value = 'PERSONAL';
+             scopeSelect.innerHTML = `<option value="${validScopes[0]}" selected>${validScopes[0] === 'PERSONAL' ? 'Personal (Self only)' : 'Global (Board-wide)'}</option>`;
         }
         
-        const scope = document.getElementById('ab-trigger-scope').value;
+        const scope = scopeSelect.value;
 
         if (triggerValue !== lastTriggerValue) {
              if (baseTrigger === 'ON_BE_PLAYED' || baseTrigger === 'PLAY' || baseTrigger === 'PLAY_OPTIONAL') {
@@ -630,22 +618,14 @@
           triggerLimitSelect.title = "";
         }
         
-        const allowedTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED'];
-        const allowsPlayerChoice = allowedTriggers.includes(baseTrigger);
-        const playerChoiceOption = actMethodSelect.querySelector('option[value="PLAYER_CHOICE"]');
+        // Dynamic Activation Methods
+        const validActMethods = getValidActivationMethods(baseTrigger, scope);
+        if (!validActMethods.includes(actMethodSelect.value)) actMethodSelect.value = validActMethods[0];
         
-        if (playerChoiceOption) {
-          if (!allowsPlayerChoice) {
-            playerChoiceOption.disabled = true;
-            playerChoiceOption.hidden = true;
-            playerChoiceOption.text = 'Player Choice (Requires Manual/Play)';
-            if (actMethodSelect.value === 'PLAYER_CHOICE') actMethodSelect.value = 'NONE';
-          } else {
-            playerChoiceOption.disabled = false;
-            playerChoiceOption.hidden = false;
-            playerChoiceOption.text = 'Player Choice (Click 1 Target)';
-          }
-        }
+        actMethodSelect.innerHTML = validActMethods.map(m => {
+            const label = m === 'NONE' ? 'None (Self, Global, or Auto-Trigger)' : 'Player Choice (Click 1 Target)';
+            return `<option value="${m}" ${actMethodSelect.value === m ? 'selected' : ''}>${label}</option>`;
+        }).join('');
         
         const matrixContainer = document.getElementById('act-quick-matrix-container');
         const advancedToggleContainer = document.getElementById('act-advanced-toggle-container');
@@ -707,6 +687,8 @@
       const rawAbilities = await fetchCustomAbilities();
       const customCards = await fetchCustomCards();
       
+      window.customTribesList = await fetchCustomTribes();
+      
       if (customCards && customCards.length > 0) {
         const merged = [...CARD_CATALOG, ...customCards];
         allCards = Array.from(new Map(merged.map(c => [c.id, c])).values());
@@ -727,11 +709,6 @@
       const urlParams = new URLSearchParams(window.location.search);
       const hashId = window.location.hash.replace('#', '');
       const loadId = urlParams.get('id') || hashId;
-      returnToCardId = urlParams.get('returnToCard');
-
-      if (returnToCardId) {
-          document.getElementById('save-ability-btn').innerHTML = '💾 Save & Return to Card';
-      }
 
       renderCatalogList();
       resetForm();
@@ -739,6 +716,15 @@
       if (loadId) {
           setTimeout(() => window.loadAbility(loadId), 50);
       }
+
+      window.addEventListener('hashchange', () => {
+          const newHash = window.location.hash.replace('#', '');
+          if (newHash && newHash !== currentEditingId) {
+              window.loadAbility(newHash);
+          } else if (!newHash && currentEditingId) {
+              resetForm();
+          }
+      });
     }
 
     window.revalidatePayloadTypes = () => {
@@ -1323,6 +1309,10 @@
         return;
       }
 
+      const baseTrigger = document.getElementById('ab-base-trigger').value.toUpperCase();
+      const scope = document.getElementById('ab-trigger-scope').value;
+      const actMethod = document.getElementById('ab-act-method').value;
+
       container.innerHTML = effectGroups.map((group, gIdx) => {
           
         const payloadsHtml = group.payloads.map((payload, pIdx) => {
@@ -1332,9 +1322,17 @@
                 
             let effectiveZones = calculateEffectiveZones(baseZones, group.payloads, pIdx);
 
-            const validEffectTypes = typeof getValidActionsForZones !== 'undefined' 
+            const baseValidEffectTypes = typeof getValidActionsForZones !== 'undefined' 
                 ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones))
                 : EFFECT_TYPES;
+
+            // Apply Semantic Filter
+            const validEffectTypes = getValidEffectTypes(baseTrigger, baseValidEffectTypes);
+            
+            // Auto-correct invalid payload type
+            if (!validEffectTypes.includes(payload.type)) {
+                payload.type = validEffectTypes.includes('DEAL_DAMAGE') ? 'DEAL_DAMAGE' : (validEffectTypes.length > 0 ? validEffectTypes[0] : 'CUSTOM_SCRIPT');
+            }
 
             const typeOptions = Object.entries(ACTION_CATEGORIES).map(([cat, actions]) => {
                 const validActions = actions.filter(a => validEffectTypes.includes(a));
@@ -1386,20 +1384,19 @@
             }
 
             if (manifest.requiresResource) {
-                basicParamsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[10px] font-bold text-amber-400 mb-0.5">Resource Type</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'resource', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">
+                let resourceOptions = `
                     <option value="Carnie" ${payload.resource === 'Carnie' ? 'selected' : ''}>Carnie (Current)</option>
                     <option value="maxCarnie" ${payload.resource === 'maxCarnie' ? 'selected' : ''}>Max Carnie</option>
-                    <option value="Mythic" ${payload.resource === 'Mythic' ? 'selected' : ''}>Mythic</option>
-                    <option value="Robot" ${payload.resource === 'Robot' ? 'selected' : ''}>Robot</option>
-                    <option value="Elemental" ${payload.resource === 'Elemental' ? 'selected' : ''}>Elemental</option>
-                    <option value="Pirate" ${payload.resource === 'Pirate' ? 'selected' : ''}>Pirate</option>
-                    <option value="Undead" ${payload.resource === 'Undead' ? 'selected' : ''}>Undead</option>
-                    <option value="Viking" ${payload.resource === 'Viking' ? 'selected' : ''}>Viking</option>
-                    <option value="Ninja" ${payload.resource === 'Ninja' ? 'selected' : ''}>Ninja</option>
-                    <option value="Stalker" ${payload.resource === 'Stalker' ? 'selected' : ''}>Stalker</option>
-                    <option value="Alien" ${payload.resource === 'Alien' ? 'selected' : ''}>Alien</option>
-                    <option value="Luchador" ${payload.resource === 'Luchador' ? 'selected' : ''}>Luchador</option>
-                </select></div>`;
+                `;
+                if (window.customTribesList) {
+                    window.customTribesList.forEach(t => {
+                        if (t.name !== 'Carnie' && t.name !== 'Generic') {
+                            resourceOptions += `<option value="${t.id}" ${payload.resource === t.id ? 'selected' : ''}>${t.name}</option>`;
+                        }
+                    });
+                }
+                
+                basicParamsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[10px] font-bold text-amber-400 mb-0.5">Resource Type</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'resource', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">${resourceOptions}</select></div>`;
             }
 
             if (manifest.requiresGrantedAbility) {
@@ -1652,16 +1649,25 @@
               </h4>
               <div class="flex flex-wrap gap-2 w-full md:w-5/6">
                 <select onchange="window.updateEffectGroup(${gIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1 font-bold min-w-[200px]">
-                  <option value="SAME_AS_ACTIVATION" ${group.targetMethod === 'SAME_AS_ACTIVATION' ? 'selected' : ''}>Run on Activated Target(s) / Event Trigger</option>
-                  <option value="EVENT_SOURCE" ${group.targetMethod === 'EVENT_SOURCE' ? 'selected' : ''}>Run on Event Source (e.g. Attacker, Caster)</option>
-                  <option value="EVENT_TARGET" ${group.targetMethod === 'EVENT_TARGET' ? 'selected' : ''}>Run on Event Target (e.g. Defender, Victim)</option>
-                  <option value="SELF" ${group.targetMethod === 'SELF' ? 'selected' : ''}>Run on Self (Card with ability)</option>
-                  <option value="AVATAR" ${group.targetMethod === 'AVATAR' ? 'selected' : ''}>Run on Your Avatar</option>
-                  <option value="ENEMY_AVATAR" ${group.targetMethod === 'ENEMY_AVATAR' ? 'selected' : ''}>Run on Enemy Avatar</option>
-                  <option value="AUTO_ALL" ${group.targetMethod === 'AUTO_ALL' ? 'selected' : ''}>Auto-Target ALL Valid Below</option>
-                  <option value="AUTO_RANDOM" ${group.targetMethod === 'AUTO_RANDOM' ? 'selected' : ''}>Auto-Target N RANDOM Below</option>
-                  <option value="AUTO_FIRST" ${group.targetMethod === 'AUTO_FIRST' ? 'selected' : ''}>Auto-Target FIRST N Valid Below</option>
-                  <option value="AUTO_LAST" ${group.targetMethod === 'AUTO_LAST' ? 'selected' : ''}>Auto-Target LAST N Valid Below</option>
+                  ${(function() {
+                      const validTargets = getValidTargetMethods(baseTrigger, scope, actMethod);
+                      if (!validTargets.includes(group.targetMethod)) {
+                          group.targetMethod = validTargets.includes('SAME_AS_ACTIVATION') ? 'SAME_AS_ACTIVATION' : validTargets[0];
+                      }
+                      const labels = {
+                          'SAME_AS_ACTIVATION': 'Run on Activated Target(s) / Event Trigger',
+                          'EVENT_SOURCE': 'Run on Event Source (e.g. Attacker, Caster)',
+                          'EVENT_TARGET': 'Run on Event Target (e.g. Defender, Victim)',
+                          'SELF': 'Run on Self (Card with ability)',
+                          'AVATAR': 'Run on Your Avatar',
+                          'ENEMY_AVATAR': 'Run on Enemy Avatar',
+                          'AUTO_ALL': 'Auto-Target ALL Valid Below',
+                          'AUTO_RANDOM': 'Auto-Target N RANDOM Below',
+                          'AUTO_FIRST': 'Auto-Target FIRST N Valid Below',
+                          'AUTO_LAST': 'Auto-Target LAST N Valid Below'
+                      };
+                      return validTargets.map(t => `<option value="${t}" ${group.targetMethod === t ? 'selected' : ''}>${labels[t]}</option>`).join('');
+                  })()}
                 </select>
                 ${['AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'].includes(group.targetMethod) ? `<input type="number" value="${group.targetCount || 1}" onchange="window.updateEffectGroup(${gIdx}, 'targetCount', parseInt(this.value))" title="Number of targets (N)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-16" />` : ''}
               </div>
@@ -1835,16 +1841,6 @@
       window._activeAssignerId = ability.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
       document.getElementById('studio-topbar').showButtons(true);
-
-      if (returnToCardId) {
-          const cardToUpdate = allCards.find(c => c.id === returnToCardId);
-          if (cardToUpdate) {
-              if (!cardToUpdate.abilities) cardToUpdate.abilities = [];
-              cardToUpdate.abilities.push(processedAbility);
-              await saveCardToCatalog(cardToUpdate);
-              window.location.href = `card_editor.html#${returnToCardId}`;
-          }
-      }
     }
 
     async function handleDeleteAbility() {
@@ -1958,13 +1954,6 @@
     window.loadAbility = (id) => {
       const ab = allAbilities.find(a => a.abilityId === id);
       if (!ab) return;
-
-      if (returnToCardId) {
-          returnToCardId = null;
-          document.getElementById('save-ability-btn').innerHTML = '💾 Save Ability Logic';
-          const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + (window.location.hash ? window.location.hash : '');
-          window.history.replaceState({path:newUrl},'',newUrl);
-      }
 
       currentEditingId = ab.abilityId;
       window.location.hash = id;
@@ -2220,9 +2209,9 @@
   
   <!-- Dynamic Card Assigner Extension -->
   <script type="module">
-    import { fetchCustomCards, saveCardToCatalog, fetchCustomAbilities } from './src/firebase.js';
-    import { CARD_CATALOG } from './src/engine.js';
-    import { showToast } from './src/ui.js';
+    import { fetchCustomCards, saveCardToCatalog, fetchCustomAbilities } from '../src/firebase.js';
+    import { CARD_CATALOG } from '../src/engine.js';
+    import { showToast } from '../src/ui.js';
 
     // Track active ID regardless of URL state
     window._activeAssignerId = window.location.hash.replace('#', '') || new URLSearchParams(window.location.search).get('id');

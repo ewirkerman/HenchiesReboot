@@ -13,7 +13,7 @@ export const ACTION_MANIFEST = {
     'SET_STAT': { passiveType: 'BE_STAT_SET', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'MODIFY_RESOURCE': { passiveType: 'BE_RESOURCE_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresResource: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'DRAW_CARD': { passiveType: 'BE_DRAWN', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DECK'], endZone: ['HAND'], validDurations: ['INSTANT'] },
-    'SUMMON': { passiveType: 'BE_SUMMONED', canInvert: false, canBeCost: false, requiresAmount: true, requiresCardId: true, requiresZone: true, requiresZoneOwner: true, hasNestedGroup: true, validZones: 'ALL', endZone: ['FIELD'], validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'SUMMON': { passiveType: 'BE_SUMMONED', canInvert: false, canBeCost: false, requiresAmount: true, requiresCardId: true, requiresZone: true, requiresZoneOwner: true, hasNestedGroup: true, validZones: 'ALL', endZone: ['FIELD'], validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
     'PLAY': { passiveType: 'BE_PLAYED', canInvert: true, canBeCost: false, validZones: ['HAND'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACK': { passiveType: 'BE_ATTACKED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'HARVEST': { passiveType: 'BE_HARVESTED', canInvert: true, canBeCost: false, validZones: ['HAND'], endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -34,8 +34,7 @@ export const ACTION_MANIFEST = {
     'RETURN': { passiveType: 'BE_RETURNED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['HAND'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'RECOVER': { passiveType: 'BE_RECOVERED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['HAND'], validDurations: ['INSTANT'] },
     'REVIVE': { passiveType: 'BE_REVIVED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
-    'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
-    'ATTACH_TO': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
+    'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['WHILE_ATTACHED', 'INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
     'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: false },
     'UNFIELD': { passiveType: 'BE_UNFIELDED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -58,6 +57,10 @@ export class Action {
         this.passiveType = manifest ? manifest.passiveType : null;
         this.payload = payload; // { source, target, amount, stat, etc. }
         this.payload.type = this.type; // Guarantee type exists in payload for safe effect registration
+    }
+
+    getLogDepth(engine) {
+        return Math.max(0, (engine.state._actionDepth || 0) + (engine.processingDepth || 0) - 1);
     }
 
     run(engine) {
@@ -110,7 +113,7 @@ export class Action {
                         }
                     }
                     for (const eff of effectsToRevert) {
-                        if (eff.type !== 'SUMMON') revertEffect(engine, t, eff);
+                        if (eff.type !== 'SUMMON') revertEffect(engine, t, eff, true);
                     }
                 }
                 
@@ -291,7 +294,7 @@ export function registerEffect(engine, target, payload, extraData = {}) {
     });
 }
 
-export function revertEffect(engine, target, effect) {
+export function revertEffect(engine, target, effect, isLeavingPlay = false) {
     if (effect.type === 'MODIFY_STAT') {
         target[effect.stat] -= effect.delta;
         if (effect.stat === 'health' && target.maxHealth !== undefined) {
@@ -310,35 +313,24 @@ export function revertEffect(engine, target, effect) {
         if (effect.stat === 'health') {
             target.health = Math.min(target.health, effect.originalValue);
         } else if (effect.stat === 'line') {
-             const loc = findEntityLocation(engine, target);
-             if (loc && loc.zone === 'sideline') {
-                 target.line = 'sideline';
-             } else {
-                 let remainingLineEffect = null;
-                 if (target.activeEffects) {
-                     const others = target.activeEffects.filter(e => e.type === 'SET_STAT' && e.stat === 'line' && e.id !== effect.id);
-                     if (others.length > 0) {
-                         remainingLineEffect = others[others.length - 1];
-                     }
-                 }
-                 
-                 let dest;
-                 if (remainingLineEffect) {
-                     dest = remainingLineEffect.amount;
-                 } else {
-                     const defaultLine = target.defaultLine || 'mid';
-                     dest = effect.originalValue || defaultLine;
-                 }
-                 
-                 if (target.line !== dest) {
-                     target.line = dest;
-                     const loc = findEntityLocation(engine, target);
-                     if (loc && loc.playerId && loc.zone !== dest) {
-                         moveEntity(engine, target, loc.playerId, dest);
-                         engine.state.history_log.push(`🔄 '${target.name}' returned to ${dest} line.`);
-                     }
-                 }
-             }
+            let remainingEffect = null;
+            if (target.activeEffects) {
+                const others = target.activeEffects.filter(e => e.type === 'SET_STAT' && e.stat === 'line' && e.id !== effect.id);
+                if (others.length > 0) remainingEffect = others[others.length - 1];
+            }
+            const defaultLine = target.defaultLine || 'mid';
+            const dest = remainingEffect ? remainingEffect.amount : (effect.originalValue || defaultLine);
+            
+            if (target.line !== dest) {
+                target.line = dest;
+                if (!isLeavingPlay) {
+                    const loc = findEntityLocation(engine, target);
+                    if (loc && loc.playerId && loc.zone !== dest && loc.zone !== 'sideline') {
+                        moveEntity(engine, target, loc.playerId, dest);
+                        engine.state.history_log.push({ text: `🔄 '${target.name}' returned to ${dest} line.`, depth: Math.max(0, (engine.state._actionDepth || 0) + (engine.processingDepth || 0) - 1) });
+                    }
+                }
+            }
         } else if (typeof effect.originalValue === 'number' && typeof effect.delta === 'number') {
             target[effect.stat] -= effect.delta;
         } else {
@@ -378,7 +370,7 @@ export function revertEffect(engine, target, effect) {
         if (loc && effect.originalOwnerId && loc.playerId !== effect.originalOwnerId) {
             moveEntity(engine, target, effect.originalOwnerId, loc.zone);
             target.ownerId = effect.originalOwnerId;
-            engine.state.history_log.push(`🔄 '${target.name}' returned to its original owner.`);
+            engine.state.history_log.push({ text: `🔄 '${target.name}' returned to its original owner.`, depth: Math.max(0, (engine.state._actionDepth || 0) - 1) });
         }
     }
 }
@@ -415,18 +407,18 @@ export class DealDamageAction extends Action {
                 const blocked = Math.min(target.armor, amount);
                 target.armor -= blocked;
                 amount -= blocked;
-                engine.state.history_log.push(`🛡️ ${target.name}'s Armor absorbed ${blocked} combat damage!`);
+                engine.state.history_log.push({ text: `🛡️ ${target.name}'s Armor absorbed ${blocked} combat damage!`, depth: this.getLogDepth(engine) });
             }
             
             target.health = Math.max(0, (target.health || 0) - amount);
-            engine.state.history_log.push(`💥 ${target.name || 'Target'} took ${amount} damage.`);
+            engine.state.history_log.push({ text: `💥 ${target.name || 'Target'} took ${amount} damage.`, depth: this.getLogDepth(engine) });
 
             if (target.type === 'avatar' && target.health <= 0) {
                 const loc = findEntityLocation(engine, target);
                 const loserId = loc ? loc.playerId : (engine.state.activePlayerId === 'player1' ? 'player2' : 'player1');
                 engine.state.status = 'finished';
                 engine.state.winner = loserId === 'player1' ? 'player2' : 'player1';
-                engine.state.history_log.push(`☠️ Avatar ${target.name} has fallen! Match finished.`);
+                engine.state.history_log.push({ text: `☠️ Avatar ${target.name} has fallen! Match finished.`, depth: this.getLogDepth(engine) });
             }
             if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && !this.payload.deferDeath) {
                 const atkLKI = source && source.abilities ? [...source.abilities] : [];
@@ -444,7 +436,7 @@ export class HealAction extends Action {
             const max = target.maxHealth || 30;
             const healed = Math.min(max - target.health, amount);
             target.health = Math.min(max, (target.health || 0) + amount);
-            engine.state.history_log.push(`💚 ${target.name || 'Target'} was healed for ${healed} HP.`);
+            engine.state.history_log.push({ text: `💚 ${target.name || 'Target'} was healed for ${healed} HP.`, depth: this.getLogDepth(engine) });
         }
     }
 }
@@ -713,7 +705,7 @@ export class PlayAction extends Action {
              }
         }
         
-        engine.state.history_log.push(`🃏 Played ${instance.name}.`);
+        engine.state.history_log.push({ text: `🃏 Played ${instance.name}.`, depth: this.getLogDepth(engine) });
         
         // Play is a physical movement to the field, making it a subset of Field events.
         // Summon bypasses this because tokens materialize natively on the board.
@@ -732,11 +724,11 @@ export class AttackAction extends Action {
         const isTimid = engine.utils.hasEngineFlag(engine.state, attacker, 'BLOCK_TARGET_AVATAR');
 
         if (isTimid && defender.type === 'avatar') {
-            engine.state.history_log.push(`🙈 ${attacker.name} cannot attack the Avatar!`);
+            engine.state.history_log.push({ text: `🙈 ${attacker.name} cannot attack the Avatar!`, depth: this.getLogDepth(engine) });
             return;
         }
 
-        engine.state.history_log.push(`⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`);
+        engine.state.history_log.push({ text: `⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`, depth: this.getLogDepth(engine) });
         
         // Fire ON_ATTACK early so triggers (like taking damage on attack) resolve before combat strikes
         engine.emit('ON_ATTACK', this.payload);
@@ -802,14 +794,14 @@ export class HarvestAction extends Action {
             if (sTribe === 'Carnie' || sTribe === 'Generic') {
                 player.resources['Carnie'].max += 2;
                 player.resources['Carnie'].current += 2;
-                engine.state.history_log.push(`🔥 ${player.name} harvested '${this.payload.target.name}' (Carnie) for +2 Max Carnie!`);
+                engine.state.history_log.push({ text: `🔥 ${player.name} harvested '${this.payload.target.name}' (Carnie) for +2 Max Carnie!`, depth: this.getLogDepth(engine) });
             } else {
                 if (!player.resources[sTribe]) player.resources[sTribe] = { current: 0, max: 0 };
                 player.resources['Carnie'].max += 1;
                 player.resources['Carnie'].current += 1;
                 player.resources[sTribe].max += 1;
                 player.resources[sTribe].current += 1;
-                engine.state.history_log.push(`🔥 ${player.name} harvested '${this.payload.target.name}' for +1 Max Carnie & +1 Max Tribe Res!`);
+                engine.state.history_log.push({ text: `🔥 ${player.name} harvested '${this.payload.target.name}' for +1 Max Carnie & +1 Max Tribe Res!`, depth: this.getLogDepth(engine) });
             }
         }
     }
@@ -817,13 +809,13 @@ export class HarvestAction extends Action {
 
 export class DiscardAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) { if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) { new UnfieldAction({ target: this.payload.target, destination: 'discard' }).run(engine); } else { moveEntity(engine, this.payload.target, loc.playerId, 'discard'); } } } }
 export class ShuffleAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) { if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) { new UnfieldAction({ target: this.payload.target, destination: 'deck' }).run(engine); } else { moveEntity(engine, this.payload.target, loc.playerId, 'deck'); } } } }
-export class ReturnAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) { if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) { new UnfieldAction({ target: this.payload.target, destination: 'hand' }).run(engine); } else { moveEntity(engine, this.payload.target, loc.playerId, 'hand'); } } } }
+export class ReturnAction extends Action { execute(engine) { const loc = findEntityLocation(engine, this.payload.target); if (loc) { if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) { new UnfieldAction({ target: this.payload.target, destination: 'hand' }).run(engine); } else { moveEntity(engine, this.payload.target, this.payload.target.ownerId || loc.playerId, 'hand'); } } } }
 export class RecoverAction extends Action { 
     execute(engine) { 
         const loc = findEntityLocation(engine, this.payload.target); 
         if (loc && loc.zone === 'discard') {
             moveEntity(engine, this.payload.target, loc.playerId, 'hand'); 
-            engine.state.history_log.push(`♻️ Recovered '${this.payload.target.name}' from discard to hand.`);
+            engine.state.history_log.push({ text: `♻️ Recovered '${this.payload.target.name}' from discard to hand.`, depth: this.getLogDepth(engine) });
         }
     } 
 }
@@ -837,7 +829,7 @@ export class TrashAction extends Action {
             if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) { 
                 new UnfieldAction({ target: this.payload.target, destination: 'discard' }).run(engine); 
             } else { 
-                moveEntity(engine, this.payload.target, loc.playerId, 'discard'); 
+                moveEntity(engine, this.payload.target, this.payload.target.ownerId || loc.playerId, 'discard'); 
             } 
         } else {
             if (DEBUG_ACTIONS) console.warn(`[DEBUG ACTIONS] TrashAction FAILED: Could not find location for target:`, this.payload.target?.name);
@@ -859,7 +851,7 @@ export class FieldAction extends Action {
             }
             
             moveEntity(engine, target, loc.playerId, destZone); 
-            engine.state.history_log.push(`✨ '${target.name}' was fielded.`);
+            engine.state.history_log.push({ text: `✨ '${target.name}' was fielded.`, depth: this.getLogDepth(engine) });
         }
     } 
 }
@@ -878,7 +870,7 @@ export class ReviveAction extends Action {
             }
             
             moveEntity(engine, target, loc.playerId, destZone); 
-            engine.state.history_log.push(`🧟 '${target.name}' was revived from the discard pile.`);
+            engine.state.history_log.push({ text: `🧟 '${target.name}' was revived from the discard pile.`, depth: this.getLogDepth(engine) });
             
             if (target.type !== 'spell') {
                 engine.emit('ON_FIELD', { source: this.payload.source, target: target, eventContext: this.payload.eventContext });
@@ -915,7 +907,7 @@ export class AttachAction extends Action {
 
         registerEffect(engine, host, this.payload, { sourceId: attachment.instanceId });
         
-        engine.state.history_log.push(`🔗 '${attachment.name}' attached to '${host.name}'.`);
+        engine.state.history_log.push({ text: `🔗 '${attachment.name}' attached to '${host.name}'.`, depth: this.getLogDepth(engine) });
     } 
 }
 
@@ -945,14 +937,14 @@ export class UnattachAction extends Action {
             
             if (target.type === 'buff') {
                 moveEntity(engine, target, ownerId, 'discard');
-                engine.state.history_log.push(`🔓 '${target.name}' unattached and was trashed to discard.`);
+                engine.state.history_log.push({ text: `🔓 '${target.name}' unattached and was trashed to discard.`, depth: this.getLogDepth(engine) });
             } else if (target.type === 'unit') {
                 const destLine = target.line || target.defaultLine || 'mid';
                 moveEntity(engine, target, ownerId, destLine);
-                engine.state.history_log.push(`🔓 '${target.name}' unattached and fell to the ${destLine} line.`);
+                engine.state.history_log.push({ text: `🔓 '${target.name}' unattached and fell to the ${destLine} line.`, depth: this.getLogDepth(engine) });
             } else {
                 moveEntity(engine, target, ownerId, 'equator');
-                engine.state.history_log.push(`🔓 '${target.name}' unattached and fell to the Equator.`);
+                engine.state.history_log.push({ text: `🔓 '${target.name}' unattached and fell to the Equator.`, depth: this.getLogDepth(engine) });
             }
         } else if (this.payload.target && ['equipment', 'artifact'].includes(this.payload.target.type)) {
             this.payload.target.readiness = 0;
@@ -967,7 +959,7 @@ export class UnfieldAction extends Action {
         const loc = findEntityLocation(engine, this.payload.target);
         if (loc && loc.array) loc.array.splice(loc.index, 1);
         if (this.payload.target.isToken) return;
-        moveEntity(engine, this.payload.target, loc ? loc.playerId : engine.state.activePlayerId, dest);
+        moveEntity(engine, this.payload.target, this.payload.target.ownerId || (loc ? loc.playerId : engine.state.activePlayerId), dest);
     }
 }
 
@@ -990,7 +982,7 @@ export class RebelAction extends Action {
             moveEntity(engine, target, sourceOwnerId, loc.zone);
             target.ownerId = sourceOwnerId;
             
-            engine.state.history_log.push(`🤝 '${target.name}' changed sides and joined ${engine.state.players[sourceOwnerId].name}!`);
+            engine.state.history_log.push({ text: `🤝 '${target.name}' changed sides and joined ${engine.state.players[sourceOwnerId].name}!`, depth: this.getLogDepth(engine) });
             
             // Register duration-based reversions
             registerEffect(engine, target, this.payload, { originalOwnerId: originalOwnerId });
@@ -1068,7 +1060,7 @@ export class SummonAction extends Action {
                 registerEffect(engine, instance, this.payload);
             }
             
-            engine.state.history_log.push(`✨ Summoned ${instance.name}.`);
+            engine.state.history_log.push({ text: `✨ Summoned ${instance.name}.`, depth: this.getLogDepth(engine) });
         }
         
         if (this.payload.nestedGroup && this.payload.nestedGroup.payloads && this.payload.nestedGroup.payloads.length > 0) {
@@ -1143,7 +1135,7 @@ export class CleanseAction extends Action {
         }
         
         if (cleansedCount > 0 && !endingPlayerId) {
-            engine.state.history_log.push(`✨ '${target.name || 'Target'}' was cleansed of temporary effects.`);
+            engine.state.history_log.push({ text: `✨ '${target.name || 'Target'}' was cleansed of temporary effects.`, depth: this.getLogDepth(engine) });
         }
     }
 }
@@ -1160,7 +1152,7 @@ export class ModifyEventAction extends Action {
     execute(engine) {
         if (this.payload.eventContext && this.payload.stat && this.payload.amount !== undefined) {
             this.payload.eventContext[this.payload.stat] = (this.payload.eventContext[this.payload.stat] || 0) + this.payload.amount;
-            engine.state.history_log.push(`⚡ Event ${this.payload.stat} modified by ${this.payload.amount > 0 ? '+' : ''}${this.payload.amount}.`);
+            engine.state.history_log.push({ text: `⚡ Event ${this.payload.stat} modified by ${this.payload.amount > 0 ? '+' : ''}${this.payload.amount}.`, depth: this.getLogDepth(engine) });
         }
     }
 }
@@ -1250,14 +1242,28 @@ export class TransformAction extends Action {
             target.line = target.defaultLine;
         }
 
-        engine.state.history_log.push(`✨ A unit transformed into ${target.name}!`);
+        engine.state.history_log.push({ text: `✨ A unit transformed into ${target.name}!`, depth: this.getLogDepth(engine) });
     }
 }
 
 export class CustomScriptAction extends Action { 
     execute(engine) {
         if (this.payload.script) {
+            const actionDepth = this.getLogDepth(engine);
+            const originalPush = engine.state.history_log.push;
+
             try {
+                // Intercept history_log.push to auto-wrap raw strings with the current depth
+                engine.state.history_log.push = function(...args) {
+                    const formattedArgs = args.map(arg => {
+                        if (typeof arg === 'string') {
+                            return { text: arg, depth: actionDepth };
+                        }
+                        return arg;
+                    });
+                    return originalPush.apply(this, formattedArgs);
+                };
+
                 // Sanitize Markdown escape artifacts (like \[ or \_) that occur when copy-pasting JSON from LLMs
                 const cleanScript = this.payload.script
                     .replace(/\\\[/g, '[')
@@ -1265,8 +1271,8 @@ export class CustomScriptAction extends Action {
                     .replace(/\\_/g, '_');
 
                 // Inject 'use strict' to prevent 'this' from leaking to the global Window object
-                const fn = new Function('state', 'target', 'params', 'engine', '"use strict";\n' + cleanScript);
-                fn(engine.state, this.payload.target, this.payload, engine);
+                const fn = new Function('state', 'target', 'params', 'engine', 'actionDepth', '"use strict";\n' + cleanScript);
+                fn(engine.state, this.payload.target, this.payload, engine, actionDepth);
             } catch(e) {
                 let abilityName = this.payload.sourceAbilityId || 'Unknown';
                 if (engine.state.abilityCatalog && this.payload.sourceAbilityId) {
@@ -1275,6 +1281,9 @@ export class CustomScriptAction extends Action {
                 }
                 console.error(`[Engine] Custom script execution error in Ability ${abilityName}:`, e);
                 console.error(`[Engine] Failing script content:\n`, this.payload.script);
+            } finally {
+                // Always restore the original push function safely, even if the script crashes
+                engine.state.history_log.push = originalPush;
             }
         }
     } 
@@ -1307,7 +1316,6 @@ export const ACTION_REGISTRY = {
     'RECOVER': RecoverAction,
     'REVIVE': ReviveAction,
     'ATTACH': AttachAction,
-    'ATTACH_TO': AttachAction, // Safety fallback for legacy databases
     'REBEL': RebelAction,
     'UNATTACH': UnattachAction,
     'UNFIELD': UnfieldAction,
@@ -1319,8 +1327,8 @@ export const ACTION_REGISTRY = {
 
 export const ACTION_CATEGORIES = {
     'Combat & Stats': ['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACK', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE'],
-    'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'REVIVE', 'TRASH', 'BANISH', 'FIELD', 'UNFIELD', 'CHANGE_DESTINATION'],
-    'Attachments & Control': ['ATTACH', 'ATTACH_TO', 'UNATTACH', 'REBEL'],
+    'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'REVIVE', 'TRASH', 'BANISH', 'CHANGE_DESTINATION'],
+    'Attachments & Control': ['ATTACH', 'UNATTACH', 'REBEL'],
     'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM']
 };
 

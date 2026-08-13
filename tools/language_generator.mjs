@@ -10,7 +10,7 @@
 import fs from 'fs';
 import { ACTION_MANIFEST } from '../src/actions.js';
 import { generateAbilityDescription } from '../src/language_description.js';
-import { validateAbilityLogic } from '../src/abilities.js';
+import { validateAbilityLogic } from '../src/ability_validation.js';
 
 // --- MOCK CATALOG DATA ---
 const MOCK_ABILITIES = [
@@ -61,8 +61,8 @@ function genQuickTargeting() {
 }
 
 function genPayload() {
-    // Exclude deprecated or overly vague ones from linguistic testing to focus on meaty actions
-    const validTypes = Object.keys(ACTION_MANIFEST).filter(k => !ACTION_MANIFEST[k].deprecated);
+    // Exclude deprecated, mechanical, or overly vague ones from linguistic testing to focus on meaty actions
+    const validTypes = Object.keys(ACTION_MANIFEST).filter(k => !ACTION_MANIFEST[k].deprecated && k !== 'FIELD' && k !== 'UNFIELD');
     const type = randItem(validTypes);
     const manifest = ACTION_MANIFEST[type] || {};
 
@@ -118,6 +118,12 @@ function genEffectGroup() {
         logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, // Empty for simplicity, though can expand
         payloads: []
     };
+
+    if (['SELF', 'EVENT_SOURCE', 'EVENT_TARGET', 'AVATAR', 'ENEMY_AVATAR', 'SAME_AS_ACTIVATION'].includes(method)) {
+        delete group.targetCount;
+        delete group.quickTargeting;
+        delete group.logicTree;
+    }
 
     const payloadCount = randBool(0.8) ? 1 : 2;
     for (let i = 0; i < payloadCount; i++) {
