@@ -217,42 +217,60 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
         } else if (type === 'CUSTOM_SCRIPT') { 
             payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
         } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'SHUFFLE', 'RETURN', 'ATTACH', 'UNATTACH', 'FIELD', 'BANISH', 'PLAY', 'ATTACK', 'HARVEST'].includes(type)) { 
-            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.description; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
+            delete payload.amount; delete payload.grantedAbilityId; delete payload.cardId; delete payload.script; delete payload.stat; delete payload.nestedGroup; delete payload.zone; delete payload.zoneOwner;
         }
     }
 }
 
-// --- DATA EXPORT & MIGRATION ---
-export function exportCurrentState(formData, externalState = null) {
-    const sourceState = externalState || state;
-    const scope = formData.triggerScope || 'PERSONAL';
-    const actMethod = formData.actMethod || 'NONE';
+export function validateAbilityLogic(ability) {
+    const errors = [];
+    const trigger = ability.trigger || 'MANUAL';
+    const unpreventableTriggers = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
     
-    let activationData = { 
-        method: actMethod, 
-        quickTargeting: formData.actQuickTargeting ? JSON.parse(JSON.stringify(formData.actQuickTargeting)) : { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false }, 
-        logicTree: JSON.parse(JSON.stringify(sourceState.activationRoot)) 
-    };
+    let hasCancel = false;
+    let hasModifyEvent = false;
 
-    if (scope === 'PERSONAL' && actMethod === 'NONE') {
-         delete activationData.quickTargeting;
-    } else if (scope === 'GLOBAL') {
-         activationData.method = 'NONE';
+    if (ability.effects) {
+        for (const group of ability.effects) {
+            if (group.payloads) {
+                for (const p of group.payloads) {
+                    if (p.type === 'CANCEL_EVENT') hasCancel = true;
+                    if (p.type === 'MODIFY_EVENT') hasModifyEvent = true;
+                }
+            }
+        }
     }
 
+    if (hasCancel && unpreventableTriggers.includes(trigger)) {
+        errors.push(`CANCEL_EVENT cannot be used with the ${trigger} trigger.`);
+    }
+    if (hasModifyEvent && unpreventableTriggers.includes(trigger)) {
+        errors.push(`MODIFY_EVENT cannot be used with the ${trigger} trigger.`);
+    }
+
+    return errors;
+}
+
+// --- DATA EXPORT & MIGRATION ---
+export function exportCurrentState(formData, sourceState = state) {
+    let activationData = {
+        method: formData.actMethod,
+        quickTargeting: formData.actQuickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false },
+        logicTree: JSON.parse(JSON.stringify(sourceState.activationRoot))
+    };
+
     return {
-        abilityId: formData.abilityId || sourceState.currentEditingId || ('ability_' + Date.now()),
-        updatedAt: Date.now(),
+        abilityId: sourceState.currentEditingId || ('ability_' + Date.now()),
         name: formData.name,
         description: formData.description || '',
         trigger: formData.trigger,
         additionalTriggers: formData.additionalTriggers || [],
-        triggerScope: scope,
+        triggerScope: formData.triggerScope || 'PERSONAL',
         triggerLimit: formData.triggerLimit || 'UNLIMITED',
         passiveFlags: formData.passiveFlags || [],
         cost: {
             tribeAmount: parseInt(formData.tribeAmount) || 0,
-            carnie: parseInt(formData.carnie || formData.tent) || 0,
+            carnie: parseInt(formData.carnie) || 0,
             power: parseInt(formData.power) || 0,
             readinessCost: formData.readinessCost || 'NONE',
             reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness,

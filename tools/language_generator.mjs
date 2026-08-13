@@ -10,6 +10,7 @@
 import fs from 'fs';
 import { ACTION_MANIFEST } from '../src/actions.js';
 import { generateAbilityDescription } from '../src/language_description.js';
+import { validateAbilityLogic } from '../src/abilities.js';
 
 // --- MOCK CATALOG DATA ---
 const MOCK_ABILITIES = [
@@ -183,7 +184,12 @@ const dataset = [];
 console.log(`Generating ${NUM_SAMPLES} random abilities...`);
 
 for (let i = 0; i < NUM_SAMPLES; i++) {
-    const ability = genAbility();
+    let ability;
+    let valid = false;
+    while (!valid) {
+        ability = genAbility();
+        if (validateAbilityLogic(ability).length === 0) valid = true;
+    }
     
     let generatedLanguage = "";
     try {

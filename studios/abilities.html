@@ -35,7 +35,23 @@
 
   <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
 
-  <main-nav active-page="ability_studio" subtitle="Ability Logic Studio"></main-nav>
+  <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
+        HENCHIES 2
+      </span>
+      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-300 font-semibold">
+        Ability Logic Studio
+      </span>
+    </div>
+
+    <nav class="flex items-center gap-3 text-xs font-semibold">
+      <a href="game.html" class="text-slate-400 hover:text-slate-200">Game Table</a>
+      <a href="deckbuilder.html" class="text-slate-400 hover:text-slate-200">Deckbuilder</a>
+      <a href="card_editor.html" class="text-slate-400 hover:text-slate-200">Card Studio</a>
+      <a href="ability_editor.html" class="text-amber-400 border-b-2 border-amber-400 pb-0.5">Ability Studio</a>
+    </nav>
+  </header>
 
   <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
 
@@ -272,14 +288,14 @@
 
     <!-- RIGHT: ASSOCIATED CARDS COLUMN -->
     <div class="w-full xl:w-72 flex flex-col gap-4 shrink-0">
-      <div class="glass-panel rounded-2xl p-4 shadow-2xl border border-slate-800 flex flex-col gap-3 max-h-[calc(100vh-6rem)] sticky top-20">
-        <div class="border-b border-slate-800 pb-2 flex justify-between items-center shrink-0">
+      <div class="glass-panel rounded-2xl p-4 shadow-2xl border border-slate-800 flex flex-col gap-3 h-full max-h-[800px] sticky top-20">
+        <div class="border-b border-slate-800 pb-2 flex justify-between items-center">
           <h2 class="text-xs font-black text-sky-400 uppercase tracking-wider">
             🔗 Used By
           </h2>
           <span id="associated-cards-count" class="bg-sky-950 text-sky-300 text-[10px] font-bold px-2 py-0.5 rounded border border-sky-800">0</span>
         </div>
-        <div id="associated-cards-list" class="flex-1 flex flex-col gap-2 overflow-y-auto minimal-scrollbar pb-2 pr-1">
+        <div id="associated-cards-list" class="flex flex-col gap-2 overflow-y-auto minimal-scrollbar pb-2 pr-1">
           <div class="text-xs text-slate-500 italic text-center p-4">Select an ability to see associated cards.</div>
         </div>
       </div>
@@ -288,16 +304,15 @@
   </main>
 
   <script type="module">
-    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, createGameRoom, saveCardToCatalog, fetchCustomTribes } from '../src/firebase.js';
-    import { CARD_CATALOG } from '../src/engine.js';
-    import { generateAbilityDescription } from '../src/language_description.js';
-    import { TRIGGER_EVENTS, getValidActionsForZones, exportCurrentState, calculateEffectiveZones } from '../src/abilities.js';
-    import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from '../src/actions.js';
-    import { renderJSONPreview } from '../src/ui.js';
-    import { launchSandboxMatch } from '../src/testing.js';
-    import '../components/main_nav.js';
-    import '../components/catalog.js'; 
-    import '../components/topbar.js';
+    import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, createGameRoom, saveCardToCatalog } from './src/firebase.js';
+    import { CARD_CATALOG } from './src/engine.js';
+    import { generateAbilityDescription } from './src/language_description.js';
+    import { TRIGGER_EVENTS, getValidActionsForZones, exportCurrentState, calculateEffectiveZones, validateAbilityLogic } from './src/abilities.js';
+    import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from './src/actions.js';
+    import { renderJSONPreview } from './src/ui.js';
+    import { launchSandboxMatch } from './src/testing.js';
+    import './src/catalog_component.js'; 
+    import './src/studio_topbar.js';
 
     let allAbilities = [];
     let allCards = [];
@@ -317,19 +332,23 @@
     let mentionStart = -1;
     let selectedMentionIndex = 0;
     let filteredMentions = [];
-    let customTribesData = [];
 
     const ATTRIBUTE_TYPES = {
       'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER', 'BOON'] },
       'alignment': { label: 'Alignment', type: 'select', options: ['FRIENDLY', 'ENEMY'] },
       'zone': { label: 'Zone', type: 'select', options: ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'] },
-      'tribe': { label: 'Tribe', type: 'select', options: [] },
-      'family': { label: 'Family', type: 'select', options: ['Humanoid', 'Creature', 'Automaton'] },
+      'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
+      'family': { label: 'Family (Text)', type: 'text' },
       'genus': { label: 'Genus (Text)', type: 'text' },
       'health': { label: 'Current Health', type: 'number' },
+      'maxHealth': { label: 'Max Health', type: 'number' },
       'strength': { label: 'Strength', type: 'number' },
       'armor': { label: 'Armor', type: 'number' },
+      'power': { label: 'Power', type: 'number' },
       'cost': { label: 'Cost', type: 'number' },
+      'readiness': { label: 'Readiness', type: 'number' },
+      'acts': { label: 'Available Acts', type: 'number' },
+      'maxActs': { label: 'Max Acts', type: 'number' },
       'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
       'isAttacking': { label: 'Is the Active Attacker (Event)', type: 'select', options: ['true', 'false'] },
       'hasAbility': { label: 'Has Ability ID', type: 'text' }
@@ -685,10 +704,6 @@
         updateJSONPreview();
       };
 
-      const customTribes = await fetchCustomTribes();
-      customTribesData = customTribes;
-      ATTRIBUTE_TYPES['tribe'].options = customTribes.map(t => ({ value: t.id, label: t.name }));
-
       const rawAbilities = await fetchCustomAbilities();
       const customCards = await fetchCustomCards();
       
@@ -1002,9 +1017,8 @@
       const node = path.length === 0 ? getRoot(treeType) : getNodeAtPath(treeType, path);
       node[field] = value;
       if (field === 'attribute') {
-        const typeDef = ATTRIBUTE_TYPES[value] || ATTRIBUTE_TYPES['entity'];
-        const firstOpt = typeDef.options ? typeDef.options[0] : null;
-        node.value = typeDef.type === 'select' ? (typeof firstOpt === 'object' ? firstOpt.value : firstOpt) : 1;
+        const typeDef = ATTRIBUTE_TYPES[value];
+        node.value = typeDef.type === 'select' ? typeDef.options[0] : 1;
         node.operator = '==';
       }
       if (treeType === 'activation') renderLogicTrees(); else renderEffects();
@@ -1069,11 +1083,7 @@
       let valueInputHTML = '';
       if (typeDef.type === 'select') {
         valueInputHTML = `<select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]">
-          ${typeDef.options.map(opt => {
-              const val = typeof opt === 'object' ? opt.value : opt;
-              const label = typeof opt === 'object' ? opt.label : opt;
-              return `<option value="${val}" ${cond.value === val ? 'selected' : ''}>${label}</option>`;
-          }).join('')}
+          ${typeDef.options.map(opt => `<option value="${opt}" ${cond.value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
         </select>`;
       } else if (typeDef.type === 'text') {
         valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="Value..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
@@ -1349,7 +1359,7 @@
                       <option value="bodyguard" ${payload.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
                   </select></div>`;
                 } else {
-                  basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude/Amt</label><input type="number" value="${payload.amount || 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
+                  basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude/Amt</label><input type="number" value="${payload.amount !== undefined ? payload.amount : 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
                 }
             }
 
@@ -1376,17 +1386,19 @@
             }
 
             if (manifest.requiresResource) {
-                let resOptionsHtml = `<option value="Carnie" ${payload.resource === 'Carnie' ? 'selected' : ''}>Carnie (Current)</option>
-                                      <option value="maxCarnie" ${payload.resource === 'maxCarnie' ? 'selected' : ''}>Max Carnie</option>`;
-                
-                customTribesData.forEach(t => {
-                    if (t.name.toLowerCase() !== 'carnie') {
-                        resOptionsHtml += `<option value="${t.id}" ${payload.resource === t.id || payload.resource === t.name ? 'selected' : ''}>${t.name}</option>`;
-                    }
-                });
-
                 basicParamsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[10px] font-bold text-amber-400 mb-0.5">Resource Type</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'resource', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">
-                    ${resOptionsHtml}
+                    <option value="Carnie" ${payload.resource === 'Carnie' ? 'selected' : ''}>Carnie (Current)</option>
+                    <option value="maxCarnie" ${payload.resource === 'maxCarnie' ? 'selected' : ''}>Max Carnie</option>
+                    <option value="Mythic" ${payload.resource === 'Mythic' ? 'selected' : ''}>Mythic</option>
+                    <option value="Robot" ${payload.resource === 'Robot' ? 'selected' : ''}>Robot</option>
+                    <option value="Elemental" ${payload.resource === 'Elemental' ? 'selected' : ''}>Elemental</option>
+                    <option value="Pirate" ${payload.resource === 'Pirate' ? 'selected' : ''}>Pirate</option>
+                    <option value="Undead" ${payload.resource === 'Undead' ? 'selected' : ''}>Undead</option>
+                    <option value="Viking" ${payload.resource === 'Viking' ? 'selected' : ''}>Viking</option>
+                    <option value="Ninja" ${payload.resource === 'Ninja' ? 'selected' : ''}>Ninja</option>
+                    <option value="Stalker" ${payload.resource === 'Stalker' ? 'selected' : ''}>Stalker</option>
+                    <option value="Alien" ${payload.resource === 'Alien' ? 'selected' : ''}>Alien</option>
+                    <option value="Luchador" ${payload.resource === 'Luchador' ? 'selected' : ''}>Luchador</option>
                 </select></div>`;
             }
 
@@ -1451,7 +1463,7 @@
                                <option value="bodyguard" ${np.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
                            </select></div>`;
                        } else {
-                           amountHtml = `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                           amountHtml = `<div class="w-16"><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
                        }
                        
                        let nestedStatOptions = `
@@ -1478,7 +1490,7 @@
                           </div>
                        `;
                     } else if (nMan.requiresAmount) {
-                       npParamsHtml += `<div class="w-16"><input type="number" value="${np.amount || 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                       npParamsHtml += `<div class="w-16"><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
                     } 
                     
                     if (nMan.canLimitStacks) {
@@ -1748,6 +1760,16 @@
     async function handleSaveAbility() {
       const ability = getCurrentAbilityState();
 
+      const validationErrors = validateAbilityLogic(ability);
+      if (validationErrors.length > 0) {
+        const toast = document.createElement('div');
+        toast.className = 'bg-red-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
+        toast.innerText = `Cannot save: ${validationErrors[0]}`;
+        document.getElementById('toast-container').appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+        return;
+      }
+
       if (!ability.name || ability.name === '') {
         const toast = document.createElement('div');
         toast.className = 'bg-red-600 text-white px-4 py-2 rounded shadow-lg text-sm font-bold animate-pulse';
@@ -1820,7 +1842,7 @@
               if (!cardToUpdate.abilities) cardToUpdate.abilities = [];
               cardToUpdate.abilities.push(processedAbility);
               await saveCardToCatalog(cardToUpdate);
-              window.location.href = `cards.html#${returnToCardId}`;
+              window.location.href = `card_editor.html#${returnToCardId}`;
           }
       }
     }
@@ -2170,7 +2192,7 @@
                     <button type="button" onclick="window.testAssociatedCard('${c.id}')" title="Test this card" class="text-slate-500 hover:text-purple-400 transition p-1">
                         🧪
                     </button>
-                    <a href="cards.html#${c.id}" title="Edit ${c.name}" class="text-slate-500 hover:text-sky-400 transition p-1">
+                    <a href="card_editor.html#${c.id}" title="Edit ${c.name}" class="text-slate-500 hover:text-sky-400 transition p-1">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                     </a>
                 </div>
@@ -2198,9 +2220,9 @@
   
   <!-- Dynamic Card Assigner Extension -->
   <script type="module">
-    import { fetchCustomCards, saveCardToCatalog, fetchCustomAbilities } from '../src/firebase.js';
-    import { CARD_CATALOG } from '../src/engine.js';
-    import { showToast } from '../src/ui.js';
+    import { fetchCustomCards, saveCardToCatalog, fetchCustomAbilities } from './src/firebase.js';
+    import { CARD_CATALOG } from './src/engine.js';
+    import { showToast } from './src/ui.js';
 
     // Track active ID regardless of URL state
     window._activeAssignerId = window.location.hash.replace('#', '') || new URLSearchParams(window.location.search).get('id');
