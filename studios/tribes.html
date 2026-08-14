@@ -267,10 +267,11 @@
       topbar.querySelector('#btn-test').classList.add('hidden');
       topbar.querySelector('#btn-import').classList.add('hidden');
 
+      const hashId = window.location.hash.replace('#', '');
+
       renderCatalog();
       resetForm();
 
-      const hashId = window.location.hash.replace('#', '');
       if (hashId) setTimeout(() => window.loadTribe(hashId), 50);
 
       window.addEventListener('hashchange', () => {

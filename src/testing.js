@@ -1,5 +1,5 @@
 import { createGameRoom, fetchCustomAbilities, fetchCustomCards, fetchCustomTribes, fetchUserDecks } from './firebase.js';
-import { CARD_CATALOG } from './engine.js';
+import { CARD_CATALOG } from './engine/index.js';
 
 /*
  * =========================================================================================
@@ -19,6 +19,18 @@ import { CARD_CATALOG } from './engine.js';
  */
 
 export async function launchSandboxMatch(itemData, type = 'card') {
+    // SYNCHRONOUS POPUP TRICK: Open immediately to bypass popup blockers
+    const isStudio = window.location.pathname.includes('/studios/');
+    const gamePath = isStudio ? '../game.html' : 'game.html';
+    let popup = null;
+    
+    try {
+        popup = window.open('about:blank', '_blank');
+        if (popup) popup.document.write('<h2 style="font-family: sans-serif; padding: 20px; color: #333;">Loading Sandbox Environment...</h2>');
+    } catch (e) {
+        console.warn("Popup blocked or unavailable.", e);
+    }
+
     const abs = await fetchCustomAbilities();
     
     const getAbility = (nameOrId, fallback) => {
@@ -51,7 +63,8 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     // Fallbacks (Only used if the user deleted these cards from their database)
     const fallbackDummy = {"id":"custom_1785272139394","name":"Target Dummy","tribe":"Carnie","type":"unit","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":1,"description":"","artUrl":"","abilities":[standardAttack],"defaultLine":"mid"};
     const fallbackShovel = {"id":"card_1785786111173","name":"Skull Shovel","tribe":"Undead","type":"equipment","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[]};
-    const fallbackTauntAbility = {"abilityId":"ability_taunting_call","name":"Taunting Call","trigger":"ON_BE_PLAYED","triggerScope":"PERSONAL","triggerLimit":"UNLIMITED","cost":{"readinessCost":"NONE"},"activation":{"method":"PLAYER_CHOICE","quickTargeting":{"zones":["FIELD"],"alignment":["FRIENDLY"],"entityType":["UNIT"],"ignoreBattlelines":true}},"effects":[{"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"type":"CUSTOM_SCRIPT","script":"const oppId = target.ownerId === 'player1' ? 'player2' : 'player1'; const validEnemies = []; const opp = state.players[oppId]; for (const line of ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard']) { if (opp.lines[line]) { for (const u of opp.lines[line]) { const acts = engine.utils.getEntityAvailableActions(state, oppId, u.instanceId); if (acts.some(a => a.type === 'ATTACK')) { validEnemies.push(u); } } } } if (validEnemies.length > 0) { const enemy = validEnemies[engine.utils.randomInt(state, 0, validEnemies.length)]; enemy.readiness = Math.max(0, (enemy.readiness || 0) - 1); state.history_log.push(`🎯 ${enemy.name} was provoked into attacking ${target.name}!`); engine.executeAbility({ abilityId: 'temp_provoked_attack', name: 'Provoked Attack', effects: [{ targetMethod: 'EVENT_TARGET', payloads: [{ type: 'ATTACK' }] }] }, enemy, { target: target }); }","duration":"INSTANT"}]}]};
+    let fallbackTauntAbility = {"abilityId":"ability_taunting_call","name":"Taunting Call","trigger":"ON_BE_PLAYED","triggerScope":"PERSONAL","triggerLimit":"UNLIMITED","cost":{"readinessCost":"NONE"},"activation":{"method":"PLAYER_CHOICE","quickTargeting":{"zones":["FIELD"],"alignment":["FRIENDLY"],"entityType":["UNIT","AVATAR"],"ignoreBattlelines":true}},"effects":[{"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"type":"CUSTOM_SCRIPT","script":"const oppId = target.ownerId === 'player1' ? 'player2' : 'player1'; const validEnemies = []; const opp = state.players[oppId]; for (const line of ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard']) { if (opp.lines[line]) { for (const u of opp.lines[line]) { const acts = engine.utils.getEntityAvailableActions(state, oppId, u.instanceId); if (acts.some(a => a.type === 'ATTACK')) { validEnemies.push(u); } } } } if (validEnemies.length > 0) { const enemy = validEnemies[engine.utils.randomInt(state, 0, validEnemies.length)]; enemy.readiness = Math.max(0, (enemy.readiness || 0) - 1); state.history_log.push(`🎯 ${enemy.name} was provoked into attacking ${target.name}!`); engine.executeAbility({ abilityId: 'temp_provoked_attack', name: 'Provoked Attack', effects: [{ targetMethod: 'EVENT_TARGET', payloads: [{ type: 'ATTACK' }] }] }, enemy, { target: target }); }","duration":"INSTANT"}]}]};
+    fallbackTauntAbility = getAbility('Taunting Call', fallbackTauntAbility)
     const fallbackTaunt = {"id":"card_taunting_call_test","name":"Taunting Call","tribe":"Carnie","type":"spell","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[fallbackTauntAbility]};
 
     const username = localStorage.getItem('henchies_last_username') || 'Tester';
@@ -66,6 +79,10 @@ export async function launchSandboxMatch(itemData, type = 'card') {
             console.warn(`[SANDBOX] 🩹 Auto-healing broken ability link on '${card.name}'. Injecting live ability: '${targetLiveAbility.name}'`);
             card.abilities = card.abilities.filter(a => typeof a === 'object'); // Clear dangling string references
             card.abilities.push(JSON.parse(JSON.stringify(targetLiveAbility)));
+        } else if (hasNameMatch) {
+            // Force replace outdated hardcoded abilities with the live database version
+            console.log(`[SANDBOX] 🔄 Overriding cached ability with live database version for '${targetLiveAbility.name}'`);
+            card.abilities = card.abilities.map(a => a.name === targetLiveAbility.name ? JSON.parse(JSON.stringify(targetLiveAbility)) : a);
         }
     };
 
@@ -185,6 +202,7 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     
     const state = {
         status: 'active',
+        tribeCatalog: customTribes,
         rngSeed: Math.floor(Math.random() * 4294967296),
         activePlayerId: 'player1',
         turnNumber: 1,
@@ -281,10 +299,18 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     state.gameId = roomId;
     state.turn_start_state = JSON.stringify(state);
 
-    await createGameRoom(roomId, state);
+    // TIMEOUT GUARANTEE: Never hang infinitely on Firebase
+    const createTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 3000));
+    try {
+        await Promise.race([createGameRoom(roomId, state), createTimeout]);
+    } catch (e) {
+        console.warn("[SANDBOX] Firebase write timed out or failed. Falling back to local storage.", e);
+    }
     
-    const isStudio = window.location.pathname.includes('/studios/');
-    const gamePath = isStudio ? '../game.html' : 'game.html';
-    
-    window.open(`${gamePath}#test_${roomId}`, '_blank');
+    const targetUrl = `${gamePath}#test_${roomId}`;
+    if (popup) {
+        popup.location.href = targetUrl;
+    } else {
+        window.location.href = targetUrl;
+    }
 }
