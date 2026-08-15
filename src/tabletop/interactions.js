@@ -2,6 +2,7 @@ import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { pushActionToLog } from '../firebase.js';
 import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getEntityAvailableActions, LINES, canPlayCard } from '../engine/index.js';
+import { resolveResourceKey } from '../engine/index.js';
 import { showToast } from '../ui.js';
 
 export async function executeAndLogAbility(entityId, abilityId, targetId, targetLine) {
@@ -87,9 +88,6 @@ window.handleEntityClick = async (prefix, line, entityId) => {
         if (ClientState.validTargets.some(t => t.id === entityId)) {
             if (ClientState.pendingAbility.isHandCard) {
                 console.log(`[UI] Executing targeted play for card ${ClientState.pendingAbility.entityId} onto target ${entityId}`);
-                const player = ClientState.gameState.players[ClientState.localPlayerRole];
-                const handCard = player.hand.find(c => c.instanceId === ClientState.pendingAbility.entityId);
-                const theAb = handCard ? handCard.abilities?.find(a => a.abilityId === ClientState.pendingAbility.abilityId) : null;
                 
                 ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
                 const actionPayload = {
@@ -98,37 +96,15 @@ window.handleEntityClick = async (prefix, line, entityId) => {
                     playerId: ClientState.localPlayerRole,
                     cardId: ClientState.pendingAbility.entityId,
                     targetLine: 'back',
+                    chosenAbilityId: ClientState.pendingAbility.abilityId,
                     abilityTargetId: entityId
                 };
 
-                const playRes = playCard(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'back', entityId);
+                const playRes = playCard(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'back', ClientState.pendingAbility.abilityId, entityId);
                 if (playRes.success) {
-                    let secondPayload = null;
-                    if (theAb) {
-                        const autoTriggers = ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'];
-                        if (!autoTriggers.includes(theAb.trigger)) {
-                            executeEntityAction(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'ABILITY', ClientState.pendingAbility.abilityId, entityId, line);
-                            ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
-                            secondPayload = {
-                                type: 'ENTITY_ACTION',
-                                actionIndex: ClientState.gameState.actionIndex,
-                                playerId: ClientState.localPlayerRole,
-                                entityId: ClientState.pendingAbility.entityId,
-                                actionType: 'ABILITY',
-                                abilityId: ClientState.pendingAbility.abilityId,
-                                targetId: entityId,
-                                targetLine: line
-                            };
-                        }
-                    }
-                    
                     ClientState.pendingAbility = null;
                     ClientState.validTargets = [];
-                    
                     await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
-                    if (secondPayload) {
-                        await pushActionToLog(ClientState.roomCode, secondPayload, null, ClientState.gameState.history_log);
-                    }
                     updateUI();
                 } else {
                     showToast(playRes.reason, 'error');
@@ -232,12 +208,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
         return;
     }
 
-    await window.executeNormalPlay(cardId);
-    
-    const autoTriggers = ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'];
-    if (!autoTriggers.includes(ability.trigger)) {
-        await executeAndLogAbility(cardId, abilityId, null, 'back');
-    }
+    await window.executeNormalPlay(cardId, abilityId);
 };
 
 window.activateAbility = async (entityId, abilityId) => {
@@ -275,7 +246,7 @@ window.activateAbility = async (entityId, abilityId) => {
     executeAndLogAbility(entityId, abilityId, null, null);
 };
 
-window.executeNormalPlay = async (cardId, abilityTargetId = null) => {
+window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetId = null) => {
     if (event) event.stopPropagation();
     window.closeUnitActionModal();
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
@@ -285,10 +256,11 @@ window.executeNormalPlay = async (cardId, abilityTargetId = null) => {
       playerId: ClientState.localPlayerRole,
       cardId: cardId,
       targetLine: 'back',
+      chosenAbilityId: chosenAbilityId,
       abilityTargetId: abilityTargetId
     };
 
-    const result = playCard(ClientState.gameState, ClientState.localPlayerRole, cardId, 'back', abilityTargetId);
+    const result = playCard(ClientState.gameState, ClientState.localPlayerRole, cardId, 'back', chosenAbilityId, abilityTargetId);
     if (result.success) {
       ClientState.selectedCardId = null;
       await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
@@ -311,10 +283,6 @@ window.handleHandCardClick = async (cardId) => {
   if (ClientState.pendingAbility) {
       if (ClientState.validTargets.some(t => t.id === cardId)) {
           if (ClientState.pendingAbility.isHandCard) {
-              const player = ClientState.gameState.players[ClientState.localPlayerRole];
-              const handCard = player.hand.find(c => c.instanceId === ClientState.pendingAbility.entityId);
-              const theAb = handCard ? handCard.abilities?.find(a => a.abilityId === ClientState.pendingAbility.abilityId) : null;
-              
               ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
               const actionPayload = {
                   type: 'PLAY_CARD',
@@ -322,17 +290,12 @@ window.handleHandCardClick = async (cardId) => {
                   playerId: ClientState.localPlayerRole,
                   cardId: ClientState.pendingAbility.entityId,
                   targetLine: 'back',
+                  chosenAbilityId: ClientState.pendingAbility.abilityId,
                   abilityTargetId: cardId
               };
 
-              const playRes = playCard(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'back', cardId);
+              const playRes = playCard(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'back', ClientState.pendingAbility.abilityId, cardId);
               if (playRes.success) {
-                  if (theAb) {
-                      const autoTriggers = ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'];
-                      if (!autoTriggers.includes(theAb.trigger)) {
-                          executeEntityAction(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'ABILITY', ClientState.pendingAbility.abilityId, cardId, 'hand');
-                      }
-                  }
                   ClientState.pendingAbility = null;
                   ClientState.validTargets = [];
                   await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
@@ -366,11 +329,46 @@ window.handleHandCardClick = async (cardId) => {
         return;
     }
 
+    let baseCost = typeof c.cost === 'object' ? (c.cost.tribeAmount > 0 ? c.cost.tribeAmount : (c.cost.carnie || c.cost.tent || 0)) : (c.cost || 0);
+    let cTribe = resolveResourceKey(ClientState.gameState, player, c.tribe);
+    
+    let simCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
+    let simTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
+    
+    if (baseCost > 0) {
+        if (cTribe === 'Carnie') {
+            simCarnie -= baseCost;
+        } else {
+            let costRemaining = baseCost;
+            let tribeResToUse = Math.min(simTribe, costRemaining);
+            costRemaining -= tribeResToUse;
+            simTribe -= tribeResToUse;
+            simCarnie -= (costRemaining * 3);
+        }
+    }
+
+    const canAffordAbility = (abCost) => {
+        if (!abCost) return true;
+        let abBaseCost = abCost.tribeAmount > 0 ? abCost.tribeAmount : (abCost.carnie || abCost.tent || 0);
+        if (abBaseCost <= 0) return true;
+        if (cTribe === 'Carnie') {
+            return simCarnie >= abBaseCost;
+        } else {
+            let maxConversion = Math.floor(simCarnie / 3);
+            return (simTribe + maxConversion) >= abBaseCost;
+        }
+    };
+
     const playAbilities = c.abilities ? c.abilities.filter(ab => {
         const t = ab.trigger || 'MANUAL';
         const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
         const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
-        return ab.trigger === 'PLAY_OPTIONAL' || (isPlayTrigger && requiresTarget);
+        
+        if (t === 'PLAY_OPTIONAL') {
+            return canAffordAbility(ab.cost);
+        }
+        
+        return isPlayTrigger && requiresTarget;
     }) : [];
 
     if (playAbilities.length === 1 && playAbilities[0].activation?.method === 'PLAYER_CHOICE' && playAbilities[0].trigger !== 'PLAY_OPTIONAL') {

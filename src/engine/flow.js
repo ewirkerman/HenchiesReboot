@@ -1,3 +1,4 @@
+// filepath: src/engine/flow.js
 /**
  * src/engine/flow.js
  * Top-level player actions and turn progression flow.
@@ -167,13 +168,17 @@ export function canPlayCard(state, playerId, card) {
 
     if (card.abilities) {
         for (const ab of card.abilities) {
-            if (['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_BE_PLAYED', 'PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE') {
+            if (['PLAY', 'MODIFY_PLAY', 'ON_BE_PLAYED', 'PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE') {
                 const qt = ab.activation.quickTargeting;
                 if (qt && qt.zones && qt.zones.includes('FIELD')) {
                     const oppId = playerId === 'player1' ? 'player2' : 'player1';
                     let targetFound = false;
-                    if (qt.alignment?.includes('FRIENDLY') && LINES.some(l => state.players[playerId].lines[l]?.length > 0)) targetFound = true;
-                    if (qt.alignment?.includes('ENEMY') && !targetFound && LINES.some(l => state.players[oppId].lines[l]?.length > 0)) targetFound = true;
+                    
+                    let alignments = qt.alignment || [];
+                    if (alignments.length === 0) alignments = ['FRIENDLY', 'ENEMY'];
+                    
+                    if (alignments.includes('FRIENDLY') && LINES.some(l => state.players[playerId].lines[l]?.length > 0)) targetFound = true;
+                    if (alignments.includes('ENEMY') && !targetFound && LINES.some(l => state.players[oppId].lines[l]?.length > 0)) targetFound = true;
                     if (!targetFound) return false;
                 }
             }
@@ -182,7 +187,7 @@ export function canPlayCard(state, playerId, card) {
     return true;
 }
 
-export function playCard(state, playerId, cardId, targetLine = 'back', abilityTargetId = null) {
+export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbilityId = null, abilityTargetId = null) {
     state._actionDepth = 0; // Hard reset to prevent depth leaks from previous errors
     const player = state.players[playerId];
     const cardIdx = player.hand.findIndex(c => c.instanceId === cardId || c.id === cardId);
@@ -190,19 +195,35 @@ export function playCard(state, playerId, cardId, targetLine = 'back', abilityTa
     const card = player.hand[cardIdx];
 
     let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
+    let abilityCostAmt = 0;
+    if (chosenAbilityId) {
+        const ab = card.abilities?.find(a => a.abilityId === chosenAbilityId);
+        if (ab && ab.cost) {
+            abilityCostAmt = ab.cost.tribeAmount > 0 ? ab.cost.tribeAmount : (ab.cost.carnie || ab.cost.tent || 0);
+        }
+    }
+
+    let totalCost = baseCost + abilityCostAmt;
     let cTribe = resolveResourceKey(state, player, card.tribe);
     let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
+    if (totalCost > 0) {
+        if (cTribe === 'Carnie') {
+            if (carnieRes < totalCost) return { success: false, reason: `Not enough Carnie (Need ${totalCost})` };
+        } else {
+            const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
+            if (tribeRes < 1 && baseCost > 0) return { success: false, reason: `Must use at least 1 Tribe Resource for the card` };
+            const maxCarnieConversion = Math.floor(carnieRes / 3);
+            if (tribeRes + maxCarnieConversion < totalCost) return { success: false, reason: `Not enough resources (Need ${totalCost})` };
+        }
+    }
+
+    // Deduct ONLY baseCost. (executeAbility handles the optional abilityCost natively later in the action)
     if (baseCost > 0) {
         if (cTribe === 'Carnie') {
-            if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Cost: ${baseCost})` };
             player.resources['Carnie'].current -= baseCost;
         } else {
             const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
-            if (tribeRes < 1) return { success: false, reason: `Must use at least 1 Tribe Resource` };
-            const maxCarnieConversion = Math.floor(carnieRes / 3);
-            if (tribeRes + maxCarnieConversion < baseCost) return { success: false, reason: `Not enough resources (Cost: ${baseCost})` };
-            
             let costRemaining = baseCost;
             let tribeResToUse = Math.min(tribeRes, costRemaining);
             costRemaining -= tribeResToUse;
@@ -216,7 +237,7 @@ export function playCard(state, playerId, cardId, targetLine = 'back', abilityTa
         source: getAvatar(state, playerId),
         target: card,
         targetLine: targetLine,
-        eventContext: { abilityTargetId }
+        eventContext: { chosenAbilityId, abilityTargetId }
     });
     action.run(engine);
     return { success: true };

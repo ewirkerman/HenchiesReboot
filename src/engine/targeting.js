@@ -81,15 +81,19 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     const isAttack = ability.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
 
     if (qt.zones) {
+        let alignments = qt.alignment || [];
+        if (alignments.length === 0) alignments = ['FRIENDLY', 'ENEMY'];
+
         const checkPlayer = (pId, isFriendly) => {
-            if ((isFriendly && !qt.alignment.includes('FRIENDLY')) || (!isFriendly && !qt.alignment.includes('ENEMY'))) return;
+            if ((isFriendly && !alignments.includes('FRIENDLY')) || (!isFriendly && !alignments.includes('ENEMY'))) return;
             const p = state.players[pId];
             const hasPerception = hasEngineFlag(state, entity, 'IGNORE_BLOCK_TARGETING');
 
             const checkEntity = (ent, line) => {
                 let entType = 'UNIT';
                 if (ent.type === 'avatar') entType = 'AVATAR';
-                else if (['equipment', 'artifact'].includes(ent.type)) entType = 'EQUIPMENT';
+                else if (ent.type === 'equipment') entType = 'EQUIPMENT';
+                else if (ent.type === 'artifact') entType = 'ARTIFACT';
                 else if (ent.type === 'spell') entType = 'SPELL';
                 else if (ent.type === 'boon') entType = 'BOON';
                 

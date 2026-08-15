@@ -201,7 +201,7 @@ export function reconstructStateFromLog(data) {
           if (action.type === 'SACRIFICE_DECISION') {
             executeSacrificeDecision(liveState, action.option, action.cardId);
           } else if (action.type === 'PLAY_CARD') {
-            playCard(liveState, action.playerId, action.cardId, action.targetLine, action.abilityTargetId);
+            playCard(liveState, action.playerId, action.cardId, action.targetLine, action.chosenAbilityId, action.abilityTargetId);
           } else if (action.type === 'ENTITY_ACTION') {
             executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
           } else if (action.type === 'END_TURN') {

@@ -1,5 +1,5 @@
 export const ATTRIBUTE_TYPES = {
-    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'TARGET', 'ATTACKER', 'BOON'] },
+    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] },
     'alignment': { label: 'Alignment', type: 'select', options: ['FRIENDLY', 'ENEMY'] },
     'zone': { label: 'Zone', type: 'select', options: ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'] },
     'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },

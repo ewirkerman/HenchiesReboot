@@ -418,7 +418,9 @@ export class GameEngine {
         const pool = [];
         const oppId = callingPlayerId === 'player1' ? 'player2' : 'player1';
         
-        const alignments = qt?.alignment || ['ENEMY'];
+        let alignments = qt?.alignment || [];
+        if (alignments.length === 0) alignments = ['FRIENDLY', 'ENEMY'];
+        
         const zones = qt?.zones || ['FIELD'];
         const types = qt?.entityType || [];
         
@@ -445,7 +447,8 @@ export class GameEngine {
             if (!types || types.length === 0) return true;
             let entType = 'UNIT';
             if (ent.type === 'avatar') entType = 'AVATAR';
-            else if (ent.type === 'equipment' || ent.type === 'artifact') entType = 'EQUIPMENT';
+            else if (ent.type === 'equipment') entType = 'EQUIPMENT';
+            else if (ent.type === 'artifact') entType = 'ARTIFACT';
             else if (ent.type === 'spell') entType = 'SPELL';
             else if (ent.type === 'boon') entType = 'BOON';
             return types.includes(entType);
@@ -480,6 +483,9 @@ export class GameEngine {
                 if (node.value === 'AVATAR') return entity.type === 'avatar';
                 if (node.value === 'UNIT') return entity.type === 'unit';
                 if (node.value === 'BOON') return entity.type === 'boon';
+                if (node.value === 'EQUIPMENT') return entity.type === 'equipment';
+                if (node.value === 'ARTIFACT') return entity.type === 'artifact';
+                if (node.value === 'SPELL') return entity.type === 'spell';
                 return false;
             }
             else if (node.attribute === 'tribe') entVal = entity.tribe || 'Generic';
