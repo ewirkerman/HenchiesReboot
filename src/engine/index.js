@@ -437,6 +437,14 @@ export class GameEngine {
                         p.lines[line].forEach(u => { if (u.attachments) pool.push(...u.attachments); });
                     }
                 }
+                if (this.state.equator) {
+                    this.state.equator.forEach(item => {
+                        const itemOwner = item.ownerId || callingPlayerId;
+                        if (itemOwner === pId) {
+                            pool.push(item);
+                        }
+                    });
+                }
             }
             ['hand', 'deck', 'discard', 'banish'].forEach(z => {
                 if (zones.includes(z.toUpperCase())) pool.push(...p[z]);

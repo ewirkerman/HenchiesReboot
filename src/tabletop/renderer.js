@@ -180,8 +180,13 @@ function renderEquator(equatorItems) {
 
     container.innerHTML = equatorItems.map((item, idx) => {
       const json = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
+      const isAttacker = ClientState.pendingAbility && ClientState.pendingAbility.entityId === item.instanceId;
+      const isTargetable = ClientState.validTargets.some(t => t.id === item.instanceId);
+
       return renderCardHTML(item, {
         readiness: item.readiness,
+        isSelected: isAttacker,
+        isTargetable: isTargetable,
         onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
         onInspect: `window.inspectCard('${json}')`,
         abilityUses: ClientState.gameState?.abilityUses || {}

@@ -4,7 +4,7 @@ import { StudioState } from './state.js';
 import { fetchCustomAbilities, fetchCustomCards, fetchCustomTribes, saveAbilityToCatalog } from '../../firebase.js';
 import { CARD_CATALOG } from '../../engine/index.js';
 import { generateAbilityDescription } from '../../language_description.js';
-import { showToast } from '../../ui.js';
+import { showToast, loadUI } from '../../ui.js';
 
 import { handleDescriptionInput, handleDescriptionKeydown, closeMentionDropdown } from './mentions.js';
 import { handleAddEffectGroup } from './payloads.js';
@@ -17,6 +17,7 @@ import '../../../components/catalog.js';
 import '../../../components/topbar.js';
 
 async function init() {
+  await loadUI();
   const baseTriggerSelect = document.getElementById('ab-base-trigger');
   if (baseTriggerSelect) {
       // Options are injected by renderAdditionalTriggers matching logic natively in triggers.js

@@ -30,7 +30,7 @@ export function renderAssignedAbilities() {
                     <span class="text-[9px] bg-indigo-900 text-indigo-200 px-1 py-0.5 rounded ml-1">${ab.trigger || 'MANUAL'}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                    <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-500 hover:text-amber-400 transition p-1">📋</button>
+                    <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[9px] font-bold flex items-center gap-1">📋 JSON</button>
                     <a href="abilities.html#${ab.abilityId}" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-indigo-400 hover:text-indigo-200 transition p-1">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                     </a>
@@ -113,7 +113,7 @@ export function renderReferencedAbilities() {
                     <span class="text-[9px] bg-slate-950 text-slate-400 px-1 py-0.5 rounded ml-1">${ab.trigger || 'MANUAL'}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                    <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-500 hover:text-amber-400 transition p-1">📋</button>
+                    <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[9px] font-bold flex items-center gap-1 opacity-0 group-hover:opacity-100 focus:opacity-100">📋 JSON</button>
                     <a href="abilities.html#${ab.abilityId}" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-slate-500 hover:text-sky-300 transition p-1 group-hover:text-sky-400">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                     </a>
