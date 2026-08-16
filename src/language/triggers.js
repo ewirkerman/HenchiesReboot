@@ -121,13 +121,28 @@ export function parseTriggers(ability, allTribes) {
             let combatSuffix = '';
             let attackSuffix = '';
             let conditionPhrases = [];
+            let rootOperator = 'AND';
             
             if (ability.activation?.method !== 'PLAYER_CHOICE') {
+                if (ability.activation?.logicTree?.logicalOperator) {
+                    rootOperator = ability.activation.logicTree.logicalOperator;
+                }
+                
                 const scan = (node) => {
                     if (!node) return;
                     if (node.type === 'condition') {
-                        if (node.attribute === 'isCombat') {
-                            attackSuffix = String(node.value) === 'true' ? ' as the attacker' : ' as the defender';
+                        if (['isCombat', 'isAttacking'].includes(node.attribute)) {
+                            let isTrue = String(node.value).toLowerCase() === 'true';
+                            if (node.operator === '!=') isTrue = !isTrue;
+                            
+                            if (node.attribute === 'isCombat') {
+                                combatSuffix = isTrue ? ' during combat' : ' outside of combat';
+                            } else {
+                                attackSuffix = isTrue ? ' as the attacker' : ' as the defender';
+                            }
+                        } else if (node.attribute === 'eventAbility') {
+                            if (node.operator === '==') conditionPhrases.push(`the event ability is '${node.value}'`);
+                            else conditionPhrases.push(`the event ability is not '${node.value}'`);
                         } else {
                             const opMap = { '==': 'is', '!=': 'is not', '>': 'is more than', '<': 'is less than', '>=': 'is at least', '<=': 'is at most' };
                             let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
@@ -161,13 +176,18 @@ export function parseTriggers(ability, allTribes) {
                 scan(ability.activation?.logicTree);
             }
             
+            if (attackSuffix) {
+                combatSuffix = ''; // Attacking entails combat, prevent redundancy
+            }
+            
             let finalTxt = txt + attackSuffix + combatSuffix;
             if (conditionPhrases.length > 0) {
                 let hasThisCard = finalTxt.toLowerCase().includes('this card');
                 let poss = hasThisCard ? 'its' : "this card's";
                 let pro = hasThisCard ? 'it' : 'this card';
                 
-                let joined = conditionPhrases.join(' and ');
+                let joinWord = rootOperator === 'OR' ? ' or ' : ' and ';
+                let joined = conditionPhrases.join(joinWord);
                 joined = joined.replace(/\{POSS\}/g, poss).replace(/\{PRONOUN\}/g, pro);
                 finalTxt += `, if ${joined}`;
             }

@@ -324,10 +324,12 @@ function renderHand(handCards) {
       const cardRefId = c.instanceId || c.id;
       const isSelected = ClientState.selectedCardId === cardRefId;
       const playable = ClientState.gameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c).success : false;
+      const isTargetable = ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === cardRefId);
 
       return renderCardHTML(c, {
         isHand: true,
         isSelected: isSelected,
+        isTargetable: isTargetable,
         isPlayable: playable,
         onClick: `window.handleHandCardClick('${cardRefId}')`,
         onInspect: `window.inspectCard('${json}', true)`,

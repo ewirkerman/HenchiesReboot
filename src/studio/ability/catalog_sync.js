@@ -297,21 +297,21 @@ export function loadAbility(id) {
 
   document.getElementById('studio-topbar').showButtons(true);
 
-  const srcAct = ab.activation || ab.targeting || {};
-  document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
-  
-  const oldTargeting = srcAct.quickTargeting || {};
-  StudioState.activationQuickTargeting = {
-      zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
-      alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
-                 (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
-      entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
-                  (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [oldTargeting.entityType || 'UNIT']),
-      ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines : 
-                         (oldTargeting.line === 'ANY' || false)
-  };
+    const srcAct = ab.activation || ab.targeting || {};
+    document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
 
-  if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
+    const oldTargeting = srcAct.quickTargeting || {};
+    StudioState.activationQuickTargeting = {
+        zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
+        alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
+                    (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
+        entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
+                    (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [oldTargeting.entityType || 'UNIT']),
+        ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines : 
+                            (oldTargeting.line === 'ANY' || false)
+    };
+
+    if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
   else StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
   
   StudioState.showAdvancedActivation = StudioState.activationRoot.children && StudioState.activationRoot.children.length > 0;
@@ -352,12 +352,13 @@ export function loadAbility(id) {
             payloads: []
         };
 
+        const effQT = srcEffScope.quickTargeting || {};
         group.quickTargeting = {
             zones: Array.isArray(e.quickTargeting?.zones) ? e.quickTargeting.zones : ['FIELD'],
             alignment: Array.isArray(e.quickTargeting?.alignment) ? e.quickTargeting.alignment : 
                        (e.quickTargeting?.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [e.quickTargeting?.alignment || srcEffScope.affiliation || e.targetAffiliation || 'ENEMY']),
             entityType: Array.isArray(e.quickTargeting?.entityType) ? e.quickTargeting.entityType : 
-                        (e.quickTargeting?.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [e.quickTargeting?.entityType || 'UNIT']),
+                        (e.quickTargeting?.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [e.quickTargeting?.entityType || 'UNIT']),
             ignoreBattlelines: e.quickTargeting?.ignoreBattlelines !== undefined ? e.quickTargeting.ignoreBattlelines : 
                                (e.quickTargeting?.line === 'ANY' || false)
         };

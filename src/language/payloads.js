@@ -65,7 +65,7 @@ export function processTargetGroups(ability, ctx) {
             
             if (!hasExternalTarget) {
                 isPlural = group.targetCount > 1;
-                let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes);
+                let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities);
                 
                 if (isPlural) {
                     targetStr = `${group.targetCount} random ${baseDesc}`;
@@ -98,7 +98,7 @@ export function processTargetGroups(ability, ctx) {
                 isPlural = /(allies|enemies|cards|characters|entities|all\b)/i.test(globalTargetNoun) || globalTargetNoun.endsWith('s');
                 possessiveStr = `${targetStr}'s`;
             } else if (actMethod === 'PLAYER_CHOICE') {
-                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, true, 'FIELD', false, allTribes);
+                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, true, 'FIELD', false, allTribes, allAbilities);
                 targetStr = `a chosen ${actDesc}`;
                 possessiveStr = `${targetStr}'s`;
             } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
@@ -119,8 +119,8 @@ export function processTargetGroups(ability, ctx) {
             }
         } else {
             isPlural = group.targetMethod === 'AUTO_ALL' || group.targetCount > 1;
-            let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes);
-            singularDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes);
+            let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities);
+            singularDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities);
             
             if (group.targetMethod === 'AUTO_ALL') targetStr = `all ${baseDesc}`;
             else if (group.targetMethod === 'AUTO_RANDOM') targetStr = group.targetCount === 1 ? `a random ${singularDesc}` : `${group.targetCount} random ${baseDesc}`;
@@ -200,16 +200,16 @@ export function processTargetGroups(ability, ctx) {
             switch(eff.type) {
                 case 'DEAL_DAMAGE': 
                     if (eff.amount < 0) effText = `restore ${Math.abs(eff.amount)} health to {TARGET}`;
-                    else effText = `deal ${eff.amount || 1} damage to {TARGET}`; 
+                    else effText = `deal ${eff.amount !== undefined ? eff.amount : 1} damage to {TARGET}`; 
                     break;
                 case 'HEAL': 
                     if (eff.amount < 0) effText = `deal ${Math.abs(eff.amount)} damage to {TARGET}`;
-                    else effText = `restore ${eff.amount || 1} health to {TARGET}`; 
+                    else effText = `restore ${eff.amount !== undefined ? eff.amount : 1} health to {TARGET}`; 
                     break;
                 case 'DRAW_CARD': 
                     let isNormalDraw = group.targetMethod === 'AUTO_FIRST' && (!group.quickTargeting || !group.quickTargeting.alignment || group.quickTargeting.alignment.length === 0 || (group.quickTargeting.alignment.length === 1 && group.quickTargeting.alignment[0] === 'FRIENDLY'));
                     if (isNormalDraw) {
-                        let drawAmt = group.targetCount || eff.amount || 1;
+                        let drawAmt = group.targetCount !== undefined ? group.targetCount : (eff.amount !== undefined ? eff.amount : 1);
                         effText = `draw ${drawAmt === 1 ? 'a card' : drawAmt + ' cards'}{OMIT_TARGET}`;
                     } else {
                         effText = `draw {TARGET}`;
@@ -233,11 +233,11 @@ export function processTargetGroups(ability, ctx) {
                         else effText = `{DYNAMIC_STAT:modify|readiness by ${eff.amount}}`;
                     } else if (eff.stat === 'power') {
                         if (eff.amount < 0) effText = `cause {TARGET} to lose ${Math.abs(eff.amount)} power`;
-                        else effText = `give {TARGET} ${eff.amount || 1} power`;
+                        else effText = `give {TARGET} ${eff.amount !== undefined ? eff.amount : 1} power`;
                     } else {
                         let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
                         if (eff.amount < 0) effText = `{DYNAMIC_STAT:reduce|${modStat} by ${Math.abs(eff.amount)}}`;
-                        else effText = `{DYNAMIC_STAT:increase|${modStat} by ${eff.amount || 1}}`;
+                        else effText = `{DYNAMIC_STAT:increase|${modStat} by ${eff.amount !== undefined ? eff.amount : 1}}`;
                     }
                     break;
                 case 'MODIFY_RESOURCE': 
@@ -254,7 +254,7 @@ export function processTargetGroups(ability, ctx) {
                         }
                     }
                     if (eff.amount < 0) effText = `lose ${Math.abs(eff.amount)} ${resName}{PER_TARGET}`;
-                    else effText = `gain ${eff.amount || 1} ${resName}{PER_TARGET}`;
+                    else effText = `gain ${eff.amount !== undefined ? eff.amount : 1} ${resName}{PER_TARGET}`;
                     break;
                 case 'SET_STAT': 
                     if (eff.stat === 'readiness') {
@@ -266,7 +266,7 @@ export function processTargetGroups(ability, ctx) {
                         break;
                     }
                     let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                    effText = `{DYNAMIC_STAT:set|${setStat} to ${eff.amount || 1}}`;
+                    effText = `{DYNAMIC_STAT:set|${setStat} to ${eff.amount !== undefined ? eff.amount : 1}}`;
                     break;
                 case 'BLOCK_ACT': effText = `block {TARGET} from acting`; break;
                 case 'BLOCK_ATTACK': effText = `block {TARGET} from attacking`; break;
@@ -368,7 +368,7 @@ export function processTargetGroups(ability, ctx) {
                         const foundCard = getCard(eff.cardId);
                         if (foundCard) cardName = foundCard.name;
                     }
-                    const summonAmt = Math.max(1, Math.abs(eff.amount || 1));
+                    const summonAmt = Math.max(1, Math.abs(eff.amount !== undefined ? eff.amount : 1));
                     const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
                     
                     let destZone = (eff.zone || 'FIELD').toLowerCase();
@@ -546,7 +546,7 @@ export function processTargetGroups(ability, ctx) {
                 let isDecrease = first.amount < 0;
                 let changes = effs.map(eff => {
                      let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                     return `${modStat} by ${Math.abs(eff.amount || 1)}`;
+                     return `${modStat} by ${Math.abs(eff.amount !== undefined ? eff.amount : 1)}`;
                 });
                 if (isDecrease) {
                     effText = `{DYNAMIC_STAT:decrease|${joinWithAnd(changes)}}`;
@@ -557,7 +557,7 @@ export function processTargetGroups(ability, ctx) {
                 let isSpend = first.amount < 0;
                 let changes = effs.map(eff => {
                      let resName = eff.resource || 'resource';
-                     return `${Math.abs(eff.amount || 1)} ${resName}`;
+                     return `${Math.abs(eff.amount !== undefined ? eff.amount : 1)} ${resName}`;
                 });
                 if (isSpend) {
                     effText = `lose ${joinWithAnd(changes)}{PER_TARGET}`;
@@ -567,7 +567,7 @@ export function processTargetGroups(ability, ctx) {
             } else if (first.type === 'SET_STAT' && first.stat !== 'readiness') {
                 let changes = effs.map(eff => {
                      let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                     return `${setStat} to ${eff.amount || 1}`;
+                     return `${setStat} to ${eff.amount !== undefined ? eff.amount : 1}`;
                 });
                 effText = `{DYNAMIC_STAT:set|${joinWithAnd(changes)}}`;
             } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(first.type)) {

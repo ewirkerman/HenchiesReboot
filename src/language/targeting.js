@@ -5,13 +5,16 @@
 
 import { formatArrayToString } from './utils.js';
 
-export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes = null) {
+export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes = null, allAbilities = null) {
     if (!qt) return isPlural ? 'targets' : 'target';
     
     let isCardZone = qt && qt.zones && qt.zones.length > 0 && qt.zones.every(z => ['HAND', 'DECK', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'].includes(z));
 
     let adjectives = [];
     let suffixes = [];
+    
+    let combatState = null;
+    let attackingState = null;
 
     const parseNode = (node) => {
         if (!node) return;
@@ -38,28 +41,63 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 } else {
                     suffixes.push(`that is ${opText} ${displayValue}`.trim());
                 }
-            } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs'].includes(node.attribute)) {
+            } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs', 'amount'].includes(node.attribute)) {
                 let statName = node.attribute.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
-                suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
+                if (statName === 'amount') statName = 'event amount';
+                suffixes.push(`with ${opText} ${node.value} ${statName}`.replace(/\s+/g, ' ').trim());
             } else if (node.attribute === 'alignment') {
                 let val = String(node.value).toLowerCase();
-                if (val === 'friendly') val = 'ally';
-                if (node.operator === '==') adjectives.push(val);
-                else suffixes.push(`that is ${opText} ${val}`.trim());
-            } else if (node.attribute === 'isCombat') {
-                if (String(node.value) === 'true') suffixes.push(`during combat`);
-                else suffixes.push(`outside of combat`);
-            } else if (node.attribute === 'isAttacking') {
-                if (String(node.value) === 'true') suffixes.push(`as the attacker`);
-                else suffixes.push(`as the defender`);
+                if (node.operator === '==') {
+                    adjectives.push(val === 'friendly' ? 'ally' : val);
+                } else {
+                    suffixes.push(`that is not ${val}`);
+                }
+            } else if (['isCombat', 'isAttacking'].includes(node.attribute)) {
+                let isTrue = String(node.value).toLowerCase() === 'true';
+                if (node.operator === '!=') isTrue = !isTrue; // Flip boolean if !=
+                
+                if (node.attribute === 'isCombat') {
+                    combatState = isTrue ? `during combat` : `outside of combat`;
+                } else {
+                    attackingState = isTrue ? `as the attacker` : `as the defender`;
+                }
+            } else if (node.attribute === 'eventAbility') {
+                if (node.operator === '==') suffixes.push(`where the event ability is '${node.value}'`);
+                else suffixes.push(`where the event ability is not '${node.value}'`);
             } else if (node.attribute === 'hasAbility') {
-                if (node.operator === '==') suffixes.push(`with ability '${node.value}'`);
-                else suffixes.push(`without ability '${node.value}'`);
+                let abilityName = node.value;
+                if (allAbilities && Array.isArray(allAbilities)) {
+                    const match = allAbilities.find(a => a.abilityId === node.value || a.name === node.value);
+                    if (match) abilityName = match.name;
+                }
+                if (node.operator === '==') suffixes.push(`with '${abilityName}'`);
+                else suffixes.push(`without '${abilityName}'`);
+            } else if (node.attribute === 'entity') {
+                let val = String(node.value).toLowerCase();
+                if (val === 'self') val = 'this card';
+                
+                if (node.operator === '==') {
+                    if (val !== 'unit' && val !== 'avatar') adjectives.push(val);
+                } else {
+                    suffixes.push(`that is not ${val === 'this card' ? 'this card' : 'a ' + val}`);
+                }
+            } else if (node.attribute === 'zone') {
+                let val = String(node.value).toLowerCase();
+                if (val === 'original_deck') val = 'original deck';
+                if (node.operator === '==') suffixes.push(`in ${val}`);
+                else suffixes.push(`not in ${val}`);
             }
         }
     };
 
     if (logicTree) parseNode(logicTree);
+    
+    // Resolve combat states with precedence (attacking entails combat)
+    if (attackingState) {
+        suffixes.push(attackingState);
+    } else if (combatState) {
+        suffixes.push(combatState);
+    }
 
     let validAlignments = (qt.alignment || []).filter(a => a !== 'ANY' && a !== 'ALL');
     if (validAlignments.length === 0) validAlignments = ['FRIENDLY', 'ENEMY'];
