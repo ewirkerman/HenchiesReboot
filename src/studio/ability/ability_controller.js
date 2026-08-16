@@ -82,6 +82,30 @@ async function init() {
   document.getElementById('ab-trigger-phase').addEventListener('change', updateTriggerComposite);
   document.getElementById('ab-trigger-role').addEventListener('change', updateTriggerComposite);
 
+  window.togglePassiveFlags = () => {
+      const container = document.getElementById('passive-flags-container');
+      container.classList.toggle('hidden');
+  };
+
+  window.updatePassiveFlagsCount = () => {
+      const count = document.querySelectorAll('.ab-flag-chk:checked').length;
+      const btn = document.getElementById('toggle-flags-btn');
+      if (btn) {
+          btn.innerHTML = `⚙️ Set Passive Flags (${count} Active)`;
+          if (count > 0) {
+              btn.classList.add('text-amber-400', 'border-amber-500/50');
+              btn.classList.remove('text-slate-300', 'border-slate-600');
+          } else {
+              btn.classList.remove('text-amber-400', 'border-amber-500/50');
+              btn.classList.add('text-slate-300', 'border-slate-600');
+          }
+      }
+  };
+
+  document.querySelectorAll('.ab-flag-chk').forEach(chk => {
+      chk.addEventListener('change', window.updatePassiveFlagsCount);
+  });
+
   const descInput = document.getElementById('ab-description');
   descInput.addEventListener('input', handleDescriptionInput);
   descInput.addEventListener('keydown', handleDescriptionKeydown);

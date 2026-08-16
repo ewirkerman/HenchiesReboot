@@ -1,3 +1,4 @@
+// filepath: src/tabletop/renderer.js
 import { ClientState } from './client_state.js';
 import { renderHistorySlider, renderCardHTML } from '../ui.js';
 import { canPlayCard, cloneGameState, LINES } from '../engine/index.js';
@@ -317,7 +318,7 @@ function renderHand(handCards) {
       const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
       const cardRefId = c.instanceId || c.id;
       const isSelected = ClientState.selectedCardId === cardRefId;
-      const playable = ClientState.gameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c) : false;
+      const playable = ClientState.gameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c).success : false;
 
       return renderCardHTML(c, {
         isHand: true,

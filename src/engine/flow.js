@@ -5,7 +5,7 @@
  */
 
 import { GameEngine } from './index.js';
-import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG } from './utils.js';
+import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG, hasEngineFlag } from './utils.js';
 import { HarvestAction, PlayAction, sweepTurnEffects } from './actions/index.js';
 import { generateId } from './prandom.js';
 
@@ -149,7 +149,25 @@ export function executeSacrificeDecision(state, option, cardId) {
 
 export function canPlayCard(state, playerId, card) {
     const player = state.players[playerId];
-    if (!player) return false;
+    if (!player) return { success: false, reason: "Player not found" };
+
+    if (hasEngineFlag(state, card, 'UNIQUE_ENTITY')) {
+        let found = false;
+        for (const pId of ['player1', 'player2']) {
+            const p = state.players[pId];
+            for (const line of LINES) {
+                if (p.lines[line]?.some(u => u.name === card.name || u.id === card.id)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found && state.equator?.some(i => i.name === card.name || i.id === card.id)) {
+            found = true;
+        }
+        if (found) return { success: false, reason: "A unique copy of this entity is already on the board" };
+    }
 
     let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
     let cTribe = resolveResourceKey(state, player, card.tribe);
@@ -157,34 +175,30 @@ export function canPlayCard(state, playerId, card) {
 
     if (baseCost > 0) {
         if (cTribe === 'Carnie') {
-            if (carnieRes < baseCost) return false;
+            if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Need ${baseCost})` };
         } else {
             const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
-            if (tribeRes < 1) return false;
+            if (tribeRes < 1 && baseCost > 0) return { success: false, reason: `Must use at least 1 Tribe Resource for the card` };
             const maxCarnieConversion = Math.floor(carnieRes / 3);
-            if (tribeRes + maxCarnieConversion < baseCost) return false;
+            if (tribeRes + maxCarnieConversion < baseCost) return { success: false, reason: `Not enough resources (Need ${baseCost})` };
         }
     }
 
     if (card.abilities) {
         for (const ab of card.abilities) {
-            if (['PLAY', 'MODIFY_PLAY', 'ON_BE_PLAYED', 'PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE') {
+            if (['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_BE_PLAYED', 'PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE') {
                 const qt = ab.activation.quickTargeting;
                 if (qt && qt.zones && qt.zones.includes('FIELD')) {
                     const oppId = playerId === 'player1' ? 'player2' : 'player1';
                     let targetFound = false;
-                    
-                    let alignments = qt.alignment || [];
-                    if (alignments.length === 0) alignments = ['FRIENDLY', 'ENEMY'];
-                    
-                    if (alignments.includes('FRIENDLY') && LINES.some(l => state.players[playerId].lines[l]?.length > 0)) targetFound = true;
-                    if (alignments.includes('ENEMY') && !targetFound && LINES.some(l => state.players[oppId].lines[l]?.length > 0)) targetFound = true;
-                    if (!targetFound) return false;
+                    if (qt.alignment?.includes('FRIENDLY') && LINES.some(l => state.players[playerId].lines[l]?.length > 0)) targetFound = true;
+                    if (qt.alignment?.includes('ENEMY') && !targetFound && LINES.some(l => state.players[oppId].lines[l]?.length > 0)) targetFound = true;
+                    if (!targetFound) return { success: false, reason: "No valid targets on the board for mandatory ability." };
                 }
             }
         }
     }
-    return true;
+    return { success: true };
 }
 
 export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbilityId = null, abilityTargetId = null) {
@@ -194,27 +208,36 @@ export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbi
     if (cardIdx === -1) return { success: false, reason: "Card not in hand" };
     const card = player.hand[cardIdx];
 
-    let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
-    let abilityCostAmt = 0;
-    if (chosenAbilityId) {
-        const ab = card.abilities?.find(a => a.abilityId === chosenAbilityId);
-        if (ab && ab.cost) {
-            abilityCostAmt = ab.cost.tribeAmount > 0 ? ab.cost.tribeAmount : (ab.cost.carnie || ab.cost.tent || 0);
+    if (hasEngineFlag(state, card, 'UNIQUE_ENTITY')) {
+        let found = false;
+        for (const pId of ['player1', 'player2']) {
+            const p = state.players[pId];
+            for (const line of LINES) {
+                if (p.lines[line]?.some(u => u.name === card.name || u.id === card.id)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
         }
+        if (!found && state.equator?.some(i => i.name === card.name || i.id === card.id)) {
+            found = true;
+        }
+        if (found) return { success: false, reason: "A unique copy of this entity is already on the board" };
     }
 
-    let totalCost = baseCost + abilityCostAmt;
+    let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
     let cTribe = resolveResourceKey(state, player, card.tribe);
     let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
 
-    if (totalCost > 0) {
+    if (baseCost > 0) {
         if (cTribe === 'Carnie') {
-            if (carnieRes < totalCost) return { success: false, reason: `Not enough Carnie (Need ${totalCost})` };
+            if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Need ${baseCost})` };
         } else {
             const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
             if (tribeRes < 1 && baseCost > 0) return { success: false, reason: `Must use at least 1 Tribe Resource for the card` };
             const maxCarnieConversion = Math.floor(carnieRes / 3);
-            if (tribeRes + maxCarnieConversion < totalCost) return { success: false, reason: `Not enough resources (Need ${totalCost})` };
+            if (tribeRes + maxCarnieConversion < baseCost) return { success: false, reason: `Not enough resources (Need ${baseCost})` };
         }
     }
 

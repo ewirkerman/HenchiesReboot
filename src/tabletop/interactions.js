@@ -324,8 +324,9 @@ window.handleHandCardClick = async (cardId) => {
     const c = player.hand.find(card => card.instanceId === cardId || card.id === cardId);
     if (!c) return;
 
-    if (!canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c)) {
-        showToast("Cannot afford to play this card.", "error");
+    const playCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c);
+    if (!playCheck.success) {
+        showToast(playCheck.reason || "Cannot play this card.", "error");
         return;
     }
 

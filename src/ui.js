@@ -395,9 +395,32 @@
                 ` : ''}
 
                 <!-- Full Abilities with Registry Lookup -->
-                ${cardOrUnit.abilities && cardOrUnit.abilities.length > 0 ? `
+                ${(function() {
+                    let displayAbilities = cardOrUnit.abilities ? [...cardOrUnit.abilities] : [];
+                    const defLine = cardOrUnit.defaultLine || 'mid';
+                    if (isUnit && !isAvatar && defLine !== 'mid') {
+                        let lineDesc = `This unit is deployed to the ${defLine} line.`;
+                        if (defLine === 'front') lineDesc = 'Blocks attacks from reaching the Mid and Back lines.';
+                        else if (defLine === 'back') lineDesc = 'Protected from attacks while Front or Mid lines are occupied.';
+                        else if (defLine === 'sheltered') lineDesc = 'Protected from attacks while Front, Mid, or Back lines are occupied.';
+                        else if (defLine === 'sideline') lineDesc = 'Does not participate in normal combat. Safe from standard attacks.';
+                        else if (defLine === 'taunt') lineDesc = 'Enemies must target this line before any other.';
+                        else if (defLine === 'bodyguard') lineDesc = 'Must be targeted before the Avatar can be attacked.';
+                        
+                        displayAbilities.push({
+                            abilityId: 'sys_line_' + defLine,
+                            name: defLine.charAt(0).toUpperCase() + defLine.slice(1) + ' Line',
+                            trigger: 'UNTRIGGERABLE',
+                            description: lineDesc,
+                            cost: {}
+                        });
+                    }
+                    
+                    if (displayAbilities.length === 0) return '';
+                    
+                    return `
                   <div class="flex flex-col gap-2 mt-1">
-                    ${cardOrUnit.abilities.map(a => {
+                    ${displayAbilities.map(a => {
                       const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
                       let finalDesc = regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
                       if (cardOrUnit.type === 'spell') {
@@ -454,7 +477,8 @@
                       </div>
                     `}).join('')}
                   </div>
-                ` : ''}
+                `;
+                })()}
 
               </div>
 

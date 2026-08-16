@@ -6,7 +6,7 @@ export class PlayAction extends Action {
         const instance = JSON.parse(JSON.stringify(this.payload.target));
         instance.maxHealth = instance.maxHealth || instance.health || 1;
         if (instance.health === undefined || instance.health <= 0) instance.health = instance.maxHealth;
-        instance.readiness = 0; 
+        instance.readiness = instance.type === 'artifact' ? 1 : 0; 
         instance.acts = instance.maxActs !== undefined ? instance.maxActs : 1;
         
         let destZone = (instance.type === 'artifact' || instance.type === 'equipment') ? 'equator' : (instance.type === 'boon' ? 'avatar' : (instance.type === 'spell' ? 'discard' : (this.payload.targetLine || 'back')));

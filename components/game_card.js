@@ -150,8 +150,20 @@ export class GameCard extends HTMLElement {
         if (card.description) hoverTooltip += `\n"${card.description}"`;
 
         let abilitiesHTML = '';
-        if (card.abilities && card.abilities.length > 0) {
-            abilitiesHTML = card.abilities.map(ab => {
+        let displayAbilities = card.abilities ? [...card.abilities] : [];
+        const defLine = card.defaultLine || 'mid';
+        
+        if (isUnit && !isAvatar && defLine !== 'mid') {
+            displayAbilities.push({
+                abilityId: 'sys_line_' + defLine,
+                name: defLine.charAt(0).toUpperCase() + defLine.slice(1) + ' Line',
+                trigger: 'UNTRIGGERABLE',
+                cost: {}
+            });
+        }
+
+        if (displayAbilities.length > 0) {
+            abilitiesHTML = displayAbilities.map(ab => {
                 const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
                 
                 const abilityKey = `${card.instanceId}_${ab.abilityId}`;

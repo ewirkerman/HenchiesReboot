@@ -201,6 +201,7 @@ export function resetForm() {
   
   document.getElementById('ab-trigger-limit').value = 'UNLIMITED';
   document.querySelectorAll('.ab-flag-chk').forEach(cb => cb.checked = false);
+  if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
   
   document.getElementById('ab-cost-tribe-amt').value = '0';
   document.getElementById('ab-cost-tent').value = '0';
@@ -279,6 +280,7 @@ export function loadAbility(id) {
   document.querySelectorAll('.ab-flag-chk').forEach(cb => {
       cb.checked = ab.passiveFlags ? ab.passiveFlags.includes(cb.value) : false;
   });
+  if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
   
   const cost = ab.cost || {};
   document.getElementById('ab-cost-tribe-amt').value = cost.tribeAmount || 0;

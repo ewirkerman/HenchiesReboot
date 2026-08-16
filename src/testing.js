@@ -122,23 +122,41 @@ export async function launchSandboxMatch(itemData, type = 'card') {
         }
         deckCards = fullDeck;
         card = dummyCard;
-    } else if (isAvatarTest) {
-        deckAvatar = JSON.parse(JSON.stringify(itemData));
-        if (deckAvatar.abilities) {
-            deckAvatar.abilities = deckAvatar.abilities.map(ab => {
-                const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
-                const match = abs.find(a => a.abilityId === abId);
-                return match ? JSON.parse(JSON.stringify(match)) : ab;
-            }).filter(Boolean);
+    } else {
+        if (isAvatarTest) {
+            deckAvatar = JSON.parse(JSON.stringify(itemData));
+            if (deckAvatar.abilities) {
+                deckAvatar.abilities = deckAvatar.abilities.map(ab => {
+                    const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
+                    const match = abs.find(a => a.abilityId === abId);
+                    return match ? JSON.parse(JSON.stringify(match)) : ab;
+                }).filter(Boolean);
+            }
+            card = dummyCard; 
+        } else if (type === 'ability') {
+            card = JSON.parse(JSON.stringify(dummyCard));
+            card.id = 'test_card';
+            card.name = 'Test Dummy';
+            card.abilities = [itemData, standardAttack];
+            card.description = itemData.name + ' test wrapper.';
+        } else {
+            card = JSON.parse(JSON.stringify(itemData));
+            if (card.abilities) {
+                card.abilities = card.abilities.map(ab => {
+                    const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
+                    const match = abs.find(a => a.abilityId === abId);
+                    return match ? JSON.parse(JSON.stringify(match)) : ab;
+                }).filter(Boolean);
+            }
         }
-        
+
         let loadedDeck = [];
         try {
             const lastDeckName = localStorage.getItem('henchies_last_deck');
             const usernameForFetch = localStorage.getItem('henchies_last_username');
             
             if (lastDeckName && usernameForFetch) {
-                console.log(`[SANDBOX] Avatar Test Mode: Attempting to use deck: ${lastDeckName}`);
+                console.log(`[SANDBOX] Attempting to load deck: ${lastDeckName}`);
                 const userDecks = await fetchUserDecks(usernameForFetch);
                 if (userDecks && userDecks[lastDeckName] && userDecks[lastDeckName].deckData) {
                     const rawRefs = userDecks[lastDeckName].deckData;
@@ -161,34 +179,20 @@ export async function launchSandboxMatch(itemData, type = 'card') {
                 }
             }
         } catch(e) {
-            console.warn("[SANDBOX] Failed to load real deck for Avatar test:", e);
+            console.warn("[SANDBOX] Failed to load real deck for test:", e);
         }
         
         if (loadedDeck.length > 0) {
             deckCards = loadedDeck.filter(c => c.type !== 'avatar');
+            if (!deckAvatar) {
+                deckAvatar = loadedDeck.find(c => c.type === 'avatar');
+            }
             console.log(`[SANDBOX] Successfully loaded ${deckCards.length} standard cards from user deck.`);
         } else {
             console.log(`[SANDBOX] Falling back to dummy deck.`);
             for (let i = 0; i < 15; i++) { deckCards.push(JSON.parse(JSON.stringify(dummyCard))); }
             for (let i = 0; i < 5; i++) { deckCards.push(JSON.parse(JSON.stringify(shovelCard))); }
             deckCards.push(JSON.parse(JSON.stringify(butcherCard)));
-        }
-        
-        card = dummyCard; 
-    } else if (type === 'ability') {
-        card = JSON.parse(JSON.stringify(dummyCard));
-        card.id = 'test_card';
-        card.name = 'Test Dummy';
-        card.abilities = [itemData, standardAttack];
-        card.description = itemData.name + ' test wrapper.';
-    } else {
-        card = JSON.parse(JSON.stringify(itemData));
-        if (card.abilities) {
-            card.abilities = card.abilities.map(ab => {
-                const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
-                const match = abs.find(a => a.abilityId === abId);
-                return match ? JSON.parse(JSON.stringify(match)) : ab;
-            }).filter(Boolean);
         }
     }
 
@@ -228,52 +232,50 @@ export async function launchSandboxMatch(itemData, type = 'card') {
         }
     };
 
+    for (let i = deckCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deckCards[i], deckCards[j]] = [deckCards[j], deckCards[i]];
+    }
+
+    deckCards.forEach((c, idx) => {
+        c.instanceId = 'deck_' + idx;
+        c.readiness = 0;
+        c.ownerId = 'player1';
+        c.originalOwnerId = 'player1';
+        state.players.player1.deck.push(c);
+    });
+
     if (type === 'deck' || isAvatarTest) {
-        for (let i = deckCards.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [deckCards[i], deckCards[j]] = [deckCards[j], deckCards[i]];
-        }
-
-        deckCards.forEach((c, idx) => {
-            c.instanceId = 'deck_' + idx;
-            c.readiness = 0;
-            c.ownerId = 'player1';
-            c.originalOwnerId = 'player1';
-            state.players.player1.deck.push(c);
-        });
-
         for (let i = 0; i < 5; i++) {
             if (state.players.player1.deck.length > 0) {
                 state.players.player1.hand.push(state.players.player1.deck.pop());
             }
         }
-        
-        if (deckAvatar) {
-            deckAvatar.instanceId = 'p1_av';
-            deckAvatar.ownerId = 'player1';
-            deckAvatar.originalOwnerId = 'player1';
-            deckAvatar.readiness = 1;
-            deckAvatar.line = 'avatar';
-            deckAvatar.defaultLine = 'avatar';
-            state.players.player1.lines.avatar = [deckAvatar];
-        } else {
-            state.players.player1.lines.avatar = [{ id: 'p1_avatar', instanceId: 'p1_av', type: 'avatar', name: 'Test Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player1', originalOwnerId: 'player1' }];
-        }
     } else {
         for(let i=0; i<5; i++) {
             state.players.player1.hand.push({...JSON.parse(JSON.stringify(card)), instanceId: 'h_'+i, readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
         }
-        
-        // Add the Butcher to hand
-        state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
-        state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_2', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
-        state.players.player1.hand.push({...JSON.parse(JSON.stringify(riseAndServeCard)), instanceId: 'h_rise_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
-
-        for(let i=0; i<3; i++) {
-            state.players.player1.hand.push({...JSON.parse(JSON.stringify(tauntingCallCard)), instanceId: 'h_taunt_' + i, readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
-        }
-
+    }
+    
+    if (deckAvatar) {
+        deckAvatar.instanceId = 'p1_av';
+        deckAvatar.ownerId = 'player1';
+        deckAvatar.originalOwnerId = 'player1';
+        deckAvatar.readiness = 1;
+        deckAvatar.line = 'avatar';
+        deckAvatar.defaultLine = 'avatar';
+        state.players.player1.lines.avatar = [deckAvatar];
+    } else {
         state.players.player1.lines.avatar = [{ id: 'p1_avatar', instanceId: 'p1_av', type: 'avatar', name: 'Test Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player1', originalOwnerId: 'player1' }];
+    }
+
+    // Add the Butcher to hand
+    state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
+    state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_2', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
+    state.players.player1.hand.push({...JSON.parse(JSON.stringify(riseAndServeCard)), instanceId: 'h_rise_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
+
+    for(let i=0; i<3; i++) {
+        state.players.player1.hand.push({...JSON.parse(JSON.stringify(tauntingCallCard)), instanceId: 'h_taunt_' + i, readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
     }
 
     state.players.player2.lines.avatar = [{ id: 'p2_avatar', instanceId: 'p2_av', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player2', originalOwnerId: 'player2' }];

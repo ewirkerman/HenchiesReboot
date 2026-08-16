@@ -108,6 +108,7 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
         if (flagName === 'IGNORE_BLOCK_TARGETING' && name === 'perception') return true;
         if (flagName === 'STRIKE_FAST' && (name === 'swift' || name === 'first strike' || name === 'fast')) return true;
         if (flagName === 'STRIKE_SLOW' && name === 'slow') return true;
+        if (flagName === 'UNIQUE_ENTITY' && (name === 'unique' || name === 'legendary')) return true;
 
         return false;
     };
