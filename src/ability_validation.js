@@ -67,8 +67,6 @@ export function validateAbilityLogic(ability) {
             if (p.type === 'ATTACH' || p.type === 'ATTACH_TO') {
                 if (targetMethod === 'SELF') {
                     errors.push(`A card cannot attach to itself.`);
-                } else if (!p.invertRoles && p.type === 'ATTACH') {
-                    errors.push(`ATTACH without 'Invert Roles' would attach the target to itself. Use 'Invert Roles' to attach the target to the caster.`);
                 }
             }
             

@@ -437,6 +437,14 @@ export class GameEngine {
                         p.lines[line].forEach(u => { if (u.attachments) pool.push(...u.attachments); });
                     }
                 }
+                if (this.state.equator) {
+                    this.state.equator.forEach(item => {
+                        const itemOwner = item.ownerId || callingPlayerId;
+                        if (itemOwner === pId) {
+                            pool.push(item);
+                        }
+                    });
+                }
             }
             ['hand', 'deck', 'discard', 'banish'].forEach(z => {
                 if (zones.includes(z.toUpperCase())) pool.push(...p[z]);
@@ -502,6 +510,22 @@ export class GameEngine {
             else if (node.attribute === 'maxActs') entVal = entity.maxActs || 0;
             else if (node.attribute === 'isCombat') entVal = (eventPayload?.isCombat || eventPayload?.eventContext?.isCombat) ? 'true' : 'false';
             else if (node.attribute === 'isAttacking') entVal = (eventPayload?.eventContext?.combatAttackerId === entity.instanceId) ? 'true' : 'false';
+            else if (node.attribute === 'eventAbility') {
+                const searchVal = String(node.value).toLowerCase();
+                // Check if the payload is granting/removing an ability, or if we have the ID of the ability that caused the event
+                let abId = eventPayload?.grantedAbilityId || eventPayload?.sourceAbilityId || eventPayload?.abilityId;
+                
+                let foundMatch = false;
+                if (abId) {
+                    if (abId.toLowerCase() === searchVal) foundMatch = true;
+                    else {
+                        const catAb = this.state.abilityCatalog?.find(ca => ca.abilityId === abId || ca.name?.toLowerCase() === abId.toLowerCase());
+                        if (catAb && catAb.name?.toLowerCase() === searchVal) foundMatch = true;
+                    }
+                }
+                
+                return node.operator === '==' ? foundMatch : !foundMatch;
+            }
             else if (node.attribute === 'alignment') {
                 const entOwner = getOwnerId(this.state, entity);
                 const sourceOwner = getOwnerId(this.state, source) || this.state.activePlayerId;

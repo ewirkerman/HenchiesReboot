@@ -106,7 +106,22 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
 
             if (qt.zones.includes('FIELD')) {
                 for (const line of LINES) {
-                    if (p.lines[line]) p.lines[line].forEach(u => { if (u.type !== 'boon') checkEntity(u, u.line || line); });
+                    if (p.lines[line]) p.lines[line].forEach(u => { 
+                        if (u.type !== 'boon') {
+                            checkEntity(u, u.line || line);
+                            if (u.attachments) {
+                                u.attachments.forEach(att => checkEntity(att, 'attachment'));
+                            }
+                        }
+                    });
+                }
+                if (state.equator) {
+                    state.equator.forEach(item => {
+                        const itemOwner = item.ownerId || playerId;
+                        if (itemOwner === pId) {
+                            checkEntity(item, 'equator');
+                        }
+                    });
                 }
             }
             ['hand', 'discard', 'deck', 'banish'].forEach(z => {

@@ -180,8 +180,13 @@ function renderEquator(equatorItems) {
 
     container.innerHTML = equatorItems.map((item, idx) => {
       const json = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
+      const isAttacker = ClientState.pendingAbility && ClientState.pendingAbility.entityId === item.instanceId;
+      const isTargetable = ClientState.validTargets.some(t => t.id === item.instanceId);
+
       return renderCardHTML(item, {
         readiness: item.readiness,
+        isSelected: isAttacker,
+        isTargetable: isTargetable,
         onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
         onInspect: `window.inspectCard('${json}')`,
         abilityUses: ClientState.gameState?.abilityUses || {}
@@ -319,10 +324,12 @@ function renderHand(handCards) {
       const cardRefId = c.instanceId || c.id;
       const isSelected = ClientState.selectedCardId === cardRefId;
       const playable = ClientState.gameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c).success : false;
+      const isTargetable = ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === cardRefId);
 
       return renderCardHTML(c, {
         isHand: true,
         isSelected: isSelected,
+        isTargetable: isTargetable,
         isPlayable: playable,
         onClick: `window.handleHandCardClick('${cardRefId}')`,
         onInspect: `window.inspectCard('${json}', true)`,

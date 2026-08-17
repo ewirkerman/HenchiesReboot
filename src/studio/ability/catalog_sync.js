@@ -5,7 +5,7 @@ import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbi
 import { CARD_CATALOG } from '../../engine/index.js';
 import { generateAbilityDescription } from '../../language_description.js';
 import { validateAbilityLogic } from '../../ability_validation.js';
-import { renderJSONPreview, showToast } from '../../ui.js';
+import { renderJSONPreview, showToast, openInspectionModal } from '../../ui.js';
 import { launchSandboxMatch } from '../../testing.js';
 import { updateTriggerComposite, renderAdditionalTriggers, updateTargetingUI } from './triggers.js';
 import { renderLogicTrees } from './logic_tree.js';
@@ -297,21 +297,21 @@ export function loadAbility(id) {
 
   document.getElementById('studio-topbar').showButtons(true);
 
-  const srcAct = ab.activation || ab.targeting || {};
-  document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
-  
-  const oldTargeting = srcAct.quickTargeting || {};
-  StudioState.activationQuickTargeting = {
-      zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
-      alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
-                 (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
-      entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
-                  (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [oldTargeting.entityType || 'UNIT']),
-      ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines : 
-                         (oldTargeting.line === 'ANY' || false)
-  };
+    const srcAct = ab.activation || ab.targeting || {};
+    document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
 
-  if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
+    const oldTargeting = srcAct.quickTargeting || {};
+    StudioState.activationQuickTargeting = {
+        zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
+        alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
+                    (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
+        entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
+                    (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [oldTargeting.entityType || 'UNIT']),
+        ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines : 
+                            (oldTargeting.line === 'ANY' || false)
+    };
+
+    if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
   else StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
   
   StudioState.showAdvancedActivation = StudioState.activationRoot.children && StudioState.activationRoot.children.length > 0;
@@ -352,12 +352,13 @@ export function loadAbility(id) {
             payloads: []
         };
 
+        const effQT = srcEffScope.quickTargeting || {};
         group.quickTargeting = {
             zones: Array.isArray(e.quickTargeting?.zones) ? e.quickTargeting.zones : ['FIELD'],
             alignment: Array.isArray(e.quickTargeting?.alignment) ? e.quickTargeting.alignment : 
                        (e.quickTargeting?.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [e.quickTargeting?.alignment || srcEffScope.affiliation || e.targetAffiliation || 'ENEMY']),
             entityType: Array.isArray(e.quickTargeting?.entityType) ? e.quickTargeting.entityType : 
-                        (e.quickTargeting?.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT'] : [e.quickTargeting?.entityType || 'UNIT']),
+                        (e.quickTargeting?.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [e.quickTargeting?.entityType || 'UNIT']),
             ignoreBattlelines: e.quickTargeting?.ignoreBattlelines !== undefined ? e.quickTargeting.ignoreBattlelines : 
                                (e.quickTargeting?.line === 'ANY' || false)
         };
@@ -464,13 +465,18 @@ export function renderAssociatedCards() {
         return;
     }
 
-    container.innerHTML = linkedCards.map(c => `
-        <div class="p-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-xs flex justify-between items-center transition-all group">
-            <div class="flex items-center gap-2 overflow-hidden">
+    container.innerHTML = linkedCards.map(c => {
+        const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
+        const matchedTribe = StudioState.customTribesList?.find(t => t.id === c.tribe || t.name === c.tribe);
+        const tribeName = matchedTribe ? matchedTribe.name : (c.tribe || 'Generic');
+        
+        return `
+        <div oncontextmenu="event.preventDefault(); window.inspectCard('${json}')" title="Right-click to inspect ${c.name}" class="p-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-xs flex justify-between items-center transition-all group cursor-context-menu hover:border-sky-500/50">
+            <div class="flex items-center gap-2 overflow-hidden pointer-events-none">
                 <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[9px] shrink-0 shadow">${c.cost || 0}</span>
                 <div class="flex flex-col truncate">
                     <span class="font-bold text-sky-300 truncate group-hover:text-white transition-colors text-[11px]">${c.name}</span>
-                    <span class="text-[9px] text-slate-400 capitalize truncate">${c.tribe || 'Generic'} • ${c.type || 'Unit'}</span>
+                    <span class="text-[9px] text-slate-400 capitalize truncate">${tribeName} • ${c.type || 'Unit'}</span>
                 </div>
             </div>
             <div class="flex items-center gap-1 shrink-0">
@@ -482,7 +488,7 @@ export function renderAssociatedCards() {
                 </a>
             </div>
         </div>
-    `).join('');
+    `}).join('');
 }
 
 export function updateGlobalCard(updatedCard) {
@@ -573,6 +579,10 @@ export async function initCardAssigner() {
         }
     });
 }
+
+window.inspectCard = (cardJson) => {
+    openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), StudioState.allAbilities);
+};
 
 // Bind window functions
 window.loadAbility = loadAbility;

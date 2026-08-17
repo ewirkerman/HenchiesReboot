@@ -16,6 +16,7 @@ export const ATTRIBUTE_TYPES = {
     'maxActs': { label: 'Max Acts', type: 'number' },
     'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
     'isAttacking': { label: 'Is the Active Attacker (Event)', type: 'select', options: ['true', 'false'] },
+    'eventAbility': { label: 'Event Ability (Name/ID)', type: 'text' },
     'hasAbility': { label: 'Has Ability ID', type: 'text' }
 };
 
@@ -42,15 +43,15 @@ export function generateQuickMatrixHTML(context, targetState, index = null) {
         }).join('');
     };
 
-    const zoneOptions = [
-        {label: 'Field', value: 'FIELD'}, {label: 'Hand', value: 'HAND'}, 
-        {label: 'Deck', value: 'DECK'}, {label: 'Discard', value: 'DISCARD'},
-        {label: 'Banish', value: 'BANISH'}, {label: 'Orig. Deck', value: 'ORIGINAL_DECK'}
-    ];
-    const alignmentOptions = [{label: 'Friendly', value: 'FRIENDLY'}, {label: 'Enemy', value: 'ENEMY'}];
-    const entityOptions = [{label: 'Unit', value: 'UNIT'}, {label: 'Avatar', value: 'AVATAR'}, {label: 'Equipment', value: 'EQUIPMENT'}, {label: 'Spell', value: 'SPELL'}, {label: 'Boon', value: 'BOON'}];
+      const zoneOptions = [
+          {label: 'Field', value: 'FIELD'}, {label: 'Hand', value: 'HAND'}, 
+          {label: 'Deck', value: 'DECK'}, {label: 'Discard', value: 'DISCARD'},
+          {label: 'Banish', value: 'BANISH'}, {label: 'Orig. Deck', value: 'ORIGINAL_DECK'}
+      ];
+      const alignmentOptions = [{label: 'Friendly', value: 'FRIENDLY'}, {label: 'Enemy', value: 'ENEMY'}];
+      const entityOptions = [{label: 'Unit', value: 'UNIT'}, {label: 'Avatar', value: 'AVATAR'}, {label: 'Equipment', value: 'EQUIPMENT'}, {label: 'Artifact', value: 'ARTIFACT'}, {label: 'Spell', value: 'SPELL'}, {label: 'Boon', value: 'BOON'}];
 
-    const toggleBoolHandler = context === 'activation'
+      const toggleBoolHandler = context === 'activation'
         ? `window.toggleQuickMatrixBoolean('activation', null, 'ignoreBattlelines')`
         : `window.toggleQuickMatrixBoolean('effect', ${index}, 'ignoreBattlelines')`;
         
@@ -218,6 +219,7 @@ export function generateEffectsHTML(ctx) {
                   <option value="health" ${payload.stat === 'health' ? 'selected' : ''}>Current Health</option>
                   <option value="maxHealth" ${payload.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
                   <option value="armor" ${payload.stat === 'armor' ? 'selected' : ''}>Armor</option>
+                  <option value="cost" ${payload.stat === 'cost' ? 'selected' : ''}>Cost</option>
                   <option value="amount" ${payload.stat === 'amount' ? 'selected' : ''}>Event Amount</option>
                   <option value="readiness" ${payload.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
                   <option value="acts" ${payload.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
@@ -314,6 +316,7 @@ export function generateEffectsHTML(ctx) {
                                 <option value="health" ${np.stat === 'health' ? 'selected' : ''}>Health</option>
                                 <option value="maxHealth" ${np.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
                                 <option value="armor" ${np.stat === 'armor' ? 'selected' : ''}>Armor</option>
+                                <option value="cost" ${np.stat === 'cost' ? 'selected' : ''}>Cost</option>
                                 <option value="amount" ${np.stat === 'amount' ? 'selected' : ''}>Event Amount</option>
                                 <option value="readiness" ${np.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
                                 <option value="acts" ${np.stat === 'acts' ? 'selected' : ''}>Available Acts</option>

@@ -48,6 +48,8 @@ export class SetStatAction extends Action {
                 if (target.health > target.maxHealth) {
                     target.health = Math.max(0, target.maxHealth);
                 }
+            } else if (stat === 'cost') {
+                target.cost = Math.max(0, target.cost);
             }
 
             registerEffect(engine, target, this.payload, { originalValue: trueOriginal, delta: delta });

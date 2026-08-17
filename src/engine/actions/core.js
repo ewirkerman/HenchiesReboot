@@ -131,7 +131,14 @@ export class Action {
     
     sweepActionEffects(engine) {
         const checkAndClean = (ent) => {
-            if (ent && ent.activeEffects) {
+            if (!ent) return;
+            
+            // Bottom-up: Clean children first in case they are unattached by the host's cleanse
+            if (ent.attachments && ent.attachments.length > 0) {
+                [...ent.attachments].forEach(att => checkAndClean(att));
+            }
+
+            if (ent.activeEffects) {
                 for (let i = ent.activeEffects.length - 1; i >= 0; i--) {
                     if (ent.activeEffects[i].duration === 'ACTION') {
                         const eff = ent.activeEffects[i];
@@ -306,7 +313,7 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
                 target.line = dest;
                 if (!isLeavingPlay) {
                     const loc = findEntityLocation(engine, target);
-                    if (loc && loc.playerId && loc.zone !== dest && loc.zone !== 'sideline') {
+                    if (loc && loc.playerId && loc.zone !== dest && loc.zone !== 'sideline' && loc.zone !== 'attachment') {
                         moveEntity(engine, target, loc.playerId, dest);
                         engine.state.history_log.push({ text: `🔄 '${target.name}' returned to ${dest} line.`, depth: Math.max(0, (engine.state._actionDepth || 0) + (engine.processingDepth || 0) - 1) });
                     }
@@ -361,11 +368,14 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
 export function sweepTurnEffects(engine, endingPlayerId) {
     const cleanseRecursive = (ent) => {
         if (!ent) return;
+        
+        // Bottom-up: Clean children first in case the host's cleanse un-attaches them
+        if (ent.attachments && ent.attachments.length > 0) {
+            [...ent.attachments].forEach(att => cleanseRecursive(att));
+        }
+
         const CleanseAction = ACTION_REGISTRY['CLEANSE'];
         if (CleanseAction) new CleanseAction({ target: ent, endingPlayerId }).run(engine);
-        if (ent.attachments) {
-            ent.attachments.forEach(att => cleanseRecursive(att));
-        }
     };
 
     for (const pId of ['player1', 'player2']) {

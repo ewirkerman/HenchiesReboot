@@ -185,6 +185,19 @@ window.handleEntityClick = async (prefix, line, entityId) => {
     }
 };
 
+function maybeOpenZoneModal() {
+    const uniqueZones = [...new Set(ClientState.validTargets.map(t => t.line))];
+    const uniquePlayers = [...new Set(ClientState.validTargets.map(t => t.playerId))];
+    if (uniqueZones.length === 1 && uniquePlayers.length === 1) {
+        const z = uniqueZones[0];
+        const p = uniquePlayers[0];
+        const isLocalHand = (z === 'hand' && p === ClientState.localPlayerRole);
+        if (['deck', 'discard', 'hand', 'banish'].includes(z) && !isLocalHand) {
+            setTimeout(() => window.openZoneModal(p, z), 50);
+        }
+    }
+}
+
 window.activateHandCardAbility = async (cardId, abilityId) => {
     if (event) event.stopPropagation();
     window.closeUnitActionModal();
@@ -200,11 +213,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
         showToast(`Select a target for ${ability.name}`, 'info');
         updateUI();
         
-        const uniqueZones = [...new Set(ClientState.validTargets.map(t => t.line))];
-        const uniquePlayers = [...new Set(ClientState.validTargets.map(t => t.playerId))];
-        if (uniqueZones.length === 1 && uniquePlayers.length === 1 && ['deck', 'discard', 'hand', 'banish'].includes(uniqueZones[0])) {
-            setTimeout(() => window.openZoneModal(uniquePlayers[0], uniqueZones[0]), 50);
-        }
+        maybeOpenZoneModal();
         return;
     }
 
@@ -235,11 +244,7 @@ window.activateAbility = async (entityId, abilityId) => {
         showToast(`Select a target for ${ability.name}`, 'info');
         updateUI();
         
-        const uniqueZones = [...new Set(ClientState.validTargets.map(t => t.line))];
-        const uniquePlayers = [...new Set(ClientState.validTargets.map(t => t.playerId))];
-        if (uniqueZones.length === 1 && uniquePlayers.length === 1 && ['deck', 'discard', 'hand', 'banish'].includes(uniqueZones[0])) {
-            setTimeout(() => window.openZoneModal(uniquePlayers[0], uniqueZones[0]), 50);
-        }
+        maybeOpenZoneModal();
         return;
     }
     

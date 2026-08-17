@@ -22,6 +22,8 @@ export class ModifyStatAction extends Action {
             if (target.health > target.maxHealth) {
                 target.health = Math.max(0, target.maxHealth);
             }
+        } else if (stat === 'cost') {
+            target.cost = Math.max(0, target.cost);
         }
 
         if (actualDelta > 0 && sourceAbilityId) {
