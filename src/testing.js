@@ -297,6 +297,28 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     friendlyDummy.attachments = [shovelInst];
     state.players.player1.lines.back.push(friendlyDummy);
 
+    // Apply Relentless to all enemy units
+    const relentlessAbility = getAbility('Relentless', {
+        abilityId: 'ability_relentless_native',
+        name: 'Relentless',
+        trigger: 'UNTRIGGERABLE',
+        passiveFlags: ['IGNORE_BLOCK_ATTACK'],
+        description: 'Ignores effects that prevent it from attacking.'
+    });
+
+    for (const line in state.players.player2.lines) {
+        if (state.players.player2.lines[line]) {
+            state.players.player2.lines[line].forEach(u => {
+                if (u.type === 'unit') {
+                    if (!u.abilities) u.abilities = [];
+                    if (!u.abilities.some(a => (a.abilityId || a) === relentlessAbility.abilityId || a.name === 'Relentless')) {
+                        u.abilities.push(JSON.parse(JSON.stringify(relentlessAbility)));
+                    }
+                }
+            });
+        }
+    }
+
     const roomId = 'TEST_' + Date.now();
     state.gameId = roomId;
     state.turn_start_state = JSON.stringify(state);
