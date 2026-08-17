@@ -50,6 +50,21 @@ export function updateUI() {
     
     document.getElementById('cancel-action-btn').classList.toggle('hidden', !ClientState.pendingAbility);
     
+    const undoBtn = document.getElementById('undo-action-btn');
+    if (undoBtn) {
+        const isUndoEnabled = state.rules?.allowUndo;
+        undoBtn.classList.toggle('hidden', !isUndoEnabled);
+        
+        const canUndo = isUndoEnabled && !isLocked && (state.lastRealActionIndex || 0) > ClientState.lastSafeUndoIndex;
+        undoBtn.disabled = !canUndo;
+        
+        if (canUndo) {
+            undoBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'grayscale');
+        } else {
+            undoBtn.classList.add('opacity-50', 'cursor-not-allowed', 'grayscale');
+        }
+    }
+
     if (ClientState.pendingAbility) {
         document.getElementById('action-phase-instruction').innerText = "Select a target on the board...";
         document.getElementById('action-phase-instruction').classList.add('text-amber-400', 'animate-pulse');

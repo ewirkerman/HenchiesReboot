@@ -4,12 +4,41 @@
  */
 
 export const CARD_CATALOG = []; // Will be hydrated by deckbuilder/firebase
+export const GLOBAL_UNDO_POLICY = 'ALLOWED'; // Options: 'ALLOWED', 'FORCED_ON', 'FORCED_OFF'
 
 export const TRAITS = [];
 export const LINES = ['taunt', 'bodyguard', 'avatar', 'front', 'mid', 'back', 'sheltered', 'sideline'];
 export class Card {}
 export class UnitInstance {}
 export class Avatar {}
+
+export function isUndoable(state, ability) {
+    if (state && state.status === 'finished') return false;
+    if (!ability || !ability.effects) return true;
+
+    for (const group of ability.effects) {
+        if (group.targetMethod === 'AUTO_RANDOM') return false;
+        
+        if (group.payloads) {
+            for (const payload of group.payloads) {
+                if (['DRAW_CARD', 'SHUFFLE', 'DISCARD', 'DISCARD_CARD', 'CUSTOM_SCRIPT'].includes(payload.type)) {
+                    return false;
+                }
+                if (payload.nestedGroup) {
+                    if (payload.nestedGroup.targetMethod === 'AUTO_RANDOM') return false;
+                    if (payload.nestedGroup.payloads) {
+                        for (const np of payload.nestedGroup.payloads) {
+                            if (['DRAW_CARD', 'SHUFFLE', 'DISCARD', 'DISCARD_CARD', 'CUSTOM_SCRIPT'].includes(np.type)) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
 
 export function getResKey(tribeStr) {
     if (!tribeStr) return 'Generic';
@@ -108,7 +137,6 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
         if (flagName === 'IGNORE_BLOCK_TARGETING' && name === 'perception') return true;
         if (flagName === 'STRIKE_FAST' && (name === 'swift' || name === 'first strike' || name === 'fast')) return true;
         if (flagName === 'STRIKE_SLOW' && name === 'slow') return true;
-        if (flagName === 'UNIQUE_ENTITY' && (name === 'unique' || name === 'legendary')) return true;
 
         return false;
     };

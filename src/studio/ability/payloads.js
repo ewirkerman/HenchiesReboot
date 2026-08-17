@@ -158,6 +158,8 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
       if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
       if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
       if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
+      if (!manifest.canInvert) delete payload.invertRoles;
+      if (!manifest.canBeCost) delete payload.isCost;
       
       if (manifest.hasNestedGroup) {
           payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
@@ -227,6 +229,8 @@ export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
       if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
       if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
       if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
+      if (!manifest.canInvert) delete payload.invertRoles;
+      if (!manifest.canBeCost) delete payload.isCost;
       
       if (!manifest.validDurations.includes(payload.duration)) {
           payload.duration = manifest.validDurations[0] || 'INSTANT';
@@ -275,6 +279,9 @@ export function revalidatePayloadTypes() {
                     if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
                     if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
                     if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
+                    if (!manifest.canInvert) delete payload.invertRoles;
+                    if (!manifest.canBeCost) delete payload.isCost;
+                    
                     if (manifest.hasNestedGroup) {
                         payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
                     } else { delete payload.nestedGroup; }

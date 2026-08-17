@@ -355,6 +355,10 @@ export function generateEffectsHTML(ctx) {
                        npParamsHtml += `<div class="flex items-center px-1"><label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" ${np.blockDuplicates ? 'checked' : ''} onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'blockDuplicates', this.checked)" class="accent-cyan-500 w-3 h-3" /><span class="text-[9px] font-bold text-cyan-400">No Dupes</span></label></div>`;
                     }
                     
+                    if (nMan.canInvert) {
+                       npParamsHtml += `<div class="flex items-center px-1"><label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" ${np.invertRoles ? 'checked' : ''} onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'invertRoles', this.checked)" class="accent-indigo-500 w-3 h-3" /><span class="text-[9px] font-bold text-indigo-400">Invert Roles</span></label></div>`;
+                    }
+                    
                     if (nMan.requiresCardId) {
                        const cardOptions = allCards.map(c => `<option value="${c.name}"></option>`).join('');
                        let displayValue = np.cardId || '';

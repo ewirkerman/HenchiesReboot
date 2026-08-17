@@ -6,7 +6,7 @@ export const ACTION_MANIFEST = {
     'MODIFY_STAT': { passiveType: 'BE_STAT_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, canLimitStacks: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'SET_STAT': { passiveType: 'BE_STAT_SET', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'MODIFY_RESOURCE': { passiveType: 'BE_RESOURCE_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresResource: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'DRAW_CARD': { passiveType: 'BE_DRAWN', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DECK'], endZone: ['HAND'], validDurations: ['INSTANT'] },
+    'DRAW_CARD': { passiveType: 'BE_DRAWN', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DECK'], endZone: ['HAND'], validDurations: ['INSTANT'], breaksUndo: true },
     'SUMMON': { passiveType: 'BE_SUMMONED', canInvert: false, canBeCost: false, requiresAmount: true, requiresCardId: true, requiresZone: true, requiresZoneOwner: true, hasNestedGroup: true, validZones: 'ALL', endZone: ['FIELD'], validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
     'PLAY': { passiveType: 'BE_PLAYED', canInvert: true, canBeCost: false, validZones: ['HAND'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACK': { passiveType: 'BE_ATTACKED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
@@ -20,11 +20,11 @@ export const ACTION_MANIFEST = {
     'CHANGE_DESTINATION': { passiveType: null, canInvert: false, canBeCost: false, requiresZone: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'REMOVE_ABILITY': { passiveType: null, canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'MODIFY_EVENT': { passiveType: null, canInvert: false, canBeCost: false, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT'] },
-    'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
-    'TRANSFORM': { passiveType: 'BE_TRANSFORMED', canInvert: false, canBeCost: true, requiresCardId: true, validZones: 'ALL', validDurations: ['INSTANT'] },
-    'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
-    'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
-    'SHUFFLE': { passiveType: 'BE_SHUFFLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT'], isLeavesPlay: true },
+    'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'], breaksUndo: true },
+    'TRANSFORM': { passiveType: 'BE_TRANSFORMED', canInvert: false, canBeCost: true, requiresCardId: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true, breaksUndo: true },
+    'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true, breaksUndo: true },
+    'SHUFFLE': { passiveType: 'BE_SHUFFLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT'], isLeavesPlay: true, breaksUndo: true },
     'RETURN': { passiveType: 'BE_RETURNED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['HAND'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'RECOVER': { passiveType: 'BE_RECOVERED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['HAND'], validDurations: ['INSTANT'] },
     'REVIVE': { passiveType: 'BE_REVIVED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
@@ -58,6 +58,11 @@ export class Action {
         if (!engine.state._actionDepth) engine.state._actionDepth = 0;
         engine.state._actionDepth++;
         
+        const manifest = ACTION_MANIFEST[this.type];
+        if (manifest && manifest.breaksUndo) {
+            engine.state._irreversibleActionOccurred = true;
+        }
+
         if (!engine.state.isReconstructing) {
             const sId = this.payload.source?.instanceId || this.payload.source?.id || 'none';
             const tId = this.payload.target?.instanceId || this.payload.target?.id || 'none';
@@ -361,6 +366,12 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
             moveEntity(engine, target, effect.originalOwnerId, loc.zone);
             target.ownerId = effect.originalOwnerId;
             engine.state.history_log.push({ text: `🔄 '${target.name}' returned to its original owner.`, depth: Math.max(0, (engine.state._actionDepth || 0) - 1) });
+        }
+    } else if (effect.type === 'TRANSFORM') {
+        const TransformActionClass = ACTION_REGISTRY['TRANSFORM'];
+        if (TransformActionClass && effect.originalCardId) {
+            engine.state.history_log.push({ text: `🔄 '${target.name}' reverted to its original form.`, depth: Math.max(0, (engine.state._actionDepth || 0) + (engine.processingDepth || 0) - 1) });
+            new TransformActionClass({ target: target, cardId: effect.originalCardId, duration: 'INSTANT' }).run(engine);
         }
     }
 }

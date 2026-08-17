@@ -76,7 +76,14 @@ export class SummonAction extends Action {
                 const ActionClass = ACTION_REGISTRY[np.type];
                 if (ActionClass) {
                     for (const target of targets) {
-                        const actionPayload = { ...np, source: this.payload.source, target: target, eventContext: this.payload.eventContext };
+                        const actionPayload = { ...np, eventContext: this.payload.eventContext };
+                        if (np.invertRoles) {
+                            actionPayload.source = target;
+                            actionPayload.target = this.payload.source;
+                        } else {
+                            actionPayload.source = this.payload.source;
+                            actionPayload.target = target;
+                        }
                         new ActionClass(actionPayload).run(engine);
                     }
                 }

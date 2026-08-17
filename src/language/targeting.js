@@ -15,6 +15,8 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
     
     let combatState = null;
     let attackingState = null;
+    
+    const isAre = isPlural ? 'are' : 'is';
 
     const parseNode = (node) => {
         if (!node) return;
@@ -39,7 +41,7 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 if (node.operator === '==') {
                     adjectives.push(displayValue);
                 } else {
-                    suffixes.push(`that is ${opText} ${displayValue}`.trim());
+                    suffixes.push(`that ${isAre} ${opText} ${displayValue}`.trim());
                 }
             } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs', 'amount'].includes(node.attribute)) {
                 let statName = node.attribute.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
@@ -50,7 +52,7 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 if (node.operator === '==') {
                     adjectives.push(val === 'friendly' ? 'ally' : val);
                 } else {
-                    suffixes.push(`that is not ${val}`);
+                    suffixes.push(`that ${isAre} not ${val}`);
                 }
             } else if (['isCombat', 'isAttacking'].includes(node.attribute)) {
                 let isTrue = String(node.value).toLowerCase() === 'true';
@@ -79,7 +81,15 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 if (node.operator === '==') {
                     if (val !== 'unit' && val !== 'avatar') adjectives.push(val);
                 } else {
-                    suffixes.push(`that is not ${val === 'this card' ? 'this card' : 'a ' + val}`);
+                    let nounStr = val;
+                    if (val !== 'this card') {
+                        if (isPlural) {
+                            nounStr = (val === 'equipment' || val.endsWith('s')) ? val : val + 's';
+                        } else {
+                            nounStr = /^[aeiou]/i.test(val) ? 'an ' + val : 'a ' + val;
+                        }
+                    }
+                    suffixes.push(`that ${isAre} not ${nounStr}`);
                 }
             } else if (node.attribute === 'zone') {
                 let val = String(node.value).toLowerCase();

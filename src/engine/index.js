@@ -254,8 +254,9 @@ export class GameEngine {
         let currentReadiness = Number(source.readiness);
         if (isNaN(currentReadiness)) currentReadiness = 0;
         
-        let requiresReadiness = true; // All manual actions natively require readiness
-        if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (this.state.abilityUses?.[abilityKey] || 0) > 0) {
+        // 1. The Readiness Prerequisite Gate
+        let requiresReadiness = true;
+        if (cost.reuseIgnoresReadiness && (this.state.abilityUses?.[abilityKey] || 0) > 0) {
             requiresReadiness = false;
         }
         if (ability.trigger === 'MANUAL' && requiresReadiness && currentReadiness < 1) canAfford = false;
@@ -281,10 +282,12 @@ export class GameEngine {
             return false;
         }
 
+        // --- PAYMENT PHASE ---
         if (!this.state.abilityUses) this.state.abilityUses = {};
         this.state.abilityUses[abilityKey] = (this.state.abilityUses[abilityKey] || 0) + 1;
 
-        if (requiresReadiness && !cost.freeAction) {
+        // The Readiness Cost
+        if (requiresReadiness) {
             if (cost.readinessCost === 'EXHAUSTS') source.readiness -= 2;
             else if (cost.readinessCost === 'UNREADIES') source.readiness -= 1;
         }
@@ -301,13 +304,6 @@ export class GameEngine {
             }
         }
 
-        if (!canAfford) {
-            log(this.state, `[Engine] Could not afford trigger cost for '${ability.name}'.`);
-            if (ability.trigger !== 'MANUAL') this.state.history_log.push({ text: `⚠️ ${source.name} tried to trigger '${ability.name}', but lacked resources.`, depth: this.state._actionDepth || this.processingDepth || 0 });
-            return false;
-        }
-
-        if (!this.state.abilityUses) this.state.abilityUses = {};
         return true;
     }
 
@@ -368,7 +364,10 @@ export class GameEngine {
                 pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source, eventPayload));
                 
                 if (group.targetMethod === 'AUTO_ALL') targets = pool;
-                else if (group.targetMethod === 'AUTO_RANDOM') targets = prandomShuffle(this.state, [...pool]).slice(0, group.targetCount || 1);
+                else if (group.targetMethod === 'AUTO_RANDOM') {
+                    this.state._irreversibleActionOccurred = true;
+                    targets = prandomShuffle(this.state, [...pool]).slice(0, group.targetCount || 1);
+                }
                 else if (group.targetMethod === 'AUTO_FIRST') targets = pool.slice(0, group.targetCount || 1);
                 else if (group.targetMethod === 'AUTO_LAST') targets = pool.slice(-(group.targetCount || 1));
             }

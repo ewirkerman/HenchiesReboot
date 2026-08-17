@@ -1,4 +1,4 @@
-import { Action, ACTION_REGISTRY, findEntityLocation, moveEntity } from './core.js';
+import { Action, ACTION_REGISTRY, findEntityLocation, moveEntity, registerEffect } from './core.js';
 
 export class TransformAction extends Action {
     execute(engine) {
@@ -9,11 +9,23 @@ export class TransformAction extends Action {
         const newCardTemplate = engine.state.catalog.find(c => c.id === cardId || (c.name && c.name.toLowerCase() === cardId.toLowerCase()));
         if (!newCardTemplate) return;
 
+        const originalCardId = target.id;
+
+        // 1. Identify which attachments to keep (the source of the transformation)
+        const keptAttachments = [];
+        const sourceId = this.payload.source ? this.payload.source.instanceId : null;
+
         if (target.attachments && target.attachments.length > 0) {
             const atts = [...target.attachments];
             const UnattachClass = ACTION_REGISTRY['UNATTACH'];
-            if (UnattachClass) {
-                for (const att of atts) new UnattachClass({ target: att }).run(engine);
+            
+            for (const att of atts) {
+                if (sourceId && att.instanceId === sourceId) {
+                    // Preserve the entity that is actively causing the transformation!
+                    keptAttachments.push(att);
+                } else if (UnattachClass) {
+                    new UnattachClass({ target: att }).run(engine);
+                }
             }
         }
 
@@ -27,6 +39,11 @@ export class TransformAction extends Action {
             acts: target.acts,
             isToken: target.isToken
         };
+        
+        // Only re-apply the attachments array if we actually kept something
+        if (keptAttachments.length > 0) {
+            preserved.attachments = keptAttachments;
+        }
 
         const loc = findEntityLocation(engine, target);
 
@@ -72,5 +89,9 @@ export class TransformAction extends Action {
         }
 
         engine.state.history_log.push({ text: `✨ A unit transformed into ${target.name}!`, depth: this.getLogDepth(engine) });
+
+        if (this.payload.duration && !['INSTANT', 'PERMANENT', 'INDEFINITE'].includes(this.payload.duration)) {
+            registerEffect(engine, target, this.payload, { originalCardId });
+        }
     }
 }

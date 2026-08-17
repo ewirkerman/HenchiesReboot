@@ -27,6 +27,11 @@ export class MatchLobby extends HTMLElement {
                     <option value="">-- Enter Username to Load Decks --</option>
                 </select>
                 </div>
+
+                <div class="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="setup-allow-undo" checked class="w-4 h-4 accent-amber-500" />
+                    <label for="setup-allow-undo" class="text-xs font-bold text-slate-300">Enable Undo Feature</label>
+                </div>
             </div>
 
             <button id="launch-match-btn" class="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-sm p-4 rounded-2xl shadow-2xl transition transform hover:scale-[1.02] flex items-center justify-center gap-2">

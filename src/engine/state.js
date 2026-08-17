@@ -1,3 +1,4 @@
+// filepath: src/state.js
 /**
  * src/state.js
  * State definitions and match initialization for the Henchies 2 Game Engine.
@@ -12,19 +13,20 @@ export class GameState {
         this.turnNumber = 1;
         this.turnPhase = 'SACRIFICE_DECISION'; 
         this.abilityUses = {};
+        this.rules = { allowUndo: true };
         this.players = {
             player1: { 
                 id: 'player1', name: 'Player 1', 
                 lines: { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] }, 
                 hand: [], deck: [], discard: [], banish: [], 
-                resources: { 'Carnie': { current: 2, max: 2 }, 'Mythic': { current: 1, max: 1 } },
+                resources: { 'Carnie': { current: 2, max: 2 } },
                 setupComplete: false
             },
             player2: { 
                 id: 'player2', name: 'Player 2', isDummy: true,
                 lines: { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] }, 
                 hand: [], deck: [], discard: [], banish: [], 
-                resources: { 'Carnie': { current: 2, max: 2 }, 'Robot': { current: 1, max: 1 } },
+                resources: { 'Carnie': { current: 2, max: 2 } },
                 setupComplete: false
             }
         };

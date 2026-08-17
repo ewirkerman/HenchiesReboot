@@ -1,24 +1,71 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { pushActionToLog } from '../firebase.js';
-import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getEntityAvailableActions, LINES, canPlayCard } from '../engine/index.js';
+import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable } from '../engine/index.js';
 import { resolveResourceKey } from '../engine/index.js';
 import { showToast } from '../ui.js';
 
+function getEntityRef(entityId) {
+    let entity = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
+    if (entity) return entity;
+    for (const pId of ['player1', 'player2']) {
+        for (const l of LINES) {
+            entity = ClientState.gameState.players[pId].lines[l]?.find(u => u.instanceId === entityId);
+            if (entity) return entity;
+        }
+        entity = ClientState.gameState.players[pId].hand.find(c => c.instanceId === entityId || c.id === entityId);
+        if (entity) return entity;
+    }
+    return null;
+}
+
+function isActionUnsafe(entity, abilityId) {
+    if (!entity) return true;
+    const ability = entity.abilities?.find(a => a.abilityId === abilityId);
+    if (!ability) return false;
+    if (!isUndoable(ClientState.gameState, ability)) return true;
+    return false;
+}
+
+function isPlayUnsafe(card, chosenAbilityId) {
+    if (!card) return true;
+    if (chosenAbilityId && isActionUnsafe(card, chosenAbilityId)) return true;
+    if (card.abilities) {
+        for (const ab of card.abilities) {
+            // Only evaluate mandatory play triggers. Optional ones are evaluated via chosenAbilityId above.
+            if (['PLAY', 'ON_BE_PLAYED', 'PLAYED'].includes(ab.trigger)) {
+                if (!isUndoable(ClientState.gameState, ab)) return true;
+            }
+        }
+    }
+    return false;
+}
+
 export async function executeAndLogAbility(entityId, abilityId, targetId, targetLine) {
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    const entity = getEntityRef(entityId);
+    
+    const ability = entity?.abilities?.find(a => a.abilityId === abilityId);
+    const isAttack = ability?.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
+    const actionType = isAttack ? 'ATTACK' : 'ABILITY';
+    
+    ClientState.gameState._irreversibleActionOccurred = false;
+    const result = executeEntityAction(ClientState.gameState, ClientState.localPlayerRole, entityId, actionType, abilityId, targetId, targetLine);
+    
+    const actuallyUnsafe = isActionUnsafe(entity, abilityId) || ClientState.gameState._irreversibleActionOccurred;
+
     const actionPayload = {
         type: 'ENTITY_ACTION',
         actionIndex: ClientState.gameState.actionIndex,
         playerId: ClientState.localPlayerRole,
         entityId: entityId,
-        actionType: 'ABILITY',
+        actionType: actionType,
         abilityId: abilityId,
         targetId: targetId,
-        targetLine: targetLine
+        targetLine: targetLine,
+        isUnsafe: actuallyUnsafe
     };
     
-    const result = executeEntityAction(ClientState.gameState, ClientState.localPlayerRole, entityId, 'ABILITY', abilityId, targetId, targetLine);
     if (result && result.success) {
         showToast('Ability Activated!', 'success');
         await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
@@ -56,6 +103,46 @@ export async function handleEndTurn() {
     updateUI();
 }
 
+export async function handleUndo() {
+    console.log("[UNDO] Button clicked! State checks:", {
+        isMyTurn: ClientState.isMyTurn(),
+        rules: ClientState.gameState.rules,
+        lastRealActionIndex: ClientState.gameState.lastRealActionIndex,
+        lastSafeUndoIndex: ClientState.lastSafeUndoIndex
+    });
+
+    if (!ClientState.isMyTurn()) {
+        console.warn("[UNDO] Aborted: Not your turn.");
+        return;
+    }
+    
+    if (ClientState.gameState.rules && ClientState.gameState.rules?.allowUndo === false) {
+        console.warn("[UNDO] Aborted: Rules explicitly forbid undo.");
+        return;
+    }
+    
+    const targetIdx = ClientState.gameState.lastRealActionIndex;
+    
+    if (!targetIdx || targetIdx <= ClientState.lastSafeUndoIndex) {
+        showToast('No safe actions to undo.', 'error');
+        console.warn("[UNDO] Aborted: No safe actions to undo.");
+        return;
+    }
+
+    ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    
+    const actionPayload = { 
+        type: 'UNDO', 
+        targetIndex: targetIdx, 
+        actionIndex: ClientState.gameState.actionIndex 
+    };
+    
+    console.log(`[UNDO] Processing undo for action index ${targetIdx}. New sequence index: ${actionPayload.actionIndex}`);
+    showToast('Rewinding action...', 'info');
+    
+    await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
+}
+
 window.handleLineClick = async (clickedPrefix, line) => {
     if (event) event.stopPropagation();
     if (ClientState.pendingAbility) {
@@ -90,6 +177,13 @@ window.handleEntityClick = async (prefix, line, entityId) => {
                 console.log(`[UI] Executing targeted play for card ${ClientState.pendingAbility.entityId} onto target ${entityId}`);
                 
                 ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+                const card = getEntityRef(ClientState.pendingAbility.entityId);
+                
+                ClientState.gameState._irreversibleActionOccurred = false;
+                const playRes = playCard(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'back', ClientState.pendingAbility.abilityId, entityId);
+                
+                const actuallyUnsafe = isPlayUnsafe(card, ClientState.pendingAbility.abilityId) || ClientState.gameState._irreversibleActionOccurred;
+
                 const actionPayload = {
                     type: 'PLAY_CARD',
                     actionIndex: ClientState.gameState.actionIndex,
@@ -97,10 +191,10 @@ window.handleEntityClick = async (prefix, line, entityId) => {
                     cardId: ClientState.pendingAbility.entityId,
                     targetLine: 'back',
                     chosenAbilityId: ClientState.pendingAbility.abilityId,
-                    abilityTargetId: entityId
+                    abilityTargetId: entityId,
+                    isUnsafe: actuallyUnsafe
                 };
 
-                const playRes = playCard(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'back', ClientState.pendingAbility.abilityId, entityId);
                 if (playRes.success) {
                     ClientState.pendingAbility = null;
                     ClientState.validTargets = [];
@@ -255,6 +349,13 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
     if (event) event.stopPropagation();
     window.closeUnitActionModal();
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    const card = getEntityRef(cardId);
+    
+    ClientState.gameState._irreversibleActionOccurred = false;
+    const result = playCard(ClientState.gameState, ClientState.localPlayerRole, cardId, 'back', chosenAbilityId, abilityTargetId);
+    
+    const actuallyUnsafe = isPlayUnsafe(card, chosenAbilityId) || ClientState.gameState._irreversibleActionOccurred;
+
     const actionPayload = {
       type: 'PLAY_CARD',
       actionIndex: ClientState.gameState.actionIndex,
@@ -262,10 +363,10 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
       cardId: cardId,
       targetLine: 'back',
       chosenAbilityId: chosenAbilityId,
-      abilityTargetId: abilityTargetId
+      abilityTargetId: abilityTargetId,
+      isUnsafe: actuallyUnsafe
     };
 
-    const result = playCard(ClientState.gameState, ClientState.localPlayerRole, cardId, 'back', chosenAbilityId, abilityTargetId);
     if (result.success) {
       ClientState.selectedCardId = null;
       await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
@@ -289,6 +390,13 @@ window.handleHandCardClick = async (cardId) => {
       if (ClientState.validTargets.some(t => t.id === cardId)) {
           if (ClientState.pendingAbility.isHandCard) {
               ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+              const card = getEntityRef(ClientState.pendingAbility.entityId);
+              
+              ClientState.gameState._irreversibleActionOccurred = false;
+              const playRes = playCard(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'back', ClientState.pendingAbility.abilityId, cardId);
+              
+              const actuallyUnsafe = isPlayUnsafe(card, ClientState.pendingAbility.abilityId) || ClientState.gameState._irreversibleActionOccurred;
+
               const actionPayload = {
                   type: 'PLAY_CARD',
                   actionIndex: ClientState.gameState.actionIndex,
@@ -296,10 +404,10 @@ window.handleHandCardClick = async (cardId) => {
                   cardId: ClientState.pendingAbility.entityId,
                   targetLine: 'back',
                   chosenAbilityId: ClientState.pendingAbility.abilityId,
-                  abilityTargetId: cardId
+                  abilityTargetId: cardId,
+                  isUnsafe: actuallyUnsafe
               };
 
-              const playRes = playCard(ClientState.gameState, ClientState.localPlayerRole, ClientState.pendingAbility.entityId, 'back', ClientState.pendingAbility.abilityId, cardId);
               if (playRes.success) {
                   ClientState.pendingAbility = null;
                   ClientState.validTargets = [];
@@ -395,14 +503,40 @@ window.handleHandCardClick = async (cardId) => {
         }
 
         playAbilities.forEach(ab => {
-            html += `<button onclick="window.activateHandCardAbility('${cardId}', '${ab.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ [${idx++}] ${ab.name}</button>`;
+            const undoWarning = (!isUndoable(ClientState.gameState, ab)) ? ' <span title="Cannot be undone" class="text-yellow-400 drop-shadow-md">⚠️</span>' : '';
+            html += `<button onclick="window.activateHandCardAbility('${cardId}', '${ab.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ [${idx++}] ${ab.name}${undoWarning}</button>`;
         });
         
         container.innerHTML = html;
         document.getElementById('unit-action-modal').classList.remove('hidden');
-        return;
+    } else {
+        window.executeNormalPlay(cardId);
     }
-
-    window.executeNormalPlay(cardId);
   }
 };
+
+window.openActionModal = (entityId, entityName, actions) => {
+    document.getElementById('modal-unit-name').innerText = entityName;
+    const container = document.getElementById('modal-abilities-container');
+    
+    let html = '';
+    
+    actions.forEach((act, idx) => {
+      const hotkey = `[${idx + 1}]`;
+      const undoWarning = (!act.undoable) ? ' <span title="Cannot be undone" class="text-yellow-400 drop-shadow-md">⚠️</span>' : '';
+      if (act.type === 'ATTACK') {
+        html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">⚔️ ${hotkey} ${act.name}${undoWarning}</button>`;
+      } else if (act.type === 'ABILITY') {
+        html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ ${hotkey} ${act.name}${undoWarning}</button>`;
+      }
+    });
+    
+    container.innerHTML = html;
+    document.getElementById('unit-action-modal').classList.remove('hidden');
+};
+
+window.closeUnitActionModal = () => {
+    document.getElementById('unit-action-modal').classList.add('hidden');
+};
+
+window.handleUndo = handleUndo;

@@ -9,6 +9,7 @@ export const ClientState = {
     validTargets: [],
     replayStepIndex: 0,
     localReplayStates: [],
+    lastSafeUndoIndex: 0,
     allAbilitiesRegistry: [],
     allCardsRegistry: [],
     loadedUserDecks: {},

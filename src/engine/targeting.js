@@ -3,7 +3,7 @@
  * Logic for determining valid targets and available actions.
  */
 
-import { hasEngineFlag, resolveResourceKey, LINES } from './utils.js';
+import { hasEngineFlag, resolveResourceKey, LINES, isUndoable } from './utils.js';
 import { GameEngine } from './index.js';
 
 export function getValidAttackTargets(state, attackerOwnerId, attackerEntity = null) {
@@ -203,8 +203,10 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                 if (isNaN(currentReadiness)) currentReadiness = 0;
                 
                 const abilityKey = `${entity.instanceId}_${ab.abilityId}`;
-                let requiresReadiness = true; // All manual actions natively require readiness
-                if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0) {
+                
+                // 1. The Readiness Prerequisite Gate
+                let requiresReadiness = true;
+                if (cost.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0) {
                     requiresReadiness = false;
                 }
                 if (requiresReadiness && currentReadiness < 1) canAfford = false;
@@ -228,6 +230,7 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                         }
                     }
 
+                    // 2. The Act Prerequisite Gate
                     if (canAfford && !cost.freeAction && !isAttack) {
                         let currentActs = Number(entity.acts);
                         if (isNaN(currentActs)) currentActs = 0;
@@ -257,7 +260,7 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                     }
                 }
                 
-                if (canAfford) actions.push({ type: isAttack ? 'ATTACK' : 'ABILITY', name: ab.name, abilityId: ab.abilityId });
+                if (canAfford) actions.push({ type: isAttack ? 'ATTACK' : 'ABILITY', name: ab.name, abilityId: ab.abilityId, undoable: isUndoable(state, ab) });
             }
         });
     }

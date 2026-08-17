@@ -1,4 +1,4 @@
-import { CARD_CATALOG } from '../engine/index.js';
+import { CARD_CATALOG, GLOBAL_UNDO_POLICY } from '../engine/index.js';
 import { showToast, loadUI } from '../ui.js';
 import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom } from '../firebase.js';
 import { generateAbilityDescription } from '../language_description.js';
@@ -88,6 +88,17 @@ if (isTestMode && urlRoom) {
   } else {
     document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
   }
+}
+
+const undoCheckbox = document.getElementById('setup-allow-undo');
+if (undoCheckbox) {
+    if (GLOBAL_UNDO_POLICY === 'FORCED_ON') {
+        undoCheckbox.checked = true;
+        undoCheckbox.disabled = true;
+    } else if (GLOBAL_UNDO_POLICY === 'FORCED_OFF') {
+        undoCheckbox.checked = false;
+        undoCheckbox.disabled = true;
+    }
 }
 
 async function updateDeckDropdown() {

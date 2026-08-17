@@ -32,7 +32,7 @@
   <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 flex flex-col gap-1 hidden">
 
     <!-- Active Player Turn Indicator & Phase Bar -->
-    <div class="glass-panel rounded-lg p-1.5 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30 w-full shrink-0">
+    <div class="glass-panel rounded-lg p-1.5 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30 w-full shrink-0 sticky top-0 z-50 shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
       <div class="flex items-center gap-2">
         <div id="turn-badge" class="px-2 py-0.5 rounded bg-amber-500 text-black font-extrabold text-[10px] uppercase shadow-sm">
           Turn 1: Player 1
@@ -51,6 +51,9 @@
         <div id="phase3-action-controls" class="flex items-center gap-1.5 hidden">
             <button id="cancel-action-btn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-slate-500 transition">
               Cancel Target
+            </button>
+            <button id="undo-action-btn" onclick="window.handleUndo()" class="hidden bg-yellow-600 hover:bg-yellow-500 text-black text-[10px] font-extrabold px-3 py-1 rounded shadow border border-yellow-500 transition" title="Hotkey: U">
+              Undo [U] ↩️
             </button>
             <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold px-3 py-1 rounded shadow border border-emerald-400 transition" title="Hotkey: E">
               End Turn [E] 🏁

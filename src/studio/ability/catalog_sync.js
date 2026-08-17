@@ -584,8 +584,19 @@ window.inspectCard = (cardJson) => {
     openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), StudioState.allAbilities);
 };
 
+export async function launchTestMatch() {
+    const ability = getCurrentAbilityState();
+    const topbar = document.getElementById('studio-topbar');
+    if (topbar && topbar.setLoading) topbar.setLoading('test', true);
+
+    await launchSandboxMatch(ability, 'ability');
+    
+    if (topbar && topbar.setLoading) topbar.setLoading('test', false);
+}
+
 // Bind window functions
 window.loadAbility = loadAbility;
 window.copyJSONPreview = copyJSONPreview;
 window.testAssociatedCard = testAssociatedCard;
 window.updateGlobalCard = updateGlobalCard;
+window.launchTestMatch = launchTestMatch;

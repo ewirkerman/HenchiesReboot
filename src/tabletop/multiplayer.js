@@ -111,6 +111,9 @@ export async function handleLaunchMatch() {
               ClientState.localPlayerRole = 'player1';
               ClientState.gameState = initGame(ClientState.roomCode, username, ClientState.activeBattleDeck, ClientState.allAbilitiesRegistry, ClientState.allCardsRegistry, ClientState.customTribesList);
               
+              const allowUndoChk = document.getElementById('setup-allow-undo');
+              if (allowUndoChk) ClientState.gameState.rules.allowUndo = allowUndoChk.checked;
+              
               const createTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
               await Promise.race([createGameRoom(ClientState.roomCode, ClientState.gameState), createTimeout]);
               
@@ -193,11 +196,33 @@ export function reconstructStateFromLog(data) {
       let liveState = cloneGameState(baseState);
       liveState.isReconstructing = true;
       
+      ClientState.lastSafeUndoIndex = 0;
+      let lastRealActionIndex = 0;
+      
       if (data.action_log && data.action_log.length > 0) {
+        const validActions = [];
         for (const action of data.action_log) {
+            if (action.type === 'UNDO') {
+                const idx = validActions.findIndex(a => a.actionIndex === action.targetIndex);
+                if (idx !== -1) validActions.splice(idx, 1);
+                validActions.push(action); // Keep the UNDO marker to safely advance the sequence clock
+            } else {
+                validActions.push(action);
+            }
+        }
+        
+        for (const action of validActions) {
           if (action.actionIndex && action.actionIndex <= (liveState.actionIndex || 0)) {
             continue;
           }
+
+          if (action.type === 'UNDO') {
+              console.log(`[REPLAY] Processed UNDO marker. Fast-forwarding clock to ${action.actionIndex}`);
+              liveState.actionIndex = action.actionIndex;
+              liveState.history_log.push({ text: `⏪ Previous Action Undone.`, depth: 0 });
+              continue;
+          }
+          
           if (action.type === 'SACRIFICE_DECISION') {
             executeSacrificeDecision(liveState, action.option, action.cardId);
           } else if (action.type === 'PLAY_CARD') {
@@ -208,9 +233,15 @@ export function reconstructStateFromLog(data) {
             endTurn(liveState);
           }
           liveState.actionIndex = action.actionIndex;
+          if (action.type !== 'UNDO') lastRealActionIndex = action.actionIndex;
+          
+          if (action.isUnsafe || action.type === 'SACRIFICE_DECISION' || action.type === 'END_TURN' || action.type === 'PLAYER_JOINED') {
+              ClientState.lastSafeUndoIndex = action.actionIndex;
+          }
         }
       }
       
+      liveState.lastRealActionIndex = lastRealActionIndex;
       liveState.isReconstructing = false;
       ClientState.gameState = liveState;
       Object.defineProperty(ClientState.gameState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });

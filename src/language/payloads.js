@@ -207,7 +207,23 @@ export function processTargetGroups(ability, ctx) {
                     else effText = `restore ${eff.amount !== undefined ? eff.amount : 1} health to {TARGET}`; 
                     break;
                 case 'DRAW_CARD': 
-                    let isNormalDraw = group.targetMethod === 'AUTO_FIRST' && (!group.quickTargeting || !group.quickTargeting.alignment || group.quickTargeting.alignment.length === 0 || (group.quickTargeting.alignment.length === 1 && group.quickTargeting.alignment[0] === 'FRIENDLY'));
+                    let isStandardTypes = true;
+                    if (group.quickTargeting?.entityType?.length > 0) {
+                        const types = group.quickTargeting.entityType.filter(t => t !== 'ANY' && t !== 'ALL');
+                        if (types.length > 0 && types.length <= 4) isStandardTypes = false;
+                    }
+                    let hasConditions = false;
+                    const checkTree = (node) => {
+                        if (!node) return;
+                        if (node.type === 'condition') hasConditions = true;
+                        if (node.children) node.children.forEach(checkTree);
+                    };
+                    checkTree(group.logicTree);
+                    
+                    let isStandardAlignment = !group.quickTargeting?.alignment || group.quickTargeting.alignment.length === 0 || (group.quickTargeting.alignment.length === 1 && group.quickTargeting.alignment[0] === 'FRIENDLY');
+                    
+                    let isNormalDraw = group.targetMethod === 'AUTO_FIRST' && isStandardAlignment && isStandardTypes && !hasConditions;
+                    
                     if (isNormalDraw) {
                         let drawAmt = group.targetCount !== undefined ? group.targetCount : (eff.amount !== undefined ? eff.amount : 1);
                         effText = `draw ${drawAmt === 1 ? 'a card' : drawAmt + ' cards'}{OMIT_TARGET}`;
@@ -423,8 +439,13 @@ export function processTargetGroups(ability, ctx) {
                     if (remainingNestedPayloads.length > 0) {
                         let nestedPayloadsText = remainingNestedPayloads.map(np => {
                             let npText = formatPayload(np);
-                            npText = npText.replace(/\{TARGET\}/g, 'them').replace(/\{POSS\}/g, 'their').replace(/\{OMIT_TARGET\}/g, '');
-                            if (np.type === 'ATTACH' && targetStr === 'self') npText = npText.replace('attach them to self', 'attach them to it');
+                            let targetPronoun = summonAmt === 1 ? 'it' : 'them';
+                            let possPronoun = summonAmt === 1 ? 'its' : 'their';
+                            npText = npText.replace(/\{TARGET\}/g, targetPronoun).replace(/\{POSS\}/g, possPronoun).replace(/\{OMIT_TARGET\}/g, '');
+                            if (np.type === 'ATTACH' && targetStr === 'self') {
+                                npText = npText.replace('attach them to self', 'attach them to it');
+                                npText = npText.replace('attach it to self', 'attach it to it');
+                            }
                             return npText;
                         });
                         let combinedNested = joinWithAnd(nestedPayloadsText);
