@@ -21,8 +21,8 @@
 
   export const CARD_BASE_CLASSES = "w-[128px] h-[179px] sm:w-[144px] sm:h-[201px]";
 
-  import { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY } from './glossary.js';
-  export { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY };
+  import { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg } from './glossary.js';
+  export { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg };
 
   import '../components/game_card.js';
   import '../components/card_preview.js';
@@ -90,33 +90,6 @@
         
         return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-1 tracking-tighter whitespace-nowrap opacity-90">[${badgeStr}]</span>` : '';
       }
-
-      export function getIconSvg(icon) {
-          const svgs = {
-              attack: `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="m2.75 9.25 1.5 2.5 2 1.5m-4.5 0 1 1m1.5-2.5-1.5 1.5m3-1 8.5-8.5v-2h-2l-8.5 8.5"/><path d="M10.25 12.25 8 10m2-2 2.25 2.25m1-1-1.5 2.5-2 1.5m4.5 0-1 1m-1.5-2.5 1.5 1.5M6 8 1.75 3.75v-2h2L8 6"/></svg>`,
-              armor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>`,
-              fast: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`,
-              attach: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>`,
-              'hourglass-empty': `<svg viewBox="-32 -32 320 320" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2a16.06 16.06 0 0 0-6.348 11.923A8 8 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a8 8 0 0 0-.053-.893 16.07 16.07 0 0 0-6.299-11.87L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M82.597 172.052l45.384-34.038 45.366 34.293ZM184 75.642l-56.019 42.344L72 76V40h112Z"/></svg>`,
-              'hourglass-full': `<svg viewBox="-32 -32 320 320" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2A16.08 16.08 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a16.09 16.09 0 0 0-6.352-12.764L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M184 40v23.996H72V40Zm0 176H72v-36l55.981-41.986L184 180.36Z"/></svg>`,
-              tent: `<svg viewBox="0 0 24 24" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><defs><mask id="tent-mask"><path fill="#fff" d="M0 0h24v24H0z"/><path d="M16.93 20.63 13.86 13a2 2 0 0 0-3.72 0l-3.07 7.63A1 1 0 0 0 8 22h8a1 1 0 0 0 .93-1.37"/></mask></defs><path d="M21.2 8c-4.58-.92-8.38-5.6-8.42-5.64a1 1 0 0 0-1.56 0S7.38 7.1 2.8 8a1 1 0 0 0 .4 2c.23-.05.45-.13.68-.19l-.79 10.03a2 2 0 0 0 2 2.16h13.83a2 2 0 0 0 2-2.16l-.79-10c.23.06.45.14.68.19h.2a1 1 0 0 0 .2-2Z" mask="url(#tent-mask)"/></svg>`
-          };
-          return svgs[icon] || '';
-      }
-
-      export function getLineIconSvg(line) {
-      const svgs = {
-          avatar: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/></svg>`,
-          bodyguard: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12 1L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4zm4.5 14h-9l-1-4 3 1.5L12 9l2.5 3.5L17.5 11l-1 4z"/></svg>`,
-          front: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12 1L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4z"/></svg>`,
-          mid: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12 2l-2 4v10H7v2h4v4h2v-4h4v-2h-3V6l-2-4z"/></svg>`,
-          back: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M21 12.8c-1.3.8-2.8 1.2-4.5 1.2-5 0-9-4-9-9 0-1.7.4-3.2 1.2-4.5C4.2 1.8 1 5.5 1 10c0 6.1 4.9 11 11 11 4.5 0 8.2-3.2 9-7.2z"/></svg>`,
-          sheltered: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><circle cx="12" cy="12" r="10"/></svg>`,
-          sideline: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M4 2v20h2v-8h14l-4-5 4-5H6V2H4z"/></svg>`,
-          taunt: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M4 21h16V9h-3v3h-2V9h-2v3h-2V9h-2v3H9V9H7v3H5V9H4v12zm6-6h4v6h-4v-6z"/></svg>`
-      };
-      return svgs[line.toLowerCase()] || svgs.mid;
-  }
 
   export const hasEngineFlag = (card, flag) => {
       if (!card) return false;
@@ -405,21 +378,8 @@
                     let displayAbilities = cardOrUnit.abilities ? [...cardOrUnit.abilities] : [];
                     const defLine = cardOrUnit.defaultLine || 'mid';
                     if (isUnit && !isAvatar && defLine !== 'mid') {
-                        let lineDesc = `This unit is deployed to the ${defLine} line.`;
-                        if (defLine === 'front') lineDesc = 'Blocks attacks from reaching the Mid and Back lines.';
-                        else if (defLine === 'back') lineDesc = 'Protected from attacks while Front or Mid lines are occupied.';
-                        else if (defLine === 'sheltered') lineDesc = 'Protected from attacks while Front, Mid, or Back lines are occupied.';
-                        else if (defLine === 'sideline') lineDesc = 'Does not participate in normal combat. Safe from standard attacks.';
-                        else if (defLine === 'taunt') lineDesc = 'Enemies must target this line before any other.';
-                        else if (defLine === 'bodyguard') lineDesc = 'Must be targeted before the Avatar can be attacked.';
-                        
-                        displayAbilities.push({
-                            abilityId: 'sys_line_' + defLine,
-                            name: defLine.charAt(0).toUpperCase() + defLine.slice(1) + ' Line',
-                            trigger: 'UNTRIGGERABLE',
-                            description: lineDesc,
-                            cost: {}
-                        });
+                        const lineAb = getSystemLineAbility(defLine);
+                        if (lineAb) displayAbilities.push(lineAb);
                     }
                     
                     if (displayAbilities.length === 0) return '';

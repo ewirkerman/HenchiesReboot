@@ -1,5 +1,5 @@
 /**
- * src/engine/targeting.js
+ * src/targeting.js
  * Logic for determining valid targets and available actions.
  */
 
@@ -101,7 +101,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
                     const isTargetHidden = hasEngineFlag(state, ent, 'BLOCK_TARGETING');
                     if (isTargetHidden && !hasPerception) return;
                 }
-                if (qt.entityType.includes(entType) || (isAttack && entType === 'AVATAR')) targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
+                if (qt.entityType.includes(entType)) targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
             };
 
             if (qt.zones.includes('FIELD')) {
