@@ -148,10 +148,17 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
       const manifest = ACTION_MANIFEST[value];
       if (!manifest) return;
       
-      if (manifest.requiresAmount) payload.amount = 1; else delete payload.amount;
+      if (manifest.requiresAmount) {
+          payload.amount = 1; 
+          delete payload.amountIsX;
+      } else { 
+          delete payload.amount; 
+          delete payload.amountIsX; 
+      }
       if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
       if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
       if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+      if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
       if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
       if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
       if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
@@ -219,10 +226,17 @@ export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
       const manifest = ACTION_MANIFEST[value];
       if (!manifest) return;
       
-      if (manifest.requiresAmount) payload.amount = 1; else delete payload.amount;
+      if (manifest.requiresAmount) { 
+          payload.amount = 1; 
+          delete payload.amountIsX; 
+      } else { 
+          delete payload.amount; 
+          delete payload.amountIsX; 
+      }
       if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
       if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
       if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+      if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
       if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
       if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
       if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
@@ -273,6 +287,7 @@ export function revalidatePayloadTypes() {
                     if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
                     if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
                     if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+                    if (fallback !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
                     if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
                     if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
                     if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;

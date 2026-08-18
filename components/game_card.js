@@ -54,6 +54,13 @@ export class GameCard extends HTMLElement {
 
         const separatorClass = isToken ? 'border-white/40' : 'border-black';
 
+        const hasStrength = card.strength !== undefined && card.strength !== null;
+        const defaultHealth = isAvatar ? 20 : (isUnit ? 1 : null);
+        const displayHealth = card.currentHealth ?? card.health ?? defaultHealth;
+        const showHealth = displayHealth !== null;
+        const hasArmor = card.armor > 0;
+        const showBottomStats = hasStrength || showHealth || hasArmor;
+
         const isStatusApplied = (targetCard, flag, statusNames) => {
             if (targetCard.activeEffects && targetCard.activeEffects.some(e => e.type === flag)) return true;
             if (targetCard.abilities && targetCard.abilities.some(a => statusNames.includes((a.name || '').toLowerCase()))) return true;
@@ -228,10 +235,10 @@ export class GameCard extends HTMLElement {
                   <span class="text-[9px] font-bold text-white text-center leading-tight drop-shadow-[0_2px_2px_rgba(0,0,0,1)] break-words w-full px-1">${card.name}</span>
                 </div>
                 ` : ''}
-                ${isUnit ? `
+                ${showBottomStats ? `
                   <div class="flex justify-between items-end w-full mt-auto relative z-20">
-                    ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `<div class="text-yellow-400 font-black text-[11px] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">${Math.max(0, card.strength)}</div>` : '<div></div>'}
-                    <div class="text-red-400 font-black text-[11px] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
+                    ${hasStrength ? `<div class="text-yellow-400 font-black text-[11px] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">${Math.max(0, card.strength)}</div>` : '<div class="w-5 h-5 shrink-0"></div>'}
+                    ${showHealth ? `<div class="text-red-400 font-black text-[11px] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">${displayHealth}</div>` : '<div class="w-5 h-5 shrink-0"></div>'}
                   </div>
                 ` : ''}
               </div>
@@ -259,11 +266,11 @@ export class GameCard extends HTMLElement {
                   ${!isAvatar ? `<div class="w-4 h-4 rounded-full bg-amber-500 text-black font-black text-[9px] flex items-center justify-center border border-black shadow pointer-events-auto shrink-0">${card.cost ?? 0}</div>` : ''}
                   <div class="text-white text-[11px] font-black truncate drop-shadow-md leading-tight w-full">${card.name}</div>
                 </div>
-                ${isUnit ? `
+                ${showBottomStats ? `
                   <div class="flex justify-between items-end w-full px-0.5 mt-auto">
-                    ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `<div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[10px] flex items-center justify-center shadow">${Math.max(0, card.strength)}</div>` : '<div></div>'}
-                    ${(card.armor > 0) ? `<div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[9px] flex items-center justify-center shadow"><div class="w-2.5 h-2.5 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>` : '<div></div>'}
-                    <div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
+                    ${hasStrength ? `<div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[10px] flex items-center justify-center shadow">${Math.max(0, card.strength)}</div>` : '<div class="w-5 h-5 shrink-0"></div>'}
+                    ${hasArmor ? `<div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[9px] flex items-center justify-center shadow"><div class="w-2.5 h-2.5 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>` : '<div class="w-5 h-5 shrink-0"></div>'}
+                    ${showHealth ? `<div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow">${displayHealth}</div>` : '<div class="w-5 h-5 shrink-0"></div>'}
                   </div>
                 ` : ''}
               </div>
@@ -311,15 +318,17 @@ export class GameCard extends HTMLElement {
                 ${abilitiesHTML}
               </div>
 
-              ${isUnit ? `
+              ${showBottomStats ? `
                 <div class="absolute bottom-1.5 left-1.5 right-1.5 flex justify-between items-end pointer-events-none">
-                  ${(!isAvatar && card.strength !== undefined && card.strength !== null) ? `
-                    <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow" title="Strength">${Math.max(0, card.strength)}</div>
-                  ` : '<div></div>'}
-                  ${(card.armor > 0) ? `
-                    <div class="w-6 h-6 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow" title="Armor: ${card.armor}"><div class="w-3 h-3 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
-                  ` : '<div></div>'}
-                  <div class="w-6 h-6 rounded-full bg-red-600 border border-black text-white font-black text-[11px] flex items-center justify-center shadow" title="Health">${card.currentHealth ?? card.health ?? (isAvatar ? 20 : 1)}</div>
+                  ${hasStrength ? `
+                    <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow pointer-events-auto" title="Strength">${Math.max(0, card.strength)}</div>
+                  ` : '<div class="w-6 h-6 shrink-0"></div>'}
+                  ${hasArmor ? `
+                    <div class="w-6 h-6 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow pointer-events-auto" title="Armor: ${card.armor}"><div class="w-3 h-3 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
+                  ` : '<div class="w-6 h-6 shrink-0"></div>'}
+                  ${showHealth ? `
+                    <div class="w-6 h-6 rounded-full bg-red-600 border border-black text-white font-black text-[11px] flex items-center justify-center shadow pointer-events-auto" title="Health">${displayHealth}</div>
+                  ` : '<div class="w-6 h-6 shrink-0"></div>'}
                 </div>
               ` : ''}
             </div>

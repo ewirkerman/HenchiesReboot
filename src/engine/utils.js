@@ -4,6 +4,7 @@
  */
 
 export const CARD_CATALOG = []; // Will be hydrated by deckbuilder/firebase
+
 export const GLOBAL_UNDO_POLICY = 'ALLOWED'; // Options: 'ALLOWED', 'FORCED_ON', 'FORCED_OFF'
 
 export const TRAITS = [];
@@ -137,6 +138,8 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
         if (flagName === 'IGNORE_BLOCK_TARGETING' && name === 'perception') return true;
         if (flagName === 'STRIKE_FAST' && (name === 'swift' || name === 'first strike' || name === 'fast')) return true;
         if (flagName === 'STRIKE_SLOW' && name === 'slow') return true;
+        
+        if (flagName === 'UNIQUE_ENTITY' && (name === 'unique' || name === 'legendary')) return true;
 
         return false;
     };
@@ -187,6 +190,51 @@ export function getAvatar(state, playerId) {
         if (avatar) return avatar;
     }
     return null;
+}
+
+export function hydrateAbility(abRef, catalogAbs) {
+    const abId = typeof abRef === 'string' ? abRef : abRef.abilityId;
+    const match = catalogAbs.find(a => a.abilityId === abId);
+    if (!match) return null;
+    
+    let cloned = JSON.parse(JSON.stringify(match));
+    if (typeof abRef === 'object') {
+        if (abRef.paramX !== undefined && abRef.paramX !== null) {
+            cloned.paramX = abRef.paramX;
+            if (cloned.effects) {
+                cloned.effects.forEach(g => {
+                    if (g.payloads) {
+                        g.payloads.forEach(p => {
+                            if (p.amountIsX) {
+                                p.amount = (p.amount < 0) ? -abRef.paramX : abRef.paramX;
+                                delete p.amountIsX;
+                            }
+                            if (p.grantedAbilityParamXIsX) {
+                                p.grantedAbilityParamX = abRef.paramX;
+                                delete p.grantedAbilityParamXIsX;
+                            }
+                            if (p.nestedGroup && p.nestedGroup.payloads) {
+                                p.nestedGroup.payloads.forEach(np => {
+                                    if (np.amountIsX) {
+                                        np.amount = (np.amount < 0) ? -abRef.paramX : abRef.paramX;
+                                        delete np.amountIsX;
+                                    }
+                                    if (np.grantedAbilityParamXIsX) {
+                                        np.grantedAbilityParamX = abRef.paramX;
+                                        delete np.grantedAbilityParamXIsX;
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+            cloned.name = `${cloned.name} (${abRef.paramX})`;
+        }
+        if (abRef.displayDescription) cloned.displayDescription = abRef.displayDescription;
+        if (abRef.description) cloned.description = abRef.description;
+    }
+    return cloned;
 }
 
 export function cloneGameState(state) {

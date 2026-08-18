@@ -1,5 +1,5 @@
 /**
- * src/targeting.js
+ * src/engine/targeting.js
  * Logic for determining valid targets and available actions.
  */
 

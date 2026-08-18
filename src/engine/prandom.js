@@ -1,5 +1,5 @@
 /**
- * src/prandom.js
+ * src/engine/prandom.js
  * Deterministic Mulberry32 PRNG and associated random functions.
  * Modifies and tracks the seed directly on the provided game state.
  */

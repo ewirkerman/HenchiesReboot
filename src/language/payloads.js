@@ -199,11 +199,13 @@ export function processTargetGroups(ability, ctx) {
             
             switch(eff.type) {
                 case 'DEAL_DAMAGE': 
-                    if (eff.amount < 0) effText = `restore ${Math.abs(eff.amount)} health to {TARGET}`;
+                    if (eff.amountIsX) effText = `deal X damage to {TARGET}`;
+                    else if (eff.amount < 0) effText = `restore ${Math.abs(eff.amount)} health to {TARGET}`;
                     else effText = `deal ${eff.amount !== undefined ? eff.amount : 1} damage to {TARGET}`; 
                     break;
                 case 'HEAL': 
-                    if (eff.amount < 0) effText = `deal ${Math.abs(eff.amount)} damage to {TARGET}`;
+                    if (eff.amountIsX) effText = `restore X health to {TARGET}`;
+                    else if (eff.amount < 0) effText = `deal ${Math.abs(eff.amount)} damage to {TARGET}`;
                     else effText = `restore ${eff.amount !== undefined ? eff.amount : 1} health to {TARGET}`; 
                     break;
                 case 'DRAW_CARD': 
@@ -225,8 +227,12 @@ export function processTargetGroups(ability, ctx) {
                     let isNormalDraw = group.targetMethod === 'AUTO_FIRST' && isStandardAlignment && isStandardTypes && !hasConditions;
                     
                     if (isNormalDraw) {
-                        let drawAmt = group.targetCount !== undefined ? group.targetCount : (eff.amount !== undefined ? eff.amount : 1);
-                        effText = `draw ${drawAmt === 1 ? 'a card' : drawAmt + ' cards'}{OMIT_TARGET}`;
+                        if (eff.amountIsX) {
+                            effText = `draw X cards{OMIT_TARGET}`;
+                        } else {
+                            let drawAmt = group.targetCount !== undefined ? group.targetCount : (eff.amount !== undefined ? eff.amount : 1);
+                            effText = `draw ${drawAmt === 1 ? 'a card' : drawAmt + ' cards'}{OMIT_TARGET}`;
+                        }
                     } else {
                         effText = `draw {TARGET}`;
                     }
@@ -242,17 +248,20 @@ export function processTargetGroups(ability, ctx) {
                 case 'REVIVE': effText = `revive {TARGET}`; break;
                 case 'MODIFY_STAT': 
                     if (eff.stat === 'readiness') {
-                        if (eff.amount <= -2) effText = `exhaust {TARGET}`;
+                        if (eff.amountIsX) effText = `{DYNAMIC_STAT:modify|readiness by X}`;
+                        else if (eff.amount <= -2) effText = `exhaust {TARGET}`;
                         else if (eff.amount === -1) effText = `unready {TARGET}`;
                         else if (eff.amount === 1) effText = `ready {TARGET}`;
                         else if (eff.amount >= 2) effText = `over-ready {TARGET}`;
                         else effText = `{DYNAMIC_STAT:modify|readiness by ${eff.amount}}`;
                     } else if (eff.stat === 'power') {
-                        if (eff.amount < 0) effText = `cause {TARGET} to lose ${Math.abs(eff.amount)} power`;
+                        if (eff.amountIsX) effText = `give {TARGET} X power`;
+                        else if (eff.amount < 0) effText = `cause {TARGET} to lose ${Math.abs(eff.amount)} power`;
                         else effText = `give {TARGET} ${eff.amount !== undefined ? eff.amount : 1} power`;
                     } else {
                         let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        if (eff.amount < 0) effText = `{DYNAMIC_STAT:reduce|${modStat} by ${Math.abs(eff.amount)}}`;
+                        if (eff.amountIsX) effText = `{DYNAMIC_STAT:increase|${modStat} by X}`;
+                        else if (eff.amount < 0) effText = `{DYNAMIC_STAT:reduce|${modStat} by ${Math.abs(eff.amount)}}`;
                         else effText = `{DYNAMIC_STAT:increase|${modStat} by ${eff.amount !== undefined ? eff.amount : 1}}`;
                     }
                     break;
@@ -269,12 +278,14 @@ export function processTargetGroups(ability, ctx) {
                             resName = resName.replace(/\b\w/g, l => l.toUpperCase());
                         }
                     }
-                    if (eff.amount < 0) effText = `lose ${Math.abs(eff.amount)} ${resName}{PER_TARGET}`;
+                    if (eff.amountIsX) effText = `gain X ${resName}{PER_TARGET}`;
+                    else if (eff.amount < 0) effText = `lose ${Math.abs(eff.amount)} ${resName}{PER_TARGET}`;
                     else effText = `gain ${eff.amount !== undefined ? eff.amount : 1} ${resName}{PER_TARGET}`;
                     break;
                 case 'SET_STAT': 
                     if (eff.stat === 'readiness') {
-                        if (eff.amount <= -1) effText = `exhaust {TARGET}`;
+                        if (eff.amountIsX) effText = `{DYNAMIC_STAT:set|readiness to X}`;
+                        else if (eff.amount <= -1) effText = `exhaust {TARGET}`;
                         else if (eff.amount === 0) effText = `unready {TARGET}`;
                         else if (eff.amount === 1) effText = `ready {TARGET}`;
                         else if (eff.amount >= 2) effText = `over-ready {TARGET}`;
@@ -282,7 +293,8 @@ export function processTargetGroups(ability, ctx) {
                         break;
                     }
                     let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                    effText = `{DYNAMIC_STAT:set|${setStat} to ${eff.amount !== undefined ? eff.amount : 1}}`;
+                    if (eff.amountIsX) effText = `{DYNAMIC_STAT:set|${setStat} to X}`;
+                    else effText = `{DYNAMIC_STAT:set|${setStat} to ${eff.amount !== undefined ? eff.amount : 1}}`;
                     break;
                 case 'BLOCK_ACT': effText = `block {TARGET} from acting`; break;
                 case 'BLOCK_ATTACK': effText = `block {TARGET} from attacking`; break;
@@ -319,10 +331,12 @@ export function processTargetGroups(ability, ctx) {
                     else if (trigger.includes('SUMMON')) eventNoun = "units summoned";
                     
                     if (eff.stat === 'amount') {
-                        effText = eff.amount < 0 ? `decrease the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}`;
+                        if (eff.amountIsX) effText = `increase the ${eventNoun} by X{OMIT_TARGET}`;
+                        else effText = eff.amount < 0 ? `decrease the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}`;
                     } else {
                         let statName = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        effText = eff.amount < 0 ? `decrease the ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}`;
+                        if (eff.amountIsX) effText = `increase the ${statName} by X{OMIT_TARGET}`;
+                        else effText = eff.amount < 0 ? `decrease the ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}`;
                     }
                     break;
                 case 'CUSTOM_SCRIPT': effText = eff.description ? eff.description + '{OMIT_TARGET}' : `execute custom script on {TARGET}`; break;
@@ -335,7 +349,10 @@ export function processTargetGroups(ability, ctx) {
                          const grantedAb = getAbility(eff.grantedAbilityId);
                          if(grantedAb) abilityName = grantedAb.name;
                     }
-                    effText = `grant @[${abilityName}] to {TARGET}`;
+                    let paramSuffix = '';
+                    if (eff.grantedAbilityParamXIsX) paramSuffix = ' (X)';
+                    else if (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null) paramSuffix = ` (${eff.grantedAbilityParamX})`;
+                    effText = `grant @[${abilityName}]${paramSuffix} to {TARGET}`;
                     if (eff.blockDuplicates) effText += ` (if not present)`;
                     break;
                 case 'TRANSFORM':
@@ -385,7 +402,7 @@ export function processTargetGroups(ability, ctx) {
                         if (foundCard) cardName = foundCard.name;
                     }
                     const summonAmt = Math.max(1, Math.abs(eff.amount !== undefined ? eff.amount : 1));
-                    const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
+                    const pluralSuffix = ((eff.amountIsX || summonAmt > 1) && !cardName.endsWith('s')) ? 's' : '';
                     
                     let destZone = (eff.zone || 'FIELD').toLowerCase();
                     let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
@@ -422,8 +439,8 @@ export function processTargetGroups(ability, ctx) {
                         });
                     }
 
-                    let amtText = summonAmt;
-                    if (summonAmt === 1) {
+                    let amtText = eff.amountIsX ? 'X' : summonAmt;
+                    if (!eff.amountIsX && summonAmt === 1) {
                         const nextWord = durAdj || readinessAdj || cardName;
                         amtText = /^[aeiou]/i.test(nextWord) ? 'an' : 'a';
                     }
@@ -439,8 +456,8 @@ export function processTargetGroups(ability, ctx) {
                     if (remainingNestedPayloads.length > 0) {
                         let nestedPayloadsText = remainingNestedPayloads.map(np => {
                             let npText = formatPayload(np);
-                            let targetPronoun = summonAmt === 1 ? 'it' : 'them';
-                            let possPronoun = summonAmt === 1 ? 'its' : 'their';
+                            let targetPronoun = (eff.amountIsX || summonAmt > 1) ? 'them' : 'it';
+                            let possPronoun = (eff.amountIsX || summonAmt > 1) ? 'their' : 'its';
                             npText = npText.replace(/\{TARGET\}/g, targetPronoun).replace(/\{POSS\}/g, possPronoun).replace(/\{OMIT_TARGET\}/g, '');
                             if (np.type === 'ATTACH' && targetStr === 'self') {
                                 npText = npText.replace('attach them to self', 'attach them to it');
@@ -513,16 +530,16 @@ export function processTargetGroups(ability, ctx) {
 
         const getSimilarityKey = (eff) => {
             if ((eff.type === 'MODIFY_STAT' || eff.type === 'SET_STAT') && eff.stat === 'readiness') {
-                return `READINESS_${eff.type}_${eff.amount}_${eff.duration}_${eff.invertRoles}_${eff.isCost}`;
+                return `READINESS_${eff.type}_${eff.amountIsX ? 'X' : eff.amount}_${eff.duration}_${eff.invertRoles}_${eff.isCost}`;
             }
             if (['GRANT_ABILITY', 'REMOVE_ABILITY', 'SET_STAT'].includes(eff.type)) {
                 return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${eff.blockDuplicates}`;
             }
             if (eff.type === 'MODIFY_STAT') {
-                return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${Math.sign(eff.amount)}`;
+                return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${eff.amountIsX ? 'X' : Math.sign(eff.amount)}`;
             }
             if (eff.type === 'MODIFY_RESOURCE') {
-                return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${Math.sign(eff.amount)}`;
+                return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${eff.amountIsX ? 'X' : Math.sign(eff.amount)}`;
             }
             if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(eff.type)) {
                 return `BLOCKS_${eff.duration}_${eff.invertRoles}_${eff.isCost}`;
@@ -546,7 +563,10 @@ export function processTargetGroups(ability, ctx) {
                          const grantedAb = getAbility(eff.grantedAbilityId);
                          if(grantedAb) abilityName = grantedAb.name;
                     }
-                    return `@[${abilityName}]`;
+                    let paramSuffix = '';
+                    if (eff.grantedAbilityParamXIsX) paramSuffix = ' (X)';
+                    else if (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null) paramSuffix = ` (${eff.grantedAbilityParamX})`;
+                    return `@[${abilityName}]${paramSuffix}`;
                 });
                 effText = `grant abilities ${joinWithAnd(abNames)} to {TARGET}`;
                 if (first.blockDuplicates) effText += ` (if not present)`;
@@ -567,27 +587,30 @@ export function processTargetGroups(ability, ctx) {
                 let isDecrease = first.amount < 0;
                 let changes = effs.map(eff => {
                      let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
+                     if (eff.amountIsX) return `${modStat} by X`;
                      return `${modStat} by ${Math.abs(eff.amount !== undefined ? eff.amount : 1)}`;
                 });
-                if (isDecrease) {
-                    effText = `{DYNAMIC_STAT:decrease|${joinWithAnd(changes)}}`;
-                } else {
+                if (first.amountIsX || !isDecrease) {
                     effText = `{DYNAMIC_STAT:increase|${joinWithAnd(changes)}}`;
+                } else {
+                    effText = `{DYNAMIC_STAT:decrease|${joinWithAnd(changes)}}`;
                 }
             } else if (first.type === 'MODIFY_RESOURCE') {
                 let isSpend = first.amount < 0;
                 let changes = effs.map(eff => {
                      let resName = eff.resource || 'resource';
+                     if (eff.amountIsX) return `X ${resName}`;
                      return `${Math.abs(eff.amount !== undefined ? eff.amount : 1)} ${resName}`;
                 });
-                if (isSpend) {
-                    effText = `lose ${joinWithAnd(changes)}{PER_TARGET}`;
-                } else {
+                if (first.amountIsX || !isSpend) {
                     effText = `gain ${joinWithAnd(changes)}{PER_TARGET}`;
+                } else {
+                    effText = `lose ${joinWithAnd(changes)}{PER_TARGET}`;
                 }
             } else if (first.type === 'SET_STAT' && first.stat !== 'readiness') {
                 let changes = effs.map(eff => {
                      let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
+                     if (eff.amountIsX) return `${setStat} to X`;
                      return `${setStat} to ${eff.amount !== undefined ? eff.amount : 1}`;
                 });
                 effText = `{DYNAMIC_STAT:set|${joinWithAnd(changes)}}`;

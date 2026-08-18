@@ -288,6 +288,12 @@
     const activeLine = cardOrUnit.line || cardOrUnit.defaultLine || (isAvatar ? 'avatar' : 'mid');
     const isTempLine = cardOrUnit.line && cardOrUnit.defaultLine && cardOrUnit.line !== cardOrUnit.defaultLine;
     const hasReadiness = isUnit || cardOrUnit.type === 'equipment' || cardOrUnit.type === 'artifact';
+
+    const hasStrength = cardOrUnit.strength !== undefined && cardOrUnit.strength !== null;
+    const defaultHealth = isAvatar ? 20 : (isUnit ? 1 : null);
+    const displayHealth = cardOrUnit.currentHealth ?? cardOrUnit.health ?? defaultHealth;
+    const showHealth = displayHealth !== null;
+    const hasArmor = cardOrUnit.armor && cardOrUnit.armor > 0;
     
     const isHidden = hasEngineFlag(cardOrUnit, 'BLOCK_TARGETING');
 
@@ -422,7 +428,7 @@
                   <div class="flex flex-col gap-2 mt-1">
                     ${displayAbilities.map(a => {
                       const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
-                      let finalDesc = regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
+                      let finalDesc = a.displayDescription || a.description || regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
                       if (cardOrUnit.type === 'spell') {
                           finalDesc = finalDesc.replace(/^When played,\s*/i, '');
                           if (finalDesc) finalDesc = finalDesc.charAt(0).toUpperCase() + finalDesc.slice(1);
@@ -467,7 +473,7 @@
                       const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
                       const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
 
-                      const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}${regMatch.name || a.name || a.abilityId}</span>`;
+                      const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}${a.name || regMatch.name || a.abilityId}</span>`;
                       const costBadge = formatAbilityCostBadge(a.cost, cardOrUnit.tribe);
                       const triggerPill = `<span class="text-[9px] sm:text-[10px] bg-slate-800 text-slate-300 px-1 py-px rounded font-bold uppercase tracking-widest mx-1.5 shadow-inner opacity-90">${a.trigger || 'MANUAL'}</span>`;
                       
@@ -486,13 +492,13 @@
               <div class="absolute bottom-3 left-3 right-3 flex justify-between items-end pointer-events-none z-20">
                 
                 <!-- Left: Strength -->
-                ${(isUnit && !isAvatar && cardOrUnit.strength !== undefined && cardOrUnit.strength !== null) ? `
+                ${hasStrength ? `
                   <div class="w-12 h-12 rounded-full bg-yellow-500 border-2 border-black text-black font-black text-xl flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Strength">${Math.max(0, cardOrUnit.strength)}</div>
                 ` : '<div class="w-12 h-12 shrink-0"></div>'}
                 
                 <!-- Center: Armor & Flavor Text -->
                 <div class="flex-1 flex flex-col items-center justify-end pb-1 px-1 gap-1 pointer-events-none">
-                  ${isUnit && (cardOrUnit.armor > 0) ? `
+                  ${hasArmor ? `
                     <div class="w-10 h-10 rounded bg-cyan-600 border-2 border-black text-white font-black text-base flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Armor: ${cardOrUnit.armor}"><div class="w-4 h-4 mr-0.5">${getIconSvg('armor')}</div>${cardOrUnit.armor}</div>
                   ` : ''}
                   ${cardOrUnit.description ? `
@@ -503,8 +509,8 @@
                 </div>
                 
                 <!-- Right: Health -->
-                ${isUnit ? `
-                  <div class="w-12 h-12 rounded-full bg-red-600 border-2 border-black text-white font-black text-xl flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Health">${cardOrUnit.currentHealth ?? cardOrUnit.health ?? (isAvatar ? 20 : 1)}</div>
+                ${showHealth ? `
+                  <div class="w-12 h-12 rounded-full bg-red-600 border-2 border-black text-white font-black text-xl flex items-center justify-center shadow-xl pointer-events-auto shrink-0" title="Health">${displayHealth}</div>
                 ` : '<div class="w-12 h-12 shrink-0"></div>'}
               </div>
 

@@ -1,3 +1,4 @@
+<!-- filepath: deckbuilder.html -->
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -127,6 +128,7 @@
     import { fetchCustomCards, fetchCustomAbilities, saveDeckToCatalog, fetchUserDecks, fetchCustomTribes, deleteDeckFromCatalog } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { launchSandboxMatch } from './src/testing.js';
+    import { hydrateAbility } from './src/engine/utils.js';
     import './components/main_nav.js';
     import './components/catalog.js';
     import './components/topbar.js';
@@ -188,11 +190,7 @@
         if (customCards && customCards.length > 0) {
            const hydratedCustomCards = customCards.map(c => {
                if (c.abilities) {
-                   c.abilities = c.abilities.map(ab => {
-                       const abId = typeof ab === 'string' ? ab : ab.abilityId;
-                       const match = rawAbs.find(a => a.abilityId === abId);
-                       return match ? JSON.parse(JSON.stringify(match)) : null;
-                   }).filter(Boolean);
+                   c.abilities = c.abilities.map(ab => hydrateAbility(ab, rawAbs)).filter(Boolean);
                }
                return c;
            });
@@ -443,11 +441,7 @@
                 if (!fresh) return null;
                 const clone = JSON.parse(JSON.stringify(fresh));
                 if (clone.abilities) {
-                    clone.abilities = clone.abilities.map(ab => {
-                        const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
-                        const match = rawAbs.find(a => a.abilityId === abId);
-                        return match ? JSON.parse(JSON.stringify(match)) : null;
-                    }).filter(Boolean);
+                    clone.abilities = clone.abilities.map(ab => hydrateAbility(ab, rawAbs)).filter(Boolean);
                 }
                 return clone;
             }).filter(Boolean);

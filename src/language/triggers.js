@@ -121,35 +121,47 @@ export function parseTriggers(ability, allTribes) {
             let combatSuffix = '';
             let attackSuffix = '';
             let conditionPhrases = [];
-            let rootOperator = 'AND';
+            let logicalOperator = 'AND';
             
             if (ability.activation?.method !== 'PLAYER_CHOICE') {
-                if (ability.activation?.logicTree?.logicalOperator) {
-                    rootOperator = ability.activation.logicTree.logicalOperator;
-                }
-                
                 const scan = (node) => {
                     if (!node) return;
-                    if (node.type === 'condition') {
-                        if (['isCombat', 'isAttacking'].includes(node.attribute)) {
+                    if (node.type === 'group') {
+                        logicalOperator = node.logicalOperator || 'AND';
+                        if (node.children) node.children.forEach(scan);
+                    } else if (node.type === 'condition') {
+                        let checkAttr = node.attribute;
+                        const ctx = node.context || 'EVAL_TARGET';
+                        
+                        let contextSubject = "{POSS}";
+                        let contextPronoun = "{PRONOUN}";
+                        
+                        if (ctx === 'HOST') { contextSubject = "{POSS} host's"; contextPronoun = "{POSS} host"; }
+                        else if (ctx === 'EVENT_SOURCE') { contextSubject = "the event doer's"; contextPronoun = "the event doer"; }
+                        else if (ctx === 'EVENT_TARGET') { contextSubject = "the event receiver's"; contextPronoun = "the event receiver"; }
+                        else if (ctx === 'ABILITY_SOURCE') { contextSubject = "this card's"; contextPronoun = "this card"; }
+
+                        const opMap = { '==': 'is', '!=': 'is not', '>': 'is more than', '<': 'is less than', '>=': 'is at least', '<=': 'is at most' };
+                        let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
+                        
+                        if (['isCombat', 'isAttacking'].includes(checkAttr)) {
                             let isTrue = String(node.value).toLowerCase() === 'true';
                             if (node.operator === '!=') isTrue = !isTrue;
                             
-                            if (node.attribute === 'isCombat') {
+                            if (checkAttr === 'isCombat') {
                                 combatSuffix = isTrue ? ' during combat' : ' outside of combat';
                             } else {
-                                attackSuffix = isTrue ? ' as the attacker' : ' as the defender';
+                                let verb = isTrue ? ' as the attacker' : ' as the defender';
+                                if (ctx === 'EVAL_TARGET') attackSuffix = verb;
+                                else conditionPhrases.push(`${contextPronoun} is acting ${verb}`);
                             }
-                        } else if (node.attribute === 'eventAbility') {
+                        } else if (checkAttr === 'eventAbility') {
                             if (node.operator === '==') conditionPhrases.push(`the event ability is '${node.value}'`);
                             else conditionPhrases.push(`the event ability is not '${node.value}'`);
                         } else {
-                            const opMap = { '==': 'is', '!=': 'is not', '>': 'is more than', '<': 'is less than', '>=': 'is at least', '<=': 'is at most' };
-                            let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
-                            
-                            if (['tribe', 'family', 'genus'].includes(node.attribute)) {
+                            if (['tribe', 'family', 'genus'].includes(checkAttr)) {
                                 let displayValue = String(node.value);
-                                if (node.attribute === 'tribe') {
+                                if (checkAttr === 'tribe') {
                                     if (allTribes && Array.isArray(allTribes)) {
                                         const match = allTribes.find(t => t.id === displayValue || t.name.toLowerCase() === displayValue.toLowerCase());
                                         if (match) displayValue = match.name;
@@ -158,19 +170,25 @@ export function parseTriggers(ability, allTribes) {
                                         displayValue = displayValue.replace(/\b\w/g, l => l.toUpperCase());
                                     }
                                 }
-                                conditionPhrases.push(`{POSS} ${node.attribute} ${opText} ${displayValue}`);
-                            } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs'].includes(node.attribute)) {
-                                let statName = node.attribute.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
-                                conditionPhrases.push(`{POSS} ${statName} ${opText} ${node.value}`);
-                            } else if (node.attribute === 'alignment') {
-                                conditionPhrases.push(`{PRONOUN} ${opText} ${String(node.value).toLowerCase()}`);
-                            } else if (node.attribute === 'hasAbility') {
-                                if (node.operator === '==') conditionPhrases.push(`{PRONOUN} has ability '${node.value}'`);
-                                else conditionPhrases.push(`{PRONOUN} does not have ability '${node.value}'`);
+                                let subj = ctx === 'EVAL_TARGET' ? "{POSS}" : contextSubject;
+                                conditionPhrases.push(`${subj} ${checkAttr} ${opText} ${displayValue}`);
+                            } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs'].includes(checkAttr)) {
+                                let statName = checkAttr.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+                                let subj = ctx === 'EVAL_TARGET' ? "{POSS}" : contextSubject;
+                                conditionPhrases.push(`${subj} ${statName} ${opText} ${node.value}`);
+                            } else if (checkAttr === 'line') {
+                                let subj = ctx === 'EVAL_TARGET' ? "{PRONOUN}" : contextPronoun;
+                                if (node.operator === '==') conditionPhrases.push(`${subj} is in the ${node.value} line`);
+                                else conditionPhrases.push(`${subj} is not in the ${node.value} line`);
+                            } else if (checkAttr === 'alignment') {
+                                let subj = ctx === 'EVAL_TARGET' ? "{PRONOUN}" : contextPronoun;
+                                conditionPhrases.push(`${subj} ${opText} ${String(node.value).toLowerCase()}`);
+                            } else if (checkAttr === 'hasAbility') {
+                                let subj = ctx === 'EVAL_TARGET' ? "{PRONOUN}" : contextPronoun;
+                                if (node.operator === '==') conditionPhrases.push(`${subj} has ability '${node.value}'`);
+                                else conditionPhrases.push(`${subj} does not have ability '${node.value}'`);
                             }
                         }
-                    } else if (node.children) {
-                        node.children.forEach(scan);
                     }
                 };
                 scan(ability.activation?.logicTree);
@@ -186,7 +204,7 @@ export function parseTriggers(ability, allTribes) {
                 let poss = hasThisCard ? 'its' : "this card's";
                 let pro = hasThisCard ? 'it' : 'this card';
                 
-                let joinWord = rootOperator === 'OR' ? ' or ' : ' and ';
+                let joinWord = logicalOperator === 'OR' ? ' or ' : ' and ';
                 let joined = conditionPhrases.join(joinWord);
                 joined = joined.replace(/\{POSS\}/g, poss).replace(/\{PRONOUN\}/g, pro);
                 finalTxt += `, if ${joined}`;

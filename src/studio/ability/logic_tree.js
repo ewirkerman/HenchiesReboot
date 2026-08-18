@@ -4,7 +4,8 @@ import { StudioState } from './state.js';
 import { updateJSONPreview } from './catalog_sync.js';
 import { renderEffects } from './payloads.js';
 import { updateTargetingUI } from './triggers.js';
-import { generateGroupHTML, ATTRIBUTE_TYPES } from './ability_renderer.js';
+import { generateGroupHTML } from './ability_renderer.js';
+import { ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
 
 export function getRoot(treeType) {
     if (treeType === 'activation') return StudioState.activationRoot;
@@ -65,11 +66,23 @@ export function updateNodeField(treeType, pathString, field, value) {
   const path = JSON.parse(pathString);
   const node = path.length === 0 ? getRoot(treeType) : getNodeAtPath(treeType, path);
   node[field] = value;
-  if (field === 'attribute') {
-    const typeDef = ATTRIBUTE_TYPES[value];
-    node.value = typeDef.type === 'select' ? typeDef.options[0] : 1;
-    node.operator = '==';
+  
+  if (field === 'context') {
+      const newDomain = value === 'EVENT' ? 'EVENT' : 'ENTITY';
+      const oldDomain = ATTRIBUTE_MANIFEST[node.attribute]?.domain || 'ENTITY';
+      if (newDomain !== oldDomain) {
+          const newAttr = Object.keys(ATTRIBUTE_MANIFEST).find(k => ATTRIBUTE_MANIFEST[k].domain === newDomain && ATTRIBUTE_MANIFEST[k].evaluable);
+          node.attribute = newAttr;
+          const typeDef = ATTRIBUTE_MANIFEST[newAttr];
+          node.value = typeDef.type === 'select' ? typeDef.options[0] : 1;
+          node.operator = '==';
+      }
+  } else if (field === 'attribute') {
+      const typeDef = ATTRIBUTE_MANIFEST[value];
+      node.value = typeDef.type === 'select' ? typeDef.options[0] : 1;
+      node.operator = '==';
   }
+  
   if (treeType === 'activation') renderLogicTrees(); else renderEffects();
   updateJSONPreview();
 }

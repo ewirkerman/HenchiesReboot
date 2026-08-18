@@ -3,6 +3,9 @@
 import { CardState } from './state.js';
 import { updatePreview } from './preview.js';
 import { renderAssignedAbilities } from './abilities.js';
+import { ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
+import { hydrateAbility } from '../../engine/utils.js';
+import { generateAbilityDescription } from '../../language_description.js';
 
 export function enforceAttackAbility() {
     const strVal = document.getElementById('card-strength').value;
@@ -13,9 +16,9 @@ export function enforceAttackAbility() {
     
     const atkId = defaultAtk.abilityId;
 
-    const hasAlternativeAttack = CardState.currentAbilities.some(abId => {
-        if (abId === atkId) return false;
-        const ab = CardState.allAbilities.find(a => a.abilityId === abId);
+    const hasAlternativeAttack = CardState.currentAbilities.some(obj => {
+        if (obj.id === atkId) return false;
+        const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
         return ab?.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
     });
 
@@ -23,17 +26,17 @@ export function enforceAttackAbility() {
 
     if ((cardType === 'unit' || cardType === 'avatar') && strVal !== '') {
         if (hasAlternativeAttack) {
-            const idx = CardState.currentAbilities.indexOf(atkId);
+            const idx = CardState.currentAbilities.findIndex(a => a.id === atkId);
             if (idx > -1) {
                 CardState.currentAbilities.splice(idx, 1);
                 changed = true;
             }
-        } else if (!CardState.currentAbilities.includes(atkId)) {
-            CardState.currentAbilities.push(atkId);
+        } else if (!CardState.currentAbilities.some(a => a.id === atkId)) {
+            CardState.currentAbilities.push({ id: atkId, paramX: null });
             changed = true;
         }
     } else {
-        const idx = CardState.currentAbilities.indexOf(atkId);
+        const idx = CardState.currentAbilities.findIndex(a => a.id === atkId);
         if (idx > -1) {
             CardState.currentAbilities.splice(idx, 1);
             changed = true;
@@ -62,34 +65,68 @@ export function populateGenuses(tribeId, currentGenus = '') {
     }
 }
 
+export function populateFamily(currentFamily = '') {
+    const familySelect = document.getElementById('card-family');
+    if (!familySelect) return;
+    let optionsHtml = '<option value="">None</option>';
+    const familyDef = ATTRIBUTE_MANIFEST['family'];
+    if (familyDef && familyDef.options) {
+        familyDef.options.forEach(f => {
+            optionsHtml += `<option value="${f}">${f}</option>`;
+        });
+    }
+    familySelect.innerHTML = optionsHtml;
+    if (currentFamily && familySelect.querySelector(`option[value="${currentFamily}"]`)) {
+        familySelect.value = currentFamily;
+    } else {
+        familySelect.value = '';
+    }
+}
+
 export function toggleStatFields() {
-    const type = document.getElementById('card-type').value;
-    const hpContainer = document.getElementById('stat-health-container');
-    const strContainer = document.getElementById('stat-strength-container');
-    const lineContainer = document.getElementById('default-line-container');
-    const familyContainer = document.getElementById('family-container');
+    const type = document.getElementById('card-type').value.toUpperCase();
     
-    if (type === 'unit' || type === 'avatar') {
-        hpContainer.classList.remove('hidden');
-        strContainer.classList.remove('hidden');
-    } else {
-        hpContainer.classList.add('hidden');
-        strContainer.classList.add('hidden');
+    const fieldMapping = {
+        'health': 'stat-health-container',
+        'strength': 'stat-strength-container',
+        'power': 'stat-power-container',
+        'line': 'stat-line-container',
+        'family': 'stat-family-container',
+        'cost': 'stat-cost-container',
+        'genus': 'stat-genus-container'
+    };
+
+    const healthInput = document.getElementById('card-health');
+    if (type === 'AVATAR' && healthInput.value === '1') {
+        healthInput.value = '20';
+    } else if (type === 'UNIT' && healthInput.value === '20') {
+        healthInput.value = '1';
+    } else if (type !== 'AVATAR' && type !== 'UNIT') {
+        if (healthInput.value === '1' || healthInput.value === '20') {
+            healthInput.value = ''; // Clear it out to show it is optional
+        }
     }
 
-    if (type === 'unit') {
-        lineContainer.classList.remove('hidden');
-        familyContainer.classList.remove('hidden');
-    } else {
-        lineContainer.classList.add('hidden');
-        familyContainer.classList.add('hidden');
-        document.getElementById('card-family').value = '';
+    for (const [attr, containerId] of Object.entries(fieldMapping)) {
+        const container = document.getElementById(containerId);
+        if (!container) continue;
+        
+        const inputEl = container.querySelector('input, select');
+        const manifestDef = ATTRIBUTE_MANIFEST[attr];
+        
+        if (manifestDef && (manifestDef.allowedTypes.includes('ALL') || manifestDef.allowedTypes.includes(type))) {
+            container.classList.remove('opacity-40', 'pointer-events-none', 'grayscale');
+            if (inputEl) inputEl.disabled = false;
+        } else {
+            container.classList.add('opacity-40', 'pointer-events-none', 'grayscale');
+            if (inputEl) inputEl.disabled = true;
+        }
     }
 
-    if (type === 'equipment') {
+    if (type === 'EQUIPMENT') {
         const attachAb = CardState.allAbilities.find(a => a.name.toLowerCase() === 'attach to a unit' || a.name.toLowerCase() === 'attach');
-        if (attachAb && !CardState.currentAbilities.includes(attachAb.abilityId)) {
-            CardState.currentAbilities.push(attachAb.abilityId);
+        if (attachAb && !CardState.currentAbilities.some(a => a.id === attachAb.abilityId)) {
+            CardState.currentAbilities.push({ id: attachAb.abilityId, paramX: null });
             renderAssignedAbilities();
             updatePreview();
         }
@@ -106,7 +143,7 @@ export function resetForm() {
     document.getElementById('card-type').value = 'unit';
     document.getElementById('card-default-line').value = 'mid';
     populateGenuses(document.getElementById('card-tribe').value, '');
-    document.getElementById('card-family').value = '';
+    populateFamily('');
     document.getElementById('card-cost').value = '1';
     document.getElementById('card-power').value = '0';
     document.getElementById('card-health').value = '1';
@@ -128,6 +165,19 @@ export function resetForm() {
 export function buildCardState() {
     const strVal = document.getElementById('card-strength').value;
     const cardType = document.getElementById('card-type').value;
+    const typeUpper = cardType.toUpperCase();
+
+    const isAllowed = (attr) => {
+        const def = ATTRIBUTE_MANIFEST[attr];
+        return def && (def.allowedTypes.includes('ALL') || def.allowedTypes.includes(typeUpper));
+    };
+    
+    const parsedHealth = parseInt(document.getElementById('card-health').value);
+    let defaultHealth = null;
+    if (typeUpper === 'AVATAR') defaultHealth = 20;
+    else if (typeUpper === 'UNIT') defaultHealth = 1;
+    
+    const finalHealth = isAllowed('health') ? (!isNaN(parsedHealth) ? parsedHealth : defaultHealth) : null;
     
     const state = {
         id: CardState.currentEditingId || ('card_' + Date.now()),
@@ -135,18 +185,40 @@ export function buildCardState() {
         name: document.getElementById('card-name').value || 'Unnamed Card',
         tribe: document.getElementById('card-tribe').value,
         type: cardType,
-        genus: document.getElementById('card-genus').value || '',
-        family: cardType === 'unit' ? (document.getElementById('card-family').value || '') : '',
-        cost: parseInt(document.getElementById('card-cost').value) || 0,
-        power: parseInt(document.getElementById('card-power').value) || 0,
-        health: parseInt(document.getElementById('card-health').value) || 1,
-        maxHealth: parseInt(document.getElementById('card-health').value) || 1,
-        strength: strVal === '' ? null : parseInt(strVal),
+        genus: isAllowed('genus') ? (document.getElementById('card-genus').value || '') : '',
+        family: isAllowed('family') ? (document.getElementById('card-family').value || '') : '',
+        cost: isAllowed('cost') ? (parseInt(document.getElementById('card-cost').value) || 0) : 0,
+        power: isAllowed('power') ? (parseInt(document.getElementById('card-power').value) || 0) : 0,
+        health: finalHealth,
+        maxHealth: finalHealth,
+        strength: isAllowed('strength') && strVal !== '' ? parseInt(strVal) : null,
         description: document.getElementById('card-description').value || '',
         artUrl: document.getElementById('card-art').value || '',
         artX: parseInt(document.getElementById('card-art-x').value) || 50,
         artY: parseInt(document.getElementById('card-art-y').value) || 50,
-        abilities: (CardState.currentAbilities || []).map(id => CardState.allAbilities.find(a => a.abilityId === id)).filter(Boolean)
+        abilities: (CardState.currentAbilities || []).map(obj => {
+            const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
+            if (!ab) return null;
+            
+            let hasX = false;
+            if (ab.effects) {
+                hasX = ab.effects.some(g => g.payloads && g.payloads.some(p => p.amountIsX || p.grantedAbilityParamXIsX || (p.nestedGroup && p.nestedGroup.payloads && p.nestedGroup.payloads.some(np => np.amountIsX || np.grantedAbilityParamXIsX))));
+            }
+            
+            let pX = obj.paramX;
+            if (hasX && (pX === null || pX === undefined)) pX = 1;
+            
+            let hydrated = hydrateAbility({ abilityId: obj.id, paramX: pX }, CardState.allAbilities);
+            if (!hydrated) return null;
+            
+            try {
+                hydrated.displayDescription = generateAbilityDescription(hydrated, CardState.allAbilities, CardState.allCards, CardState.customTribes);
+            } catch(e) {
+                console.warn("Failed to generate description for hydrated ability", e);
+            }
+            
+            return hydrated;
+        }).filter(Boolean)
     };
     
     // Guarantee the primary attack is strictly the first ability
@@ -159,7 +231,7 @@ export function buildCardState() {
         state.abilities.unshift(attackAb);
     }
 
-    if (cardType === 'unit') {
+    if (isAllowed('line')) {
         state.defaultLine = document.getElementById('card-default-line').value;
     }
     
@@ -168,3 +240,4 @@ export function buildCardState() {
 
 // Bind for HTML calls
 window.populateGenuses = populateGenuses;
+window.populateFamily = populateFamily;

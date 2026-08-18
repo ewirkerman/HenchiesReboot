@@ -10,13 +10,29 @@ import { launchSandboxMatch } from '../../testing.js';
 import { updateTriggerComposite, renderAdditionalTriggers, updateTargetingUI } from './triggers.js';
 import { renderLogicTrees } from './logic_tree.js';
 import { renderEffects } from './payloads.js';
+import { ACTION_MANIFEST } from '../../engine/actions/index.js';
 
 export function getCurrentAbilityState() {
+  let derivedTrigger = document.getElementById('ab-trigger').value;
+  if (!derivedTrigger) {
+      const base = document.getElementById('ab-base-trigger').value;
+      const phase = document.getElementById('ab-trigger-phase').value;
+      const role = document.getElementById('ab-trigger-role').value;
+      const manifest = ACTION_MANIFEST[base];
+      if (manifest) {
+          let verb = base;
+          if (role === 'PASSIVE' && manifest.passiveType) verb = manifest.passiveType;
+          derivedTrigger = `${phase}_${verb}`;
+      } else {
+          derivedTrigger = base || 'MANUAL';
+      }
+  }
+
   const formData = {
     abilityId: StudioState.currentEditingId,
     name: document.getElementById('ab-name').value.trim(),
     description: document.getElementById('ab-description').value,
-    trigger: document.getElementById('ab-trigger').value,
+    trigger: derivedTrigger,
     additionalTriggers: StudioState.additionalTriggers || [],
     triggerScope: document.getElementById('ab-trigger-scope').value,
     triggerLimit: document.getElementById('ab-trigger-limit').value,
@@ -584,19 +600,8 @@ window.inspectCard = (cardJson) => {
     openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), StudioState.allAbilities);
 };
 
-export async function launchTestMatch() {
-    const ability = getCurrentAbilityState();
-    const topbar = document.getElementById('studio-topbar');
-    if (topbar && topbar.setLoading) topbar.setLoading('test', true);
-
-    await launchSandboxMatch(ability, 'ability');
-    
-    if (topbar && topbar.setLoading) topbar.setLoading('test', false);
-}
-
 // Bind window functions
 window.loadAbility = loadAbility;
 window.copyJSONPreview = copyJSONPreview;
 window.testAssociatedCard = testAssociatedCard;
 window.updateGlobalCard = updateGlobalCard;
-window.launchTestMatch = launchTestMatch;

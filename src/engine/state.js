@@ -1,4 +1,4 @@
-// filepath: src/state.js
+// filepath: src/engine/state.js
 /**
  * src/state.js
  * State definitions and match initialization for the Henchies 2 Game Engine.

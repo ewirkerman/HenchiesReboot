@@ -23,12 +23,23 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
         if (node.type === 'group' && node.children) {
             node.children.forEach(parseNode);
         } else if (node.type === 'condition') {
+            const checkAttr = node.attribute;
+            const ctx = node.context || 'EVAL_TARGET';
+
+            let contextSubject = "their ";
+            if (!isPlural) contextSubject = "its ";
+            
+            if (ctx === 'HOST') { contextSubject = isPlural ? "their hosts " : "its host "; }
+            else if (ctx === 'EVENT_SOURCE') { contextSubject = "the event doer "; }
+            else if (ctx === 'EVENT_TARGET') { contextSubject = "the event receiver "; }
+            else if (ctx === 'ABILITY_SOURCE') { contextSubject = "this card "; }
+
             const opMap = { '==': '', '!=': 'not', '>': 'more than', '<': 'less than', '>=': 'at least', '<=': 'at most' };
             let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
             
-            if (['tribe', 'family', 'genus'].includes(node.attribute)) {
+            if (['tribe', 'family', 'genus'].includes(checkAttr)) {
                 let displayValue = String(node.value);
-                if (node.attribute === 'tribe') {
+                if (checkAttr === 'tribe') {
                     if (allTribes && Array.isArray(allTribes)) {
                         const match = allTribes.find(t => t.id === displayValue || t.name.toLowerCase() === displayValue.toLowerCase());
                         if (match) displayValue = match.name;
@@ -39,47 +50,40 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 }
                 
                 if (node.operator === '==') {
-                    adjectives.push(displayValue);
+                    if (ctx === 'EVAL_TARGET') adjectives.push(displayValue);
+                    else suffixes.push(`where ${contextSubject}is ${displayValue}`);
                 } else {
-                    suffixes.push(`that ${isAre} ${opText} ${displayValue}`.trim());
+                    if (ctx === 'EVAL_TARGET') suffixes.push(`that ${isAre} not ${displayValue}`);
+                    else suffixes.push(`where ${contextSubject}is not ${displayValue}`);
                 }
-            } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs', 'amount'].includes(node.attribute)) {
-                let statName = node.attribute.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
-                if (statName === 'amount') statName = 'event amount';
-                suffixes.push(`with ${opText} ${node.value} ${statName}`.replace(/\s+/g, ' ').trim());
-            } else if (node.attribute === 'alignment') {
-                let val = String(node.value).toLowerCase();
-                if (node.operator === '==') {
-                    adjectives.push(val === 'friendly' ? 'ally' : val);
-                } else {
-                    suffixes.push(`that ${isAre} not ${val}`);
-                }
-            } else if (['isCombat', 'isAttacking'].includes(node.attribute)) {
+            } else if (checkAttr === 'isCombat') {
                 let isTrue = String(node.value).toLowerCase() === 'true';
-                if (node.operator === '!=') isTrue = !isTrue; // Flip boolean if !=
-                
-                if (node.attribute === 'isCombat') {
-                    combatState = isTrue ? `during combat` : `outside of combat`;
-                } else {
-                    attackingState = isTrue ? `as the attacker` : `as the defender`;
-                }
-            } else if (node.attribute === 'eventAbility') {
+                if (node.operator === '!=') isTrue = !isTrue; 
+                combatState = isTrue ? `during combat` : `outside of combat`;
+            } else if (checkAttr === 'isAttacking') {
+                let isTrue = String(node.value).toLowerCase() === 'true';
+                if (node.operator === '!=') isTrue = !isTrue; 
+                let verb = isTrue ? `the attacker` : `the defender`;
+                if (ctx === 'EVAL_TARGET') attackingState = `as ${verb}`;
+                else suffixes.push(`where ${contextSubject}is ${verb}`);
+            } else if (checkAttr === 'eventAbility') {
                 if (node.operator === '==') suffixes.push(`where the event ability is '${node.value}'`);
                 else suffixes.push(`where the event ability is not '${node.value}'`);
-            } else if (node.attribute === 'hasAbility') {
+            } else if (checkAttr === 'hasAbility') {
                 let abilityName = node.value;
                 if (allAbilities && Array.isArray(allAbilities)) {
                     const match = allAbilities.find(a => a.abilityId === node.value || a.name === node.value);
                     if (match) abilityName = match.name;
                 }
-                if (node.operator === '==') suffixes.push(`with '${abilityName}'`);
-                else suffixes.push(`without '${abilityName}'`);
-            } else if (node.attribute === 'entity') {
+                if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'with' : `where ${contextSubject}has`} '${abilityName}'`);
+                else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'without' : `where ${contextSubject}does not have`} '${abilityName}'`);
+            } else if (checkAttr === 'entity') {
                 let val = String(node.value).toLowerCase();
                 if (val === 'self') val = 'this card';
                 
                 if (node.operator === '==') {
-                    if (val !== 'unit' && val !== 'avatar') adjectives.push(val);
+                    if (ctx === 'EVAL_TARGET' && val !== 'unit' && val !== 'avatar') adjectives.push(val);
+                    else if (ctx !== 'EVAL_TARGET') suffixes.push(`where ${contextSubject}is a ${val}`);
                 } else {
                     let nounStr = val;
                     if (val !== 'this card') {
@@ -89,13 +93,18 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                             nounStr = /^[aeiou]/i.test(val) ? 'an ' + val : 'a ' + val;
                         }
                     }
-                    suffixes.push(`that ${isAre} not ${nounStr}`);
+                    if (ctx === 'EVAL_TARGET') suffixes.push(`that ${isAre} not ${nounStr}`);
+                    else suffixes.push(`where ${contextSubject}is not ${nounStr}`);
                 }
-            } else if (node.attribute === 'zone') {
+            } else if (checkAttr === 'zone') {
                 let val = String(node.value).toLowerCase();
                 if (val === 'original_deck') val = 'original deck';
-                if (node.operator === '==') suffixes.push(`in ${val}`);
-                else suffixes.push(`not in ${val}`);
+                if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'in' : `where ${contextSubject}is in`} ${val}`);
+                else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'not in' : `where ${contextSubject}is not in`} ${val}`);
+            } else {
+                let statName = checkAttr.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+                if (ctx === 'EVAL_TARGET') suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
+                else suffixes.push(`where ${contextSubject}${statName} is ${opText} ${node.value}`.trim());
             }
         }
     };

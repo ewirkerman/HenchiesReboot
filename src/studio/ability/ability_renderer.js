@@ -1,24 +1,4 @@
-export const ATTRIBUTE_TYPES = {
-    'entity': { label: 'Entity Type', type: 'select', options: ['SELF', 'AVATAR', 'UNIT', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] },
-    'alignment': { label: 'Alignment', type: 'select', options: ['FRIENDLY', 'ENEMY'] },
-    'zone': { label: 'Zone', type: 'select', options: ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'] },
-    'tribe': { label: 'Tribe', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'] },
-    'family': { label: 'Family (Text)', type: 'text' },
-    'genus': { label: 'Genus (Text)', type: 'text' },
-    'health': { label: 'Current Health', type: 'number' },
-    'maxHealth': { label: 'Max Health', type: 'number' },
-    'strength': { label: 'Strength', type: 'number' },
-    'armor': { label: 'Armor', type: 'number' },
-    'power': { label: 'Power', type: 'number' },
-    'cost': { label: 'Cost', type: 'number' },
-    'readiness': { label: 'Readiness', type: 'number' },
-    'acts': { label: 'Available Acts', type: 'number' },
-    'maxActs': { label: 'Max Acts', type: 'number' },
-    'isCombat': { label: 'Is Combat Damage (Event)', type: 'select', options: ['true', 'false'] },
-    'isAttacking': { label: 'Is the Active Attacker (Event)', type: 'select', options: ['true', 'false'] },
-    'eventAbility': { label: 'Event Ability (Name/ID)', type: 'text' },
-    'hasAbility': { label: 'Has Ability ID', type: 'text' }
-};
+import { CONTEXT_TYPES, ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
 
 export const OPERATORS = { '==': 'Is (==)', '!=': 'Is Not (!=)', '>': 'Greater Than (>)', '<': 'Less Than (<)', '>=': 'X or more (>=)', '<=': 'X or less (<=)' };
 
@@ -89,25 +69,35 @@ export function generateQuickMatrixHTML(context, targetState, index = null) {
 
 export function generateConditionHTML(treeType, cond, path, parentBorderClass) {
     const pathStr = JSON.stringify(path);
-    const typeDef = ATTRIBUTE_TYPES[cond.attribute] || ATTRIBUTE_TYPES['entity'];
-    const attrOptions = Object.entries(ATTRIBUTE_TYPES).map(([key, def]) => `<option value="${key}" ${cond.attribute === key ? 'selected' : ''}>${def.label}</option>`).join('');
+    const contextVal = cond.context || 'EVAL_TARGET';
+    const currentDomain = contextVal === 'EVENT' ? 'EVENT' : 'ENTITY';
+
+    const ctxOptions = Object.entries(CONTEXT_TYPES).map(([val, label]) => `<option value="${val}" ${contextVal === val ? 'selected' : ''}>${label}</option>`).join('');
+
+    const attrOptions = Object.entries(ATTRIBUTE_MANIFEST)
+        .filter(([key, def]) => def.evaluable && def.domain === currentDomain)
+        .map(([key, def]) => `<option value="${key}" ${cond.attribute === key ? 'selected' : ''}>${def.label}</option>`)
+        .join('');
+        
+    const typeDef = ATTRIBUTE_MANIFEST[cond.attribute] || Object.values(ATTRIBUTE_MANIFEST).find(t => t.evaluable && t.domain === currentDomain);
     const opOptions = Object.entries(OPERATORS).map(([val, label]) => `<option value="${val}" ${cond.operator === val ? 'selected' : ''}>${label}</option>`).join('');
 
     let valueInputHTML = '';
     if (typeDef.type === 'select') {
-    valueInputHTML = `<select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]">
-        ${typeDef.options.map(opt => `<option value="${opt}" ${cond.value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-    </select>`;
+        valueInputHTML = `<select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]">
+            ${typeDef.options.map(opt => `<option value="${opt}" ${cond.value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+        </select>`;
     } else if (typeDef.type === 'text') {
-    valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="Value..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
+        valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="Value..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
     } else {
-    valueInputHTML = `<input type="number" value="${cond.value}" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
+        valueInputHTML = `<input type="number" value="${cond.value}" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
     }
 
     return `
-    <div class="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded border border-slate-700 ml-4 logic-group-border ${parentBorderClass} hover:border-slate-500 transition-colors">
-        <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'attribute', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-cyan-300 font-bold w-1/3">${attrOptions}</select>
-        <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'operator', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-pink-300 font-bold w-24">${opOptions}</select>
+    <div class="flex flex-wrap items-center gap-1.5 bg-slate-900/90 p-1.5 rounded border border-slate-700 ml-4 logic-group-border ${parentBorderClass} hover:border-slate-500 transition-colors">
+        <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'context', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-emerald-300 font-bold flex-1 min-w-[150px]">${ctxOptions}</select>
+        <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'attribute', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-cyan-300 font-bold flex-1 min-w-[120px]">${attrOptions}</select>
+        <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'operator', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-pink-300 font-bold w-20 shrink-0">${opOptions}</select>
         ${valueInputHTML}
         <button type="button" onclick='window.removeNode("${treeType}", "${pathStr}")' class="text-slate-500 hover:text-red-400 font-bold px-2">&times;</button>
     </div>
@@ -194,6 +184,10 @@ export function generateEffectsHTML(ctx) {
             let basicParamsHtml = '';
             
             if (manifest.requiresAmount) {
+                let amtValue = payload.amount !== undefined ? payload.amount : 1;
+                let xChecked = payload.amountIsX ? 'checked' : '';
+                let inputDisabled = payload.amountIsX ? 'disabled opacity-50' : '';
+                
                 if (payload.type === 'SET_STAT' && payload.stat === 'line') {
                   basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Line</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full">
                       <option value="front" ${payload.amount === 'front' ? 'selected' : ''}>Front</option>
@@ -205,7 +199,7 @@ export function generateEffectsHTML(ctx) {
                       <option value="bodyguard" ${payload.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
                   </select></div>`;
                 } else {
-                  basicParamsHtml += `<div class="w-24 pb-0.5"><label class="block text-[10px] font-bold text-slate-400 mb-0.5">Magnitude/Amt</label><input type="number" value="${payload.amount !== undefined ? payload.amount : 1}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
+                  basicParamsHtml += `<div class="w-24 pb-0.5 flex flex-col"><label class="block text-[10px] font-bold text-slate-400 mb-0.5 flex justify-between items-center"><span>Magnitude</span><label class="flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 ml-2"><input type="checkbox" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amountIsX', this.checked)" ${xChecked} class="w-3 h-3 accent-amber-500">Var X</label></label><input type="number" value="${amtValue}" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'amount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full ${inputDisabled}" /></div>`;
                 }
             }
 
@@ -214,21 +208,14 @@ export function generateEffectsHTML(ctx) {
             }
 
             if (manifest.requiresStat) {
-              let statOptions = `
-                  <option value="strength" ${payload.stat === 'strength' ? 'selected' : ''}>Strength</option>
-                  <option value="health" ${payload.stat === 'health' ? 'selected' : ''}>Current Health</option>
-                  <option value="maxHealth" ${payload.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
-                  <option value="armor" ${payload.stat === 'armor' ? 'selected' : ''}>Armor</option>
-                  <option value="cost" ${payload.stat === 'cost' ? 'selected' : ''}>Cost</option>
-                  <option value="amount" ${payload.stat === 'amount' ? 'selected' : ''}>Event Amount</option>
-                  <option value="readiness" ${payload.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
-                  <option value="acts" ${payload.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
-                  <option value="maxActs" ${payload.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
-                  <option value="power" ${payload.stat === 'power' ? 'selected' : ''}>Power</option>
-              `;
-              if (payload.type === 'SET_STAT') {
-                  statOptions += `<option value="line" ${payload.stat === 'line' ? 'selected' : ''}>Battleline</option>`;
-              }
+              let validStats = Object.entries(ATTRIBUTE_MANIFEST).filter(([key, def]) => {
+                  if (payload.type === 'SET_STAT') return def.settable;
+                  if (payload.type === 'MODIFY_STAT') return def.modifiable;
+                  if (payload.type === 'MODIFY_EVENT') return def.modifiable || key === 'amount';
+                  return false;
+              });
+              let statOptions = validStats.map(([key, def]) => `<option value="${key}" ${payload.stat === key ? 'selected' : ''}>${def.label}</option>`).join('');
+              
               basicParamsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[10px] font-bold text-amber-400 mb-0.5">Target Stat</label><select onchange="window.updatePayload(${gIdx}, ${pIdx}, 'stat', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full">${statOptions}</select></div>`;
             }
 
@@ -256,6 +243,13 @@ export function generateEffectsHTML(ctx) {
                 const abLabel = payload.type === 'REMOVE_ABILITY' ? 'Ability to Remove' : 'Ability to Grant';
                 basicParamsHtml += `<div class="flex-1 min-w-[150px] pb-0.5"><label class="block text-[10px] font-bold text-cyan-400 mb-0.5">${abLabel}</label><input list="ability-list-${gIdx}-${pIdx}" value="${displayValue}" onchange="window.updateGrantedAbility(${gIdx}, ${pIdx}, this.value)" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full" />
                 <datalist id="ability-list-${gIdx}-${pIdx}">${customOptions}</datalist></div>`;
+                
+                if (payload.type === 'GRANT_ABILITY') {
+                    let xChecked = payload.grantedAbilityParamXIsX ? 'checked' : '';
+                    let inputDisabled = payload.grantedAbilityParamXIsX ? 'disabled opacity-50' : '';
+                    let paramVal = payload.grantedAbilityParamX !== undefined && payload.grantedAbilityParamX !== null ? payload.grantedAbilityParamX : '';
+                    basicParamsHtml += `<div class="w-24 pb-0.5 flex flex-col"><label class="block text-[10px] font-bold text-cyan-400 mb-0.5 flex justify-between items-center"><span>Param X</span><label class="flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 ml-2"><input type="checkbox" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'grantedAbilityParamXIsX', this.checked)" ${xChecked} class="w-3 h-3 accent-amber-500">Var X</label></label><input type="number" value="${paramVal}" placeholder="None" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'grantedAbilityParamX', this.value === '' ? null : parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full ${inputDisabled}" /></div>`;
+                }
             }
 
             if (manifest.canBlockDuplicates) {
@@ -297,6 +291,9 @@ export function generateEffectsHTML(ctx) {
                     
                     if (nMan.requiresAmount && nMan.requiresStat) {
                        let amountHtml = '';
+                       let xChecked = np.amountIsX ? 'checked' : '';
+                       let inputDisabled = np.amountIsX ? 'disabled opacity-50' : '';
+                       
                        if (np.type === 'SET_STAT' && np.stat === 'line') {
                            amountHtml = `<div class="w-20"><select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]">
                                <option value="front" ${np.amount === 'front' ? 'selected' : ''}>Front</option>
@@ -308,24 +305,16 @@ export function generateEffectsHTML(ctx) {
                                <option value="bodyguard" ${np.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
                            </select></div>`;
                        } else {
-                           amountHtml = `<div class="w-16"><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                           amountHtml = `<div class="w-20 flex flex-col justify-end"><label class="flex items-center gap-1 cursor-pointer text-[9px] font-bold text-amber-400 mb-0.5"><input type="checkbox" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amountIsX', this.checked)" ${xChecked} class="w-2.5 h-2.5 accent-amber-500">Var X</label><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px] ${inputDisabled}" /></div>`;
                        }
                        
-                       let nestedStatOptions = `
-                                <option value="strength" ${np.stat === 'strength' ? 'selected' : ''}>Strength</option>
-                                <option value="health" ${np.stat === 'health' ? 'selected' : ''}>Health</option>
-                                <option value="maxHealth" ${np.stat === 'maxHealth' ? 'selected' : ''}>Max Health</option>
-                                <option value="armor" ${np.stat === 'armor' ? 'selected' : ''}>Armor</option>
-                                <option value="cost" ${np.stat === 'cost' ? 'selected' : ''}>Cost</option>
-                                <option value="amount" ${np.stat === 'amount' ? 'selected' : ''}>Event Amount</option>
-                                <option value="readiness" ${np.stat === 'readiness' ? 'selected' : ''}>Readiness</option>
-                                <option value="acts" ${np.stat === 'acts' ? 'selected' : ''}>Available Acts</option>
-                                <option value="maxActs" ${np.stat === 'maxActs' ? 'selected' : ''}>Max Acts</option>
-                                <option value="power" ${np.stat === 'power' ? 'selected' : ''}>Power</option>
-                       `;
-                       if (np.type === 'SET_STAT') {
-                           nestedStatOptions += `<option value="line" ${np.stat === 'line' ? 'selected' : ''}>Battleline</option>`;
-                       }
+                       let validNestedStats = Object.entries(ATTRIBUTE_MANIFEST).filter(([key, def]) => {
+                           if (np.type === 'SET_STAT') return def.settable;
+                           if (np.type === 'MODIFY_STAT') return def.modifiable;
+                           if (np.type === 'MODIFY_EVENT') return def.modifiable || key === 'amount';
+                           return false;
+                       });
+                       let nestedStatOptions = validNestedStats.map(([key, def]) => `<option value="${key}" ${np.stat === key ? 'selected' : ''}>${def.label}</option>`).join('');
 
                        npParamsHtml += `
                           ${amountHtml}
@@ -336,7 +325,9 @@ export function generateEffectsHTML(ctx) {
                           </div>
                        `;
                     } else if (nMan.requiresAmount) {
-                       npParamsHtml += `<div class="w-16"><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                       let xChecked = np.amountIsX ? 'checked' : '';
+                       let inputDisabled = np.amountIsX ? 'disabled opacity-50' : '';
+                       npParamsHtml += `<div class="w-20 flex flex-col justify-end"><label class="flex items-center gap-1 cursor-pointer text-[9px] font-bold text-amber-400 mb-0.5"><input type="checkbox" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amountIsX', this.checked)" ${xChecked} class="w-2.5 h-2.5 accent-amber-500">Var X</label><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px] ${inputDisabled}" /></div>`;
                     } 
                     
                     if (nMan.canLimitStacks) {
@@ -349,6 +340,13 @@ export function generateEffectsHTML(ctx) {
                        const foundAb = allAbilities.find(a => a.abilityId === displayValue);
                        if (foundAb) displayValue = foundAb.name;
                        npParamsHtml += `<div class="flex-1 min-w-[120px]"><input list="nest-ability-list-${gIdx}-${pIdx}-${nIdx}" value="${displayValue}" onchange="window.updateNestedGrantedAbility(${gIdx}, ${pIdx}, ${nIdx}, this.value)" placeholder="Ability name..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full text-[10px]" /><datalist id="nest-ability-list-${gIdx}-${pIdx}-${nIdx}">${customOptions}</datalist></div>`;
+                       
+                       if (np.type === 'GRANT_ABILITY') {
+                           let xChecked = np.grantedAbilityParamXIsX ? 'checked' : '';
+                           let inputDisabled = np.grantedAbilityParamXIsX ? 'disabled opacity-50' : '';
+                           let paramVal = np.grantedAbilityParamX !== undefined && np.grantedAbilityParamX !== null ? np.grantedAbilityParamX : '';
+                           npParamsHtml += `<div class="w-20 flex flex-col justify-end"><label class="flex items-center gap-1 cursor-pointer text-[9px] font-bold text-amber-400 mb-0.5"><input type="checkbox" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'grantedAbilityParamXIsX', this.checked)" ${xChecked} class="w-2.5 h-2.5 accent-amber-500">Var X</label><input type="number" value="${paramVal}" placeholder="None" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'grantedAbilityParamX', this.value === '' ? null : parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px] ${inputDisabled}" /></div>`;
+                       }
                     } 
 
                     if (nMan.canBlockDuplicates) {

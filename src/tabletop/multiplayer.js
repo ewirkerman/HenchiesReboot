@@ -1,7 +1,7 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { createGameRoom, subscribeToGameRoom, pushActionToLog } from '../firebase.js';
-import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn } from '../engine/index.js';
+import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, hydrateAbility } from '../engine/index.js';
 import { showToast } from '../ui.js';
 
 export async function handleLaunchMatch() {
@@ -44,11 +44,7 @@ export async function handleLaunchMatch() {
           
           const clone = JSON.parse(JSON.stringify(fresh));
           if (clone.abilities) {
-              clone.abilities = clone.abilities.map(ab => {
-                  const abId = typeof ab === 'string' ? ab : ab.abilityId;
-                  const match = rawAbs.find(a => a.abilityId === abId);
-                  return match ? JSON.parse(JSON.stringify(match)) : null;
-              }).filter(Boolean);
+              clone.abilities = clone.abilities.map(ab => hydrateAbility(ab, rawAbs)).filter(Boolean);
           }
           hydratedDeck.push(clone);
       }

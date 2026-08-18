@@ -1,33 +1,15 @@
 // filepath: src/studio/ability/triggers.js
+
 import { StudioState } from './state.js';
 import { ACTION_MANIFEST, ACTION_CATEGORIES } from '../../engine/actions/index.js';
 import { updateJSONPreview } from './catalog_sync.js';
 import { getValidScopes, getValidActivationMethods } from '../../ability_validation.js';
 import { generateQuickMatrixHTML } from './ability_renderer.js';
 
-export function parseTriggerToComposite(triggerString) {
-    const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
-    if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
+export function populateBaseTriggers() {
+    const baseTriggerSelect = document.getElementById('ab-base-trigger');
+    if (!baseTriggerSelect) return;
 
-    for (const effect in ACTION_MANIFEST) {
-        const passive = ACTION_MANIFEST[effect].passiveType;
-        for (const phase of ['ON', 'WOULD', 'MODIFY']) {
-            if (triggerString === `${phase}_${effect}`) return { base: effect, phase, role: 'ACTIVE' };
-            if (passive && triggerString === `${phase}_${passive}`) return { base: effect, phase, role: 'PASSIVE' };
-        }
-        if (triggerString === effect) return { base: effect, phase: 'ON', role: 'ACTIVE' };
-        if (passive && triggerString === passive) return { base: effect, phase: 'ON', role: 'PASSIVE' };
-    }
-
-    return { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
-}
-
-export function renderAdditionalTriggers() {
-    const container = document.getElementById('additional-triggers-container');
-    
-    // Also populate the main dropdown if it's empty
-    const mainSelect = document.getElementById('ab-base-trigger');
-    
     const basics = [
         { val: 'MANUAL', label: 'Manual Activation' },
         { val: 'ON_BE_PLAYED', label: 'When Played (Mandatory)' },
@@ -45,14 +27,48 @@ export function renderAdditionalTriggers() {
         baseOptionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
     });
 
-    if (mainSelect && mainSelect.options.length === 0) {
-        mainSelect.innerHTML = baseOptionsHtml;
-    }
+    baseTriggerSelect.innerHTML = baseOptionsHtml;
+}
 
+export function parseTriggerToComposite(triggerString) {
+    const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+    if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
+
+    for (const effect in ACTION_MANIFEST) {
+        const passive = ACTION_MANIFEST[effect].passiveType;
+        for (const phase of ['ON', 'WOULD', 'MODIFY']) {
+            if (triggerString === `${phase}_${effect}`) return { base: effect, phase, role: 'ACTIVE' };
+            if (passive && triggerString === `${phase}_${passive}`) return { base: effect, phase, role: 'PASSIVE' };
+        }
+        if (triggerString === effect) return { base: effect, phase: 'ON', role: 'ACTIVE' };
+        if (passive && triggerString === passive) return { base: effect, phase: 'ON', role: 'PASSIVE' };
+    }
+    return { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
+}
+
+export function renderAdditionalTriggers() {
+    const container = document.getElementById('additional-triggers-container');
     if (StudioState.additionalTriggers.length === 0) {
         container.innerHTML = '';
         return;
     }
+    
+    const basics = [
+        { val: 'MANUAL', label: 'Manual Activation' },
+        { val: 'ON_BE_PLAYED', label: 'When Played (Mandatory)' },
+        { val: 'PLAY_OPTIONAL', label: 'When Played (Optional)' },
+        { val: 'UNTRIGGERABLE', label: 'Passive / Untriggerable' },
+        { val: 'TURN_STARTING', label: 'Turn Starting' },
+        { val: 'TURN_STARTED', label: 'Turn Started' },
+        { val: 'TURN_ENDING', label: 'Turn Ending' },
+        { val: 'TURN_ENDED', label: 'Turn Ended' }
+    ];
+    
+    let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t.val}">${t.label}</option>`).join('') + `</optgroup>`;
+    
+    Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
+        baseOptionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+    });
 
     container.innerHTML = StudioState.additionalTriggers.map((trigStr, idx) => {
         const comp = parseTriggerToComposite(trigStr);
@@ -226,7 +242,6 @@ export function updateTargetingUI() {
              advancedTreeWrapper.classList.add('hidden');
              advancedIcon.style.transform = 'rotate(0deg)';
          }
-
     } else {
          actMethodContainer.classList.remove('hidden');
          

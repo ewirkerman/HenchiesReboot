@@ -9,7 +9,7 @@ import { showToast, loadUI } from '../../ui.js';
 import { handleDescriptionInput, handleDescriptionKeydown, closeMentionDropdown } from './mentions.js';
 import { handleAddEffectGroup } from './payloads.js';
 import { handleSaveAbility, handleCloneAbility, handleDeleteAbility, resetForm, renderCatalogList, loadAbility, updateJSONPreview, initCardAssigner } from './catalog_sync.js';
-import { updateTriggerComposite } from './triggers.js';
+import { updateTriggerComposite, populateBaseTriggers } from './triggers.js';
 import { processBulkImport } from '../importer.js';
 
 import '../../../components/main_nav.js';
@@ -18,9 +18,10 @@ import '../../../components/topbar.js';
 
 async function init() {
   await loadUI();
+  populateBaseTriggers();
+  
   const baseTriggerSelect = document.getElementById('ab-base-trigger');
   if (baseTriggerSelect) {
-      // Options are injected by renderAdditionalTriggers matching logic natively in triggers.js
       updateTriggerComposite();
   }
 

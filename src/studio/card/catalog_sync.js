@@ -1,5 +1,3 @@
-// filepath: src/studio/card/catalog_sync.js
-
 import { CardState } from './state.js';
 import { buildCardState, resetForm, toggleStatFields, populateGenuses } from './form.js';
 import { updatePreview } from './preview.js';
@@ -129,7 +127,10 @@ export function loadCard(id) {
     document.getElementById('card-art-y').value = card.artY ?? 50;
     document.getElementById('card-description').value = card.description || '';
     
-    CardState.currentAbilities = (card.abilities || []).map(a => a.abilityId || a);
+    CardState.currentAbilities = (card.abilities || []).map(a => {
+        if (typeof a === 'string') return { id: a, paramX: null };
+        return { id: a.abilityId || a.id, paramX: a.paramX !== undefined ? a.paramX : null };
+    });
     
     document.getElementById('studio-topbar').showButtons(true);
     

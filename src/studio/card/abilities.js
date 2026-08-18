@@ -14,9 +14,22 @@ export function renderAssignedAbilities() {
         return;
     }
 
-    container.innerHTML = CardState.currentAbilities.map((abId, index) => {
-        const ab = CardState.allAbilities.find(a => a.abilityId === abId);
+    container.innerHTML = CardState.currentAbilities.map((obj, index) => {
+        const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
         if (!ab) return '';
+        
+        let hasX = false;
+        if (ab.effects) {
+            hasX = ab.effects.some(g => g.payloads && g.payloads.some(p => p.amountIsX || (p.nestedGroup && p.nestedGroup.payloads && p.nestedGroup.payloads.some(np => np.amountIsX))));
+        }
+        
+        const xInputHtml = hasX ? `
+            <div class="flex items-center gap-1 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-900/50 ml-2">
+                <span class="text-[10px] font-black text-amber-500">X =</span>
+                <input type="number" value="${obj.paramX !== null ? obj.paramX : 1}" onchange="window.updateAbilityParamX(${index}, this.value)" class="w-10 bg-slate-900 border border-slate-700 rounded text-[10px] text-white px-1 text-center font-bold outline-none focus:border-amber-500">
+            </div>
+        ` : '';
+
         return `
             <div draggable="true" 
                  ondragstart="window.handleDragStart(event, ${index})"
@@ -28,6 +41,7 @@ export function renderAssignedAbilities() {
                     <span class="text-indigo-500/50 text-[10px]">☰</span>
                     <span class="font-bold text-indigo-300">${ab.name}</span>
                     <span class="text-[9px] bg-indigo-900 text-indigo-200 px-1 py-0.5 rounded ml-1">${ab.trigger || 'MANUAL'}</span>
+                    ${xInputHtml}
                 </div>
                 <div class="flex items-center gap-1.5">
                     <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[9px] font-bold flex items-center gap-1">📋 JSON</button>
@@ -48,7 +62,7 @@ export function renderReferencedAbilities() {
     const listContainer = document.getElementById('referenced-abilities-list');
     
     const dependentAbilityIds = new Set();
-    const queue = [...CardState.currentAbilities];
+    const queue = CardState.currentAbilities.map(a => a.id);
     const processed = new Set();
 
     while (queue.length > 0) {
@@ -65,7 +79,7 @@ export function renderReferencedAbilities() {
         while ((match = mentionRegex.exec(text)) !== null) {
             const matchedName = match[1];
             const found = CardState.allAbilitiesRegistry.find(a => a.name.toLowerCase() === matchedName.toLowerCase());
-            if (found && !CardState.currentAbilities.includes(found.abilityId)) {
+            if (found && !CardState.currentAbilities.some(ca => ca.id === found.abilityId)) {
                 dependentAbilityIds.add(found.abilityId);
                 queue.push(found.abilityId);
             }
@@ -76,7 +90,7 @@ export function renderReferencedAbilities() {
                 if (g.payloads) {
                     g.payloads.forEach(p => {
                         if (p.type === 'GRANT_ABILITY' || p.type === 'REMOVE_ABILITY') {
-                            if (p.grantedAbilityId && !CardState.currentAbilities.includes(p.grantedAbilityId)) {
+                            if (p.grantedAbilityId && !CardState.currentAbilities.some(ca => ca.id === p.grantedAbilityId)) {
                                 dependentAbilityIds.add(p.grantedAbilityId);
                                 queue.push(p.grantedAbilityId);
                             }
@@ -84,7 +98,7 @@ export function renderReferencedAbilities() {
                         if (p.nestedGroup && p.nestedGroup.payloads) {
                             p.nestedGroup.payloads.forEach(np => {
                                 if (np.type === 'GRANT_ABILITY' || np.type === 'REMOVE_ABILITY') {
-                                    if (np.grantedAbilityId && !CardState.currentAbilities.includes(np.grantedAbilityId)) {
+                                    if (np.grantedAbilityId && !CardState.currentAbilities.some(ca => ca.id === np.grantedAbilityId)) {
                                         dependentAbilityIds.add(np.grantedAbilityId);
                                         queue.push(np.grantedAbilityId);
                                     }
@@ -127,6 +141,11 @@ export function removeAbility(index) {
     CardState.currentAbilities.splice(index, 1);
     enforceAttackAbility();
     renderAssignedAbilities();
+    updatePreview();
+}
+
+export function updateAbilityParamX(index, value) {
+    CardState.currentAbilities[index].paramX = parseInt(value);
     updatePreview();
 }
 
@@ -189,3 +208,4 @@ window.handleDragOver = handleDragOver;
 window.handleDrop = handleDrop;
 window.handleDragEnd = handleDragEnd;
 window.createNewAbilityForCard = createNewAbilityForCard;
+window.updateAbilityParamX = updateAbilityParamX;

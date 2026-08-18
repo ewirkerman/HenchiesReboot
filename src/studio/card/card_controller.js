@@ -10,6 +10,7 @@ import { populateGenuses, toggleStatFields, resetForm, enforceAttackAbility } fr
 import { updatePreview, initImagePanning } from './preview.js';
 import { renderAssignedAbilities } from './abilities.js';
 import { processBulkImport } from '../importer.js';
+import { hydrateAbility } from '../../engine/utils.js';
 
 import '../../../components/main_nav.js';
 import '../../../components/catalog.js'; 
@@ -38,11 +39,7 @@ async function init() {
 
     const hydratedCustomCards = fetchedCards.map(c => {
         if (c.abilities) {
-            c.abilities = c.abilities.map(ab => {
-                const abId = typeof ab === 'string' ? ab : ab.abilityId;
-                const match = rawAbilities.find(a => a.abilityId === abId);
-                return match ? JSON.parse(JSON.stringify(match)) : null;
-            }).filter(Boolean);
+            c.abilities = c.abilities.map(ab => hydrateAbility(ab, rawAbilities)).filter(Boolean);
         }
         return c;
     });
@@ -69,12 +66,13 @@ async function init() {
     
     const addAbilityInput = document.getElementById('add-ability-input');
     addAbilityInput.addEventListener('change', (e) => {
-        const val = e.target.value.toLowerCase();
-        const match = CardState.allAbilities.find(a => a.name.toLowerCase() === val);
+        const val = e.target.value.toLowerCase().trim();
+        const match = CardState.allAbilities.find(a => (a.name || '').toLowerCase().trim() === val);
         
         if (match) {
-            if (!CardState.currentAbilities.includes(match.abilityId)) {
-                CardState.currentAbilities.push(match.abilityId);
+            const abId = match.abilityId;
+            if (abId && !CardState.currentAbilities.some(a => a.id === abId)) {
+                CardState.currentAbilities.push({ id: abId, paramX: null });
                 enforceAttackAbility();
                 renderAssignedAbilities();
                 updatePreview();

@@ -1,7 +1,8 @@
 import { randomInt, shuffleArray as prandomShuffle } from './prandom.js';
-import { ACTION_REGISTRY, ACTION_MANIFEST } from './actions/index.js';
+import { ACTION_REGISTRY, ACTION_MANIFEST, findEntityLocation } from './actions/index.js';
 import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES } from './utils.js';
 import { getEntityAvailableActions, getValidAttackTargets } from './targeting.js';
+import { ATTRIBUTE_MANIFEST } from './attributes.js';
 
 export class GameEngine {
     constructor(state) {
@@ -469,7 +470,71 @@ export class GameEngine {
             if (node.logicalOperator === 'OR') return node.children.some(child => this.evaluateLogicTree(child, entity, source, eventPayload, lkiAbilities));
             else return node.children.every(child => this.evaluateLogicTree(child, entity, source, eventPayload, lkiAbilities));
         } else if (node.type === 'condition') {
-            if (node.attribute === 'tribe') {
+            const context = node.context || 'EVAL_TARGET';
+            let targetEnt = entity;
+            let checkAttr = node.attribute;
+
+            if (context === 'EVENT') {
+                if (checkAttr === 'eventAbility') {
+                    const searchVal = String(node.value).toLowerCase();
+                    let abId = eventPayload?.grantedAbilityId || eventPayload?.sourceAbilityId || eventPayload?.abilityId;
+                    
+                    let foundMatch = false;
+                    if (abId) {
+                        if (abId.toLowerCase() === searchVal) foundMatch = true;
+                        else {
+                            const catAb = this.state.abilityCatalog?.find(ca => ca.abilityId === abId || ca.name?.toLowerCase() === abId.toLowerCase());
+                            if (catAb && catAb.name?.toLowerCase() === searchVal) foundMatch = true;
+                        }
+                    }
+                    return node.operator === '==' ? foundMatch : !foundMatch;
+                }
+
+                if (checkAttr === 'isCombat') {
+                    let eventVal = (eventPayload?.isCombat || eventPayload?.eventContext?.isCombat) ? 'true' : 'false';
+                    const cmp = eventVal.toLowerCase() === String(node.value).toLowerCase();
+                    return node.operator === '==' ? cmp : !cmp;
+                }
+
+                if (checkAttr === 'amount') {
+                    let eventAmount = eventPayload?.amount;
+                    if (eventAmount === undefined) eventAmount = eventPayload?.eventContext?.amount || 0;
+                    const val = Number(node.value);
+                    if (node.operator === '==') return eventAmount === val;
+                    if (node.operator === '!=') return eventAmount !== val;
+                    if (node.operator === '>=') return eventAmount >= val;
+                    if (node.operator === '<=') return eventAmount <= val;
+                    if (node.operator === '>') return eventAmount > val;
+                    if (node.operator === '<') return eventAmount < val;
+                }
+
+                return true;
+            }
+
+            if (context === 'HOST') {
+                const loc = findEntityLocation(this, entity);
+                if (loc && loc.zone === 'attachment' && loc.host) targetEnt = loc.host;
+                else return node.operator === '!='; 
+            } else if (context === 'EVENT_SOURCE') {
+                targetEnt = eventPayload?.source;
+                if (!targetEnt) return node.operator === '!=';
+            } else if (context === 'EVENT_TARGET') {
+                targetEnt = eventPayload?.target;
+                if (!targetEnt) return node.operator === '!=';
+            } else if (context === 'ABILITY_SOURCE') {
+                targetEnt = source;
+            }
+
+            // Immediately fail unsupported attributes based on the Entity's type to prevent logic crashes
+            const attrDef = ATTRIBUTE_MANIFEST[checkAttr];
+            if (attrDef && attrDef.domain === 'ENTITY' && !attrDef.allowedTypes.includes('ALL')) {
+                const tType = targetEnt.type ? targetEnt.type.toUpperCase() : 'UNIT';
+                if (!attrDef.allowedTypes.includes(tType)) {
+                    return node.operator === '!=';
+                }
+            }
+
+            if (checkAttr === 'tribe') {
                 const resolveTribeId = (val) => {
                     if (!val) return 'Generic';
                     const s = String(val).toLowerCase();
@@ -480,59 +545,49 @@ export class GameEngine {
                     if (s.startsWith('tribe_')) return s;
                     return `tribe_${s}`;
                 };
-                let entVal = resolveTribeId(entity.tribe);
+                let tribeVal = resolveTribeId(targetEnt.tribe);
                 const compareVal = resolveTribeId(node.value);
-                return node.operator === '==' ? entVal === compareVal : entVal !== compareVal;
+                return node.operator === '==' ? tribeVal === compareVal : tribeVal !== compareVal;
             }
+            
             let entVal;
-            if (node.attribute === 'entity') {
-                if (node.value === 'SELF') return entity.instanceId === source.instanceId;
-                if (node.value === 'AVATAR') return entity.type === 'avatar';
-                if (node.value === 'UNIT') return entity.type === 'unit';
-                if (node.value === 'BOON') return entity.type === 'boon';
-                if (node.value === 'EQUIPMENT') return entity.type === 'equipment';
-                if (node.value === 'ARTIFACT') return entity.type === 'artifact';
-                if (node.value === 'SPELL') return entity.type === 'spell';
+            if (checkAttr === 'entity') {
+                if (node.value === 'SELF') return targetEnt.instanceId === source.instanceId;
+                if (node.value === 'AVATAR') return targetEnt.type === 'avatar';
+                if (node.value === 'UNIT') return targetEnt.type === 'unit';
+                if (node.value === 'BOON') return targetEnt.type === 'boon';
+                if (node.value === 'EQUIPMENT') return targetEnt.type === 'equipment';
+                if (node.value === 'ARTIFACT') return targetEnt.type === 'artifact';
+                if (node.value === 'SPELL') return targetEnt.type === 'spell';
                 return false;
             }
-            else if (node.attribute === 'tribe') entVal = entity.tribe || 'Generic';
-            else if (node.attribute === 'family') entVal = entity.family || '';
-            else if (node.attribute === 'genus') entVal = entity.genus || '';
-            else if (node.attribute === 'cost') entVal = typeof entity.cost === 'object' ? (entity.cost.tribeAmount || entity.cost.carnie || entity.cost.tent || 0) : (entity.cost || 0);
-            else if (node.attribute === 'power') entVal = entity.power || 0;
-            else if (node.attribute === 'health') entVal = entity.health || 0;
-            else if (node.attribute === 'maxHealth') entVal = entity.maxHealth || 0;
-            else if (node.attribute === 'strength') entVal = entity.strength || 0;
-            else if (node.attribute === 'armor') entVal = entity.armor || 0;
-            else if (node.attribute === 'readiness') entVal = entity.readiness || 0;
-            else if (node.attribute === 'acts') entVal = entity.acts || 0;
-            else if (node.attribute === 'maxActs') entVal = entity.maxActs || 0;
-            else if (node.attribute === 'isCombat') entVal = (eventPayload?.isCombat || eventPayload?.eventContext?.isCombat) ? 'true' : 'false';
-            else if (node.attribute === 'isAttacking') entVal = (eventPayload?.eventContext?.combatAttackerId === entity.instanceId) ? 'true' : 'false';
-            else if (node.attribute === 'eventAbility') {
-                const searchVal = String(node.value).toLowerCase();
-                // Check if the payload is granting/removing an ability, or if we have the ID of the ability that caused the event
-                let abId = eventPayload?.grantedAbilityId || eventPayload?.sourceAbilityId || eventPayload?.abilityId;
-                
-                let foundMatch = false;
-                if (abId) {
-                    if (abId.toLowerCase() === searchVal) foundMatch = true;
-                    else {
-                        const catAb = this.state.abilityCatalog?.find(ca => ca.abilityId === abId || ca.name?.toLowerCase() === abId.toLowerCase());
-                        if (catAb && catAb.name?.toLowerCase() === searchVal) foundMatch = true;
-                    }
+            else if (checkAttr === 'family') entVal = targetEnt.family || '';
+            else if (checkAttr === 'genus') entVal = targetEnt.genus || '';
+            else if (checkAttr === 'cost') entVal = typeof targetEnt.cost === 'object' ? (targetEnt.cost.tribeAmount || targetEnt.cost.carnie || targetEnt.cost.tent || 0) : (targetEnt.cost || 0);
+            else if (checkAttr === 'power') entVal = targetEnt.power || 0;
+            else if (checkAttr === 'health') entVal = targetEnt.health || 0;
+            else if (checkAttr === 'maxHealth') entVal = targetEnt.maxHealth || 0;
+            else if (checkAttr === 'strength') entVal = targetEnt.strength || 0;
+            else if (checkAttr === 'armor') entVal = targetEnt.armor || 0;
+            else if (checkAttr === 'readiness') entVal = targetEnt.readiness || 0;
+            else if (checkAttr === 'acts') entVal = targetEnt.acts || 0;
+            else if (checkAttr === 'maxActs') entVal = targetEnt.maxActs || 0;
+            else if (checkAttr === 'line') entVal = targetEnt.line || targetEnt.defaultLine || 'mid';
+            else if (checkAttr === 'zone') {
+                const loc = findEntityLocation(this, targetEnt);
+                entVal = loc ? loc.zone.toUpperCase() : 'UNKNOWN';
+                if (['FRONT', 'MID', 'BACK', 'SHELTERED', 'SIDELINE', 'TAUNT', 'BODYGUARD', 'AVATAR', 'EQUATOR', 'ATTACHMENT'].includes(entVal)) {
+                    entVal = 'FIELD';
                 }
-                
-                return node.operator === '==' ? foundMatch : !foundMatch;
             }
-            else if (node.attribute === 'alignment') {
-                const entOwner = getOwnerId(this.state, entity);
+            else if (checkAttr === 'alignment') {
+                const entOwner = getOwnerId(this.state, targetEnt);
                 const sourceOwner = getOwnerId(this.state, source) || this.state.activePlayerId;
                 entVal = entOwner === sourceOwner ? 'FRIENDLY' : 'ENEMY';
             }
-            else if (node.attribute === 'hasAbility') {
+            else if (checkAttr === 'hasAbility') {
                 const searchVal = String(node.value).toLowerCase();
-                const abs = lkiAbilities || entity.abilities || [];
+                const abs = lkiAbilities || targetEnt.abilities || [];
                 const hasAb = abs.some(a => {
                     if (typeof a === 'string') {
                         if (a.toLowerCase() === searchVal) return true;
@@ -542,7 +597,7 @@ export class GameEngine {
                     return a.abilityId === node.value || (a.name && a.name.toLowerCase() === searchVal);
                 });
 
-                const hasEffect = entity.activeEffects?.some(e => 
+                const hasEffect = targetEnt.activeEffects?.some(e => 
                     e.type === 'GRANT_ABILITY' && 
                     (e.grantedAbilityId === node.value || 
                     (e.grantedAbilityId && e.grantedAbilityId.toLowerCase() === searchVal))
@@ -550,6 +605,9 @@ export class GameEngine {
                 
                 entVal = !!(hasAb || hasEffect);
                 return node.operator === '==' ? entVal : !entVal;
+            }
+            else if (checkAttr === 'isAttacking') {
+                entVal = (eventPayload?.eventContext?.combatAttackerId === targetEnt.instanceId) ? 'true' : 'false';
             }
             
             if (typeof entVal === 'string') {
