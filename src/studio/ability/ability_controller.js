@@ -11,6 +11,7 @@ import { handleAddEffectGroup } from './payloads.js';
 import { handleSaveAbility, handleCloneAbility, handleDeleteAbility, resetForm, renderCatalogList, loadAbility, updateJSONPreview, initCardAssigner } from './catalog_sync.js';
 import { updateTriggerComposite, populateBaseTriggers } from './triggers.js';
 import { processBulkImport } from '../importer.js';
+import { ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
 
 import '../../../components/main_nav.js';
 import '../../../components/catalog.js'; 
@@ -116,6 +117,20 @@ async function init() {
   const rawAbilities = await fetchCustomAbilities();
   const customCards = await fetchCustomCards();
   StudioState.customTribesList = await fetchCustomTribes();
+  
+  const allTribesSet = new Set(ATTRIBUTE_MANIFEST['tribe'].options || []);
+  const allGenusesSet = new Set();
+  
+  StudioState.customTribesList.forEach(t => {
+      if (t.name) allTribesSet.add(t.name);
+      if (t.validGenuses && Array.isArray(t.validGenuses)) {
+          t.validGenuses.forEach(g => { if (g) allGenusesSet.add(g.trim()); });
+      }
+  });
+  
+  ATTRIBUTE_MANIFEST['tribe'].options = Array.from(allTribesSet).sort();
+  const genusesArray = Array.from(allGenusesSet).filter(Boolean).sort();
+  ATTRIBUTE_MANIFEST['genus'].options = genusesArray.length > 0 ? genusesArray : ['Generic'];
   
   if (customCards && customCards.length > 0) {
     const merged = [...CARD_CATALOG, ...customCards];
