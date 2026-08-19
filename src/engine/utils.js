@@ -194,7 +194,10 @@ export function getAvatar(state, playerId) {
 
 export function hydrateAbility(abRef, catalogAbs) {
     const abId = typeof abRef === 'string' ? abRef : abRef.abilityId;
-    const match = catalogAbs.find(a => a.abilityId === abId);
+    const match = catalogAbs.find(a => 
+        a.abilityId === abId || 
+        (a.name && a.name.toLowerCase() === String(abId).toLowerCase())
+    );
     if (!match) return null;
     
     let cloned = JSON.parse(JSON.stringify(match));

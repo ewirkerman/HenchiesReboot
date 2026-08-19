@@ -184,6 +184,9 @@ export function getEntityAvailableActions(state, playerId, entityId) {
             if (entity) break;
         }
     }
+    if (!entity) {
+        entity = state.players[playerId].hand.find(c => c.instanceId === entityId || c.id === entityId);
+    }
     if (!entity) return actions;
 
     const hasBlockAct = hasEngineFlag(state, entity, 'BLOCK_ACT');
@@ -203,10 +206,12 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                 if (isNaN(currentReadiness)) currentReadiness = 0;
                 
                 const abilityKey = `${entity.instanceId}_${ab.abilityId}`;
+                const isHandAct = ab.passiveFlags?.includes('ACTIVATE_FROM_HAND') && ['hand', 'discard', 'deck'].some(z => state.players[playerId][z]?.some(c => c.instanceId === entity.instanceId));
                 
-                // 1. The Readiness Prerequisite Gate
-                let requiresReadiness = true;
-                if (cost.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0) {
+                let requiresReadiness = true; // All manual actions natively require readiness
+                if (isHandAct) {
+                    requiresReadiness = false;
+                } else if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0) {
                     requiresReadiness = false;
                 }
                 if (requiresReadiness && currentReadiness < 1) canAfford = false;
@@ -230,8 +235,7 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                         }
                     }
 
-                    // 2. The Act Prerequisite Gate
-                    if (canAfford && !cost.freeAction && !isAttack) {
+                    if (canAfford && !cost.freeAction && !isAttack && !isHandAct) {
                         let currentActs = Number(entity.acts);
                         if (isNaN(currentActs)) currentActs = 0;
                         if (currentActs < 1) canAfford = false;

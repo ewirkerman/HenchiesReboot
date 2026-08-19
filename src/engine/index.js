@@ -233,6 +233,13 @@ export class GameEngine {
             ownerId = ownerId || this.state.activePlayerId;
             if (!this._checkAndPayCost(ability, source, ownerId, eventPayload)) return;
 
+            if (ability.trigger === 'MANUAL') {
+                const ActClass = ACTION_REGISTRY['ACT'];
+                if (ActClass) {
+                    new ActClass({ source: source, eventContext: { abilityId: ability.abilityId } }).run(this);
+                }
+            }
+
             const lockedTargets = this._acquireTargets(ability, source, eventPayload, ownerId);
             this._resolvePayloads(ability, source, eventPayload, ownerId, lockedTargets, originatingEvent);
             
@@ -255,9 +262,13 @@ export class GameEngine {
         let currentReadiness = Number(source.readiness);
         if (isNaN(currentReadiness)) currentReadiness = 0;
         
-        // 1. The Readiness Prerequisite Gate
-        let requiresReadiness = true;
-        if (cost.reuseIgnoresReadiness && (this.state.abilityUses?.[abilityKey] || 0) > 0) {
+        const loc = findEntityLocation(this, source);
+        const isHandAct = ability.passiveFlags?.includes('ACTIVATE_FROM_HAND') && loc && ['hand', 'discard', 'deck'].includes(loc.zone);
+        
+        let requiresReadiness = true; // All manual actions natively require readiness
+        if (isHandAct) {
+            requiresReadiness = false;
+        } else if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (this.state.abilityUses?.[abilityKey] || 0) > 0) {
             requiresReadiness = false;
         }
         if (ability.trigger === 'MANUAL' && requiresReadiness && currentReadiness < 1) canAfford = false;
@@ -283,12 +294,10 @@ export class GameEngine {
             return false;
         }
 
-        // --- PAYMENT PHASE ---
         if (!this.state.abilityUses) this.state.abilityUses = {};
         this.state.abilityUses[abilityKey] = (this.state.abilityUses[abilityKey] || 0) + 1;
 
-        // The Readiness Cost
-        if (requiresReadiness) {
+        if (requiresReadiness && !cost.freeAction && !isHandAct) {
             if (cost.readinessCost === 'EXHAUSTS') source.readiness -= 2;
             else if (cost.readinessCost === 'UNREADIES') source.readiness -= 1;
         }

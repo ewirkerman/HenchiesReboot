@@ -58,6 +58,9 @@ export class Action {
         if (!engine.state._actionDepth) engine.state._actionDepth = 0;
         engine.state._actionDepth++;
         
+        if (this.payload.source) this.payload._preRunSourceOwner = this.payload.source.ownerId;
+        if (this.payload.target) this.payload._preRunTargetOwner = this.payload.target.ownerId;
+        
         const manifest = ACTION_MANIFEST[this.type];
         if (manifest && manifest.breaksUndo) {
             engine.state._irreversibleActionOccurred = true;

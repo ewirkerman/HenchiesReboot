@@ -301,9 +301,11 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
 
     const ability = card.abilities.find(a => a.abilityId === abilityId);
     
+    const isHandActivate = ability.trigger === 'MANUAL' && ability.passiveFlags?.includes('ACTIVATE_FROM_HAND');
+    
     if (ability?.activation?.method === 'PLAYER_CHOICE') {
         ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, abilityId);
-        ClientState.pendingAbility = { entityId: cardId, abilityId: abilityId, isHandCard: true };
+        ClientState.pendingAbility = { entityId: cardId, abilityId: abilityId, isHandCard: true, isHandActivate };
         showToast(`Select a target for ${ability.name}`, 'info');
         updateUI();
         
@@ -311,7 +313,11 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
         return;
     }
 
-    await window.executeNormalPlay(cardId, abilityId);
+    if (isHandActivate) {
+        executeAndLogAbility(cardId, abilityId, null, null);
+    } else {
+        await window.executeNormalPlay(cardId, abilityId);
+    }
 };
 
 window.activateAbility = async (entityId, abilityId) => {
@@ -389,6 +395,14 @@ window.handleHandCardClick = async (cardId) => {
   if (ClientState.pendingAbility) {
       if (ClientState.validTargets.some(t => t.id === cardId)) {
           if (ClientState.pendingAbility.isHandCard) {
+              if (ClientState.pendingAbility.isHandActivate) {
+                  executeAndLogAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, cardId, 'hand');
+                  ClientState.pendingAbility = null;
+                  ClientState.validTargets = [];
+                  updateUI();
+                  return;
+              }
+
               ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
               const card = getEntityRef(ClientState.pendingAbility.entityId);
               
@@ -433,85 +447,111 @@ window.handleHandCardClick = async (cardId) => {
   }
 
   if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
-    const player = ClientState.gameState.players[ClientState.localPlayerRole];
-    const c = player.hand.find(card => card.instanceId === cardId || card.id === cardId);
-    if (!c) return;
+      const player = ClientState.gameState.players[ClientState.localPlayerRole];
+        const c = player.hand.find(card => card.instanceId === cardId || card.id === cardId);
+        if (!c) return;
 
-    const playCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c);
-    if (!playCheck.success) {
-        showToast(playCheck.reason || "Cannot play this card.", "error");
-        return;
-    }
+        const playCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c);
+        const canPlay = playCheck.success;
 
-    let baseCost = typeof c.cost === 'object' ? (c.cost.tribeAmount > 0 ? c.cost.tribeAmount : (c.cost.carnie || c.cost.tent || 0)) : (c.cost || 0);
-    let cTribe = resolveResourceKey(ClientState.gameState, player, c.tribe);
-    
-    let simCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
-    let simTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
-    
-    if (baseCost > 0) {
-        if (cTribe === 'Carnie') {
-            simCarnie -= baseCost;
+        let baseCost = typeof c.cost === 'object' ? (c.cost.tribeAmount > 0 ? c.cost.tribeAmount : (c.cost.carnie || c.cost.tent || 0)) : (c.cost || 0);
+        let cTribe = resolveResourceKey(ClientState.gameState, player, c.tribe);
+        
+        let simCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
+        let simTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
+        
+        if (canPlay && baseCost > 0) {
+            if (cTribe === 'Carnie') {
+                simCarnie -= baseCost;
+            } else {
+                let costRemaining = baseCost;
+                let tribeResToUse = Math.min(simTribe, costRemaining);
+                costRemaining -= tribeResToUse;
+                simTribe -= tribeResToUse;
+                simCarnie -= (costRemaining * 3);
+            }
+        }
+
+        const canAffordAbility = (abCost) => {
+            if (!abCost) return true;
+            let abBaseCost = abCost.tribeAmount > 0 ? abCost.tribeAmount : (abCost.carnie || abCost.tent || 0);
+            if (abBaseCost <= 0) return true;
+            if (cTribe === 'Carnie') {
+                return simCarnie >= abBaseCost;
+            } else {
+                let maxConversion = Math.floor(simCarnie / 3);
+                return (simTribe + maxConversion) >= abBaseCost;
+            }
+        };
+
+        const playAbilities = c.abilities ? c.abilities.filter(ab => {
+            const t = ab.trigger || 'MANUAL';
+            const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
+            const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
+            
+            if (t === 'PLAY_OPTIONAL') {
+                return canPlay && canAffordAbility(ab.cost);
+            }
+
+            if (t === 'MANUAL' && ab.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
+                // Hand activations don't require the card's base cost! We check base resources directly.
+                let rawCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
+                let rawTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
+                
+                let abBaseCost = ab.cost?.tribeAmount > 0 ? ab.cost.tribeAmount : (ab.cost?.carnie || ab.cost?.tent || 0);
+                if (abBaseCost <= 0) return true;
+                
+                if (cTribe === 'Carnie') {
+                    return rawCarnie >= abBaseCost;
+                } else {
+                    let maxConversion = Math.floor(rawCarnie / 3);
+                    return (rawTribe + maxConversion) >= abBaseCost;
+                }
+            }
+            
+            return canPlay && isPlayTrigger && requiresTarget;
+        }) : [];
+
+        if (playAbilities.length === 1 && playAbilities[0].trigger === 'MANUAL' && playAbilities[0].passiveFlags?.includes('ACTIVATE_FROM_HAND') && playAbilities[0].activation?.method !== 'PLAYER_CHOICE') {
+            if (!canPlay) {
+                window.activateHandCardAbility(cardId, playAbilities[0].abilityId);
+                return;
+            }
+        }
+
+        if (playAbilities.length === 1 && playAbilities[0].activation?.method === 'PLAYER_CHOICE' && playAbilities[0].trigger !== 'PLAY_OPTIONAL') {
+            if (!canPlay || !playAbilities[0].passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
+                window.activateHandCardAbility(cardId, playAbilities[0].abilityId);
+                return;
+            }
+        }
+
+        if (playAbilities.length > 0 || canPlay) {
+            document.getElementById('modal-unit-name').innerText = `Action: ${c.name}`;
+            const container = document.getElementById('modal-abilities-container');
+            let html = '';
+            let idx = 1;
+            
+            const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
+            
+            if (canPlay && !hasMandatoryTarget) {
+                html += `<button onclick="window.executeNormalPlay('${cardId}')" class="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">🃏 [${idx++}] Play Normally</button>`;
+            }
+
+            playAbilities.forEach(ab => {
+                const undoWarning = (!isUndoable(ClientState.gameState, ab)) ? ' <span title="Cannot be undone" class="text-yellow-400 drop-shadow-md">⚠️</span>' : '';
+                html += `<button onclick="window.activateHandCardAbility('${cardId}', '${ab.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ [${idx++}] ${ab.name}${undoWarning}</button>`;
+            });
+            
+            if (html !== '') {
+                container.innerHTML = html;
+                document.getElementById('unit-action-modal').classList.remove('hidden');
+            } else if (!canPlay) {
+                showToast("Cannot play this card.", "error");
+            }
         } else {
-            let costRemaining = baseCost;
-            let tribeResToUse = Math.min(simTribe, costRemaining);
-            costRemaining -= tribeResToUse;
-            simTribe -= tribeResToUse;
-            simCarnie -= (costRemaining * 3);
+            showToast(playCheck.reason || "Cannot play this card.", "error");
         }
-    }
-
-    const canAffordAbility = (abCost) => {
-        if (!abCost) return true;
-        let abBaseCost = abCost.tribeAmount > 0 ? abCost.tribeAmount : (abCost.carnie || abCost.tent || 0);
-        if (abBaseCost <= 0) return true;
-        if (cTribe === 'Carnie') {
-            return simCarnie >= abBaseCost;
-        } else {
-            let maxConversion = Math.floor(simCarnie / 3);
-            return (simTribe + maxConversion) >= abBaseCost;
-        }
-    };
-
-    const playAbilities = c.abilities ? c.abilities.filter(ab => {
-        const t = ab.trigger || 'MANUAL';
-        const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
-        const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
-        
-        if (t === 'PLAY_OPTIONAL') {
-            return canAffordAbility(ab.cost);
-        }
-        
-        return isPlayTrigger && requiresTarget;
-    }) : [];
-
-    if (playAbilities.length === 1 && playAbilities[0].activation?.method === 'PLAYER_CHOICE' && playAbilities[0].trigger !== 'PLAY_OPTIONAL') {
-        window.activateHandCardAbility(cardId, playAbilities[0].abilityId);
-        return;
-    }
-
-    if (playAbilities.length > 0) {
-        document.getElementById('modal-unit-name').innerText = `Play: ${c.name}`;
-        const container = document.getElementById('modal-abilities-container');
-        let html = '';
-        let idx = 1;
-        
-        const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
-        
-        if (!hasMandatoryTarget) {
-            html += `<button onclick="window.executeNormalPlay('${cardId}')" class="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">🃏 [${idx++}] Play Normally</button>`;
-        }
-
-        playAbilities.forEach(ab => {
-            const undoWarning = (!isUndoable(ClientState.gameState, ab)) ? ' <span title="Cannot be undone" class="text-yellow-400 drop-shadow-md">⚠️</span>' : '';
-            html += `<button onclick="window.activateHandCardAbility('${cardId}', '${ab.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ [${idx++}] ${ab.name}${undoWarning}</button>`;
-        });
-        
-        container.innerHTML = html;
-        document.getElementById('unit-action-modal').classList.remove('hidden');
-    } else {
-        window.executeNormalPlay(cardId);
-    }
   }
 };
 

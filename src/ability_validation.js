@@ -1,6 +1,6 @@
-export const UNPREVENTABLE_TRIGGERS = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+export const UNPREVENTABLE_TRIGGERS = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'ON_ACT'];
 export const MODIFIABLE_EVENTS = ['DAMAGE', 'HEAL', 'ATTACK', 'STAT', 'RESOURCE', 'DRAW', 'DISCARD', 'RECOVER', 'SUMMON'];
-export const PASSIVE_TRIGGERS = ['UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+export const PASSIVE_TRIGGERS = ['UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'ON_ACT'];
 export const STRICTLY_POSITIVE_ACTIONS = ['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD', 'DISCARD_CARD', 'TRASH', 'RECOVER', 'SUMMON'];
 
 export function getValidScopes(trigger) {
@@ -21,7 +21,7 @@ export function getValidTargetMethods(trigger, scope, actMethod) {
     const hasChoice = actMethod === 'PLAYER_CHOICE';
     
     let methods = [
-        'SAME_AS_ACTIVATION', 'EVENT_SOURCE', 'EVENT_TARGET', 'SELF', 
+        'SAME_AS_ACTIVATION', 'EVENT_SOURCE', 'EVENT_TARGET', 'SELF', 'HOST',
         'AVATAR', 'ENEMY_AVATAR', 'AUTO_ALL', 'AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'
     ];
 
@@ -67,6 +67,8 @@ export function validateAbilityLogic(ability) {
             if (p.type === 'ATTACH' || p.type === 'ATTACH_TO') {
                 if (targetMethod === 'SELF') {
                     errors.push(`A card cannot attach to itself.`);
+                } else if (!p.invertRoles && p.type === 'ATTACH') {
+                    errors.push(`ATTACH without 'Invert Roles' would attach the target to itself. Use 'Invert Roles' to attach the target to the caster.`);
                 }
             }
             

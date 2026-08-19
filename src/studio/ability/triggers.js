@@ -18,7 +18,8 @@ export function populateBaseTriggers() {
         { val: 'TURN_STARTING', label: 'Turn Starting' },
         { val: 'TURN_STARTED', label: 'Turn Started' },
         { val: 'TURN_ENDING', label: 'Turn Ending' },
-        { val: 'TURN_ENDED', label: 'Turn Ended' }
+        { val: 'TURN_ENDED', label: 'Turn Ended' },
+        { val: 'ON_ACT', label: 'When Acting (Ability/Attack)' }
     ];
     
     let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t.val}">${t.label}</option>`).join('') + `</optgroup>`;
@@ -31,7 +32,7 @@ export function populateBaseTriggers() {
 }
 
 export function parseTriggerToComposite(triggerString) {
-    const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'];
+    const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'ON_ACT'];
     if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
 
     for (const effect in ACTION_MANIFEST) {
@@ -61,7 +62,8 @@ export function renderAdditionalTriggers() {
         { val: 'TURN_STARTING', label: 'Turn Starting' },
         { val: 'TURN_STARTED', label: 'Turn Started' },
         { val: 'TURN_ENDING', label: 'Turn Ending' },
-        { val: 'TURN_ENDED', label: 'Turn Ended' }
+        { val: 'TURN_ENDED', label: 'Turn Ended' },
+        { val: 'ON_ACT', label: 'When Acting (Ability/Attack)' }
     ];
     
     let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t.val}">${t.label}</option>`).join('') + `</optgroup>`;

@@ -1,12 +1,24 @@
 import { Action, findEntityLocation, moveEntity } from './core.js';
-import { resolveResourceKey } from '../index.js';
+import { resolveResourceKey } from '../utils.js';
 
 export class HarvestAction extends Action {
     execute(engine) {
         const loc = findEntityLocation(engine, this.payload.target);
-        if (loc && ['hand'].includes(loc.zone)) {
-            const player = engine.state.players[loc.playerId];
-            moveEntity(engine, this.payload.target, loc.playerId, 'banish');
+        if (loc) {
+            // Determine who gets the resources (the person doing the harvesting)
+            // We use the pre-run owner to ensure that stolen cards give resources to the thief, 
+            // even though the isLeavesPlay cleanup returns the card to the original owner's banish pile.
+            let harvesterId = engine.state.activePlayerId;
+            if (this.payload._preRunSourceOwner) {
+                harvesterId = this.payload._preRunSourceOwner;
+            } else if (this.payload.source && this.payload.source.ownerId) {
+                harvesterId = this.payload.source.ownerId;
+            }
+
+            const player = engine.state.players[harvesterId];
+            
+            // Move the target to the banish zone of whoever originally owned it
+            moveEntity(engine, this.payload.target, loc.playerId || harvesterId, 'banish');
             
             let sTribe = resolveResourceKey(engine.state, player, this.payload.target.tribe);
             

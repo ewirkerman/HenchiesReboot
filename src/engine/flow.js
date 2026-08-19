@@ -276,12 +276,17 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
                 if (entity) break;
             }
         }
+        if (!entity) {
+            entity = state.players[playerId].hand.find(c => c.instanceId === entityId || c.id === entityId);
+        }
         if (!entity) return { success: false, reason: "Entity not found" };
         
         const ability = entity.abilities?.find(a => a.abilityId === abilityId);
         if (!ability) return { success: false, reason: "Ability not found" };
 
-        if (actionType === 'ABILITY' && !ability.cost?.freeAction) {
+        const isHandAct = ability.passiveFlags?.includes('ACTIVATE_FROM_HAND') && ['hand', 'discard', 'deck'].some(z => state.players[playerId][z]?.some(c => c.instanceId === entity.instanceId));
+
+        if (actionType === 'ABILITY' && !ability.cost?.freeAction && !isHandAct) {
             let currentActs = Number(entity.acts);
             if (isNaN(currentActs)) currentActs = 0;
             entity.acts = Math.max(0, currentActs - 1);
@@ -300,6 +305,9 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         }
 
         const engine = new GameEngine(state);
+        
+        engine.emit('ON_ACT', { source: entity, eventContext: { abilityId, actionType, targetId } });
+
         engine.processingDepth = 1;
         engine.executeAbility(ability, entity, { target: targetEntity });
         return { success: true };

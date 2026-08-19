@@ -12,7 +12,10 @@ export class GrantAbilityAction extends Action {
                     paramX: this.payload.grantedAbilityParamX
                 }, engine.state.abilityCatalog || []);
             } else if (engine.state.abilityCatalog) {
-                fullAb = engine.state.abilityCatalog.find(a => a.abilityId === this.payload.grantedAbilityId);
+                fullAb = engine.state.abilityCatalog.find(a => 
+                    a.abilityId === this.payload.grantedAbilityId || 
+                    (a.name && a.name.toLowerCase() === String(this.payload.grantedAbilityId).toLowerCase())
+                );
             }
             
             if (!fullAb) fullAb = { 

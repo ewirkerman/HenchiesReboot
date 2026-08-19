@@ -1,5 +1,5 @@
 import { createGameRoom, fetchCustomAbilities, fetchCustomCards, fetchCustomTribes, fetchUserDecks } from './firebase.js';
-import { CARD_CATALOG, GLOBAL_UNDO_POLICY } from './engine/index.js';
+import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility } from './engine/index.js';
 
 /*
  * =========================================================================================
@@ -90,11 +90,7 @@ async function fetchSandboxData() {
     // Hydrate cards with full ability objects instead of string IDs
     const hydratedCards = rawCustomCards.map(c => {
         if (c.abilities) {
-            c.abilities = c.abilities.map(ab => {
-                const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
-                const match = abilities.find(a => a.abilityId === abId);
-                return match ? JSON.parse(JSON.stringify(match)) : ab;
-            }).filter(Boolean);
+            c.abilities = c.abilities.map(ab => hydrateAbility(ab, abilities)).filter(Boolean);
         }
         return c;
     });
@@ -187,9 +183,9 @@ function createInitialState(username, tribes) {
 
 /**
  * Maps the tested item (Card, Avatar, Deck, Ability) into the Player's state.
- * Automatically attempts to fetch the user's last saved deck to provide real-world testing context.
+ * Automatically attempts to fetch the user's last saved deck to populate BOTH players.
  */
-async function configurePlayer1(state, itemData, type, sandboxData) {
+async function configurePlayers(state, itemData, type, sandboxData) {
     const { cards, abilities } = sandboxData;
     const isAvatarTest = type === 'card' && itemData && itemData.type === 'avatar';
     
@@ -201,7 +197,36 @@ async function configurePlayer1(state, itemData, type, sandboxData) {
     const shovelCard = getCatalogItem(cards, 'Skull Shovel', FALLBACK_SHOVEL);
     const butcherCard = getCatalogItem(cards, 'Butcher', FALLBACK_DUMMY);
 
-    // 1. Process the specific item being tested
+    // 1. Fetch Real Deck Context for both players
+    let loadedDeck = [];
+    try {
+        const lastDeckName = localStorage.getItem('henchies_last_deck');
+        const usernameForFetch = localStorage.getItem('henchies_last_username');
+        
+        if (lastDeckName && usernameForFetch) {
+            console.log(`[SANDBOX] Attempting to load real deck context: ${lastDeckName}`);
+            const userDecks = await fetchUserDecks(usernameForFetch);
+            if (userDecks && userDecks[lastDeckName] && userDecks[lastDeckName].deckData) {
+                const rawRefs = userDecks[lastDeckName].deckData;
+                loadedDeck = rawRefs.map(ref => {
+                    const cid = ref.id || ref;
+                    const found = cards.find(c => c.id === cid);
+                    if (found) {
+                        const clone = JSON.parse(JSON.stringify(found));
+                        if (clone.abilities) {
+                            clone.abilities = clone.abilities.map(ab => hydrateAbility(ab, abilities)).filter(Boolean);
+                        }
+                        return clone;
+                    }
+                    return null;
+                }).filter(Boolean);
+            }
+        }
+    } catch(e) {
+        console.warn("[SANDBOX] Failed to load real deck context. Falling back to dummy deck.", e);
+    }
+
+    // 2. Process the specific item being tested for Player 1
     if (type === 'deck') {
         const fullDeck = JSON.parse(JSON.stringify(itemData));
         const avatarIdx = fullDeck.findIndex(c => c.type === 'avatar');
@@ -211,11 +236,7 @@ async function configurePlayer1(state, itemData, type, sandboxData) {
     } else if (isAvatarTest) {
         deckAvatar = JSON.parse(JSON.stringify(itemData));
         if (deckAvatar.abilities) {
-            deckAvatar.abilities = deckAvatar.abilities.map(ab => {
-                const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
-                const match = abilities.find(a => a.abilityId === abId);
-                return match ? JSON.parse(JSON.stringify(match)) : ab;
-            }).filter(Boolean);
+            deckAvatar.abilities = deckAvatar.abilities.map(ab => hydrateAbility(ab, abilities)).filter(Boolean);
         }
         targetCard = dummyCard; 
     } else if (type === 'ability') {
@@ -226,54 +247,16 @@ async function configurePlayer1(state, itemData, type, sandboxData) {
         targetCard.abilities = [itemData, standardAttack];
         targetCard.description = itemData.name + ' test wrapper.';
     } else {
-        // Standard Unit/Spell/Equipment test
         targetCard = JSON.parse(JSON.stringify(itemData));
         if (targetCard.abilities) {
-            targetCard.abilities = targetCard.abilities.map(ab => {
-                const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
-                const match = abilities.find(a => a.abilityId === abId);
-                return match ? JSON.parse(JSON.stringify(match)) : ab;
-            }).filter(Boolean);
+            targetCard.abilities = targetCard.abilities.map(ab => hydrateAbility(ab, abilities)).filter(Boolean);
         }
     }
 
-    // 2. Load context deck (if not testing a full deck)
     if (type !== 'deck') {
-        let loadedDeck = [];
-        try {
-            const lastDeckName = localStorage.getItem('henchies_last_deck');
-            const usernameForFetch = localStorage.getItem('henchies_last_username');
-            
-            if (lastDeckName && usernameForFetch) {
-                console.log(`[SANDBOX] Attempting to load real deck context: ${lastDeckName}`);
-                const userDecks = await fetchUserDecks(usernameForFetch);
-                if (userDecks && userDecks[lastDeckName] && userDecks[lastDeckName].deckData) {
-                    const rawRefs = userDecks[lastDeckName].deckData;
-                    loadedDeck = rawRefs.map(ref => {
-                        const cid = ref.id || ref;
-                        const found = cards.find(c => c.id === cid);
-                        if (found) {
-                            const clone = JSON.parse(JSON.stringify(found));
-                            if (clone.abilities) {
-                                clone.abilities = clone.abilities.map(ab => {
-                                    const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
-                                    const match = abilities.find(a => a.abilityId === abId);
-                                    return match ? JSON.parse(JSON.stringify(match)) : null;
-                                }).filter(Boolean);
-                            }
-                            return clone;
-                        }
-                        return null;
-                    }).filter(Boolean);
-                }
-            }
-        } catch(e) {
-            console.warn("[SANDBOX] Failed to load real deck context. Falling back to dummy deck.", e);
-        }
-        
         if (loadedDeck.length > 0) {
-            deckCards = loadedDeck.filter(c => c.type !== 'avatar');
-            if (!deckAvatar) deckAvatar = loadedDeck.find(c => c.type === 'avatar');
+            deckCards = JSON.parse(JSON.stringify(loadedDeck)).filter(c => c.type !== 'avatar');
+            if (!deckAvatar) deckAvatar = JSON.parse(JSON.stringify(loadedDeck)).find(c => c.type === 'avatar');
         } else {
             for (let i = 0; i < 15; i++) deckCards.push(JSON.parse(JSON.stringify(dummyCard)));
             for (let i = 0; i < 5; i++) deckCards.push(JSON.parse(JSON.stringify(shovelCard)));
@@ -281,7 +264,7 @@ async function configurePlayer1(state, itemData, type, sandboxData) {
         }
     }
 
-    // 3. Shuffle Deck & Apply Instance IDs
+    // 3. P1 DECK & HAND ASSEMBLY
     for (let i = deckCards.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [deckCards[i], deckCards[j]] = [deckCards[j], deckCards[i]];
@@ -295,7 +278,6 @@ async function configurePlayer1(state, itemData, type, sandboxData) {
         state.players.player1.deck.push(c);
     });
 
-    // 4. Build Hand
     if (type === 'deck' || isAvatarTest) {
         for (let i = 0; i < 5; i++) {
             if (state.players.player1.deck.length > 0) {
@@ -309,7 +291,7 @@ async function configurePlayer1(state, itemData, type, sandboxData) {
         }
     }
 
-    // 5. Inject specific edge-case cards to ensure comprehensive sandbox debugging capability
+    // Inject edge-case debugging cards into P1 hand
     state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
     state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_2', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
     
@@ -323,7 +305,6 @@ async function configurePlayer1(state, itemData, type, sandboxData) {
         state.players.player1.hand.push({...JSON.parse(JSON.stringify(tauntingCallCard)), instanceId: 'h_taunt_' + i, readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
     }
 
-    // 6. Set Avatar
     if (deckAvatar) {
         deckAvatar.instanceId = 'p1_av';
         deckAvatar.ownerId = 'player1';
@@ -334,6 +315,52 @@ async function configurePlayer1(state, itemData, type, sandboxData) {
         state.players.player1.lines.avatar = [deckAvatar];
     } else {
         state.players.player1.lines.avatar = [{ id: 'p1_avatar', instanceId: 'p1_av', type: 'avatar', name: 'Test Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player1', originalOwnerId: 'player1' }];
+    }
+
+    // 4. P2 DECK & HAND ASSEMBLY
+    let p2DeckBase = [];
+    let p2Avatar = null;
+
+    if (type === 'deck') {
+        p2DeckBase = JSON.parse(JSON.stringify(itemData)); 
+    } else if (loadedDeck.length > 0) {
+        p2DeckBase = JSON.parse(JSON.stringify(loadedDeck));
+    } else {
+        for (let i = 0; i < 15; i++) p2DeckBase.push(JSON.parse(JSON.stringify(dummyCard)));
+        for (let i = 0; i < 5; i++) p2DeckBase.push(JSON.parse(JSON.stringify(shovelCard)));
+        p2DeckBase.push(JSON.parse(JSON.stringify(butcherCard)));
+    }
+
+    const p2AvatarIdx = p2DeckBase.findIndex(c => c.type === 'avatar');
+    if (p2AvatarIdx > -1) p2Avatar = p2DeckBase.splice(p2AvatarIdx, 1)[0];
+
+    for (let i = p2DeckBase.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [p2DeckBase[i], p2DeckBase[j]] = [p2DeckBase[j], p2DeckBase[i]];
+    }
+
+    p2DeckBase.forEach((c, idx) => {
+        c.instanceId = 'p2_deck_' + idx;
+        c.readiness = 0;
+        c.ownerId = 'player2';
+        c.originalOwnerId = 'player2';
+        state.players.player2.deck.push(c);
+    });
+
+    for (let i = 0; i < 5; i++) {
+        if (state.players.player2.deck.length > 0) {
+            state.players.player2.hand.push(state.players.player2.deck.pop());
+        }
+    }
+
+    if (p2Avatar) {
+        p2Avatar.instanceId = 'p2_av';
+        p2Avatar.ownerId = 'player2';
+        p2Avatar.originalOwnerId = 'player2';
+        p2Avatar.readiness = 1;
+        p2Avatar.line = 'avatar';
+        p2Avatar.defaultLine = 'avatar';
+        state.players.player2.lines.avatar = [p2Avatar];
     }
 }
 
@@ -357,7 +384,10 @@ function setupSandboxBoard(state, sandboxData) {
     }
     if (dummyCard.strength === null || dummyCard.strength === undefined) dummyCard.strength = 1;
 
-    state.players.player2.lines.avatar = [{ id: 'p2_avatar', instanceId: 'p2_av', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player2', originalOwnerId: 'player2' }];
+    // Only inject Dummy Avatar if P2 didn't load a real one from the deck context
+    if (!state.players.player2.lines.avatar || state.players.player2.lines.avatar.length === 0) {
+        state.players.player2.lines.avatar = [{ id: 'p2_avatar', instanceId: 'p2_av', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player2', originalOwnerId: 'player2' }];
+    }
 
     // Standard frontline dummies
     for(let i=0; i<5; i++) {
@@ -430,7 +460,7 @@ export async function launchSandboxMatch(itemData, type = 'card') {
     const username = localStorage.getItem('henchies_last_username') || 'Tester';
     const state = createInitialState(username, sandboxData.customTribes);
     
-    await configurePlayer1(state, itemData, type, sandboxData);
+    await configurePlayers(state, itemData, type, sandboxData);
     
     // 3. Setup Opponent Board & Global Rules
     setupSandboxBoard(state, sandboxData);

@@ -16,6 +16,7 @@ export function parseTriggers(ability, allTribes) {
         'TURN_STARTED': 'After the turn starts',
         'TURN_ENDING': 'At the end of the turn',
         'TURN_ENDED': 'After the turn ends',
+        'ON_ACT': 'When this card acts',
         'PLAY': 'When you play this card',
         'PLAY_OPTIONAL': 'When you play this card, you may',
         'ON_BE_PLAYED': 'When you play this card',
