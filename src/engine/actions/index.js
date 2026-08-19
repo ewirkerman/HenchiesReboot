@@ -24,6 +24,7 @@ import { AttachAction } from './attach.js';
 import { UnattachAction } from './unattach.js';
 import { UnfieldAction } from './unfield.js';
 import { RebelAction } from './rebel.js';
+import { DonateAction } from './donate.js';
 import { SummonAction } from './summon.js';
 import { BlockActAction } from './block_act.js';
 import { BlockAttackAction } from './block_attack.js';
@@ -61,6 +62,7 @@ ACTION_REGISTRY['ATTACH'] = AttachAction;
 ACTION_REGISTRY['UNATTACH'] = UnattachAction;
 ACTION_REGISTRY['UNFIELD'] = UnfieldAction;
 ACTION_REGISTRY['REBEL'] = RebelAction;
+ACTION_REGISTRY['DONATE'] = DonateAction;
 ACTION_REGISTRY['SUMMON'] = SummonAction;
 ACTION_REGISTRY['BLOCK_ACT'] = BlockActAction;
 ACTION_REGISTRY['BLOCK_ATTACK'] = BlockAttackAction;
@@ -73,10 +75,13 @@ ACTION_REGISTRY['MODIFY_EVENT'] = ModifyEventAction;
 ACTION_REGISTRY['TRANSFORM'] = TransformAction;
 ACTION_REGISTRY['CUSTOM_SCRIPT'] = CustomScriptAction;
 
+// Add DONATE to the manifest definition dynamically so it shows in the UI
+ACTION_MANIFEST['DONATE'] = { passiveType: 'BE_DONATED', canInvert: false, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] };
+
 export const ACTION_CATEGORIES = {
     'Combat & Stats': ['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACK', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE'],
     'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'REVIVE', 'TRASH', 'BANISH', 'CHANGE_DESTINATION'],
-    'Attachments & Control': ['ATTACH', 'UNATTACH', 'REBEL'],
+    'Attachments & Control': ['ATTACH', 'UNATTACH', 'REBEL', 'DONATE'],
     'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM']
 };
 
@@ -104,7 +109,7 @@ export {
     DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
     GrantAbilityAction, RemoveAbilityAction, DrawCardAction, PlayAction, AttackAction, HarvestAction,
     DiscardAction, ShuffleAction, ReturnAction, RecoverAction, TrashAction, BanishAction, FieldAction,
-    ReviveAction, AttachAction, UnattachAction, UnfieldAction, RebelAction, SummonAction, BlockActAction,
+    ReviveAction, AttachAction, UnattachAction, UnfieldAction, RebelAction, DonateAction, SummonAction, BlockActAction,
     BlockAttackAction, BlockRetaliateAction, BlockTargetingAction, CancelEventAction, CleanseAction,
     ChangeDestinationAction, ModifyEventAction, TransformAction, CustomScriptAction
 };

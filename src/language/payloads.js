@@ -321,6 +321,7 @@ export function processTargetGroups(ability, ctx) {
                     else effText = `move {TARGET} to ${destName} instead`;
                     break;
                 case 'REBEL': effText = eff.invertRoles ? `give control of {SELF} to {TARGET}` : `take control of {TARGET}`; break;
+                case 'DONATE': effText = `give {TARGET} to the opponent`; break;
                 case 'MODIFY_EVENT': 
                     let eventNoun = "amount";
                     if (trigger.includes('DAMAGE') || trigger.includes('ATTACK')) eventNoun = "damage";
@@ -484,7 +485,7 @@ export function processTargetGroups(ability, ctx) {
                     effText = `${readableType} {TARGET}`;
             }
 
-            if (eff.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL'].includes(eff.type)) {
+            if (eff.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL', 'DONATE'].includes(eff.type)) {
                 if (!['this card', 'it', 'the triggering card', 'the targeted card', 'the target'].includes(targetStr)) {
                     let isPl = targetStr === 'them' || targetStr.startsWith('all ') || targetStr.includes(' random ') || targetStr.includes(' first ') || targetStr.includes(' last ') || targetStr.endsWith('s');
                     let reflexive = isPl ? 'themselves' : 'itself';
@@ -628,7 +629,7 @@ export function processTargetGroups(ability, ctx) {
                 return formatted.join(', then ');
             }
             
-            if (first.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL'].includes(first.type)) {
+            if (first.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL', 'DONATE'].includes(first.type)) {
                 if (!['this card', 'it', 'the triggering card', 'the targeted card', 'the target'].includes(targetStr)) {
                     let isPl = targetStr === 'them' || targetStr.startsWith('all ') || targetStr.includes(' random ') || targetStr.includes(' first ') || targetStr.includes(' last ') || targetStr.endsWith('s');
                     let reflexive = isPl ? 'themselves' : 'itself';

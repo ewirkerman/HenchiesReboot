@@ -1,5 +1,3 @@
-// filepath: src/studio/card/form.js
-
 import { CardState } from './state.js';
 import { updatePreview } from './preview.js';
 import { renderAssignedAbilities } from './abilities.js';
@@ -149,8 +147,12 @@ export function resetForm() {
     document.getElementById('card-health').value = '1';
     document.getElementById('card-strength').value = '';
     document.getElementById('card-art').value = '';
-    document.getElementById('card-art-x').value = '50';
-    document.getElementById('card-art-y').value = '50';
+    
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    setVal('card-art-x', 0); setVal('card-art-y', 0); setVal('card-art-scale', 100);
+    setVal('card-micro-art-x', 0); setVal('card-micro-art-y', 0); setVal('card-micro-art-scale', 125);
+    setVal('card-nano-art-x', 0); setVal('card-nano-art-y', 0); setVal('card-nano-art-scale', 110);
+    
     document.getElementById('card-description').value = '';
     
     CardState.currentAbilities = [];
@@ -179,6 +181,18 @@ export function buildCardState() {
     
     const finalHealth = isAllowed('health') ? (!isNaN(parsedHealth) ? parsedHealth : defaultHealth) : null;
     
+    const valX = parseInt(document.getElementById('card-art-x')?.value) || 0;
+    const valY = parseInt(document.getElementById('card-art-y')?.value) || 0;
+    const valScale = parseInt(document.getElementById('card-art-scale')?.value);
+    
+    const microX = parseInt(document.getElementById('card-micro-art-x')?.value) || 0;
+    const microY = parseInt(document.getElementById('card-micro-art-y')?.value) || 0;
+    const microScale = parseInt(document.getElementById('card-micro-art-scale')?.value);
+    
+    const nanoX = parseInt(document.getElementById('card-nano-art-x')?.value) || 0;
+    const nanoY = parseInt(document.getElementById('card-nano-art-y')?.value) || 0;
+    const nanoScale = parseInt(document.getElementById('card-nano-art-scale')?.value);
+    
     const state = {
         id: CardState.currentEditingId || ('card_' + Date.now()),
         updatedAt: Date.now(),
@@ -194,8 +208,15 @@ export function buildCardState() {
         strength: isAllowed('strength') && strVal !== '' ? parseInt(strVal) : null,
         description: document.getElementById('card-description').value || '',
         artUrl: document.getElementById('card-art').value || '',
-        artX: parseInt(document.getElementById('card-art-x').value) || 50,
-        artY: parseInt(document.getElementById('card-art-y').value) || 50,
+        artX: valX,
+        artY: valY,
+        artScale: !isNaN(valScale) ? valScale : 100,
+        microArtX: microX,
+        microArtY: microY,
+        microArtScale: !isNaN(microScale) ? microScale : 125,
+        nanoArtX: nanoX,
+        nanoArtY: nanoY,
+        nanoArtScale: !isNaN(nanoScale) ? nanoScale : 110,
         abilities: (CardState.currentAbilities || []).map(obj => {
             const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
             if (!ab) return null;

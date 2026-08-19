@@ -1,9 +1,9 @@
-<!-- filepath: studios/cards.html -->
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>Henchies 2 - Card Studio</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -121,17 +121,12 @@
                   <label class="font-bold text-slate-300 block mb-1">Art URL</label>
                   <input type="text" id="card-art" class="bg-slate-900 border border-slate-700 px-2 py-1.5 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="https://..." />
                 </div>
-                <div class="sm:col-span-2 grid grid-cols-2 gap-3 bg-slate-900/50 p-2 rounded-lg border border-slate-700/50">
-                  <div>
-                    <label class="font-bold text-slate-400 block mb-1 text-[9px] uppercase tracking-wider flex justify-between"><span>Art Pan X</span></label>
-                    <input type="range" id="card-art-x" min="0" max="100" value="50" class="w-full accent-amber-500" />
-                  </div>
-                  <div>
-                    <label class="font-bold text-slate-400 block mb-1 text-[9px] uppercase tracking-wider">Art Pan Y</label>
-                    <input type="range" id="card-art-y" min="0" max="100" value="50" class="w-full accent-amber-500" />
-                  </div>
+                <div class="sm:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+                  <art-panner title="Standard Frame" prefix="card-art" default-scale="100"></art-panner>
+                  <art-panner title="Micro Frame" prefix="card-micro-art" default-scale="125"></art-panner>
+                  <art-panner title="Nano Frame" prefix="card-nano-art" default-scale="110"></art-panner>
                 </div>
-                <div class="sm:col-span-4">
+                <div class="sm:col-span-4 mt-2">
                   <label class="font-bold text-slate-300 block mb-1">Flavor Text / Manual Description</label>
                   <textarea id="card-description" rows="2" class="bg-slate-900 border border-slate-700 px-2 py-1.5 rounded text-white w-full focus:border-amber-500 outline-none custom-scrollbar"></textarea>
                 </div>

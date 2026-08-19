@@ -38,10 +38,13 @@ export class SetStatAction extends Action {
                 }
             }
             
-            target[stat] = amount;
+            let finalAmount = amount;
+            if (stat === 'readiness' && finalAmount < -1) finalAmount = -1;
+            target[stat] = finalAmount;
+            
             let delta = 0;
-            if (typeof oldVal === 'number' && typeof amount === 'number') {
-                delta = amount - oldVal;
+            if (typeof oldVal === 'number' && typeof finalAmount === 'number') {
+                delta = finalAmount - oldVal;
             }
 
             if (stat === 'maxHealth') {

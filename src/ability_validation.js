@@ -76,8 +76,12 @@ export function validateAbilityLogic(ability) {
                 errors.push(`${p.type.replace(/_/g, ' ')} cannot have a negative amount (${p.amount}).`);
             }
             
-            if (p.type === 'SET_STAT' && p.amount < 0) {
-                errors.push(`SET_STAT cannot set a stat to a negative number (${p.amount}).`);
+            if (p.type === 'SET_STAT') {
+                if (p.amount < 0 && p.stat !== 'readiness') {
+                    errors.push(`SET_STAT cannot set ${p.stat || 'a stat'} to a negative number (${p.amount}).`);
+                } else if (p.stat === 'readiness' && p.amount < -1) {
+                    errors.push(`SET_STAT cannot set readiness below -1 (${p.amount}).`);
+                }
             }
             
             if (p.nestedGroup) {

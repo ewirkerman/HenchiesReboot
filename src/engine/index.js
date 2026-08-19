@@ -300,6 +300,8 @@ export class GameEngine {
         if (requiresReadiness && !cost.freeAction && !isHandAct) {
             if (cost.readinessCost === 'EXHAUSTS') source.readiness -= 2;
             else if (cost.readinessCost === 'UNREADIES') source.readiness -= 1;
+            
+            if (source.readiness < -1) source.readiness = -1;
         }
         
         if (cCost > 0 && p.resources['Carnie']) p.resources['Carnie'].current -= cCost;
@@ -561,14 +563,16 @@ export class GameEngine {
             
             let entVal;
             if (checkAttr === 'entity') {
-                if (node.value === 'SELF') return targetEnt.instanceId === source.instanceId;
-                if (node.value === 'AVATAR') return targetEnt.type === 'avatar';
-                if (node.value === 'UNIT') return targetEnt.type === 'unit';
-                if (node.value === 'BOON') return targetEnt.type === 'boon';
-                if (node.value === 'EQUIPMENT') return targetEnt.type === 'equipment';
-                if (node.value === 'ARTIFACT') return targetEnt.type === 'artifact';
-                if (node.value === 'SPELL') return targetEnt.type === 'spell';
-                return false;
+                let isMatch = false;
+                if (node.value === 'SELF') isMatch = (targetEnt.instanceId === source.instanceId);
+                else if (node.value === 'AVATAR') isMatch = (targetEnt.type === 'avatar');
+                else if (node.value === 'UNIT') isMatch = (targetEnt.type === 'unit');
+                else if (node.value === 'BOON') isMatch = (targetEnt.type === 'boon');
+                else if (node.value === 'EQUIPMENT') isMatch = (targetEnt.type === 'equipment');
+                else if (node.value === 'ARTIFACT') isMatch = (targetEnt.type === 'artifact');
+                else if (node.value === 'SPELL') isMatch = (targetEnt.type === 'spell');
+                
+                return node.operator === '==' ? isMatch : !isMatch;
             }
             else if (checkAttr === 'family') entVal = targetEnt.family || '';
             else if (checkAttr === 'genus') entVal = targetEnt.genus || '';

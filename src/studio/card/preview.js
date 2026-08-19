@@ -1,5 +1,3 @@
-// filepath: src/studio/card/preview.js
-
 import { CardState } from './state.js';
 import { buildCardState } from './form.js';
 import { renderAssignedAbilities } from './abilities.js';
@@ -17,6 +15,9 @@ export function inspectMiniPreview() {
     openInspectionModal(card, CardState.allAbilitiesRegistry);
 }
 
+// Bind to window so the Web Component sliders can trigger updates natively
+window.updatePreview = updatePreview;
+
 export function updatePreview() {
     const card = buildCardState();
     const container = document.getElementById('card-preview-container');
@@ -30,29 +31,79 @@ export function initImagePanning() {
     const previewContainer = document.getElementById('card-preview-container');
     let isDraggingArt = false;
     let startMouseX, startMouseY, startArtX, startArtY;
+    let activeXInput, activeYInput;
 
     previewContainer.addEventListener('mousedown', (e) => {
-        if (!e.target.closest('.group') || !document.getElementById('card-art').value) return;
+        const cardEl = e.target.closest('game-card');
+        if (!cardEl || !document.getElementById('card-art').value) return;
+        
+        const size = cardEl.getAttribute('size');
+        let prefix = 'card-art';
+        if (size === 'micro') prefix = 'card-micro-art';
+        if (size === 'nano') prefix = 'card-nano-art';
+        
+        activeXInput = document.getElementById(`${prefix}-x`);
+        activeYInput = document.getElementById(`${prefix}-y`);
+        
+        if (!activeXInput || !activeYInput) return;
+
         isDraggingArt = true;
         startMouseX = e.clientX;
         startMouseY = e.clientY;
-        startArtX = parseInt(document.getElementById('card-art-x').value) || 50;
-        startArtY = parseInt(document.getElementById('card-art-y').value) || 50;
+        startArtX = parseInt(activeXInput.value);
+        if (isNaN(startArtX)) startArtX = 0;
+        startArtY = parseInt(activeYInput.value);
+        if (isNaN(startArtY)) startArtY = 0;
         previewContainer.style.cursor = 'grabbing';
     });
 
     window.addEventListener('mousemove', (e) => {
-        if (!isDraggingArt) return;
-        const deltaX = (e.clientX - startMouseX) * -0.5;
-        const deltaY = (e.clientY - startMouseY) * -0.5;
+        if (!isDraggingArt || !activeXInput || !activeYInput) return;
         
-        document.getElementById('card-art-x').value = Math.max(0, Math.min(100, startArtX + deltaX));
-        document.getElementById('card-art-y').value = Math.max(0, Math.min(100, startArtY + deltaY));
+        const deltaX = (e.clientX - startMouseX) * 0.5;
+        const deltaY = (e.clientY - startMouseY) * 0.5;
+        
+        const newX = startArtX + deltaX;
+        const newY = startArtY + deltaY;
+        
+        if (newX < Number(activeXInput.min)) activeXInput.min = Math.floor(newX - 100);
+        if (newX > Number(activeXInput.max)) activeXInput.max = Math.ceil(newX + 100);
+        if (newY < Number(activeYInput.min)) activeYInput.min = Math.floor(newY - 100);
+        if (newY > Number(activeYInput.max)) activeYInput.max = Math.ceil(newY + 100);
+
+        activeXInput.value = newX;
+        activeYInput.value = newY;
         updatePreview();
     });
 
-    window.addEventListener('mouseup', () => { isDraggingArt = false; previewContainer.style.cursor = 'grab'; });
-    window.addEventListener('mouseleave', () => { isDraggingArt = false; previewContainer.style.cursor = 'grab'; });
+    window.addEventListener('mouseup', () => { isDraggingArt = false; previewContainer.style.cursor = 'grab'; activeXInput = null; activeYInput = null; });
+    window.addEventListener('mouseleave', () => { isDraggingArt = false; previewContainer.style.cursor = 'grab'; activeXInput = null; activeYInput = null; });
+
+    previewContainer.addEventListener('wheel', (e) => {
+        const cardEl = e.target.closest('game-card');
+        if (!cardEl || !document.getElementById('card-art').value) return;
+        
+        e.preventDefault(); // Prevent page scroll when zooming image
+        
+        const size = cardEl.getAttribute('size');
+        let prefix = 'card-art';
+        if (size === 'micro') prefix = 'card-micro-art';
+        if (size === 'nano') prefix = 'card-nano-art';
+        
+        const scaleInput = document.getElementById(`${prefix}-scale`);
+        if (!scaleInput) return;
+
+        let currentScale = parseInt(scaleInput.value) || 100;
+        let zoomSpeed = 5;
+        
+        if (e.deltaY < 0) currentScale += zoomSpeed;
+        else if (e.deltaY > 0) currentScale -= zoomSpeed;
+
+        currentScale = Math.max(Number(scaleInput.min), Math.min(Number(scaleInput.max), currentScale));
+        
+        scaleInput.value = currentScale;
+        updatePreview();
+    }, { passive: false });
 }
 
 // Bind to window

@@ -16,6 +16,7 @@ import '../../../components/main_nav.js';
 import '../../../components/catalog.js'; 
 import '../../../components/topbar.js';
 import '../../../components/card_preview.js';
+import '../../../components/art_panner.js';
 
 async function init() {
     await loadUI();

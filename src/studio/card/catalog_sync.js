@@ -123,8 +123,26 @@ export function loadCard(id) {
     document.getElementById('card-health').value = card.maxHealth || card.health || 1;
     document.getElementById('card-strength').value = (card.strength !== undefined && card.strength !== null) ? card.strength : '';
     document.getElementById('card-art').value = card.artUrl || '';
-    document.getElementById('card-art-x').value = card.artX ?? 50;
-    document.getElementById('card-art-y').value = card.artY ?? 50;
+    
+    document.getElementById('card-art-x').value = card.artX ?? 0;
+    document.getElementById('card-art-y').value = card.artY ?? 0;
+    const sScale = document.getElementById('card-art-scale');
+    if (sScale) sScale.value = card.artScale ?? 100;
+    
+    const mX = document.getElementById('card-micro-art-x');
+    if (mX) mX.value = card.microArtX ?? card.artX ?? 0;
+    const mY = document.getElementById('card-micro-art-y');
+    if (mY) mY.value = card.microArtY ?? card.artY ?? 0;
+    const mScale = document.getElementById('card-micro-art-scale');
+    if (mScale) mScale.value = card.microArtScale ?? card.artScale ?? 125;
+    
+    const nX = document.getElementById('card-nano-art-x');
+    if (nX) nX.value = card.nanoArtX ?? card.artX ?? 0;
+    const nY = document.getElementById('card-nano-art-y');
+    if (nY) nY.value = card.nanoArtY ?? card.artY ?? 0;
+    const nScale = document.getElementById('card-nano-art-scale');
+    if (nScale) nScale.value = card.nanoArtScale ?? card.artScale ?? 110;
+    
     document.getElementById('card-description').value = card.description || '';
     
     CardState.currentAbilities = (card.abilities || []).map(a => {

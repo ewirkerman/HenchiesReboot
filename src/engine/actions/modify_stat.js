@@ -24,6 +24,8 @@ export class ModifyStatAction extends Action {
             }
         } else if (stat === 'cost') {
             target.cost = Math.max(0, target.cost);
+        } else if (stat === 'readiness' && target[stat] < -1) {
+            target[stat] = -1;
         }
 
         if (actualDelta > 0 && sourceAbilityId) {

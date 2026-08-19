@@ -101,7 +101,9 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
                     const isTargetHidden = hasEngineFlag(state, ent, 'BLOCK_TARGETING');
                     if (isTargetHidden && !hasPerception) return;
                 }
-                if (qt.entityType.includes(entType)) targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
+                if (!qt.entityType || qt.entityType.length === 0 || qt.entityType.includes(entType)) {
+                    targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
+                }
             };
 
             if (qt.zones.includes('FIELD')) {

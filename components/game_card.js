@@ -211,6 +211,23 @@ export class GameCard extends HTMLElement {
         hoverTooltip += `\n\n(Right-click or tap 🔍 to inspect fully)`;
         const safeTooltip = hoverTooltip.replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 
+        let transX, transY, scale;
+        if (isNano) {
+            transX = card.nanoArtX ?? 0;
+            transY = card.nanoArtY ?? 0;
+            scale = card.nanoArtScale ?? 110;
+        } else if (isMicro) {
+            transX = card.microArtX ?? 0;
+            transY = card.microArtY ?? 0;
+            scale = card.microArtScale ?? 125;
+        } else {
+            transX = card.artX ?? 0;
+            transY = card.artY ?? 0;
+            scale = card.artScale ?? 100;
+        }
+        
+        const artStyle = `object-position: center; transform: translate(${transX}px, ${transY}px) scale(${scale / 100});`;
+
         if (isNano) {
           this.innerHTML = `
             <div 
@@ -220,10 +237,10 @@ export class GameCard extends HTMLElement {
               class="group relative flex-shrink-0 w-[64px] sm:w-[72px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-110 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
               style="${hexBg} ${dynamicBorderStyle}"
             >
-              <div class="absolute inset-0 z-0 ${fieldDimmingClass}">
-                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover opacity-75" style="object-position: ${card.artX ?? 50}% ${card.artY ?? 50}%;" draggable="false" />` : ''}
+              <div class="absolute inset-0 z-0 flex items-center justify-center ${fieldDimmingClass}">
+                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain opacity-90 scale-110" style="${artStyle}" draggable="false" />` : ''}
               </div>
-              <div class="relative z-10 w-full h-full p-1 flex flex-col justify-between bg-gradient-to-t from-black/95 via-transparent to-black/85 ${fieldDimmingClass}">
+              <div class="relative z-10 w-full h-full p-1 flex flex-col justify-between bg-gradient-to-t from-black/80 via-transparent to-black/60 ${fieldDimmingClass}">
                 <div class="flex items-start justify-between w-full relative z-20">
                   ${!isAvatar ? `<div class="w-4 h-4 rounded-full bg-amber-500 text-black font-black text-[9px] flex items-center justify-center border border-black shadow pointer-events-auto shrink-0">${card.cost ?? 0}</div>` : '<div></div>'}
                   ${(hasReadiness && readiness !== null) ? `
@@ -258,10 +275,10 @@ export class GameCard extends HTMLElement {
               class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
               style="${hexBg} ${dynamicBorderStyle}"
             >
-              <div class="absolute inset-0 z-0 ${fieldDimmingClass}">
-                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover opacity-75" style="object-position: ${card.artX ?? 50}% ${card.artY ?? 50}%;" draggable="false" />` : ''}
+              <div class="absolute inset-0 z-0 flex items-center justify-center ${fieldDimmingClass}">
+                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain opacity-90 scale-125" style="${artStyle}" draggable="false" />` : ''}
               </div>
-              <div class="relative z-10 w-full h-full p-1.5 flex flex-col justify-between bg-gradient-to-t from-black/95 via-transparent to-black/85 ${fieldDimmingClass}">
+              <div class="relative z-10 w-full h-full p-1.5 flex flex-col justify-between bg-gradient-to-t from-black/80 via-transparent to-black/60 ${fieldDimmingClass}">
                 <div class="flex items-center gap-1.5 w-full pr-6">
                   ${!isAvatar ? `<div class="w-4 h-4 rounded-full bg-amber-500 text-black font-black text-[9px] flex items-center justify-center border border-black shadow pointer-events-auto shrink-0">${card.cost ?? 0}</div>` : ''}
                   <div class="text-white text-[11px] font-black truncate drop-shadow-md leading-tight w-full">${card.name}</div>
@@ -303,7 +320,7 @@ export class GameCard extends HTMLElement {
             <div class="absolute inset-0 opacity-10 mix-blend-overlay ${fieldDimmingClass}"></div>
             
             <div class="w-full h-[60%] bg-slate-900 border-b-2 ${separatorClass} shrink-0 relative overflow-hidden ${fieldDimmingClass}">
-              ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover" style="object-position: ${card.artX ?? 50}% ${card.artY ?? 50}%;" draggable="false" />` : ''}
+              ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover" style="${artStyle}" draggable="false" />` : ''}
               <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[90%] flex justify-center z-30 pointer-events-none">
                 <div class="bg-black/20 backdrop-blur-sm text-white text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full truncate text-center max-w-full shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide">
                   ${card.name}

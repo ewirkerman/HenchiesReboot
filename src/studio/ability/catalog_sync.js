@@ -524,6 +524,16 @@ export async function testAssociatedCard(cardId) {
     }
 }
 
+export async function launchTestMatch() {
+    const ability = getCurrentAbilityState();
+    const topbar = document.getElementById('studio-topbar');
+    if (topbar && topbar.setLoading) topbar.setLoading('test', true);
+
+    await launchSandboxMatch(ability, 'ability');
+    
+    if (topbar && topbar.setLoading) topbar.setLoading('test', false);
+}
+
 export async function initCardAssigner() {
     const panels = document.querySelectorAll('main .glass-panel');
     const usagePanel = panels.length >= 3 ? panels[panels.length - 1] : null;
@@ -605,3 +615,4 @@ window.loadAbility = loadAbility;
 window.copyJSONPreview = copyJSONPreview;
 window.testAssociatedCard = testAssociatedCard;
 window.updateGlobalCard = updateGlobalCard;
+window.launchTestMatch = launchTestMatch;
