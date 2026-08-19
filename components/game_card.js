@@ -319,8 +319,8 @@ export class GameCard extends HTMLElement {
           >
             <div class="absolute inset-0 opacity-10 mix-blend-overlay ${fieldDimmingClass}"></div>
             
-            <div class="w-full h-[60%] bg-slate-900 border-b-2 ${separatorClass} shrink-0 relative overflow-hidden ${fieldDimmingClass}">
-              ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-cover" style="${artStyle}" draggable="false" />` : ''}
+            <div class="w-full h-[60%] bg-slate-900 border-b-2 ${separatorClass} shrink-0 relative overflow-hidden flex items-center justify-center ${fieldDimmingClass}">
+              ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain" style="${artStyle}" draggable="false" />` : ''}
               <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[90%] flex justify-center z-30 pointer-events-none">
                 <div class="bg-black/20 backdrop-blur-sm text-white text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full truncate text-center max-w-full shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide">
                   ${card.name}

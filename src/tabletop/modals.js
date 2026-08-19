@@ -21,7 +21,22 @@ window.openZoneModal = (playerId, zone) => {
     const player = ClientState.gameState.players[playerId];
     if (!player || !player[zone]) return;
     
-    const cards = player[zone];
+    // Core Rule: You cannot view the opponent's deck
+    if (zone === 'deck' && playerId !== ClientState.localPlayerRole) {
+        showToast("You cannot view the opponent's deck.", "error");
+        return;
+    }
+    
+    let cards = [...player[zone]];
+    
+    // Core Rule: Deck contents are displayed in alphabetical order, not draw order
+    if (zone === 'deck') {
+        cards.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+        // Discard/Banish show the most recently added cards first
+        cards.reverse();
+    }
+
     const container = document.getElementById('zone-modal-cards');
     const title = document.getElementById('zone-modal-title');
     const subtitle = document.getElementById('zone-modal-subtitle');
@@ -41,8 +56,7 @@ window.openZoneModal = (playerId, zone) => {
     if (cards.length === 0) {
         container.innerHTML = `<div class="text-slate-500 italic mt-10">This ${zone} is empty.</div>`;
     } else {
-        const reversed = [...cards].reverse();
-        container.innerHTML = reversed.map(c => {
+        container.innerHTML = cards.map(c => {
             const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
             const isTargetable = ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === (c.instanceId || c.id));
             

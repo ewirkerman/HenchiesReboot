@@ -223,29 +223,9 @@ window.handleEntityClick = async (prefix, line, entityId) => {
       if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
         const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
         if (actions.length > 0) {
-          if (actions.length === 1 && actions[0].type === 'ATTACK') {
+          if (actions.length === 1 && actions[0].undoable) {
             window.activateAbility(entityId, actions[0].abilityId);
             return;
-          }
-          
-          if (actions.length === 1 && actions[0].type === 'ABILITY') {
-              let entity = null;
-              const eqItem = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
-              if (eqItem) entity = eqItem;
-              else {
-                  for (const l of LINES) {
-                      const u = ClientState.gameState.players[ClientState.localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
-                      if (u) { entity = u; break; }
-                  }
-              }
-              
-              if (entity) {
-                  const ability = entity.abilities?.find(a => a.abilityId === actions[0].abilityId);
-                  if (ability?.activation?.method === 'PLAYER_CHOICE') {
-                      window.activateAbility(entityId, actions[0].abilityId);
-                      return;
-                  }
-              }
           }
 
           let entityName = "Unknown Entity";
@@ -512,15 +492,15 @@ window.handleHandCardClick = async (cardId) => {
             return canPlay && isPlayTrigger && requiresTarget;
         }) : [];
 
-        if (playAbilities.length === 1 && playAbilities[0].trigger === 'MANUAL' && playAbilities[0].passiveFlags?.includes('ACTIVATE_FROM_HAND') && playAbilities[0].activation?.method !== 'PLAYER_CHOICE') {
-            if (!canPlay) {
-                window.activateHandCardAbility(cardId, playAbilities[0].abilityId);
+        const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
+        const showPlayNormally = canPlay && !hasMandatoryTarget;
+
+        if ((showPlayNormally ? 1 : 0) + playAbilities.length === 1) {
+            if (showPlayNormally && !isPlayUnsafe(c, null)) {
+                window.executeNormalPlay(cardId);
                 return;
             }
-        }
-
-        if (playAbilities.length === 1 && playAbilities[0].activation?.method === 'PLAYER_CHOICE' && playAbilities[0].trigger !== 'PLAY_OPTIONAL') {
-            if (!canPlay || !playAbilities[0].passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
+            if (playAbilities.length === 1 && isUndoable(ClientState.gameState, playAbilities[0])) {
                 window.activateHandCardAbility(cardId, playAbilities[0].abilityId);
                 return;
             }
@@ -532,10 +512,9 @@ window.handleHandCardClick = async (cardId) => {
             let html = '';
             let idx = 1;
             
-            const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
-            
-            if (canPlay && !hasMandatoryTarget) {
-                html += `<button onclick="window.executeNormalPlay('${cardId}')" class="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">🃏 [${idx++}] Play Normally</button>`;
+            if (showPlayNormally) {
+                const undoWarning = isPlayUnsafe(c, null) ? ' <span title="Cannot be undone" class="text-yellow-400 drop-shadow-md">⚠️</span>' : '';
+                html += `<button onclick="window.executeNormalPlay('${cardId}')" class="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">🃏 [${idx++}] Play Normally${undoWarning}</button>`;
             }
 
             playAbilities.forEach(ab => {

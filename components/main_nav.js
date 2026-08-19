@@ -10,8 +10,7 @@ export class MainNav extends HTMLElement {
         const links = [
             { id: 'game', href: prefix + 'game.html', text: 'Game Table' },
             { id: 'deckbuilder', href: prefix + 'deckbuilder.html', text: 'Deckbuilder' },
-            { id: 'card_studio', href: isStudio ? 'cards.html' : 'studios/cards.html', text: 'Card Studio' },
-            { id: 'ability_studio', href: isStudio ? 'abilities.html' : 'studios/abilities.html', text: 'Ability Studio' },
+            { id: 'creator_studio', href: isStudio ? 'creator.html' : 'studios/creator.html', text: 'Creator Studio' },
             { id: 'tribe_studio', href: isStudio ? 'tribes.html' : 'studios/tribes.html', text: 'Tribe Studio' }
         ];
 
@@ -24,7 +23,7 @@ export class MainNav extends HTMLElement {
         }).join('');
 
         this.innerHTML = `
-            <header class="sticky top-0 z-40 glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
+            <header class="sticky top-0 z-[100] glass-panel border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-2 shadow-2xl">
                 <div class="flex items-center gap-3">
                     <span class="text-xl font-black bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 bg-clip-text text-transparent">
                         HENCHIES 2
@@ -33,7 +32,7 @@ export class MainNav extends HTMLElement {
                         ${subtitle}
                     </span>
                 </div>
-                <nav class="flex items-center gap-3 text-xs font-semibold">
+                <nav class="flex items-center gap-4 text-xs font-bold uppercase tracking-wider">
                     ${navLinksHtml}
                 </nav>
             </header>

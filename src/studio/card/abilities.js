@@ -30,25 +30,26 @@ export function renderAssignedAbilities() {
             </div>
         ` : '';
 
+        const linkHref = window.CreatorController ? `#${ab.abilityId}` : `abilities.html#${ab.abilityId}`;
+
         return `
             <div draggable="true" 
                  ondragstart="window.handleDragStart(event, ${index})"
                  ondragover="window.handleDragOver(event)"
                  ondrop="window.handleDrop(event, ${index})"
                  ondragend="window.handleDragEnd(event)"
-                 class="flex justify-between items-center bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-900 p-2 rounded text-xs cursor-move transition-colors">
-                <div class="pointer-events-none flex items-center gap-2">
-                    <span class="text-indigo-500/50 text-[10px]">☰</span>
-                    <span class="font-bold text-indigo-300">${ab.name}</span>
-                    <span class="text-[9px] bg-indigo-900 text-indigo-200 px-1 py-0.5 rounded ml-1">${ab.trigger || 'MANUAL'}</span>
+                 class="flex justify-between items-center bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-900 py-1.5 px-2 rounded text-xs cursor-move transition-all group overflow-hidden">
+                <div class="pointer-events-none flex items-center gap-1.5 flex-1 min-w-0 pr-2">
+                    <span class="text-indigo-500/50 text-[10px] shrink-0">☰</span>
+                    <span class="font-bold text-indigo-300 truncate">${ab.name}</span>
                     ${xInputHtml}
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[9px] font-bold flex items-center gap-1">📋 JSON</button>
-                    <a href="abilities.html#${ab.abilityId}" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-indigo-400 hover:text-indigo-200 transition p-1">
+                <div class="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition p-1 rounded bg-slate-900 border border-slate-700 text-[10px] flex items-center justify-center">📋</button>
+                    <a href="${linkHref}" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-indigo-400 hover:text-indigo-200 transition p-1">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                     </a>
-                    <button onclick="window.removeAbility(${index})" class="text-red-400 hover:text-red-300 font-black px-1.5">&times;</button>
+                    <button onclick="window.removeAbility(${index})" title="Remove" class="text-red-400 hover:text-red-300 font-black p-1 leading-none">&times;</button>
                 </div>
             </div>
         `;
@@ -120,15 +121,17 @@ export function renderReferencedAbilities() {
     listContainer.innerHTML = Array.from(dependentAbilityIds).map(abId => {
         const ab = CardState.allAbilitiesRegistry.find(a => a.abilityId === abId);
         if (!ab) return '';
+        
+        const linkHref = window.CreatorController ? `#${ab.abilityId}` : `abilities.html#${ab.abilityId}`;
+        
         return `
-            <div class="flex justify-between items-center bg-slate-900/60 border border-slate-700/50 p-2 rounded text-xs transition-colors group">
-                <div class="pointer-events-none flex items-center gap-2">
-                    <span class="font-bold text-sky-300">${ab.name}</span>
-                    <span class="text-[9px] bg-slate-950 text-slate-400 px-1 py-0.5 rounded ml-1">${ab.trigger || 'MANUAL'}</span>
+            <div class="flex justify-between items-center bg-slate-900/60 border border-slate-700/50 py-1.5 px-2 rounded text-xs transition-colors group overflow-hidden">
+                <div class="pointer-events-none flex items-center gap-1.5 flex-1 min-w-0 pr-2">
+                    <span class="font-bold text-sky-300 truncate">${ab.name}</span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[9px] font-bold flex items-center gap-1 opacity-0 group-hover:opacity-100 focus:opacity-100">📋 JSON</button>
-                    <a href="abilities.html#${ab.abilityId}" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-slate-500 hover:text-sky-300 transition p-1 group-hover:text-sky-400">
+                <div class="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                    <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition p-1 rounded bg-slate-900 border border-slate-700 text-[10px] flex items-center justify-center">📋</button>
+                    <a href="${linkHref}" onclick="event.stopPropagation()" title="Open Ability in Studio" class="text-slate-500 hover:text-sky-300 transition p-1 group-hover:text-sky-400">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                     </a>
                 </div>

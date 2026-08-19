@@ -22,13 +22,22 @@ export function updatePreview() {
     const card = buildCardState();
     const container = document.getElementById('card-preview-container');
     
-    container.innerHTML = `<card-preview card-data="${encodeURIComponent(JSON.stringify(card)).replace(/'/g, "%27")}"></card-preview>`;
+    // Only inject HTML if we are in the standalone card studio. 
+    // In the Unified Studio, CreatorController handles the HTML injection.
+    if (container) {
+        container.innerHTML = `<card-preview card-data="${encodeURIComponent(JSON.stringify(card)).replace(/'/g, "%27")}"></card-preview>`;
+    } else if (window.CreatorController && window.CreatorController.updateRightPanePreview) {
+        window.CreatorController.updateRightPanePreview(card, 'card');
+    }
     
     renderJSONPreview('json-preview-container', card, 'copyCardJSON');
 }
 
 export function initImagePanning() {
-    const previewContainer = document.getElementById('card-preview-container');
+    // Support both the standalone studio and the unified creator studio IDs
+    const previewContainer = document.getElementById('card-preview-container') || document.getElementById('right-preview-container');
+    if (!previewContainer) return;
+    
     let isDraggingArt = false;
     let startMouseX, startMouseY, startArtX, startArtY;
     let activeXInput, activeYInput;
@@ -73,7 +82,9 @@ export function initImagePanning() {
 
         activeXInput.value = newX;
         activeYInput.value = newY;
-        updatePreview();
+        
+        if (window.updatePreview) window.updatePreview();
+        else updatePreview();
     });
 
     window.addEventListener('mouseup', () => { isDraggingArt = false; previewContainer.style.cursor = 'grab'; activeXInput = null; activeYInput = null; });
@@ -102,7 +113,9 @@ export function initImagePanning() {
         currentScale = Math.max(Number(scaleInput.min), Math.min(Number(scaleInput.max), currentScale));
         
         scaleInput.value = currentScale;
-        updatePreview();
+        
+        if (window.updatePreview) window.updatePreview();
+        else updatePreview();
     }, { passive: false });
 }
 

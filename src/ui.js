@@ -115,7 +115,7 @@
     return `<game-card ${attrs}></game-card>`;
   }
 
-  function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = '') {
+  export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = '') {
       if (!allAbilitiesRegistry || allAbilitiesRegistry.length === 0) return [];
       
       let glossaryMap = new Map();
@@ -541,18 +541,20 @@
       if (!container) return;
       
       container.innerHTML = `
-        <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 h-full max-h-full overflow-hidden">
-          <div class="flex justify-between items-center border-b border-slate-800 pb-1">
+        <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 w-full h-full relative flex-1">
+          <div class="flex justify-between items-center border-b border-slate-800 pb-1 shrink-0">
             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">
               Data Structure Preview
             </h2>
-            <button type="button" onclick="window.${copyCallbackName}()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition shadow font-bold">
+            <button type="button" onclick="window.${copyCallbackName}()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition shadow font-bold border border-slate-600">
               📋 Copy JSON
             </button>
           </div>
-      <pre class="text-[9px] text-cyan-500 font-mono overflow-y-auto overflow-x-auto h-full pb-6 custom-scrollbar">${JSON.stringify(jsonObject, null, 2)}</pre>
-    </div>
-  `;
+          <div class="flex-1 w-full overflow-y-auto minimal-scrollbar bg-slate-950/80 rounded-lg border border-slate-900 shadow-inner p-3 relative">
+              <pre id="${containerId}-pre" class="text-[10px] text-cyan-400 font-mono m-0 leading-tight w-full break-all whitespace-pre-wrap selection:bg-cyan-900/50">${JSON.stringify(jsonObject, null, 2)}</pre>
+          </div>
+        </div>
+      `;
   }
 
   export function openJSONImportModal(onImport) {

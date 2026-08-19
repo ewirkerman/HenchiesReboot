@@ -486,20 +486,22 @@ export function renderAssociatedCards() {
         const matchedTribe = StudioState.customTribesList?.find(t => t.id === c.tribe || t.name === c.tribe);
         const tribeName = matchedTribe ? matchedTribe.name : (c.tribe || 'Generic');
         
+        const linkHref = window.CreatorController ? `#${c.id}` : `cards.html#${c.id}`;
+        
         return `
-        <div oncontextmenu="event.preventDefault(); window.inspectCard('${json}')" title="Right-click to inspect ${c.name}" class="p-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-xs flex justify-between items-center transition-all group cursor-context-menu hover:border-sky-500/50">
-            <div class="flex items-center gap-2 overflow-hidden pointer-events-none">
-                <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[9px] shrink-0 shadow">${c.cost || 0}</span>
-                <div class="flex flex-col truncate">
-                    <span class="font-bold text-sky-300 truncate group-hover:text-white transition-colors text-[11px]">${c.name}</span>
-                    <span class="text-[9px] text-slate-400 capitalize truncate">${tribeName} • ${c.type || 'Unit'}</span>
+        <div oncontextmenu="event.preventDefault(); window.inspectCard('${json}')" title="Right-click to inspect ${c.name}" class="py-1.5 px-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-xs flex justify-between items-center transition-all group cursor-context-menu hover:border-sky-500/50 overflow-hidden">
+            <div class="flex items-center gap-2 flex-1 min-w-0 pr-2 pointer-events-none">
+                <span class="w-4 h-4 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[8px] shrink-0 shadow">${c.cost || 0}</span>
+                <div class="flex flex-col truncate flex-1 min-w-0">
+                    <span class="font-bold text-sky-300 truncate group-hover:text-white transition-colors text-[11px] leading-tight">${c.name}</span>
+                    <span class="text-[9px] text-slate-400 capitalize truncate leading-tight">${tribeName} • ${c.type || 'Unit'}</span>
                 </div>
             </div>
-            <div class="flex items-center gap-1 shrink-0">
+            <div class="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 <button type="button" onclick="window.testAssociatedCard('${c.id}')" title="Test this card" class="text-slate-500 hover:text-purple-400 transition p-1">
                     🧪
                 </button>
-                <a href="cards.html#${c.id}" title="Edit ${c.name}" class="text-slate-500 hover:text-sky-400 transition p-1">
+                <a href="${linkHref}" title="Edit ${c.name}" class="text-slate-500 hover:text-sky-400 transition p-1">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                 </a>
             </div>
