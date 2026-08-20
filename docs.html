@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Henchies 2 - API Documentation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-300 min-h-screen flex flex-col font-sans">
+  <header class="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto flex justify-between items-center">
+        <h1 class="text-xl font-black text-amber-400 tracking-wider">📚 Henchies 2 Engine API</h1>
+        <span class="text-xs text-slate-500 italic">Auto-generated via JSDoc (Placeholder)</span>
+    </div>
+  </header>
+
+  <main class="flex-1 w-full max-w-6xl mx-auto p-6 flex flex-col md:flex-row gap-8">
+    
+    <!-- Sidebar Navigation -->
+    <nav class="w-full md:w-64 shrink-0 flex flex-col gap-2">
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl sticky top-24">
+            <h3 class="text-sm font-bold text-white mb-2 uppercase tracking-wider">Custom Scripts</h3>
+            <ul class="flex flex-col gap-1.5 text-sm text-sky-400">
+                <li><a href="#custom-conditions" class="hover:text-amber-400">Logic Tree Conditions</a></li>
+                <li><a href="#custom-actions" class="hover:text-amber-400">Action Payloads</a></li>
+                <li><a href="#lang-placeholders" class="hover:text-amber-400">Language Placeholders</a></li>
+            </ul>
+            
+            <h3 class="text-sm font-bold text-white mb-2 mt-4 uppercase tracking-wider">Core Objects</h3>
+            <ul class="flex flex-col gap-1.5 text-sm text-sky-400">
+                <li><a href="#obj-entity" class="hover:text-amber-400">Entity Object</a></li>
+                <li><a href="#obj-state" class="hover:text-amber-400">GameState Object</a></li>
+                <li><a href="#obj-engine" class="hover:text-amber-400">GameEngine Object</a></li>
+                <li><a href="#obj-payload" class="hover:text-amber-400">Event Payload</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col gap-10">
+        
+        <section id="custom-conditions">
+            <h2 class="text-2xl font-black text-white border-b border-slate-800 pb-2 mb-4">Logic Tree Conditions</h2>
+            <p class="mb-4 text-sm">Used in <code>Advanced Target Filtering</code>. This script must <strong>return a boolean</strong> (`true` or `false`) to determine if the target is valid.</p>
+            <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 font-mono text-sm text-amber-200">
+                <strong>Signature:</strong> <br/>
+                <code>function (target, source, state, eventPayload, engine) { ... }</code>
+            </div>
+            <p class="mt-4 text-sm text-slate-400">Example: <br/><code>return target.strength < source.strength;</code></p>
+        </section>
+
+        <section id="custom-actions">
+            <h2 class="text-2xl font-black text-white border-b border-slate-800 pb-2 mb-4">Action Payloads</h2>
+            <p class="mb-4 text-sm">Used in <code>Executed Actions</code>. This script performs state manipulation. It does not need to return anything.</p>
+            <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 font-mono text-sm text-amber-200">
+                <strong>Signature:</strong> <br/>
+                <code>function (state, target, params, engine, actionDepth) { ... }</code>
+            </div>
+            <p class="mt-4 text-sm text-slate-400">Example: <br/><code>target.health += 1; <br/>state.history_log.push(`✨ ${target.name} gained 1 health.`);</code></p>
+        </section>
+
+        <section id="lang-placeholders">
+            <h2 class="text-2xl font-black text-white border-b border-slate-800 pb-2 mb-4">Language Generation Placeholders</h2>
+            <p class="mb-4 text-sm">Special tokens you can use in the <strong>Script Language Description</strong> or <strong>Ability Description (Override)</strong> fields to let the engine dynamically format nouns and pronouns based on the target.</p>
+            <ul class="list-disc pl-5 flex flex-col gap-2 text-sm bg-slate-900/50 p-4 rounded-lg">
+                <li><code class="text-emerald-300">{TARGET}</code> - The target's noun or pronoun (e.g., <em>them</em>, <em>the chosen unit</em>, <em>all enemies</em>).</li>
+                <li><code class="text-emerald-300">{POSS}</code> - The target's possessive form (e.g., <em>their</em>, <em>its</em>, <em>the enemy's</em>).</li>
+                <li><code class="text-emerald-300">{SELF}</code> - Always translates to <em>this card</em>.</li>
+                <li><code class="text-emerald-300">{SELF_POSS}</code> - Always translates to <em>this card's</em>.</li>
+                <li><code class="text-emerald-300">{REFLEXIVE}</code> - Translates to <em>themselves</em> or <em>itself</em> (based on target plurality).</li>
+                <li><code class="text-emerald-300">{REFLEXIVE_POSS}</code> - Translates to <em>their own</em> or <em>its own</em>.</li>
+                <li><code class="text-sky-300">{OMIT_TARGET}</code> - Add this anywhere in the text to prevent the engine from automatically appending the target noun at the end of the sentence.</li>
+                <li><code class="text-sky-300">{PER_TARGET}</code> - Appends "for each [target]" based on the group.</li>
+                <li><code class="text-fuchsia-300">@[Ability Name]</code> - Creates a linked, highlighted glossary tag for another ability.</li>
+            </ul>
+        </section>
+
+        <section id="obj-entity">
+            <h2 class="text-2xl font-black text-white border-b border-slate-800 pb-2 mb-4">Entity Object</h2>
+            <p class="mb-4 text-sm">Represents a Card, Unit, Avatar, Equipment, Artifact, Spell, or Boon.</p>
+            <ul class="list-disc pl-5 flex flex-col gap-1 text-sm bg-slate-900/50 p-4 rounded-lg">
+                <li><code>instanceId</code> (String): Unique runtime ID.</li>
+                <li><code>id</code> (String): Catalog archetype ID.</li>
+                <li><code>name</code> (String)</li>
+                <li><code>type</code> (String): 'unit', 'avatar', 'spell', etc.</li>
+                <li><code>ownerId</code> (String): 'player1' or 'player2'.</li>
+                <li><code>tribe</code>, <code>family</code>, <code>genus</code> (String)</li>
+                <li><code>health</code>, <code>maxHealth</code>, <code>strength</code>, <code>power</code>, <code>armor</code>, <code>cost</code> (Number)</li>
+                <li><code>readiness</code> (Number): 1 (Ready), 0 (Unready), -1 (Exhausted).</li>
+                <li><code>line</code> (String): 'front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard'.</li>
+                <li><code>abilities</code> (Array): Array of Ability objects.</li>
+                <li><code>activeEffects</code> (Array): Array of ongoing state modifiers.</li>
+                <li><code>attachments</code> (Array): Array of Entity objects attached to this host.</li>
+            </ul>
+        </section>
+
+        <section id="obj-state">
+            <h2 class="text-2xl font-black text-white border-b border-slate-800 pb-2 mb-4">GameState Object</h2>
+            <p class="mb-4 text-sm">The global state of the match.</p>
+            <ul class="list-disc pl-5 flex flex-col gap-1 text-sm bg-slate-900/50 p-4 rounded-lg">
+                <li><code>activePlayerId</code> (String): 'player1' or 'player2'.</li>
+                <li><code>turnPhase</code> (String): e.g. 'ACTION_PHASE'.</li>
+                <li><code>players</code> (Object): Contains <code>player1</code> and <code>player2</code>.</li>
+                <li><code>players[pId].lines[lineName]</code> (Array): Arrays of Entity objects on the board.</li>
+                <li><code>players[pId].hand</code>, <code>.deck</code>, <code>.discard</code>, <code>.banish</code> (Array)</li>
+                <li><code>players[pId].resources</code> (Object): Contains <code>Carnie: { current, max }</code> and others.</li>
+                <li><code>equator</code> (Array): Array of Entity objects in the center zone.</li>
+                <li><code>history_log</code> (Array): Used to log events. Use <code>state.history_log.push(string)</code> or <code>push({text: string, depth: int})</code>.</li>
+            </ul>
+        </section>
+
+        <section id="obj-engine">
+            <h2 class="text-2xl font-black text-white border-b border-slate-800 pb-2 mb-4">GameEngine Object</h2>
+            <p class="mb-4 text-sm">The rules orchestrator. Provides utility functions for triggering events.</p>
+            <ul class="list-disc pl-5 flex flex-col gap-1 text-sm bg-slate-900/50 p-4 rounded-lg">
+                <li><code>engine.executeAbility(abilityObj, sourceEntity, eventPayload)</code>: Forces an ability to execute.</li>
+                <li><code>engine.utils.hasEngineFlag(state, entity, flagName)</code>: Checks if an entity has a flag (e.g., 'STRIKE_FAST').</li>
+                <li><code>engine.utils.randomInt(state, min, max)</code>: Seed-safe deterministic random number generation.</li>
+                <li><code>engine.utils.findEntityLocation(engine, target)</code>: Returns <code>{ playerId, zone, array, index, host }</code>.</li>
+            </ul>
+        </section>
+
+    </div>
+  </main>
+</body>
+</html>

@@ -74,12 +74,12 @@ export function updateNodeField(treeType, pathString, field, value) {
           const newAttr = Object.keys(ATTRIBUTE_MANIFEST).find(k => ATTRIBUTE_MANIFEST[k].domain === newDomain && ATTRIBUTE_MANIFEST[k].evaluable);
           node.attribute = newAttr;
           const typeDef = ATTRIBUTE_MANIFEST[newAttr];
-          node.value = typeDef.type === 'select' ? typeDef.options[0] : 1;
+          node.value = typeDef.type === 'select' ? typeDef.options[0] : (typeDef.type === 'text' ? '' : 1);
           node.operator = '==';
       }
   } else if (field === 'attribute') {
       const typeDef = ATTRIBUTE_MANIFEST[value];
-      node.value = typeDef.type === 'select' ? typeDef.options[0] : 1;
+      node.value = typeDef.type === 'select' ? typeDef.options[0] : (typeDef.type === 'text' ? '' : 1);
       node.operator = '==';
   }
   

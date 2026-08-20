@@ -19,7 +19,9 @@ export class ModifyStatAction extends Action {
         target[stat] = (target[stat] || 0) + actualDelta;
 
         if (stat === 'maxHealth') {
-            if (target.health > target.maxHealth) {
+            if (actualDelta > 0) {
+                target.health = (target.health || 0) + actualDelta;
+            } else if (target.health > target.maxHealth) {
                 target.health = Math.max(0, target.maxHealth);
             }
         } else if (stat === 'cost') {

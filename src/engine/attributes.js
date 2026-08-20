@@ -14,9 +14,10 @@ export const ATTRIBUTE_MANIFEST = {
     'zone': { label: 'Zone', domain: 'ENTITY', type: 'select', options: ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['ALL'] },
     'tribe': { label: 'Tribe', domain: 'ENTITY', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['ALL'] },
     'family': { label: 'Family', domain: 'ENTITY', type: 'select', options: ['Humanoid', 'Creature', 'Automaton'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT'] },
-    'genus': { label: 'Genus', domain: 'ENTITY', type: 'select', options: [], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT'] },
+    'genus': { label: 'Genus', domain: 'ENTITY', type: 'text', options: [], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT'] },
     'hasAbility': { label: 'Has Ability ID/Name', domain: 'ENTITY', type: 'text', evaluable: true, settable: false, modifiable: false, allowedTypes: ['ALL'] },
     'isAttacking': { label: 'Is the Active Attacker', domain: 'ENTITY', type: 'select', options: ['true', 'false'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT', 'AVATAR'] },
+    'customScript': { label: 'Custom Script (Return Bool)', domain: 'ENTITY', type: 'text', evaluable: true, settable: false, modifiable: false, allowedTypes: ['ALL'] },
 
     // --- NUMERIC STATS (Evaluable, Settable, Modifiable) ---
     'health': { label: 'Current Health', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT'] },

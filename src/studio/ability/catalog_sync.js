@@ -12,49 +12,6 @@ import { renderLogicTrees } from './logic_tree.js';
 import { renderEffects } from './payloads.js';
 import { ACTION_MANIFEST } from '../../engine/actions/index.js';
 
-export function getCurrentAbilityState() {
-  let derivedTrigger = document.getElementById('ab-trigger').value;
-  if (!derivedTrigger) {
-      const base = document.getElementById('ab-base-trigger').value;
-      const phase = document.getElementById('ab-trigger-phase').value;
-      const role = document.getElementById('ab-trigger-role').value;
-      const manifest = ACTION_MANIFEST[base];
-      if (manifest) {
-          let verb = base;
-          if (role === 'PASSIVE' && manifest.passiveType) verb = manifest.passiveType;
-          derivedTrigger = `${phase}_${verb}`;
-      } else {
-          derivedTrigger = base || 'MANUAL';
-      }
-  }
-
-  const formData = {
-    abilityId: StudioState.currentEditingId,
-    name: document.getElementById('ab-name').value.trim(),
-    description: document.getElementById('ab-description').value,
-    trigger: derivedTrigger,
-    additionalTriggers: StudioState.additionalTriggers || [],
-    triggerScope: document.getElementById('ab-trigger-scope').value,
-    triggerLimit: document.getElementById('ab-trigger-limit').value,
-    passiveFlags: Array.from(document.querySelectorAll('.ab-flag-chk:checked')).map(cb => cb.value),
-    tribeAmount: document.getElementById('ab-cost-tribe-amt').value,
-    carnie: document.getElementById('ab-cost-tent').value,
-    power: document.getElementById('ab-cost-power').value,
-    readinessCost: document.getElementById('ab-cost-readiness').value,
-    reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked,
-    freeAction: document.getElementById('ab-cost-free-action').checked,
-    actMethod: document.getElementById('ab-act-method').value,
-    actQuickTargeting: StudioState.activationQuickTargeting
-  };
-  
-  const uiState = {
-    activationRoot: StudioState.activationRoot,
-    targetGroups: StudioState.effectGroups
-  };
-
-  return exportCurrentState(formData, uiState);
-}
-
 export function exportCurrentState(formData, uiState) {
     let activationData = {
         method: formData.actMethod,
@@ -76,6 +33,7 @@ export function exportCurrentState(formData, uiState) {
             carnie: parseInt(formData.carnie) || 0,
             power: parseInt(formData.power) || 0,
             readinessCost: formData.readinessCost || 'NONE',
+            escalates: !!formData.escalates,
             reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness,
             freeAction: !!formData.freeAction
         },
@@ -92,9 +50,58 @@ export function exportCurrentState(formData, uiState) {
     };
 }
 
+export function getCurrentAbilityState(forceId = null) {
+  let derivedTrigger = document.getElementById('ab-trigger').value;
+  if (!derivedTrigger) {
+      const base = document.getElementById('ab-base-trigger').value;
+      const phase = document.getElementById('ab-trigger-phase').value;
+      const role = document.getElementById('ab-trigger-role').value;
+      const manifest = ACTION_MANIFEST[base];
+      if (manifest) {
+          let verb = base;
+          if (role === 'PASSIVE' && manifest.passiveType) verb = manifest.passiveType;
+          derivedTrigger = `${phase}_${verb}`;
+      } else {
+          derivedTrigger = base || 'MANUAL';
+      }
+  }
+
+  const formData = {
+    abilityId: forceId || StudioState.currentEditingId,
+    name: document.getElementById('ab-name').value.trim(),
+    description: document.getElementById('ab-description').value,
+    trigger: derivedTrigger,
+    additionalTriggers: StudioState.additionalTriggers || [],
+    triggerScope: document.getElementById('ab-trigger-scope').value,
+    triggerLimit: document.getElementById('ab-trigger-limit').value,
+    passiveFlags: Array.from(document.querySelectorAll('.ab-flag-chk:checked')).map(cb => cb.value),
+    tribeAmount: document.getElementById('ab-cost-tribe-amt').value,
+    carnie: document.getElementById('ab-cost-tent').value,
+    power: document.getElementById('ab-cost-power').value,
+    readinessCost: document.getElementById('ab-cost-readiness').value,
+    escalates: document.getElementById('ab-cost-escalates') ? document.getElementById('ab-cost-escalates').checked : false,
+    reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked,
+    freeAction: document.getElementById('ab-cost-free-action').checked,
+    actMethod: document.getElementById('ab-act-method').value,
+    actQuickTargeting: StudioState.activationQuickTargeting
+  };
+  
+  const uiState = {
+    activationRoot: StudioState.activationRoot,
+    targetGroups: StudioState.effectGroups
+  };
+
+  return exportCurrentState(formData, uiState);
+}
+
 export function updateJSONPreview() {
   const state = getCurrentAbilityState();
-  renderJSONPreview('json-preview-container', state, 'copyJSONPreview');
+  
+  if (window.updatePreview) {
+      window.updatePreview();
+  } else {
+      renderJSONPreview('json-preview-container', state, 'copyJSONPreview');
+  }
   
   const stateForAutoGen = { ...state, description: '' };
   let autoDesc = 'Complete the ability details to generate a description.';
@@ -104,7 +111,8 @@ export function updateJSONPreview() {
   } catch (e) {
       autoDesc = 'Unable to generate description (schema updating).';
   }
-  document.getElementById('ab-auto-description').innerText = autoDesc;
+  const descEl = document.getElementById('ab-auto-description');
+  if (descEl) descEl.innerText = autoDesc;
 }
 
 export function copyJSONPreview() {
@@ -115,7 +123,7 @@ export function copyJSONPreview() {
 }
 
 export async function handleSaveAbility() {
-  const ability = getCurrentAbilityState();
+  const ability = getCurrentAbilityState(StudioState.currentEditingId);
 
   const validationErrors = validateAbilityLogic(ability);
   if (validationErrors.length > 0) {
@@ -137,19 +145,10 @@ export async function handleSaveAbility() {
     return;
   }
   
-  const btn = document.getElementById('save-ability-btn');
-  const originalText = btn.innerHTML;
-  
-  btn.innerHTML = 'Saving...';
-  btn.disabled = true;
-  
-  const topbar = document.getElementById('studio-topbar');
+  const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
   if (topbar && topbar.setLoading) topbar.setLoading('save', true);
 
   const cloudSaveSuccess = await saveAbilityToCatalog(ability);
-  
-  btn.innerHTML = originalText;
-  btn.disabled = false;
   
   if (topbar && topbar.setLoading) topbar.setLoading('save', false);
 
@@ -167,10 +166,16 @@ export async function handleSaveAbility() {
   renderCatalogList();
 
   StudioState.currentEditingId = ability.abilityId;
-  window.location.hash = ability.abilityId;
-  StudioState.activeAssignerId = ability.abilityId;
-  document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
-  document.getElementById('studio-topbar').showButtons(true);
+  
+  if (!window.CreatorController) {
+      window.location.hash = ability.abilityId;
+      document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
+  } else {
+      window.history.replaceState(null, '', `#ability_${ability.abilityId}`);
+      document.getElementById('workspace-title').innerText = "⚡ Editing Ability";
+  }
+  
+  if (topbar) topbar.showButtons(true);
 }
 
 export async function handleDeleteAbility() {
@@ -187,12 +192,20 @@ export function handleCloneAbility() {
   
   const currentConfig = getCurrentAbilityState();
   StudioState.currentEditingId = null; 
-  window.location.hash = '';
-  StudioState.activeAssignerId = null;
   
-  document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
+  if (window.CreatorController) {
+      window.history.pushState(null, '', `#new_ability`);
+      document.getElementById('workspace-title').innerText = `⚡ Editing Ability (Cloned)`;
+  } else {
+      window.location.hash = '';
+      document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
+  }
+  
+  StudioState.activeAssignerId = null;
   document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
-  document.getElementById('studio-topbar').showButtons(false);
+  
+  const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+  if (topbar) topbar.showButtons(false);
   
   updateJSONPreview();
   showToast('Ability cloned! Save to keep it.', 'info');
@@ -200,49 +213,87 @@ export function handleCloneAbility() {
 
 export function resetForm() {
   StudioState.currentEditingId = null;
-  window.location.hash = '';
   StudioState.activeAssignerId = null;
   
-  document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
-  document.getElementById('ab-name').value = '';
-  document.getElementById('ab-description').value = '';
+  if (window.CreatorController) {
+      // The Unified Studio manages the title via switchWorkspace
+  } else {
+      window.location.hash = '';
+      const headingEl = document.getElementById('form-heading');
+      if (headingEl) headingEl.innerText = `⚡ Design Ability Logic`;
+  }
   
-  document.getElementById('ab-base-trigger').value = 'MANUAL';
-  document.getElementById('ab-trigger-phase').value = 'ON';
-  document.getElementById('ab-trigger-role').value = 'ACTIVE';
-  updateTriggerComposite();
+  const elName = document.getElementById('ab-name');
+  if (elName) elName.value = '';
+  
+  const elDesc = document.getElementById('ab-description');
+  if (elDesc) elDesc.value = '';
+  
+  const elBaseTrig = document.getElementById('ab-base-trigger');
+  if (elBaseTrig) elBaseTrig.value = 'MANUAL';
+  
+  const elPhase = document.getElementById('ab-trigger-phase');
+  if (elPhase) elPhase.value = 'ON';
+  
+  const elRole = document.getElementById('ab-trigger-role');
+  if (elRole) elRole.value = 'ACTIVE';
+  
+  if (typeof window.updateTriggerComposite === 'function') window.updateTriggerComposite();
   
   StudioState.additionalTriggers = [];
-  renderAdditionalTriggers();
+  if (typeof window.renderAdditionalTriggers === 'function') window.renderAdditionalTriggers();
   
-  document.getElementById('ab-trigger-limit').value = 'UNLIMITED';
+  const elLimit = document.getElementById('ab-trigger-limit');
+  if (elLimit) elLimit.value = 'UNLIMITED';
+  
   document.querySelectorAll('.ab-flag-chk').forEach(cb => cb.checked = false);
   if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
   
-  document.getElementById('ab-cost-tribe-amt').value = '0';
-  document.getElementById('ab-cost-tent').value = '0';
-  document.getElementById('ab-cost-power').value = '0';
-  document.getElementById('ab-cost-readiness').value = 'NONE';
-  document.getElementById('ab-cost-reuse-exempt').checked = false;
-  document.getElementById('ab-cost-free-action').checked = false;
+  const elCostTribe = document.getElementById('ab-cost-tribe-amt');
+  if (elCostTribe) elCostTribe.value = '0';
+  
+  const elCostTent = document.getElementById('ab-cost-tent');
+  if (elCostTent) elCostTent.value = '0';
+  
+  const elCostPower = document.getElementById('ab-cost-power');
+  if (elCostPower) elCostPower.value = '0';
+  
+  const elCostReady = document.getElementById('ab-cost-readiness');
+  if (elCostReady) elCostReady.value = 'NONE';
+  
+  const elEscalates = document.getElementById('ab-cost-escalates');
+  if (elEscalates) elEscalates.checked = false;
+  
+  const elReuse = document.getElementById('ab-cost-reuse-exempt');
+  if (elReuse) elReuse.checked = false;
+  
+  const elFree = document.getElementById('ab-cost-free-action');
+  if (elFree) elFree.checked = false;
 
-  document.getElementById('ab-act-method').value = 'NONE';
+  const elActMethod = document.getElementById('ab-act-method');
+  if (elActMethod) elActMethod.value = 'NONE';
   
   StudioState.activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
   StudioState.showAdvancedActivation = false;
   StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
   StudioState.effectGroups = [];
   
-  document.getElementById('studio-topbar').showButtons(false);
+  const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+  if (topbar) topbar.showButtons(false);
   
-  renderLogicTrees();
-  renderEffects();
-  updateTargetingUI();
+  if (typeof window.renderLogicTrees === 'function') window.renderLogicTrees();
+  if (typeof window.renderEffects === 'function') window.renderEffects();
+  if (typeof window.updateTargetingUI === 'function') window.updateTargetingUI();
   updateJSONPreview();
   renderAssociatedCards();
 }
 
 export function renderCatalogList() {
+  if (window.CreatorController) {
+      window.CreatorController.renderUnifiedCatalog();
+      return;
+  }
+    
   const catalogEl = document.getElementById('ability-catalog');
   if (!catalogEl) return;
 
@@ -278,56 +329,91 @@ export function loadAbility(id) {
   if (!ab) return;
 
   StudioState.currentEditingId = ab.abilityId;
-  window.location.hash = id;
-  document.getElementById('form-heading').innerText = `⚡ Edit: ${ab.name}`;
-  document.getElementById('ab-name').value = ab.name;
-  document.getElementById('ab-description').value = ab.description || '';
   
-  const comp = window.parseTriggerToComposite(ab.trigger);
-  document.getElementById('ab-base-trigger').value = comp.base;
-  document.getElementById('ab-trigger-phase').value = comp.phase;
-  document.getElementById('ab-trigger-role').value = comp.role;
-  updateTriggerComposite();
+  if (!window.CreatorController) {
+      window.location.hash = id;
+      const headingEl = document.getElementById('form-heading');
+      if (headingEl) headingEl.innerText = `⚡ Edit: ${ab.name}`;
+  }
+  
+  const elName = document.getElementById('ab-name');
+  if (elName) elName.value = ab.name;
+  
+  const elDesc = document.getElementById('ab-description');
+  if (elDesc) elDesc.value = ab.description || '';
+  
+  const comp = window.parseTriggerToComposite ? window.parseTriggerToComposite(ab.trigger) : {base: 'MANUAL', phase: 'ON', role: 'ACTIVE'};
+  
+  const elBase = document.getElementById('ab-base-trigger');
+  if (elBase) elBase.value = comp.base;
+  
+  const elPhase = document.getElementById('ab-trigger-phase');
+  if (elPhase) elPhase.value = comp.phase;
+  
+  const elRole = document.getElementById('ab-trigger-role');
+  if (elRole) elRole.value = comp.role;
+  
+  if (typeof window.updateTriggerComposite === 'function') window.updateTriggerComposite();
   
   StudioState.additionalTriggers = ab.additionalTriggers || [];
-  renderAdditionalTriggers();
+  if (typeof window.renderAdditionalTriggers === 'function') window.renderAdditionalTriggers();
   
-  document.getElementById('ab-trigger-limit').value = ab.triggerLimit || 'UNLIMITED';
+  const elLimit = document.getElementById('ab-trigger-limit');
+  if (elLimit) elLimit.value = ab.triggerLimit || 'UNLIMITED';
+  
   document.querySelectorAll('.ab-flag-chk').forEach(cb => {
       cb.checked = ab.passiveFlags ? ab.passiveFlags.includes(cb.value) : false;
   });
   if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
   
   const cost = ab.cost || {};
-  document.getElementById('ab-cost-tribe-amt').value = cost.tribeAmount || 0;
-  document.getElementById('ab-cost-tent').value = cost.carnie || cost.tent || 0;
-  document.getElementById('ab-cost-power').value = cost.power || 0;
+  const elTribeAmt = document.getElementById('ab-cost-tribe-amt');
+  if (elTribeAmt) elTribeAmt.value = cost.tribeAmount || 0;
   
-  if (cost.readinessCost) document.getElementById('ab-cost-readiness').value = cost.readinessCost;
-  else if (cost.exhausts) document.getElementById('ab-cost-readiness').value = 'EXHAUSTS';
-  else document.getElementById('ab-cost-readiness').value = 'NONE';
-  document.getElementById('ab-cost-reuse-exempt').checked = !!cost.reuseIgnoresReadiness;
-  document.getElementById('ab-cost-free-action').checked = !!cost.freeAction;
+  const elTent = document.getElementById('ab-cost-tent');
+  if (elTent) elTent.value = cost.carnie || cost.tent || 0;
+  
+  const elPow = document.getElementById('ab-cost-power');
+  if (elPow) elPow.value = cost.power || 0;
+  
+  const elReady = document.getElementById('ab-cost-readiness');
+  if (elReady) {
+      if (cost.readinessCost) elReady.value = cost.readinessCost;
+      else if (cost.exhausts) elReady.value = 'EXHAUSTS';
+      else elReady.value = 'NONE';
+  }
+  
+  const elEscalates = document.getElementById('ab-cost-escalates');
+  if (elEscalates) elEscalates.checked = !!cost.escalates;
+  
+  const elReuse = document.getElementById('ab-cost-reuse-exempt');
+  if (elReuse) elReuse.checked = !!cost.reuseIgnoresReadiness;
+  
+  const elFree = document.getElementById('ab-cost-free-action');
+  if (elFree) elFree.checked = !!cost.freeAction;
 
-  document.getElementById('ab-trigger-scope').value = ab.triggerScope || 'PERSONAL';
+  const elScope = document.getElementById('ab-trigger-scope');
+  if (elScope) elScope.value = ab.triggerScope || 'PERSONAL';
 
-  document.getElementById('studio-topbar').showButtons(true);
+  const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+  if (topbar) topbar.showButtons(true);
 
-    const srcAct = ab.activation || ab.targeting || {};
-    document.getElementById('ab-act-method').value = srcAct.method || 'NONE';
+  const srcAct = ab.activation || ab.targeting || {};
+  const elActMethod = document.getElementById('ab-act-method');
+  if (elActMethod) elActMethod.value = srcAct.method || 'NONE';
 
-    const oldTargeting = srcAct.quickTargeting || {};
-    StudioState.activationQuickTargeting = {
-        zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
-        alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
-                    (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
-        entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
-                    (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [oldTargeting.entityType || 'UNIT']),
-        ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines : 
-                            (oldTargeting.line === 'ANY' || false)
-    };
+  const oldTargeting = srcAct.quickTargeting || {};
+  StudioState.activationQuickTargeting = {
+      zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
+      alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
+                  (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
+      entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
+                  (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [oldTargeting.entityType || 'UNIT']),
+      ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines : 
+                          (oldTargeting.line === 'ANY' || false)
+  };
 
-    if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
+  if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
   else StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
   
   StudioState.showAdvancedActivation = StudioState.activationRoot.children && StudioState.activationRoot.children.length > 0;
@@ -401,9 +487,9 @@ export function loadAbility(id) {
     });
   } else { StudioState.effectGroups = []; }
   
-  renderLogicTrees();
-  renderEffects();
-  updateTargetingUI();
+  if (typeof window.renderLogicTrees === 'function') window.renderLogicTrees();
+  if (typeof window.renderEffects === 'function') window.renderEffects();
+  if (typeof window.updateTargetingUI === 'function') window.updateTargetingUI();
   updateJSONPreview();
   renderAssociatedCards();
 }
@@ -414,11 +500,13 @@ export function renderAssociatedCards() {
 
     if (!StudioState.currentEditingId) {
         container.innerHTML = '<div class="text-xs text-slate-500 italic text-center p-4">Select an ability to see associated cards.</div>';
-        document.getElementById('associated-cards-count').innerText = '0';
+        const cntEl = document.getElementById('associated-cards-count');
+        if (cntEl) cntEl.innerText = '0';
         return;
     }
 
-    const currentName = document.getElementById('ab-name').value;
+    const nameEl = document.getElementById('ab-name');
+    const currentName = nameEl ? nameEl.value : '';
     
     const dependentAbilityIds = new Set([StudioState.currentEditingId]);
     const dependentNames = new Set([currentName.toLowerCase()]);
@@ -474,7 +562,8 @@ export function renderAssociatedCards() {
         });
     });
 
-    document.getElementById('associated-cards-count').innerText = linkedCards.length;
+    const cntEl = document.getElementById('associated-cards-count');
+    if (cntEl) cntEl.innerText = linkedCards.length;
 
     if (linkedCards.length === 0) {
         container.innerHTML = '<div class="text-[10px] text-slate-500 italic text-center p-4 border border-dashed border-slate-700/50 rounded-lg mt-2">No cards natively use this ability.</div>';
@@ -519,7 +608,7 @@ export function updateGlobalCard(updatedCard) {
 export async function testAssociatedCard(cardId) {
     const card = StudioState.allCards.find(c => c.id === cardId);
     if (card) {
-        const topbar = document.getElementById('studio-topbar');
+        const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
         if (topbar && topbar.setLoading) topbar.setLoading('test', true);
         await launchSandboxMatch(card, 'card');
         if (topbar && topbar.setLoading) topbar.setLoading('test', false);
@@ -528,7 +617,7 @@ export async function testAssociatedCard(cardId) {
 
 export async function launchTestMatch() {
     const ability = getCurrentAbilityState();
-    const topbar = document.getElementById('studio-topbar');
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
     if (topbar && topbar.setLoading) topbar.setLoading('test', true);
 
     await launchSandboxMatch(ability, 'ability');
@@ -558,16 +647,17 @@ export async function initCardAssigner() {
     
     allCards.forEach(c => {
         const opt = document.createElement('option');
-        opt.value = c.name;
+        opt.value = (c.name || '').replace(/"/g, '&quot;');
         datalist.appendChild(opt);
     });
 
     const input = document.getElementById('assign-card-input');
     input.addEventListener('change', async (e) => {
         const val = e.target.value.toLowerCase();
-        const match = allCards.find(c => c.name.toLowerCase() === val);
+        const match = allCards.find(c => (c.name || '').toLowerCase() === val);
         
-        let loadId = StudioState.activeAssignerId || window.location.hash.replace('#', '');
+        let loadId = StudioState.activeAssignerId || window.location.hash.replace('#', '').replace('ability_', '');
+        if (window.CreatorController) loadId = StudioState.currentEditingId;
         
         if (!loadId) {
             showToast('Please select or save an ability first.', 'error');
@@ -577,7 +667,7 @@ export async function initCardAssigner() {
 
         if (match) {
             if (!match.abilities) match.abilities = [];
-            const hasAb = match.abilities.some(a => (a.abilityId || a) === loadId);
+            const hasAb = match.abilities.some(a => (a.abilityId || a.id || a) === loadId);
             
             if (!hasAb) {
                 input.disabled = true;
@@ -587,7 +677,7 @@ export async function initCardAssigner() {
                 const fullAb = abs.find(a => a.abilityId === loadId);
                 
                 if (fullAb) {
-                    match.abilities.push(JSON.parse(JSON.stringify(fullAb)));
+                    match.abilities.push({ abilityId: fullAb.abilityId, paramX: null });
                     await saveCardToCatalog(match);
                     showToast(`Ability assigned to ${match.name}!`, 'success');
                     

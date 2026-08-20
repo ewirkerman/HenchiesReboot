@@ -227,25 +227,30 @@ export function processTargetGroups(ability, ctx) {
                     let isNormalDraw = group.targetMethod === 'AUTO_FIRST' && isStandardAlignment && isStandardTypes && !hasConditions;
                     
                     if (isNormalDraw) {
-                        if (eff.amountIsX) {
-                            effText = `draw X cards{OMIT_TARGET}`;
-                        } else {
-                            let drawAmt = group.targetCount !== undefined ? group.targetCount : (eff.amount !== undefined ? eff.amount : 1);
-                            effText = `draw ${drawAmt === 1 ? 'a card' : drawAmt + ' cards'}{OMIT_TARGET}`;
-                        }
+                        let drawAmt = group.targetCount || 1;
+                        if (eff.amountIsX) effText = `draw X cards{OMIT_TARGET}`;
+                        else effText = `draw ${drawAmt === 1 ? 'a card' : drawAmt + ' cards'}{OMIT_TARGET}`;
                     } else {
                         effText = `draw {TARGET}`;
                     }
                     break;
-                case 'DISCARD':
-                case 'DISCARD_CARD':
-                    effText = `discard {TARGET}`; 
-                    break;
-                case 'TRASH':
-                    effText = `trash {TARGET}`; 
-                    break;
-                case 'RECOVER': effText = `recover {TARGET}`; break;
-                case 'REVIVE': effText = `revive {TARGET}`; break;
+            case 'DISCARD':
+            case 'DISCARD_CARD':
+                effText = `discard {TARGET}`; 
+                break;
+            case 'TRASH':
+                effText = `trash {TARGET}`; 
+                break;
+            case 'HARVEST':
+                if (eff.amount !== undefined && eff.amount !== 2) {
+                    let resName = (eff.resource && eff.resource !== 'maxCarnie') ? eff.resource : 'Carnie resources';
+                    effText = `harvest {TARGET} for ${eff.amount} ${resName}`;
+                } else {
+                    effText = `harvest {TARGET}`;
+                }
+                break;
+            case 'RECOVER': effText = `recover {TARGET}`; break;
+            case 'REVIVE': effText = `revive {TARGET}`; break;
                 case 'MODIFY_STAT': 
                     if (eff.stat === 'readiness') {
                         if (eff.amountIsX) effText = `{DYNAMIC_STAT:modify|readiness by X}`;

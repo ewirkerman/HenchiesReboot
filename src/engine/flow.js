@@ -53,16 +53,6 @@ export function startTurn(state, engine) {
         }
     }
 
-    if (pId === 'player2' && player.isDummy) {
-        state.history_log.push({ text: `⏭️ Player 2 auto-skipped (Waiting for opponent to join).`, depth: 0 });
-        if (engine) {
-            engine.emit('TURN_STARTING', { playerId: pId });
-            engine.emit('TURN_STARTED', { playerId: pId });
-        }
-        endTurn(state);
-        return;
-    }
-
     if (player.resources) {
         for (const tribe in player.resources) {
             player.resources[tribe].current = player.resources[tribe].max;
@@ -124,6 +114,11 @@ export function startTurn(state, engine) {
     if (engine) {
         engine.emit('TURN_STARTING', { playerId: pId });
         engine.emit('TURN_STARTED', { playerId: pId });
+    }
+
+    if (pId === 'player2' && player.isDummy) {
+        state.history_log.push({ text: `⏭️ Player 2 auto-skipped (Waiting for opponent to join).`, depth: 0 });
+        endTurn(state);
     }
 }
 

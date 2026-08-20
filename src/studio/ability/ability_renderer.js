@@ -24,7 +24,7 @@ export function generateQuickMatrixHTML(context, targetState, index = null) {
     };
 
       const zoneOptions = [
-          {label: 'Field', value: 'FIELD'}, {label: 'Hand', value: 'HAND'}, 
+          {label: 'Field', value: 'FIELD'}, {label: 'Equator', value: 'EQUATOR'}, {label: 'Hand', value: 'HAND'}, 
           {label: 'Deck', value: 'DECK'}, {label: 'Discard', value: 'DISCARD'},
           {label: 'Banish', value: 'BANISH'}, {label: 'Orig. Deck', value: 'ORIGINAL_DECK'}
       ];
@@ -83,12 +83,35 @@ export function generateConditionHTML(treeType, cond, path, parentBorderClass) {
     const opOptions = Object.entries(OPERATORS).map(([val, label]) => `<option value="${val}" ${cond.operator === val ? 'selected' : ''}>${label}</option>`).join('');
 
     let valueInputHTML = '';
-    if (typeDef.type === 'select') {
+    let customScriptExtra = '';
+    
+    if (cond.attribute === 'customScript') {
+        valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="return target.strength < source.strength;" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-amber-300 font-mono flex-1 min-w-[80px]" />`;
+        customScriptExtra = `
+        <div class="w-full flex flex-col gap-1 mt-1 pl-1">
+            <div class="flex justify-between text-[9px] text-slate-400 font-bold px-1">
+                <span>Vars: (target, source, state, eventPayload, engine)</span>
+                <a href="../docs.html" target="_blank" class="text-sky-400 hover:text-sky-300 hover:underline">📚 API Docs</a>
+            </div>
+            <input type="text" value="${cond.description || ''}" placeholder="Language desc (e.g. whose strength is less than this card)" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'description', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 w-full" />
+        </div>`;
+    } else if (typeDef.type === 'select') {
+        const activeVal = cond.value !== undefined ? cond.value : (typeDef.options[0] || '');
+        const optionsToRender = [...typeDef.options];
+        if (activeVal && !optionsToRender.includes(activeVal)) {
+            optionsToRender.push(activeVal);
+        }
         valueInputHTML = `<select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]">
-            ${typeDef.options.map(opt => `<option value="${opt}" ${cond.value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+            ${optionsToRender.map(opt => `<option value="${opt}" ${activeVal === opt ? 'selected' : ''}>${opt}</option>`).join('')}
         </select>`;
     } else if (typeDef.type === 'text') {
-        valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="Value..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
+        if (typeDef.options && typeDef.options.length > 0) {
+            const listId = `datalist-${treeType}-${pathStr.replace(/[^a-zA-Z0-9]/g, '')}`;
+            valueInputHTML = `<input type="text" list="${listId}" value="${cond.value || ''}" placeholder="Value..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />
+            <datalist id="${listId}">${typeDef.options.map(opt => `<option value="${opt}"></option>`).join('')}</datalist>`;
+        } else {
+            valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="Value..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
+        }
     } else {
         valueInputHTML = `<input type="number" value="${cond.value}" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
     }
@@ -100,6 +123,7 @@ export function generateConditionHTML(treeType, cond, path, parentBorderClass) {
         <select onchange="window.updateNodeField('${treeType}', '${pathStr}', 'operator', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-pink-300 font-bold w-20 shrink-0">${opOptions}</select>
         ${valueInputHTML}
         <button type="button" onclick='window.removeNode("${treeType}", "${pathStr}")' class="text-slate-500 hover:text-red-400 font-bold px-2">&times;</button>
+        ${customScriptExtra}
     </div>
     `;
 }
@@ -280,7 +304,16 @@ export function generateEffectsHTML(ctx) {
 
             let fullWidthHtml = '';
             if (manifest.requiresScript) {
-                fullWidthHtml += `<div class="w-full mt-2 border-t border-slate-700/50 pt-2"><label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end"><span>⚡ Execution Script</span><span class="text-slate-500 font-normal">Signature: (state, target, params)</span></label><textarea onchange="window.updatePayload(${gIdx}, ${pIdx}, 'script', this.value)" rows="3" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea><label class="block text-[10px] font-bold text-amber-400 mb-1 mt-2">Script Language Description</label><input type="text" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'description', this.value)" value="${payload.description || ''}" placeholder="e.g. set {POSS} health to 1" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                fullWidthHtml += `
+                <div class="w-full mt-2 border-t border-slate-700/50 pt-2">
+                    <label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end">
+                        <span>⚡ Execution Script</span>
+                        <span class="text-slate-500 font-normal">Vars: (state, target, params, engine, actionDepth) | <a href="../docs.html" target="_blank" class="text-sky-400 hover:underline">📚 API Docs</a></span>
+                    </label>
+                    <textarea onchange="window.updatePayload(${gIdx}, ${pIdx}, 'script', this.value)" rows="3" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea>
+                    <label class="block text-[10px] font-bold text-amber-400 mb-1 mt-2">Script Language Description</label>
+                    <input type="text" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'description', this.value)" value="${payload.description || ''}" placeholder="e.g. set {POSS} health to 1" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" />
+                </div>`;
             }
             
             if (manifest.hasNestedGroup && payload.nestedGroup) {
@@ -366,8 +399,15 @@ export function generateEffectsHTML(ctx) {
                     }
                     
                     if (nMan.requiresScript) {
-                       npParamsHtml += `<div class="flex-1 min-w-[150px]"><input type="text" value="${np.script || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'script', this.value)" placeholder="state.players..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-mono w-full text-[10px]" /></div>`;
-                       npParamsHtml += `<div class="flex-1 min-w-[150px]"><input type="text" value="${np.description || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'description', this.value)" placeholder="desc (e.g. destroy {TARGET})" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" /></div>`;
+                       npParamsHtml += `
+                       <div class="flex-1 min-w-[150px] w-full mt-1 border-t border-slate-700/50 pt-1">
+                           <div class="flex justify-between items-center text-[9px] text-slate-500 mb-1">
+                               <span>Vars: (state, target, params, engine, actionDepth)</span>
+                               <a href="../docs.html" target="_blank" class="text-sky-400 hover:underline">📚 API Docs</a>
+                           </div>
+                           <input type="text" value="${np.script || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'script', this.value)" placeholder="state.players..." class="bg-slate-900 border border-slate-700 p-1.5 rounded text-amber-300 font-mono w-full text-[10px] mb-1" />
+                           <input type="text" value="${np.description || ''}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'description', this.value)" placeholder="desc (e.g. destroy {TARGET})" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" />
+                       </div>`;
                     }
 
                     let nestedDurHtml = '';

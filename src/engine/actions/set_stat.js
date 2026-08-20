@@ -48,7 +48,9 @@ export class SetStatAction extends Action {
             }
 
             if (stat === 'maxHealth') {
-                if (target.health > target.maxHealth) {
+                if (delta > 0) {
+                    target.health = (target.health || 0) + delta;
+                } else if (target.health > target.maxHealth) {
                     target.health = Math.max(0, target.maxHealth);
                 }
             } else if (stat === 'cost') {

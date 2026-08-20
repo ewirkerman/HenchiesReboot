@@ -65,6 +65,15 @@ export function updateUI() {
         }
     }
 
+    const restartBtn = document.getElementById('restart-match-btn');
+    if (restartBtn) {
+        if (ClientState.roomCode && ClientState.roomCode.startsWith('TEST_')) {
+            restartBtn.classList.remove('hidden');
+        } else {
+            restartBtn.classList.add('hidden');
+        }
+    }
+
     if (ClientState.pendingAbility) {
         document.getElementById('action-phase-instruction').innerText = "Select a target on the board...";
         document.getElementById('action-phase-instruction').classList.add('text-amber-400', 'animate-pulse');

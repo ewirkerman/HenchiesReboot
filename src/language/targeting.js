@@ -101,6 +101,15 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 if (val === 'original_deck') val = 'original deck';
                 if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'in' : `where ${contextSubject}is in`} ${val}`);
                 else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'not in' : `where ${contextSubject}is not in`} ${val}`);
+            } else if (checkAttr === 'customScript') {
+                if (node.description) {
+                    let desc = node.description;
+                    desc = desc.replace(/\{SELF\}/g, 'this card');
+                    desc = desc.replace(/\{SELF_POSS\}/g, "this card's");
+                    suffixes.push(desc);
+                } else {
+                    suffixes.push(`matching a custom condition`);
+                }
             } else {
                 let statName = checkAttr.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
                 if (ctx === 'EVAL_TARGET') suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
@@ -172,12 +181,22 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
         noun = `${scopeAlignments} ${scopeTypes}`;
     }
 
-    let baseDesc = `${adjectives.join(' ')} ${noun}`.trim();
+    let adjectivesStr = '';
+    if (adjectives.length > 0) {
+        if (logicTree && logicTree.logicalOperator === 'OR') {
+            adjectivesStr = adjectives.join(' or ');
+        } else {
+            adjectivesStr = adjectives.join(' ');
+        }
+    }
+
+    let baseDesc = `${adjectivesStr} ${noun}`.trim();
 
     if (!(allHaveSameImpliedZone && qt.zones && qt.zones.length === 1 && qt.zones[0] === impliedZone)) {
         let mappedZones = (qt.zones || []).map(z => {
             let zl = z.toLowerCase();
             if (zl === 'field') return 'on the field';
+            if (zl === 'equator') return 'on the equator';
             if (zl === 'hand') return 'in hand';
             if (zl === 'deck') return 'in the deck';
             if (zl === 'discard') return 'in the discard pile';
@@ -190,7 +209,8 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
     }
 
     if (suffixes.length > 0) {
-        baseDesc += ` ${suffixes.join(' and ')}`;
+        let suffixJoin = (logicTree && logicTree.logicalOperator === 'OR') ? ' or ' : ' and ';
+        baseDesc += ` ${suffixes.join(suffixJoin)}`;
     }
     
     const isPlay = trigger === 'PLAY' || trigger === 'PLAY_OPTIONAL';

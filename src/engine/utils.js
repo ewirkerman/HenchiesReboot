@@ -170,6 +170,12 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
 
 export function getOwnerId(state, ent) {
     if (!ent) return null;
+    
+    // Items on the Equator (Artifacts, unequipped Equipment) are shared and act for the Active Player
+    if (state.equator && state.equator.some(i => i.instanceId === ent.instanceId)) {
+        return state.activePlayerId;
+    }
+
     if (ent.ownerId) return ent.ownerId;
     for (const pId of ['player1', 'player2']) {
         const p = state.players[pId];

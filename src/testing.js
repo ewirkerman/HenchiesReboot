@@ -29,6 +29,7 @@ const FALLBACK_TAUNT_ABILITY = {"abilityId":"ability_taunting_call","name":"Taun
 const FALLBACK_DUMMY = {"id":"custom_1785272139394","name":"Target Dummy","tribe":"Carnie","type":"unit","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":1,"description":"","artUrl":"","abilities":[FALLBACK_ATTACK],"defaultLine":"mid"};
 const FALLBACK_SHOVEL = {"id":"card_1785786111173","name":"Skull Shovel","tribe":"Undead","type":"equipment","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[]};
 const FALLBACK_TAUNT_CARD = {"id":"card_taunting_call_test","name":"Taunting Call","tribe":"Carnie","type":"spell","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[FALLBACK_TAUNT_ABILITY]};
+const FALLBACK_ARRRMSMAN = {"id":"card_arrrmsman_test","name":"Arrrmsman","tribe":"tribe_pirate","type":"unit","genus":"Pirate","cost":2,"health":2,"maxHealth":2,"strength":2,"description":"","artUrl":"","abilities":[FALLBACK_ATTACK],"defaultLine":"mid"};
 
 
 // ============================================================================
@@ -389,20 +390,29 @@ function setupSandboxBoard(state, sandboxData) {
         state.players.player2.lines.avatar = [{ id: 'p2_avatar', instanceId: 'p2_av', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player2', originalOwnerId: 'player2' }];
     }
 
-    // Standard frontline dummies
+    const dLine = dummyCard.defaultLine || 'mid';
+
+    // Standard dummies
     for(let i=0; i<5; i++) {
-        state.players.player2.lines.front.push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_'+i, readiness: 1, line: 'front', defaultLine: 'front', ownerId: 'player2', originalOwnerId: 'player2'});
+        state.players.player2.lines[dLine].push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_'+i, readiness: 1, line: dLine, defaultLine: dLine, ownerId: 'player2', originalOwnerId: 'player2'});
     }
-    state.players.player2.lines.front[0].tribe = "tribe_robot";
+    state.players.player2.lines[dLine][0].tribe = "tribe_robot";
     
+    // Inject Arrrmsman to Player 2
+    const arrrmsmanCard = getCatalogItem(cards, 'Arrrmsman', FALLBACK_ARRRMSMAN);
+    const aLine = arrrmsmanCard.defaultLine || 'mid';
+    state.players.player2.lines[aLine].push({...JSON.parse(JSON.stringify(arrrmsmanCard)), instanceId: 'e_arrrmsman_1', readiness: 1, line: aLine, defaultLine: aLine, ownerId: 'player2', originalOwnerId: 'player2'});
+    state.players.player2.hand.push({...JSON.parse(JSON.stringify(arrrmsmanCard)), instanceId: 'e_arrrmsman_hand_1', readiness: 0, ownerId: 'player2', originalOwnerId: 'player2'});
+
+
     // Stealth dummy edge-case
-    const stealthDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Stealth Dummy', instanceId: 'e_dum_stealth', readiness: 1, line: 'front', defaultLine: 'front', ownerId: 'player2', originalOwnerId: 'player2'};
+    const stealthDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Stealth Dummy', instanceId: 'e_dum_stealth', readiness: 1, line: dLine, defaultLine: dLine, ownerId: 'player2', originalOwnerId: 'player2'};
     const realStealth = getCatalogItem(abilities, 'Stealth', { abilityId: 'stealth_trait', name: 'Stealth', trigger: 'UNTRIGGERABLE', description: 'This unit has Stealth.' }, true);
     stealthDummy.abilities = [realStealth, standardAttack];
-    state.players.player2.lines.front.push(stealthDummy);
+    state.players.player2.lines[dLine].push(stealthDummy);
 
     // Big dummy edge-case
-    state.players.player2.lines.front.push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_10', health: 10, maxHealth: 10, strength: 10, name: 'Big Dummy', readiness: 1, line: 'front', defaultLine: 'front', ownerId: 'player2', originalOwnerId: 'player2'});
+    state.players.player2.lines[dLine].push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_10', health: 10, maxHealth: 10, strength: 10, name: 'Big Dummy', readiness: 1, line: dLine, defaultLine: dLine, ownerId: 'player2', originalOwnerId: 'player2'});
 
     // Friendly dummy to test friendly-fire and attachments
     const friendlyDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Dazed Ally', instanceId: 'f_dum_1', readiness: 1, line: 'back', defaultLine: 'back', ownerId: 'player1', originalOwnerId: 'player1'};

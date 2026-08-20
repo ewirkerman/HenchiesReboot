@@ -6,7 +6,7 @@ import { generateAbilityDescription } from '../language_description.js';
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { handleLaunchMatch, reconstructStateFromLog } from './multiplayer.js';
-import { handleSacrificeConfirm, handleSacrificeDecision, handleEndTurn } from './interactions.js';
+import { handleSacrificeConfirm, handleSacrificeDecision, handleEndTurn, handleUndo, handleRestartMatch } from './interactions.js';
 
 import './modals.js'; 
 import '../../components/main_nav.js';
@@ -146,6 +146,7 @@ document.getElementById('launch-match-btn').addEventListener('click', handleLaun
 document.getElementById('overlay-sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
 document.getElementById('overlay-sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
 document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
+document.getElementById('undo-action-btn').addEventListener('click', handleUndo);
 
 document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -181,15 +182,9 @@ document.addEventListener('keydown', (e) => {
     } else if (e.key.toLowerCase() === 's') {
         const btn = document.getElementById('overlay-sacrifice-skip-btn');
         if (btn && !btn.disabled) btn.click();
-    }
-});
-
-document.getElementById('match-tabletop-screen').addEventListener('click', (e) => {
-    if (ClientState.pendingAbility && !e.target.closest('button')) {
-        showToast("Targeting cancelled.", "info");
-        ClientState.pendingAbility = null;
-        ClientState.validTargets = [];
-        updateUI();
+    } else if (e.key.toLowerCase() === 'u') {
+        const btn = document.getElementById('undo-action-btn');
+        if (btn && !btn.disabled && !btn.classList.contains('hidden')) btn.click();
     }
 });
 

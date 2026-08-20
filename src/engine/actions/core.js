@@ -10,7 +10,7 @@ export const ACTION_MANIFEST = {
     'SUMMON': { passiveType: 'BE_SUMMONED', canInvert: false, canBeCost: false, requiresAmount: true, requiresCardId: true, requiresZone: true, requiresZoneOwner: true, hasNestedGroup: true, validZones: 'ALL', endZone: ['FIELD'], validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
     'PLAY': { passiveType: 'BE_PLAYED', canInvert: true, canBeCost: false, validZones: ['HAND'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACK': { passiveType: 'BE_ATTACKED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
-    'HARVEST': { passiveType: 'BE_HARVESTED', canInvert: true, canBeCost: false, validZones: ['HAND'], endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true },
+    'HARVEST': { passiveType: 'BE_HARVESTED', canInvert: true, canBeCost: false, requiresAmount: true, requiresResource: true, validZones: 'ALL', endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'BLOCK_ACT': { deprecated: true, passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'BLOCK_ATTACK': { deprecated: true, passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'BLOCK_RETALIATE': { deprecated: true, passiveType: null, canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
@@ -29,12 +29,13 @@ export const ACTION_MANIFEST = {
     'RECOVER': { passiveType: 'BE_RECOVERED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['HAND'], validDurations: ['INSTANT'] },
     'REVIVE': { passiveType: 'BE_REVIVED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['WHILE_ATTACHED', 'INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
-    'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: false },
     'UNFIELD': { passiveType: 'BE_UNFIELDED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'TRASH': { passiveType: 'BE_TRASHED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['FIELD', 'HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'FIELD': { passiveType: 'BE_FIELDED', canInvert: true, canBeCost: false, validZones: ['HAND', 'DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
-    'BANISH': { passiveType: 'BE_BANISHED', canInvert: true, canBeCost: true, validZones: 'ALL', endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true }
+    'BANISH': { passiveType: 'BE_BANISHED', canInvert: true, canBeCost: true, validZones: 'ALL', endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true },
+    'DONATE': { passiveType: 'BE_DONATED', canInvert: false, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] }
 };
 
 export const ACTION_REGISTRY = {};
@@ -90,32 +91,42 @@ export class Action {
             if (manifest && manifest.isLeavesPlay && this.payload.target) {
                 const t = this.payload.target;
                 
-                if (t.attachments && t.attachments.length > 0) {
-                    const atts = [...t.attachments];
-                    const UnattachClass = ACTION_REGISTRY['UNATTACH'];
-                    if (UnattachClass) {
-                        for (const att of atts) new UnattachClass({ target: att }).run(engine);
-                    }
-                }
+                const loc = findEntityLocation(engine, t);
+                const isOnField = loc && ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone);
                 
-                if (t.activeEffects) {
-                    const effectsToRevert = [];
-                    for (let i = t.activeEffects.length - 1; i >= 0; i--) {
-                        const eff = t.activeEffects[i];
-                        if (eff.duration !== 'PERMANENT') {
-                            effectsToRevert.push(eff);
-                            t.activeEffects.splice(i, 1);
+                // UNFIELD is the undisputed chokepoint for cards leaving the board.
+                // Any other action targeting a fielded unit defers its cleanup to the UNFIELD action it spawns.
+                const isDeferringToUnfield = isOnField && this.type !== 'UNFIELD';
+
+                if (!isDeferringToUnfield) {
+                    if (t.attachments && t.attachments.length > 0) {
+                        const atts = [...t.attachments];
+                        const UnattachClass = ACTION_REGISTRY['UNATTACH'];
+                        if (UnattachClass) {
+                            for (const att of atts) new UnattachClass({ target: att }).run(engine);
                         }
                     }
-                    for (const eff of effectsToRevert) {
-                        if (eff.type !== 'SUMMON') revertEffect(engine, t, eff, true);
+                    
+                    if (t.activeEffects) {
+                        const effectsToRevert = [];
+                        for (let i = t.activeEffects.length - 1; i >= 0; i--) {
+                            const eff = t.activeEffects[i];
+                            if (eff.duration !== 'PERMANENT') {
+                                effectsToRevert.push(eff);
+                                t.activeEffects.splice(i, 1);
+                            }
+                        }
+                        for (const eff of effectsToRevert) {
+                            if (eff.type !== 'SUMMON') revertEffect(engine, t, eff, true);
+                        }
                     }
+                    
+                    t.lifetimeAbilityUses = {}; // Always clear escalating cost uses on leaves play
+                    if (t.originalOwnerId && t.ownerId !== t.originalOwnerId) t.ownerId = t.originalOwnerId;
+                    if (t.maxHealth !== undefined) t.health = t.maxHealth;
+                    if (t.originalPower !== undefined) t.power = t.originalPower;
+                    if (t.originalStrength !== undefined) t.strength = t.originalStrength;
                 }
-                
-                if (t.originalOwnerId && t.ownerId !== t.originalOwnerId) t.ownerId = t.originalOwnerId;
-                if (t.maxHealth !== undefined) t.health = t.maxHealth;
-                if (t.originalPower !== undefined) t.power = t.originalPower;
-                if (t.originalStrength !== undefined) t.strength = t.originalStrength;
             }
 
             if (this.payload.cancelled) return false;
@@ -175,6 +186,19 @@ export class Action {
 
     execute(engine) {
         console.warn(`Base Action execute called for ${this.type}. Missing subclass implementation.`);
+    }
+
+    executeZoneMovement(engine, defaultDestination) {
+        const loc = findEntityLocation(engine, this.payload.target);
+        if (loc) {
+            const dest = this.payload.eventContext?.destination || defaultDestination;
+            if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) {
+                const UnfieldAction = ACTION_REGISTRY['UNFIELD'];
+                if (UnfieldAction) new UnfieldAction({ target: this.payload.target, destination: dest, eventContext: this.payload.eventContext }).run(engine);
+            } else {
+                moveEntity(engine, this.payload.target, this.payload.target.ownerId || loc.playerId, dest);
+            }
+        }
     }
 }
 
@@ -293,7 +317,13 @@ export function registerEffect(engine, target, payload, extraData = {}) {
 export function revertEffect(engine, target, effect, isLeavingPlay = false) {
     if (effect.type === 'MODIFY_STAT') {
         target[effect.stat] -= effect.delta;
-        if (effect.stat === 'health' && target.maxHealth !== undefined) {
+        if (effect.stat === 'maxHealth') {
+            if (effect.delta < 0) {
+                target.health = (target.health || 0) + Math.abs(effect.delta);
+            } else if (target.health > target.maxHealth) {
+                target.health = Math.max(0, target.maxHealth);
+            }
+        } else if (effect.stat === 'health' && target.maxHealth !== undefined) {
             target.health = Math.min(target.health, target.maxHealth);
         }
     } else if (effect.type === 'MODIFY_RESOURCE') {
@@ -329,13 +359,30 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
             }
         } else if (typeof effect.originalValue === 'number' && typeof effect.delta === 'number') {
             target[effect.stat] -= effect.delta;
+            if (effect.stat === 'maxHealth') {
+                if (effect.delta < 0) {
+                    target.health = (target.health || 0) + Math.abs(effect.delta);
+                } else if (target.health > target.maxHealth) {
+                    target.health = Math.max(0, target.maxHealth);
+                }
+            }
         } else {
             let remainingEffect = null;
             if (target.activeEffects) {
                 const others = target.activeEffects.filter(e => e.type === 'SET_STAT' && e.stat === effect.stat && e.id !== effect.id);
                 if (others.length > 0) remainingEffect = others[others.length - 1];
             }
+            const oldVal = target[effect.stat];
             target[effect.stat] = remainingEffect ? remainingEffect.amount : effect.originalValue;
+            
+            if (effect.stat === 'maxHealth') {
+                const revertedDelta = target[effect.stat] - oldVal;
+                if (revertedDelta > 0) {
+                    target.health = (target.health || 0) + revertedDelta;
+                } else if (target.health > target.maxHealth) {
+                    target.health = Math.max(0, target.maxHealth);
+                }
+            }
         }
     } else if (effect.type === 'GRANT_ABILITY') {
         if (target.abilities) {
@@ -363,7 +410,7 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
                 if (UnattachAction) new UnattachAction({ target: att }).run(engine);
             }
         }
-    } else if (effect.type === 'REBEL') {
+    } else if (effect.type === 'REBEL' || effect.type === 'DONATE') {
         const loc = findEntityLocation(engine, target);
         if (loc && effect.originalOwnerId && loc.playerId !== effect.originalOwnerId) {
             moveEntity(engine, target, effect.originalOwnerId, loc.zone);

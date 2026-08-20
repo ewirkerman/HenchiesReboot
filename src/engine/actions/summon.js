@@ -62,6 +62,9 @@ export class SummonAction extends Action {
             }
             
             engine.state.history_log.push({ text: `✨ Summoned ${instance.name}.`, depth: this.getLogDepth(engine) });
+            
+            // INTENTIONAL DESIGN: Summon bypasses FIELD and UNFIELD lifecycle events. 
+            // It strictly emits SUMMON-related triggers. Do not add ON_FIELD / ON_BE_FIELDED emits here.
         }
         
         if (this.payload.nestedGroup && this.payload.nestedGroup.payloads && this.payload.nestedGroup.payloads.length > 0) {

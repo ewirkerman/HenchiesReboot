@@ -75,12 +75,10 @@ ACTION_REGISTRY['MODIFY_EVENT'] = ModifyEventAction;
 ACTION_REGISTRY['TRANSFORM'] = TransformAction;
 ACTION_REGISTRY['CUSTOM_SCRIPT'] = CustomScriptAction;
 
-// Add DONATE to the manifest definition dynamically so it shows in the UI
-ACTION_MANIFEST['DONATE'] = { passiveType: 'BE_DONATED', canInvert: false, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] };
-
 export const ACTION_CATEGORIES = {
     'Combat & Stats': ['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACK', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE'],
     'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'REVIVE', 'TRASH', 'BANISH', 'CHANGE_DESTINATION'],
+    'Field Presence': ['FIELD', 'UNFIELD'],
     'Attachments & Control': ['ATTACH', 'UNATTACH', 'REBEL', 'DONATE'],
     'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM']
 };

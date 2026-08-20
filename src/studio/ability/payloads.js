@@ -269,16 +269,20 @@ export function updateNestedGroup(gIdx, pIdx, field, value) {
 
 export function revalidatePayloadTypes() {
     if (typeof getValidActionsForZones === 'undefined') return;
+    
+    const fullTrigger = document.getElementById('ab-trigger') ? document.getElementById('ab-trigger').value.toUpperCase() : 'MANUAL';
+
     StudioState.effectGroups.forEach((group, gIdx) => {
         let baseZones = group.quickTargeting?.zones || ['FIELD'];
         if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = StudioState.activationQuickTargeting?.zones || ['FIELD'];
         
         group.payloads.forEach((payload, pIdx) => {
             let effectiveZones = calculateEffectiveZones(baseZones, group.payloads, pIdx);
-            const validActions = group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones);
+            const baseValidActions = group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones);
+            const validActions = getValidEffectTypes(fullTrigger, baseValidActions);
             
             if (!validActions.includes(payload.type)) {
-                const fallback = validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT';
+                const fallback = validActions.includes('DEAL_DAMAGE') ? 'DEAL_DAMAGE' : (validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT');
                 payload.type = fallback;
                 
                 const manifest = ACTION_MANIFEST[fallback];
@@ -318,7 +322,7 @@ export function renderEffects() {
     return;
   }
 
-  const baseTrigger = document.getElementById('ab-base-trigger').value.toUpperCase();
+  const baseTrigger = document.getElementById('ab-trigger').value.toUpperCase();
   const scope = document.getElementById('ab-trigger-scope').value;
   const actMethod = document.getElementById('ab-act-method').value;
 

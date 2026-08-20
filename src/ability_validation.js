@@ -40,6 +40,9 @@ export function getValidTargetMethods(trigger, scope, actMethod) {
 export function getValidEffectTypes(trigger, baseValidTypes) {
     let types = [...baseValidTypes];
     
+    // EXPLICITLY filter out lifecycle shorthand actions so they cannot be manually selected as execution payloads
+    types = types.filter(t => t !== 'FIELD' && t !== 'UNFIELD');
+    
     if (UNPREVENTABLE_TRIGGERS.includes(trigger)) {
         types = types.filter(t => t !== 'CANCEL_EVENT');
     }

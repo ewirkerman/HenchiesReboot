@@ -56,6 +56,7 @@ export class ReferenceTracker {
 
 export const ZONE_NAMES = {
     'FIELD': 'the field',
+    'EQUATOR': 'the equator',
     'HAND': 'hand',
     'DECK': 'deck',
     'DISCARD': 'the discard pile',

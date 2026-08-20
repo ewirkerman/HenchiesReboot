@@ -20,7 +20,7 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
 
   <!-- Toast Container Top Center -->
-  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
+  <div id="toast-container" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
 
   <!-- Header Navigation -->
   <main-nav active-page="game" subtitle="Match Setup Lobby"></main-nav>
@@ -51,6 +51,9 @@
         <div id="phase3-action-controls" class="flex items-center gap-1.5 hidden">
             <button id="cancel-action-btn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-slate-500 transition">
               Cancel Target
+            </button>
+            <button id="restart-match-btn" onclick="window.handleRestartMatch()" class="hidden bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-extrabold px-3 py-1 rounded shadow border border-sky-500 transition" title="Restart Match">
+              Restart 🔄
             </button>
             <button id="undo-action-btn" onclick="window.handleUndo()" class="hidden bg-yellow-600 hover:bg-yellow-500 text-black text-[10px] font-extrabold px-3 py-1 rounded shadow border border-yellow-500 transition" title="Hotkey: U">
               Undo [U] ↩️

@@ -20,21 +20,32 @@ export class HarvestAction extends Action {
             // Move the target to the banish zone of whoever originally owned it
             moveEntity(engine, this.payload.target, loc.playerId || harvesterId, 'banish');
             
+            const yieldAmt = this.payload.amount !== undefined ? this.payload.amount : 2;
             let sTribe = resolveResourceKey(engine.state, player, this.payload.target.tribe);
+            
+            // Allow explicit override of the resource type being harvested
+            if (this.payload.resource === 'maxCarnie') {
+                sTribe = 'Carnie';
+            } else if (this.payload.resource) {
+                sTribe = resolveResourceKey(engine.state, player, this.payload.resource);
+            }
             
             if (!player.resources['Carnie']) player.resources['Carnie'] = { current: 0, max: 0 };
 
             if (sTribe === 'Carnie' || sTribe === 'Generic') {
-                player.resources['Carnie'].max += 2;
-                player.resources['Carnie'].current += 2;
-                engine.state.history_log.push({ text: `🔥 ${player.name} harvested '${this.payload.target.name}' (Carnie) for +2 Max Carnie!`, depth: this.getLogDepth(engine) });
+                player.resources['Carnie'].max += yieldAmt;
+                player.resources['Carnie'].current += yieldAmt;
+                engine.state.history_log.push({ text: `🔥 ${player.name} harvested '${this.payload.target.name}' for +${yieldAmt} Max Carnie!`, depth: this.getLogDepth(engine) });
             } else {
                 if (!player.resources[sTribe]) player.resources[sTribe] = { current: 0, max: 0 };
-                player.resources['Carnie'].max += 1;
-                player.resources['Carnie'].current += 1;
-                player.resources[sTribe].max += 1;
-                player.resources[sTribe].current += 1;
-                engine.state.history_log.push({ text: `🔥 ${player.name} harvested '${this.payload.target.name}' for +1 Max Carnie & +1 Max Tribe Res!`, depth: this.getLogDepth(engine) });
+                const tribeYield = 1;
+                const carnieYield = Math.max(0, yieldAmt - 1);
+                
+                player.resources['Carnie'].max += carnieYield;
+                player.resources['Carnie'].current += carnieYield;
+                player.resources[sTribe].max += tribeYield;
+                player.resources[sTribe].current += tribeYield;
+                engine.state.history_log.push({ text: `🔥 ${player.name} harvested '${this.payload.target.name}' for +${carnieYield} Max Carnie & +${tribeYield} Max ${sTribe}!`, depth: this.getLogDepth(engine) });
             }
         }
     }

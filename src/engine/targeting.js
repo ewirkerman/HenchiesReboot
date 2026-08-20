@@ -1,5 +1,5 @@
 /**
- * src/targeting.js
+ * src/engine/targeting.js
  * Logic for determining valid targets and available actions.
  */
 
@@ -220,19 +220,33 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                 
                 if (canAfford) {
                     const player = state.players[playerId];
-                    if ((cost.carnie || cost.tent) > 0 && (player.resources['Carnie']?.current || 0) < (cost.carnie || cost.tent)) canAfford = false;
-                    if (cost.power > 0 && (entity.power || 0) < cost.power) canAfford = false;
                     
-                    if (canAfford && cost.tribeAmount > 0) {
+                    const lifetimeUses = entity.lifetimeAbilityUses?.[ab.abilityId] || 0;
+                    const escalateAmount = cost.escalates ? lifetimeUses : 0;
+                    
+                    let cCost = (cost.carnie || cost.tent || 0);
+                    let pCost = (cost.power || 0);
+                    let tCost = (cost.tribeAmount || 0);
+
+                    if (cost.escalates) {
+                        if (pCost > 0) pCost += escalateAmount;
+                        else if (tCost > 0) tCost += escalateAmount;
+                        else cCost += escalateAmount;
+                    }
+
+                    if (cCost > 0 && (player.resources['Carnie']?.current || 0) < cCost) canAfford = false;
+                    if (pCost > 0 && (entity.power || 0) < pCost) canAfford = false;
+                    
+                    if (canAfford && tCost > 0) {
                         const entityTribe = resolveResourceKey(state, player, entity.tribe);
                         const tribeRes = player.resources[entityTribe] ? player.resources[entityTribe].current : 0;
                         if (entityTribe === 'Carnie') {
-                            if ((player.resources['Carnie']?.current || 0) < cost.tribeAmount) canAfford = false;
+                            if ((player.resources['Carnie']?.current || 0) < tCost) canAfford = false;
                         } else {
                             if (tribeRes < 1) canAfford = false;
                             else {
                                 const carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
-                                if (tribeRes + Math.floor(carnieRes / 3) < cost.tribeAmount) canAfford = false;
+                                if (tribeRes + Math.floor(carnieRes / 3) < tCost) canAfford = false;
                             }
                         }
                     }

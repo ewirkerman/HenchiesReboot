@@ -16,7 +16,7 @@ import { CardState } from './card/state.js';
 import { StudioState } from './ability/state.js';
 
 // Card logic
-import { populateGenuses, populateFamily, toggleStatFields, resetForm as resetCardForm, buildCardState } from './card/form.js';
+import { populateGenuses, populateFamily, toggleStatFields, resetForm as resetCardForm, buildCardState, enforceAttackAbility } from './card/form.js';
 import { renderAssignedAbilities, renderReferencedAbilities } from './card/abilities.js';
 import { updatePreview as updateCardPreview, initImagePanning } from './card/preview.js';
 
@@ -27,6 +27,7 @@ import { renderLogicTrees } from './ability/logic_tree.js';
 import { updateTargetingUI, updateTriggerComposite, populateBaseTriggers } from './ability/triggers.js';
 import { validateAbilityLogic } from '../ability_validation.js';
 import { handleDescriptionInput, handleDescriptionKeydown, closeMentionDropdown } from './ability/mentions.js';
+import { ATTRIBUTE_MANIFEST } from '../engine/attributes.js';
 
 // Import Web Components
 import '../../components/main_nav.js';
@@ -57,6 +58,27 @@ window.CreatorController = {
         // 2. Hydrate Global Registries
         const tempCards = [...CARD_CATALOG, ...customCards];
         
+        // --- Dynamically Populate Tribes & Genuses for Logic Trees ---
+        const allTribesSet = new Set(ATTRIBUTE_MANIFEST['tribe'].options || []);
+        const allGenusesSet = new Set();
+        
+        CardState.customTribes.forEach(t => {
+            if (t.name) allTribesSet.add(t.name);
+            if (t.validGenuses && Array.isArray(t.validGenuses)) {
+                t.validGenuses.forEach(g => { if (g) allGenusesSet.add(g.trim()); });
+            }
+        });
+        
+        tempCards.forEach(c => {
+            if (c.tribe && !c.tribe.startsWith('tribe_')) allTribesSet.add(c.tribe);
+            if (c.genus) allGenusesSet.add(c.genus.trim());
+        });
+        
+        ATTRIBUTE_MANIFEST['tribe'].options = Array.from(allTribesSet).sort();
+        const genusesArray = Array.from(allGenusesSet).filter(Boolean).sort();
+        ATTRIBUTE_MANIFEST['genus'].options = genusesArray.length > 0 ? genusesArray : ['Generic'];
+        // -------------------------------------------------------------
+
         StudioState.allAbilities = rawAbs.map(ab => {
             let desc = '';
             try { desc = generateAbilityDescription(ab, rawAbs, tempCards, StudioState.customTribesList); } catch(e) {}
@@ -85,6 +107,39 @@ window.CreatorController = {
         
         populateFamily('');
         populateBaseTriggers();
+
+        // Bind Card Specific UI
+        const typeSelect = document.getElementById('card-type');
+        if (typeSelect) typeSelect.addEventListener('change', () => toggleStatFields());
+
+        const strengthInput = document.getElementById('card-strength');
+        if (strengthInput) strengthInput.addEventListener('input', () => enforceAttackAbility());
+
+        const abilityDatalist = document.getElementById('ability-options');
+        if (abilityDatalist) {
+            abilityDatalist.innerHTML = CardState.allAbilities.map(ab => `<option value="${(ab.name || '').replace(/"/g, '&quot;')}"></option>`).join('');
+        }
+
+        const addAbilityInput = document.getElementById('add-ability-input');
+        if (addAbilityInput) {
+            addAbilityInput.addEventListener('change', (e) => {
+                const val = e.target.value.toLowerCase().trim();
+                const match = CardState.allAbilities.find(a => (a.name || '').toLowerCase().trim() === val);
+                
+                if (match) {
+                    const abId = match.abilityId;
+                    if (abId && !CardState.currentAbilities.some(a => a.id === abId)) {
+                        CardState.currentAbilities.push({ id: abId, paramX: null });
+                        enforceAttackAbility();
+                        renderAssignedAbilities();
+                        window.updatePreview();
+                        this.markDirty();
+                    }
+                    e.target.value = '';
+                    e.target.blur(); 
+                }
+            });
+        }
 
         // Bind Ability Specific UI
         document.getElementById('add-effect-group-btn').addEventListener('click', () => {
@@ -142,7 +197,7 @@ window.CreatorController = {
         const assignInput = document.getElementById('assign-card-input');
         const assignDatalist = document.getElementById('assign-card-options');
         if (assignInput && assignDatalist) {
-            assignDatalist.innerHTML = CardState.allCards.map(c => `<option value="${c.name}"></option>`).join('');
+            assignDatalist.innerHTML = CardState.allCards.map(c => `<option value="${(c.name || '').replace(/"/g, '&quot;')}"></option>`).join('');
             assignInput.addEventListener('change', async (e) => {
                 const val = e.target.value.toLowerCase();
                 const match = CardState.allCards.find(c => c.name.toLowerCase() === val);
@@ -350,7 +405,9 @@ window.CreatorController = {
                     setVal('card-health', card.maxHealth || card.health || 1);
                     setVal('card-strength', (card.strength !== undefined && card.strength !== null) ? card.strength : '');
                     setVal('card-art', card.artUrl || '');
-                    setVal('card-art-x', card.artX ?? 50); setVal('card-art-y', card.artY ?? 50); setVal('card-art-scale', card.artScale ?? 100);
+                    setVal('card-art-x', card.artX ?? 0); setVal('card-art-y', card.artY ?? 0); setVal('card-art-scale', card.artScale ?? 100);
+                    setVal('card-micro-art-x', card.microArtX ?? 0); setVal('card-micro-art-y', card.microArtY ?? 0); setVal('card-micro-art-scale', card.microArtScale ?? 185);
+                    setVal('card-nano-art-x', card.nanoArtX ?? 0); setVal('card-nano-art-y', card.nanoArtY ?? 0); setVal('card-nano-art-scale', card.nanoArtScale ?? 110);
                     setVal('card-description', card.description || '');
                     
                     CardState.currentAbilities = (card.abilities || []).map(a => {
@@ -363,6 +420,10 @@ window.CreatorController = {
                     updateCardPreview();
                     this.updateRightPanePreview(card, 'card');
                     topbar.showButtons(true);
+                } else {
+                    showToast('Card not found.', 'error');
+                    window.location.hash = '';
+                    return;
                 }
             } else {
                 resetCardForm();
@@ -431,6 +492,10 @@ window.CreatorController = {
                     this.updateRightPanePreview(ab, 'ability');
                     renderAssociatedCards();
                     topbar.showButtons(true);
+                } else {
+                    showToast('Ability not found.', 'error');
+                    window.location.hash = '';
+                    return;
                 }
             } else {
                 resetAbilityForm();
@@ -443,6 +508,17 @@ window.CreatorController = {
         } else {
             titleEl.innerText = "⚡ Workspace";
             document.getElementById('workspace-empty').classList.remove('hidden');
+            
+            const jsonContainer = document.getElementById('json-preview-container');
+            if (jsonContainer) jsonContainer.innerHTML = '';
+            
+            const rightPreview = document.getElementById('right-preview-container');
+            if (rightPreview) rightPreview.innerHTML = '<div class="text-xs text-slate-500 italic flex items-center justify-center h-full">Preview Area</div>';
+            
+            const rightTitle = document.getElementById('right-preview-title');
+            if (rightTitle) rightTitle.innerText = 'Live Preview';
+            
+            topbar.showButtons(false);
         }
 
         this.clearDirty();
@@ -495,7 +571,7 @@ window.CreatorController = {
         if (!isAutoSave) topbar.setLoading('save', true);
 
         if (CreatorState.activeMode === 'card') {
-            const cardObj = buildCardState();
+            const cardObj = buildCardState(CreatorState.activeId);
             // Validate (Dummy implementation - extend as needed)
             cardObj.isValid = !!cardObj.name && !!cardObj.family;
             
@@ -504,10 +580,16 @@ window.CreatorController = {
             if (idx !== -1) CardState.allCards[idx] = cardObj;
             else CardState.allCards.push(cardObj);
 
+            CreatorState.activeId = cardObj.id;
+            CardState.currentEditingId = cardObj.id;
+            window.history.replaceState(null, '', `#card_${cardObj.id}`);
+            document.getElementById('workspace-title').innerText = "⚡ Editing Card";
+            topbar.showButtons(true);
+
             if (!isAutoSave) showToast(`Card ${cardObj.name} saved!`, 'success');
             
         } else if (CreatorState.activeMode === 'ability') {
-            const abObj = getCurrentAbilityState();
+            const abObj = getCurrentAbilityState(CreatorState.activeId);
             const errors = validateAbilityLogic(abObj);
             abObj.isValid = errors.length === 0;
 
@@ -515,6 +597,15 @@ window.CreatorController = {
             const idx = StudioState.allAbilities.findIndex(a => a.abilityId === abObj.abilityId);
             if (idx !== -1) StudioState.allAbilities[idx] = abObj;
             else StudioState.allAbilities.push(abObj);
+            
+            CreatorState.activeId = abObj.abilityId;
+            StudioState.currentEditingId = abObj.abilityId;
+            window.history.replaceState(null, '', `#ability_${abObj.abilityId}`);
+            document.getElementById('workspace-title').innerText = "⚡ Editing Ability";
+            topbar.showButtons(true);
+            
+            const abilityDatalist = document.getElementById('ability-options');
+            if (abilityDatalist) abilityDatalist.innerHTML = StudioState.allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
 
             if (!isAutoSave) showToast(`Ability ${abObj.name} saved!`, 'success');
 
@@ -668,16 +759,25 @@ window.CreatorController = {
     handleClone() {
         if (!CreatorState.activeId) return;
         
+        window.history.pushState(null, '', `#new_${CreatorState.activeMode}`);
+        CreatorState.activeId = null;
+        
+        const catalogEl = document.getElementById('unified-catalog');
+        if (catalogEl) catalogEl.setActiveItem(null);
+        
+        const topbar = document.getElementById('global-topbar');
+        if (topbar) topbar.showButtons(false);
+        
         if (CreatorState.activeMode === 'card') {
-            const currentConfig = buildCardState();
-            this.switchWorkspace('card', null);
+            CardState.currentEditingId = null;
             document.getElementById('workspace-title').innerText = "⚡ Editing Card (Cloned)";
-            document.getElementById('card-name').value = currentConfig.name + ' (Copy)';
+            const nameInput = document.getElementById('card-name');
+            if (nameInput) nameInput.value += ' (Copy)';
         } else if (CreatorState.activeMode === 'ability') {
-            const currentConfig = getCurrentAbilityState();
-            this.switchWorkspace('ability', null);
+            StudioState.currentEditingId = null;
             document.getElementById('workspace-title').innerText = "⚡ Editing Ability (Cloned)";
-            document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
+            const nameInput = document.getElementById('ab-name');
+            if (nameInput) nameInput.value += ' (Copy)';
         }
         
         this.markDirty();
@@ -737,6 +837,11 @@ window.CreatorController = {
         CardState.allCards = [...CARD_CATALOG, ...hydratedCustomCards];
         StudioState.allCards = CardState.allCards;
         
+        const abilityDatalist = document.getElementById('ability-options');
+        if (abilityDatalist) {
+            abilityDatalist.innerHTML = CardState.allAbilities.map(ab => `<option value="${ab.name}"></option>`).join('');
+        }
+        
         this.renderUnifiedCatalog();
         topbar.setLoading('import', false);
         
@@ -753,15 +858,31 @@ window.CreatorController = {
 document.addEventListener('DOMContentLoaded', () => window.CreatorController.init());
 
 // Bind Global Scope Overrides
+let isUpdatingPreview = false;
 window.updatePreview = () => {
-    if (CreatorState.activeMode === 'card') {
-        updateCardPreview();
-        const cardObj = buildCardState();
-        window.CreatorController.updateRightPanePreview(cardObj, 'card');
-    } else if (CreatorState.activeMode === 'ability') {
-        updateAbilityJSONPreview();
-        const abObj = getCurrentAbilityState();
-        window.CreatorController.updateRightPanePreview(abObj, 'ability');
+    if (isUpdatingPreview) return;
+    isUpdatingPreview = true;
+    
+    // Temporarily detach to break circular recursion from sub-modules
+    // and force them to render their own local JSON preview boxes.
+    const originalPreview = window.updatePreview;
+    window.updatePreview = null; 
+    
+    try {
+        if (CreatorState.activeMode === 'card') {
+            updateCardPreview();
+            const cardObj = buildCardState();
+            window.CreatorController.updateRightPanePreview(cardObj, 'card');
+        } else if (CreatorState.activeMode === 'ability') {
+            updateAbilityJSONPreview();
+            const abObj = getCurrentAbilityState();
+            window.CreatorController.updateRightPanePreview(abObj, 'ability');
+        }
+    } catch (e) {
+        console.error("Preview update error:", e);
+    } finally {
+        window.updatePreview = originalPreview;
+        isUpdatingPreview = false;
     }
 };
 window.copyCardJSON = () => {

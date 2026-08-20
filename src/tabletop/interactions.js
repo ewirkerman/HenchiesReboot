@@ -4,6 +4,7 @@ import { pushActionToLog } from '../firebase.js';
 import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable } from '../engine/index.js';
 import { resolveResourceKey } from '../engine/index.js';
 import { showToast } from '../ui.js';
+import { reconstructStateFromLog } from './multiplayer.js';
 
 function getEntityRef(entityId) {
     let entity = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
@@ -142,6 +143,59 @@ export async function handleUndo() {
     
     await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
 }
+
+export async function handleRestartMatch() {
+    console.log("[RESTART] Initiating match restart...");
+    if (!ClientState.roomCode.toUpperCase().startsWith('TEST_')) {
+        console.warn("[RESTART] Aborted: Not a test room.");
+        return;
+    }
+
+    try {
+        // We have the pristine turn 1 state already saved in RAM!
+        if (!ClientState.localReplayStates || ClientState.localReplayStates.length === 0) {
+            showToast('Cannot restart: No initial state found.', 'error');
+            return;
+        }
+
+        const pristineState = ClientState.localReplayStates[0];
+        
+        // Construct the exact payload Firebase/LocalStorage expects
+        const resetPayload = {
+            gameId: ClientState.roomCode,
+            status: pristineState.status || 'active',
+            turnNumber: pristineState.turnNumber || 1,
+            activePlayerId: pristineState.activePlayerId || 'player1',
+            turnPhase: pristineState.turnPhase || 'ACTION_PHASE',
+            players: {
+                player1Name: pristineState.players?.player1?.name || 'Player 1',
+                player2Name: pristineState.players?.player2?.name || 'Player 2'
+            },
+            turn_start_state: JSON.stringify(pristineState),
+            action_log: [],
+            history_log: pristineState.history_log || ['Test match restarted.'],
+            updatedAt: Date.now()
+        };
+        
+        // Push to localStorage so the polling listener stays in sync
+        localStorage.setItem(`henchies_game_${ClientState.roomCode}`, JSON.stringify(resetPayload));
+        
+        // Clear UI State
+        ClientState.selectedCardId = null;
+        ClientState.pendingAbility = null;
+        ClientState.validTargets = [];
+        ClientState.replayStepIndex = 0;
+        
+        // Force the engine to instantly rebuild the board from the reset payload
+        reconstructStateFromLog(resetPayload);
+        
+        showToast('Match restarted!', 'success');
+    } catch (err) {
+        console.error("[RESTART] Failed to restart match:", err);
+        showToast('Error restarting match.', 'error');
+    }
+}
+window.handleRestartMatch = handleRestartMatch;
 
 window.handleLineClick = async (clickedPrefix, line) => {
     if (event) event.stopPropagation();

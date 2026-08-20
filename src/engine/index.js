@@ -146,7 +146,9 @@ export class GameEngine {
                             if (payload.playerId && payload.playerId !== ownerId) isValid = false;
                         }
                     } else if (scope === 'GLOBAL') {
-                        if (!eventEntity) {
+                        if (['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(eventType)) {
+                            // Phase events are naturally global and have no specific entity, let them pass
+                        } else if (!eventEntity) {
                             isValid = false;
                         } else {
                             const qt = ability.activation?.quickTargeting;
@@ -194,7 +196,8 @@ export class GameEngine {
             this.activeChainAbilities.add(frame.ability.abilityId);
             
             // Directly pass the reference so modifiers (like Fire! or Resilient) can mutate the parent event!
-            const livePayload = frame.payload;
+            let livePayload = frame.payload;
+            if (!livePayload) livePayload = {}; // Ensure it exists for xValue injection
             
             if (livePayload?.eventContext && rootEventCancelled) {
                  livePayload.eventContext.cancelled = true;
@@ -231,6 +234,7 @@ export class GameEngine {
             }
 
             ownerId = ownerId || this.state.activePlayerId;
+            if (!eventPayload) eventPayload = {}; // Ensure eventPayload exists to receive xValue
             if (!this._checkAndPayCost(ability, source, ownerId, eventPayload)) return;
 
             if (ability.trigger === 'MANUAL') {
@@ -252,8 +256,10 @@ export class GameEngine {
         const abilityKey = `${source.instanceId}_${ability.abilityId}`;
         const limit = ability.triggerLimit || 'UNLIMITED';
         
-        if (limit === 'ONCE_PER_ROUND' && (this.state.abilityUses?.[abilityKey] || 0) >= 1) return false;
-        if (limit === 'TWICE_PER_ROUND' && (this.state.abilityUses?.[abilityKey] || 0) >= 2) return false;
+        const previousUses = this.state.abilityUses?.[abilityKey] || 0;
+        
+        if (limit === 'ONCE_PER_ROUND' && previousUses >= 1) return false;
+        if (limit === 'TWICE_PER_ROUND' && previousUses >= 2) return false;
 
         const p = this.state.players[ownerId];
         const cost = ability.cost || {};
@@ -268,23 +274,36 @@ export class GameEngine {
         let requiresReadiness = true; // All manual actions natively require readiness
         if (isHandAct) {
             requiresReadiness = false;
-        } else if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (this.state.abilityUses?.[abilityKey] || 0) > 0) {
+        } else if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && previousUses > 0) {
             requiresReadiness = false;
         }
         if (ability.trigger === 'MANUAL' && requiresReadiness && currentReadiness < 1) canAfford = false;
         
-        let cCost = cost.carnie || cost.tent || 0;
+        // --- ESCALATING COST (LINEAR) ---
+        const lifetimeUses = source.lifetimeAbilityUses?.[ability.abilityId] || 0;
+        const escalateAmount = cost.escalates ? lifetimeUses : 0;
+        
+        let cCost = (cost.carnie || cost.tent || 0);
+        let pCost = (cost.power || 0);
+        let tCost = (cost.tribeAmount || 0);
+
+        if (cost.escalates) {
+            if (pCost > 0) pCost += escalateAmount;
+            else if (tCost > 0) tCost += escalateAmount;
+            else cCost += escalateAmount; // Default to adding Carnie cost for 0-cost abilities
+        }
+
         if (cCost > 0 && (p.resources['Carnie']?.current || 0) < cCost) canAfford = false;
-        if (cost.power > 0 && (source.power || 0) < cost.power) canAfford = false;
+        if (pCost > 0 && (source.power || 0) < pCost) canAfford = false;
         
         let tribeResKey = null;
-        if (cost.tribeAmount > 0) {
+        if (tCost > 0) {
             const entityTribe = resolveResourceKey(this.state, p, source.tribe);
             if (entityTribe === 'Carnie') {
-                if ((p.resources['Carnie']?.current || 0) < cost.tribeAmount) canAfford = false;
+                if ((p.resources['Carnie']?.current || 0) < tCost) canAfford = false;
             } else {
                 tribeResKey = entityTribe;
-                if (!p.resources[tribeResKey] || p.resources[tribeResKey].current < cost.tribeAmount) canAfford = false;
+                if (!p.resources[tribeResKey] || p.resources[tribeResKey].current < tCost) canAfford = false;
             }
         }
 
@@ -295,7 +314,12 @@ export class GameEngine {
         }
 
         if (!this.state.abilityUses) this.state.abilityUses = {};
-        this.state.abilityUses[abilityKey] = (this.state.abilityUses[abilityKey] || 0) + 1;
+        this.state.abilityUses[abilityKey] = previousUses + 1;
+
+        if (cost.escalates) {
+            if (!source.lifetimeAbilityUses) source.lifetimeAbilityUses = {};
+            source.lifetimeAbilityUses[ability.abilityId] = (source.lifetimeAbilityUses[ability.abilityId] || 0) + 1;
+        }
 
         if (requiresReadiness && !cost.freeAction && !isHandAct) {
             if (cost.readinessCost === 'EXHAUSTS') source.readiness -= 2;
@@ -305,14 +329,20 @@ export class GameEngine {
         }
         
         if (cCost > 0 && p.resources['Carnie']) p.resources['Carnie'].current -= cCost;
-        if (cost.power > 0) source.power -= cost.power;
+        if (pCost > 0) source.power -= pCost;
         
-        if (cost.tribeAmount > 0) {
+        if (tCost > 0) {
             const entityTribe = resolveResourceKey(this.state, p, source.tribe);
             if (entityTribe === 'Carnie') {
-                p.resources['Carnie'].current -= cost.tribeAmount;
+                p.resources['Carnie'].current -= tCost;
             } else if (tribeResKey) {
-                p.resources[tribeResKey].current -= cost.tribeAmount;
+                let costRemaining = tCost;
+                let tribeResToUse = Math.min(p.resources[tribeResKey].current, costRemaining);
+                costRemaining -= tribeResToUse;
+                p.resources[tribeResKey].current -= tribeResToUse;
+                if (costRemaining > 0 && p.resources['Carnie']) {
+                    p.resources['Carnie'].current -= (costRemaining * 3);
+                }
             }
         }
 
@@ -408,6 +438,7 @@ export class GameEngine {
                         }
                         
                         const actionPayload = { ...payload };
+
                         if (payload.invertRoles) {
                             actionPayload.source = currentTarget; actionPayload.target = source;
                         } else {
@@ -448,9 +479,11 @@ export class GameEngine {
                         p.lines[line].forEach(u => { if (u.attachments) pool.push(...u.attachments); });
                     }
                 }
+            }
+            if (zones.includes('FIELD') || zones.includes('EQUATOR')) {
                 if (this.state.equator) {
                     this.state.equator.forEach(item => {
-                        const itemOwner = item.ownerId || callingPlayerId;
+                        const itemOwner = getOwnerId(this.state, item);
                         if (itemOwner === pId) {
                             pool.push(item);
                         }
@@ -589,7 +622,7 @@ export class GameEngine {
             else if (checkAttr === 'zone') {
                 const loc = findEntityLocation(this, targetEnt);
                 entVal = loc ? loc.zone.toUpperCase() : 'UNKNOWN';
-                if (['FRONT', 'MID', 'BACK', 'SHELTERED', 'SIDELINE', 'TAUNT', 'BODYGUARD', 'AVATAR', 'EQUATOR', 'ATTACHMENT'].includes(entVal)) {
+                if (['FRONT', 'MID', 'BACK', 'SHELTERED', 'SIDELINE', 'TAUNT', 'BODYGUARD', 'AVATAR'].includes(entVal)) {
                     entVal = 'FIELD';
                 }
             }
@@ -619,8 +652,23 @@ export class GameEngine {
                 entVal = !!(hasAb || hasEffect);
                 return node.operator === '==' ? entVal : !entVal;
             }
+            else if (checkAttr === 'customScript') {
+                try {
+                    const cleanScript = String(node.value).replace(/\\\[/g, '[').replace(/\\\]/g, ']').replace(/\\_/g, '_');
+                    const fn = new Function('target', 'source', 'state', 'eventPayload', 'engine', '"use strict";\n' + cleanScript);
+                    const result = fn(targetEnt, source, this.state, eventPayload, this);
+                    return node.operator === '==' ? !!result : !result;
+                } catch (e) {
+                    console.error(`[Engine] Custom script condition error:`, e);
+                    return node.operator === '!=';
+                }
+            }
             else if (checkAttr === 'isAttacking') {
-                entVal = (eventPayload?.eventContext?.combatAttackerId === targetEnt.instanceId) ? 'true' : 'false';
+                if (eventPayload && eventPayload.eventContext && eventPayload.eventContext.combatAttackerId) {
+                    entVal = eventPayload.eventContext.combatAttackerId === targetEnt.instanceId ? 'true' : 'false';
+                } else {
+                    entVal = 'false';
+                }
             }
             
             if (typeof entVal === 'string') {

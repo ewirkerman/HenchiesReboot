@@ -20,7 +20,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
   
-  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
+  <div id="toast-container" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
 
   <!-- Custom Dirty State Modal -->
   <div id="dirty-state-modal" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
@@ -144,7 +144,7 @@
                 </div>
                 <div class="sm:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
                   <art-panner title="Standard Frame" prefix="card-art" default-scale="100"></art-panner>
-                  <art-panner title="Micro Frame" prefix="card-micro-art" default-scale="125"></art-panner>
+                  <art-panner title="Micro Frame" prefix="card-micro-art" default-scale="185"></art-panner>
                   <art-panner title="Nano Frame" prefix="card-nano-art" default-scale="110"></art-panner>
                 </div>
                 <div class="sm:col-span-4 mt-2">
@@ -260,33 +260,42 @@
 
           <!-- 2. COST & REQUIREMENTS -->
           <div class="flex flex-col gap-3 p-4 bg-rose-950/20 rounded-xl border border-rose-900/40">
-            <h3 class="text-xs font-black text-rose-400 uppercase tracking-widest border-b border-rose-900/50 pb-1 mb-1">2. Cost & Requirements</h3>
+            <h3 class="text-xs font-black text-rose-400 uppercase tracking-widest border-b border-rose-900/50 pb-1 mb-1">
+              2. Cost & Requirements
+            </h3>
+            
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Resource Amount</label>
-                <input type="number" id="ab-cost-tribe-amt" value="0" min="0" class="creator-input bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
+                <input type="number" id="ab-cost-tribe-amt" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Carnie Cost</label>
-                <input type="number" id="ab-cost-tent" value="0" min="0" class="creator-input bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
+                <input type="number" id="ab-cost-tent" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Power Cost</label>
-                <input type="number" id="ab-cost-power" value="0" min="0" class="creator-input bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
+                <input type="number" id="ab-cost-power" value="0" min="0" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500" />
               </div>
               <div>
                 <label class="font-bold text-slate-300 block mb-1">Readiness Cost</label>
-                <select id="ab-cost-readiness" class="creator-input bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500">
-                  <option value="NONE" selected>None</option><option value="UNREADIES">Unreadies (Soft Tap)</option><option value="EXHAUSTS">Exhausts (Hard Tap)</option>
+                <select id="ab-cost-readiness" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-rose-500">
+                  <option value="NONE" selected>None</option>
+                  <option value="UNREADIES">Unreadies (Soft Tap)</option>
+                  <option value="EXHAUSTS">Exhausts (Hard Tap)</option>
                 </select>
               </div>
               <div class="md:col-span-4 flex flex-col gap-2 pb-2">
                 <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
-                  <input type="checkbox" id="ab-cost-free-action" class="creator-input w-4 h-4 accent-rose-500" />
+                  <input type="checkbox" id="ab-cost-escalates" class="w-4 h-4 accent-rose-500" />
+                  <span class="font-bold text-[11px] text-amber-400">Escalating Cost (Cost increases by 1 per use while in play)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
+                  <input type="checkbox" id="ab-cost-free-action" class="w-4 h-4 accent-rose-500" />
                   <span class="font-bold text-[11px] text-amber-400">Free Action (Does not consume unit's Act)</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
-                  <input type="checkbox" id="ab-cost-reuse-exempt" class="creator-input w-4 h-4 accent-rose-500" />
+                  <input type="checkbox" id="ab-cost-reuse-exempt" class="w-4 h-4 accent-rose-500" />
                   <span class="font-bold text-[11px]">Subsequent uses this round ignore readiness cost</span>
                 </label>
               </div>

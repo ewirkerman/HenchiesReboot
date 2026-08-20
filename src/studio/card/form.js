@@ -135,12 +135,18 @@ export function toggleStatFields() {
 export function resetForm() {
     CardState.currentEditingId = null;
     window.location.hash = '';
-    document.getElementById('form-title').innerText = '⚡ Design New Card';
+    
+    const titleEl = document.getElementById('form-title');
+    if (titleEl) titleEl.innerText = '⚡ Design New Card';
+    
     document.getElementById('card-name').value = '';
-    if (CardState.customTribes.length > 0) document.getElementById('card-tribe').value = CardState.customTribes[0].id;
+    
+    const tribeEl = document.getElementById('card-tribe');
+    if (tribeEl && CardState.customTribes.length > 0) tribeEl.value = CardState.customTribes[0].id;
+    
     document.getElementById('card-type').value = 'unit';
     document.getElementById('card-default-line').value = 'mid';
-    populateGenuses(document.getElementById('card-tribe').value, '');
+    populateGenuses(tribeEl ? tribeEl.value : '', '');
     populateFamily('');
     document.getElementById('card-cost').value = '1';
     document.getElementById('card-power').value = '0';
@@ -150,21 +156,22 @@ export function resetForm() {
     
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     setVal('card-art-x', 0); setVal('card-art-y', 0); setVal('card-art-scale', 100);
-    setVal('card-micro-art-x', 0); setVal('card-micro-art-y', 0); setVal('card-micro-art-scale', 125);
+    setVal('card-micro-art-x', 0); setVal('card-micro-art-y', 0); setVal('card-micro-art-scale', 185);
     setVal('card-nano-art-x', 0); setVal('card-nano-art-y', 0); setVal('card-nano-art-scale', 110);
     
     document.getElementById('card-description').value = '';
     
     CardState.currentAbilities = [];
     
-    document.getElementById('studio-topbar').showButtons(false);
+    const topbar = document.getElementById('studio-topbar');
+    if (topbar) topbar.showButtons(false);
     
     toggleStatFields();
     renderAssignedAbilities();
     updatePreview();
 }
 
-export function buildCardState() {
+export function buildCardState(forceId = null) {
     const strVal = document.getElementById('card-strength').value;
     const cardType = document.getElementById('card-type').value;
     const typeUpper = cardType.toUpperCase();
@@ -194,7 +201,7 @@ export function buildCardState() {
     const nanoScale = parseInt(document.getElementById('card-nano-art-scale')?.value);
     
     const state = {
-        id: CardState.currentEditingId || ('card_' + Date.now()),
+        id: forceId || CardState.currentEditingId || ('card_' + Date.now()),
         updatedAt: Date.now(),
         name: document.getElementById('card-name').value || 'Unnamed Card',
         tribe: document.getElementById('card-tribe').value,
@@ -213,7 +220,7 @@ export function buildCardState() {
         artScale: !isNaN(valScale) ? valScale : 100,
         microArtX: microX,
         microArtY: microY,
-        microArtScale: !isNaN(microScale) ? microScale : 125,
+        microArtScale: !isNaN(microScale) ? microScale : 185,
         nanoArtX: nanoX,
         nanoArtY: nanoY,
         nanoArtScale: !isNaN(nanoScale) ? nanoScale : 110,
