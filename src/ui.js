@@ -282,6 +282,11 @@
     // Extract Glossary
     const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry, cardOrUnit.description);
 
+    let transX = cardOrUnit.artX ?? 0;
+    let transY = cardOrUnit.artY ?? 0;
+    let scale = cardOrUnit.artScale ?? 100;
+    const artStyle = `object-position: center; transform: translate(${transX}px, ${transY}px) scale(${scale / 100});`;
+
     modal.innerHTML = `
       <!-- Close Button (Fixed Top Right) -->
       <button 
@@ -299,8 +304,8 @@
           <div class="relative h-[75vh] min-h-[450px] max-h-[750px] aspect-[5/7] rounded-2xl overflow-hidden border-4 ${inspectBorderClass} shadow-2xl flex flex-col shrink-0 ${style.bg} transition-transform duration-300" style="${hexBg} ${inspectBorderStyle}">
             
             <!-- Top Section: Art & Cost (60%) -->
-            <div class="relative w-full h-[60%] bg-slate-900 border-b-2 ${separatorClass} shrink-0 overflow-hidden">
-              ${cardOrUnit.artUrl ? `<img src="${cardOrUnit.artUrl}" alt="${cardOrUnit.name}" class="w-full h-full object-cover" style="object-position: ${cardOrUnit.artX ?? 50}% ${cardOrUnit.artY ?? 50}%;" draggable="false" />` : `
+            <div class="relative w-full h-[60%] bg-slate-900 border-b-2 ${separatorClass} shrink-0 overflow-hidden flex items-center justify-center">
+              ${cardOrUnit.artUrl ? `<img src="${cardOrUnit.artUrl}" alt="${cardOrUnit.name}" class="w-full h-full object-contain" style="${artStyle}" draggable="false" />` : `
                 <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-6xl font-bold">
                   ${cardOrUnit.type === 'unit' ? '⚔️' : cardOrUnit.type === 'avatar' ? '👑' : cardOrUnit.type === 'boon' ? '✨' : cardOrUnit.type === 'buff' ? '🛡️' : '📜'}
                 </div>
