@@ -29,12 +29,13 @@ export const ACTION_MANIFEST = {
     'RECOVER': { passiveType: 'BE_RECOVERED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['HAND'], validDurations: ['INSTANT'] },
     'REVIVE': { passiveType: 'BE_REVIVED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['WHILE_ATTACHED', 'INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
-    'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: false },
     'UNFIELD': { passiveType: 'BE_UNFIELDED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'TRASH': { passiveType: 'BE_TRASHED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['FIELD', 'HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'FIELD': { passiveType: 'BE_FIELDED', canInvert: true, canBeCost: false, validZones: ['HAND', 'DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
-    'BANISH': { passiveType: 'BE_BANISHED', canInvert: true, canBeCost: true, validZones: 'ALL', endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true }
+    'BANISH': { passiveType: 'BE_BANISHED', canInvert: true, canBeCost: true, validZones: 'ALL', endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true },
+    'DONATE': { passiveType: 'BE_DONATED', canInvert: false, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] }
 };
 
 export const ACTION_REGISTRY = {};

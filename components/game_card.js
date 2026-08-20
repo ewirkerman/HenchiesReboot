@@ -219,7 +219,7 @@ export class GameCard extends HTMLElement {
         } else if (isMicro) {
             transX = card.microArtX ?? 0;
             transY = card.microArtY ?? 0;
-            scale = card.microArtScale ?? 125;
+            scale = card.microArtScale ?? 185;
         } else {
             transX = card.artX ?? 0;
             transY = card.artY ?? 0;
@@ -234,11 +234,11 @@ export class GameCard extends HTMLElement {
               onclick="${onClick}"
               ${rightClickAttr}
               title="${safeTooltip}"
-              class="group relative flex-shrink-0 w-[64px] sm:w-[72px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-110 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
+              class="group relative flex-shrink-0 w-[64px] sm:w-[72px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
               style="${hexBg} ${dynamicBorderStyle}"
             >
               <div class="absolute inset-0 z-0 flex items-center justify-center ${fieldDimmingClass}">
-                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain opacity-90 scale-110" style="${artStyle}" draggable="false" />` : ''}
+                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain opacity-90" style="${artStyle}" draggable="false" />` : ''}
               </div>
               <div class="relative z-10 w-full h-full p-1 flex flex-col justify-between bg-gradient-to-t from-black/80 via-transparent to-black/60 ${fieldDimmingClass}">
                 <div class="flex items-start justify-between w-full relative z-20">
@@ -272,11 +272,11 @@ export class GameCard extends HTMLElement {
               onclick="${onClick}"
               ${rightClickAttr}
               title="${safeTooltip}"
-              class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
+              class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
               style="${hexBg} ${dynamicBorderStyle}"
             >
               <div class="absolute inset-0 z-0 flex items-center justify-center ${fieldDimmingClass}">
-                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain opacity-90 scale-125" style="${artStyle}" draggable="false" />` : ''}
+                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain opacity-90" style="${artStyle}" draggable="false" />` : ''}
               </div>
               <div class="relative z-10 w-full h-full p-1.5 flex flex-col justify-between bg-gradient-to-t from-black/80 via-transparent to-black/60 ${fieldDimmingClass}">
                 <div class="flex items-center gap-1.5 w-full pr-6">
@@ -314,7 +314,7 @@ export class GameCard extends HTMLElement {
             onclick="${onClick}"
             ${rightClickAttr}
             title="${safeTooltip}"
-            class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]' : ''} cursor-pointer hover:scale-105 transition-all duration-200 flex flex-col select-none overflow-hidden ${hiddenClass}"
+            class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]' : ''} cursor-pointer transition-all duration-200 flex flex-col select-none overflow-hidden ${hiddenClass}"
             style="${hexBg} ${dynamicBorderStyle}"
           >
             <div class="absolute inset-0 opacity-10 mix-blend-overlay ${fieldDimmingClass}"></div>

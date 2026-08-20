@@ -190,9 +190,13 @@ export function handleCloneAbility() {
   window.location.hash = '';
   StudioState.activeAssignerId = null;
   
-  document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
+  const headingEl = document.getElementById('form-heading');
+  if (headingEl) headingEl.innerText = `⚡ Design Ability Logic (Cloned)`;
+  
   document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
-  document.getElementById('studio-topbar').showButtons(false);
+  
+  const topbar = document.getElementById('studio-topbar');
+  if (topbar) topbar.showButtons(false);
   
   updateJSONPreview();
   showToast('Ability cloned! Save to keep it.', 'info');
@@ -203,7 +207,9 @@ export function resetForm() {
   window.location.hash = '';
   StudioState.activeAssignerId = null;
   
-  document.getElementById('form-heading').innerText = `⚡ Design Ability Logic`;
+  const headingEl = document.getElementById('form-heading');
+  if (headingEl) headingEl.innerText = `⚡ Design Ability Logic`;
+  
   document.getElementById('ab-name').value = '';
   document.getElementById('ab-description').value = '';
   
@@ -233,7 +239,8 @@ export function resetForm() {
   StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
   StudioState.effectGroups = [];
   
-  document.getElementById('studio-topbar').showButtons(false);
+  const topbar = document.getElementById('studio-topbar');
+  if (topbar) topbar.showButtons(false);
   
   renderLogicTrees();
   renderEffects();
