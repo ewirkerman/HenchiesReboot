@@ -202,7 +202,14 @@ export function handleCloneAbility() {
   }
   
   StudioState.activeAssignerId = null;
+  
+  const headingEl = document.getElementById('form-heading');
+  if (headingEl) headingEl.innerText = `⚡ Design Ability Logic (Cloned)`;
+  
   document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
+  
+  const topbar = document.getElementById('studio-topbar');
+  if (topbar) topbar.showButtons(false);
   
   const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
   if (topbar) topbar.showButtons(false);
