@@ -87,7 +87,7 @@ export async function handleSacrificeConfirm() {
 export async function handleSacrificeDecision(option, cardId = null) {
     if (!ClientState.isMyTurn()) return;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
-    const actionPayload = { type: 'SACRIFICE_DECISION', option, cardId, actionIndex: ClientState.gameState.actionIndex };
+    const actionPayload = { type: 'SACRIFICE_DECISION', option, cardId, actionIndex: ClientState.gameState.actionIndex, isUnsafe: false };
     executeSacrificeDecision(ClientState.gameState, option, cardId);
     ClientState.selectedCardId = null;
     await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
@@ -97,7 +97,7 @@ export async function handleSacrificeDecision(option, cardId = null) {
 export async function handleEndTurn() {
     if (!ClientState.isMyTurn()) return;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
-    const actionPayload = { type: 'END_TURN', actionIndex: ClientState.gameState.actionIndex };
+    const actionPayload = { type: 'END_TURN', actionIndex: ClientState.gameState.actionIndex, isUnsafe: true };
     endTurn(ClientState.gameState);
     const snapshot = JSON.stringify(ClientState.gameState);
     await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, ClientState.gameState.history_log);
@@ -508,14 +508,28 @@ window.handleHandCardClick = async (cardId) => {
 
         const canAffordAbility = (abCost) => {
             if (!abCost) return true;
-            let abBaseCost = abCost.tribeAmount > 0 ? abCost.tribeAmount : (abCost.carnie || abCost.tent || 0);
-            if (abBaseCost <= 0) return true;
-            if (cTribe === 'Carnie') {
-                return simCarnie >= abBaseCost;
-            } else {
-                let maxConversion = Math.floor(simCarnie / 3);
-                return (simTribe + maxConversion) >= abBaseCost;
+            let reqCarnie = abCost.carnie || abCost.tent || 0;
+            let reqTribe = abCost.tribeAmount || 0;
+            
+            if (reqCarnie === 0 && reqTribe === 0) return true;
+            
+            let availCarnie = simCarnie;
+            let availTribe = simTribe;
+
+            if (reqCarnie > 0) {
+                if (availCarnie < reqCarnie) return false;
+                availCarnie -= reqCarnie;
             }
+
+            if (reqTribe > 0) {
+                if (cTribe === 'Carnie') {
+                    if (availCarnie < reqTribe) return false;
+                } else {
+                    let maxConversion = Math.floor(availCarnie / 3);
+                    if ((availTribe + maxConversion) < reqTribe) return false;
+                }
+            }
+            return true;
         };
 
         const playAbilities = c.abilities ? c.abilities.filter(ab => {
@@ -532,15 +546,25 @@ window.handleHandCardClick = async (cardId) => {
                 let rawCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
                 let rawTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
                 
-                let abBaseCost = ab.cost?.tribeAmount > 0 ? ab.cost.tribeAmount : (ab.cost?.carnie || ab.cost?.tent || 0);
-                if (abBaseCost <= 0) return true;
+                let reqCarnie = ab.cost?.carnie || ab.cost?.tent || 0;
+                let reqTribe = ab.cost?.tribeAmount || 0;
                 
-                if (cTribe === 'Carnie') {
-                    return rawCarnie >= abBaseCost;
-                } else {
-                    let maxConversion = Math.floor(rawCarnie / 3);
-                    return (rawTribe + maxConversion) >= abBaseCost;
+                if (reqCarnie === 0 && reqTribe === 0) return true;
+                
+                if (reqCarnie > 0) {
+                    if (rawCarnie < reqCarnie) return false;
+                    rawCarnie -= reqCarnie;
                 }
+                
+                if (reqTribe > 0) {
+                    if (cTribe === 'Carnie') {
+                        if (rawCarnie < reqTribe) return false;
+                    } else {
+                        let maxConversion = Math.floor(rawCarnie / 3);
+                        if ((rawTribe + maxConversion) < reqTribe) return false;
+                    }
+                }
+                return true;
             }
             
             return canPlay && isPlayTrigger && requiresTarget;

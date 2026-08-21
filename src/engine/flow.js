@@ -7,7 +7,7 @@
 import { GameEngine } from './index.js';
 import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG, hasEngineFlag } from './utils.js';
 import { HarvestAction, PlayAction, sweepTurnEffects } from './actions/index.js';
-import { generateId } from './prandom.js';
+import { generateId, shuffleArray } from './prandom.js';
 
 export function endTurn(state) {
     const engine = new GameEngine(state);
@@ -38,6 +38,22 @@ export function startTurn(state, engine) {
         if (player.unplayedAvatar) {
             player.lines.avatar.push(player.unplayedAvatar);
             delete player.unplayedAvatar;
+        }
+
+        if (player.unplayedDeck) {
+            player.deck = player.unplayedDeck;
+            delete player.unplayedDeck;
+            
+            shuffleArray(state, player.deck);
+            
+            const initialDrawCount = pId === 'player1' ? 4 : 5;
+            for (let i = 0; i < initialDrawCount; i++) {
+                if (player.deck.length > 0) {
+                    const card = player.deck.pop();
+                    card.readiness = 0;
+                    player.hand.push(card);
+                }
+            }
         }
 
         const avatar = getAvatar(state, pId);

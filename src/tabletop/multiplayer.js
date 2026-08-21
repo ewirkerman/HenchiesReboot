@@ -234,7 +234,7 @@ export function reconstructStateFromLog(data) {
           liveState.actionIndex = action.actionIndex;
           if (action.type !== 'UNDO') lastRealActionIndex = action.actionIndex;
           
-          if (action.isUnsafe || (action.type === 'SACRIFICE_DECISION' && action.option !== 'SKIP') || action.type === 'END_TURN' || action.type === 'PLAYER_JOINED') {
+          if (action.isUnsafe || action.type === 'END_TURN' || action.type === 'PLAYER_JOINED') {
               ClientState.lastSafeUndoIndex = action.actionIndex;
           }
         }

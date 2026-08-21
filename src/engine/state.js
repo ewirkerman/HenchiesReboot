@@ -62,21 +62,13 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog, cardCatalog, tr
         p1.unplayedAvatar = avatar;
     }
 
-    // Shuffle deck
-    shuffleArray(state, deckClone);
-    
-    deckClone.forEach((c, idx) => {
-        c.instanceId = 'p1_deck_' + generateId(state, 6) + '_' + idx;
+    deckClone.forEach((c, i) => {
+        c.instanceId = 'p1_c_' + generateId(state, 6) + '_' + i;
         c.ownerId = 'player1';
         c.originalOwnerId = 'player1';
-        c.readiness = 0;
-        p1.deck.push(c);
     });
-    
-    // Draw 4 initial cards
-    for (let i = 0; i < 4; i++) {
-        if (p1.deck.length > 0) p1.hand.push(p1.deck.pop());
-    }
+
+    p1.unplayedDeck = deckClone;
 
     // Set up player 2 as dummy waiting for opponent
     state.players.player2.name = "Waiting for Opponent...";
@@ -113,23 +105,13 @@ export function joinGame(state, p2Name, p2Deck) {
         p2.lines.avatar = [];
     }
 
-    // Shuffle deck
-    shuffleArray(state, deckClone);
-    
-    p2.deck = [];
-    deckClone.forEach((c, idx) => {
-        c.instanceId = 'p2_deck_' + generateId(state, 6) + '_' + idx;
+    deckClone.forEach((c, i) => {
+        c.instanceId = 'p2_c_' + generateId(state, 6) + '_' + i;
         c.ownerId = 'player2';
         c.originalOwnerId = 'player2';
-        c.readiness = 0;
-        p2.deck.push(c);
     });
-    
-    p2.hand = [];
-    // Draw 5 cards
-    for (let i = 0; i < 5; i++) {
-        if (p2.deck.length > 0) p2.hand.push(p2.deck.pop());
-    }
+
+    p2.unplayedDeck = deckClone;
     
     state.history_log.push({ text: `${p2Name} joined the match.`, depth: 0 });
     

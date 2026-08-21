@@ -291,20 +291,24 @@ export class GameEngine {
         if (cost.escalates) {
             if (pCost > 0) pCost += escalateAmount;
             else if (tCost > 0) tCost += escalateAmount;
-            else cCost += escalateAmount; // Default to adding Carnie cost for 0-cost abilities
+            else cCost += escalateAmount;
         }
 
         if (cCost > 0 && (p.resources['Carnie']?.current || 0) < cCost) canAfford = false;
         if (pCost > 0 && (source.power || 0) < pCost) canAfford = false;
         
         let tribeResKey = null;
-        if (tCost > 0) {
+        if (canAfford && tCost > 0) {
             const entityTribe = resolveResourceKey(this.state, p, source.tribe);
             if (entityTribe === 'Carnie') {
-                if ((p.resources['Carnie']?.current || 0) < tCost) canAfford = false;
+                const remainingCarnie = Math.max(0, (p.resources['Carnie']?.current || 0) - cCost);
+                if (remainingCarnie < tCost) canAfford = false;
             } else {
                 tribeResKey = entityTribe;
-                if (!p.resources[tribeResKey] || p.resources[tribeResKey].current < tCost) canAfford = false;
+                const tribeRes = p.resources[tribeResKey] ? p.resources[tribeResKey].current : 0;
+                const remainingCarnie = Math.max(0, (p.resources['Carnie']?.current || 0) - cCost);
+                const maxCarnieConversion = Math.floor(remainingCarnie / 3);
+                if (tribeRes + maxCarnieConversion < tCost) canAfford = false;
             }
         }
 

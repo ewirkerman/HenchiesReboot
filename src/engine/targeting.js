@@ -240,15 +240,13 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                     
                     if (canAfford && tCost > 0) {
                         const entityTribe = resolveResourceKey(state, player, entity.tribe);
-                        const tribeRes = player.resources[entityTribe] ? player.resources[entityTribe].current : 0;
+                        const remainingCarnie = Math.max(0, (player.resources['Carnie']?.current || 0) - cCost);
+                        
                         if (entityTribe === 'Carnie') {
-                            if ((player.resources['Carnie']?.current || 0) < tCost) canAfford = false;
+                            if (remainingCarnie < tCost) canAfford = false;
                         } else {
-                            if (tribeRes < 1) canAfford = false;
-                            else {
-                                const carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
-                                if (tribeRes + Math.floor(carnieRes / 3) < tCost) canAfford = false;
-                            }
+                            const tribeRes = player.resources[entityTribe] ? player.resources[entityTribe].current : 0;
+                            if (tribeRes + Math.floor(remainingCarnie / 3) < tCost) canAfford = false;
                         }
                     }
 

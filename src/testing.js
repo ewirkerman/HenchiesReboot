@@ -365,9 +365,9 @@ async function configurePlayers(state, itemData, type, sandboxData) {
 
     p2DeckBase.forEach((c, idx) => {
         c.instanceId = 'p2_deck_' + idx;
-        c.readiness = 0;
         c.ownerId = 'player2';
         c.originalOwnerId = 'player2';
+        c.readiness = 0;
         state.players.player2.deck.push(c);
     });
 
