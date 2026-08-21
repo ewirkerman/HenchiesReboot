@@ -44,6 +44,14 @@ export function startTurn(state, engine) {
             player.deck = player.unplayedDeck;
             delete player.unplayedDeck;
             
+            player.deck.forEach((c, i) => {
+                if (!c.instanceId) {
+                    c.instanceId = `${pId}_c_${generateId(state, 6)}_${i}`;
+                    c.ownerId = pId;
+                    c.originalOwnerId = pId;
+                }
+            });
+            
             shuffleArray(state, player.deck);
             
             const initialDrawCount = pId === 'player1' ? 4 : 5;
@@ -81,7 +89,9 @@ export function startTurn(state, engine) {
             if (!player.lines['front']) player.lines['front'] = [];
             player.lines['front'].push(dummy);
             
-            if (player.isDummy) {
+            if (player.isAI) {
+                state.history_log.push({ text: `🤖 AI opponent deployed Avatar and summoned Target Dummy.`, depth: 0 });
+            } else if (player.isDummy) {
                 state.history_log.push({ text: `🤖 Dummy opponent deployed Avatar and summoned Target Dummy.`, depth: 0 });
             } else {
                 state.history_log.push({ text: `👤 ${player.name} deployed their Avatar and summoned a Target Dummy.`, depth: 0 });
@@ -155,8 +165,8 @@ export function startTurn(state, engine) {
         engine.emit('TURN_STARTED', { playerId: pId });
     }
 
-    if (pId === 'player2' && player.isDummy) {
-        state.history_log.push({ text: `⏭️ Player 2 auto-skipped (Waiting for opponent to join).`, depth: 0 });
+    if (pId === 'player2' && player.isAI) {
+        state.history_log.push({ text: `⏭️ AI auto-skipped turn.`, depth: 0 });
         endTurn(state);
     }
 }

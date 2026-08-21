@@ -1,11 +1,11 @@
 import { CARD_CATALOG, GLOBAL_UNDO_POLICY } from '../engine/index.js';
 import { showToast, loadUI } from '../ui.js';
-import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom } from '../firebase.js';
+import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom, subscribeToUserInvites, subscribeToActiveMatches } from '../firebase.js';
 import { generateAbilityDescription } from '../language_description.js';
 
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
-import { handleLaunchMatch, reconstructStateFromLog } from './multiplayer.js';
+import { handleQueueMatch, handleAIMatch, handleSendChallenge, handleAcceptInvite, handleResumeMatch, reconstructStateFromLog } from './multiplayer.js';
 import { handleSacrificeConfirm, handleSacrificeDecision, handleEndTurn, handleUndo, handleRestartMatch } from './interactions.js';
 
 import './modals.js'; 
@@ -77,12 +77,6 @@ async function initializeApp() {
                 }
             });
         } else {
-            if (urlRoom) {
-                document.getElementById('setup-room-code').value = urlRoom;
-            } else {
-                document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
-            }
-
             const savedName = localStorage.getItem('henchies_last_username');
             if (savedName) document.getElementById('setup-username').value = savedName;
 
@@ -97,7 +91,7 @@ async function initializeApp() {
                 }
             }
 
-            updateDeckDropdown();
+            updateLobbyData();
         }
     } catch(err) {
         console.error("[INIT] Initialization failed:", err);
@@ -138,15 +132,77 @@ async function updateDeckDropdown() {
   }
 }
 
+let invitesUnsub = null;
+let matchesUnsub = null;
+
+async function updateLobbyData() {
+    await updateDeckDropdown();
+    
+    const username = document.getElementById('setup-username').value.trim();
+    if (invitesUnsub) { invitesUnsub(); invitesUnsub = null; }
+    if (matchesUnsub) { matchesUnsub(); matchesUnsub = null; }
+
+    if (!username || window.location.hash.startsWith('#test_')) return;
+
+    invitesUnsub = await subscribeToUserInvites(username, (invites) => {
+        const countEl = document.getElementById('invites-count');
+        const listEl = document.getElementById('invites-list');
+        if (countEl) countEl.innerText = invites.length;
+        if (listEl) {
+            if (invites.length === 0) {
+                listEl.innerHTML = '<span class="text-xs text-slate-500 italic">No pending invites.</span>';
+            } else {
+                listEl.innerHTML = invites.map(inv => `
+                    <div class="bg-slate-950 p-2 rounded border border-slate-700 flex justify-between items-center">
+                        <span class="text-xs text-amber-300 font-bold">From: ${inv.from}</span>
+                        <button onclick="window.handleAcceptInvite('${inv.id}', '${inv.gameId}')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded transition">Accept</button>
+                    </div>
+                `).join('');
+            }
+        }
+    });
+
+    matchesUnsub = await subscribeToActiveMatches(username, (matches) => {
+        const countEl = document.getElementById('matches-count');
+        const listEl = document.getElementById('active-matches-list');
+        if (countEl) countEl.innerText = matches.length;
+        if (listEl) {
+            if (matches.length === 0) {
+                listEl.innerHTML = '<span class="text-xs text-slate-500 italic">No active matches.</span>';
+            } else {
+                listEl.innerHTML = matches.map(m => `
+                    <div class="bg-slate-950 p-2 rounded border border-slate-700 flex justify-between items-center cursor-pointer hover:border-emerald-500 transition-colors" onclick="window.handleResumeMatch('${m.gameId}')">
+                        <div class="flex flex-col">
+                            <span class="text-xs text-emerald-400 font-bold">vs ${m.participants.find(p => p !== username) || 'Waiting...'}</span>
+                            <span class="text-[9px] text-slate-500">Turn ${m.turnNumber || 1} • ${(m.turnPhase || 'Setup').replace('_', ' ')}</span>
+                        </div>
+                        <span class="text-lg text-emerald-500">▶</span>
+                    </div>
+                `).join('');
+            }
+        }
+    });
+}
+
 // Bind Event Listeners
-document.getElementById('setup-username').addEventListener('input', updateDeckDropdown);
+let lobbyDebounce;
+document.getElementById('setup-username').addEventListener('input', () => {
+    clearTimeout(lobbyDebounce);
+    lobbyDebounce = setTimeout(updateLobbyData, 500);
+});
+
 document.getElementById('cancel-action-btn').addEventListener('click', () => {
     ClientState.pendingAbility = null;
     ClientState.validTargets = [];
     updateUI();
 });
 
-document.getElementById('launch-match-btn').addEventListener('click', handleLaunchMatch);
+window.handleAcceptInvite = handleAcceptInvite;
+window.handleResumeMatch = handleResumeMatch;
+
+document.getElementById('queue-match-btn').addEventListener('click', (e) => handleQueueMatch(e.target));
+document.getElementById('ai-match-btn').addEventListener('click', (e) => handleAIMatch(e.target));
+document.getElementById('send-challenge-btn').addEventListener('click', (e) => handleSendChallenge(e.target));
 document.getElementById('overlay-sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
 document.getElementById('overlay-sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
 document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);

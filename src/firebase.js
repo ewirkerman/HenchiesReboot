@@ -102,6 +102,8 @@ export async function createGameRoom(gameId, state) {
   const payload = {
     gameId: state.gameId,
     status: state.status,
+    isOpen: true,
+    participants: [state.players.player1.name],
     turnNumber: state.turnNumber,
     activePlayerId: state.activePlayerId,
     turnPhase: state.turnPhase,
@@ -156,6 +158,11 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
             data.action_log.push(actionPayload);
             data.history_log = currentHistoryLog || data.history_log;
             if (updatedTurnStartState) data.turn_start_state = updatedTurnStartState;
+            if (actionPayload.type === 'PLAYER_JOINED') {
+                data.isOpen = false;
+                if (!data.participants) data.participants = [];
+                if (!data.participants.includes(actionPayload.playerName)) data.participants.push(actionPayload.playerName);
+            }
             data.updatedAt = Date.now();
             localStorage.setItem(`henchies_game_${gameId}`, JSON.stringify(data));
             window.dispatchEvent(new CustomEvent('henchies_local_game_update', { detail: data }));
@@ -171,6 +178,10 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
                 updatedAt: Date.now()
             };
             if (updatedTurnStartState) updateData.turn_start_state = updatedTurnStartState;
+            if (actionPayload.type === 'PLAYER_JOINED') {
+                updateData.isOpen = false;
+                updateData.participants = arrayUnion(actionPayload.playerName);
+            }
             
             await updateDoc(doc(db, "games", gameId), updateData);
         } catch (e) {
@@ -511,4 +522,78 @@ export async function deleteDeckFromCatalog(username, deckName) {
         console.error("Error deleting deck:", e);
         return false;
     }
+}
+
+// =====================================
+// LOBBY & MATCHMAKING
+// =====================================
+
+export async function findOpenQueueRoom(username) {
+    if (await isReadyForDB()) {
+        try {
+            const qOpen = query(collection(db, "games"), where("isOpen", "==", true), where("status", "==", "active"));
+            const snapshot = await getDocs(qOpen);
+            for (const docSnap of snapshot.docs) {
+                const data = docSnap.data();
+                if (!data.participants.includes(username)) {
+                    return data.gameId;
+                }
+            }
+        } catch (e) {
+            console.error("Error finding open room:", e);
+        }
+    }
+    return 'ROOM_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+}
+
+export async function sendDirectInvite(fromName, toName, gameId) {
+    if (await isReadyForDB()) {
+        try {
+            await addDoc(collection(db, "invites"), {
+                from: fromName,
+                to: toName,
+                gameId: gameId,
+                status: 'pending',
+                createdAt: Date.now()
+            });
+            return true;
+        } catch(e) {
+            console.error("Error sending invite:", e);
+        }
+    }
+    return false;
+}
+
+export async function updateInviteStatus(inviteId, status) {
+    if (await isReadyForDB()) {
+        try {
+            await updateDoc(doc(db, "invites", inviteId), { status });
+        } catch(e) {
+            console.error("Error updating invite:", e);
+        }
+    }
+}
+
+export async function subscribeToUserInvites(username, callback) {
+    if (await isReadyForDB()) {
+        const q = query(collection(db, "invites"), where("to", "==", username), where("status", "==", "pending"));
+        return onSnapshot(q, (snapshot) => {
+            const invites = [];
+            snapshot.forEach(docSnap => invites.push({ id: docSnap.id, ...docSnap.data() }));
+            callback(invites);
+        }, (err) => console.error("Invites subscription error:", err));
+    }
+    return () => {};
+}
+
+export async function subscribeToActiveMatches(username, callback) {
+    if (await isReadyForDB()) {
+        const q = query(collection(db, "games"), where("participants", "array-contains", username), where("status", "==", "active"));
+        return onSnapshot(q, (snapshot) => {
+            const matches = [];
+            snapshot.forEach(docSnap => matches.push(docSnap.data()));
+            callback(matches);
+        }, (err) => console.error("Active matches subscription error:", err));
+    }
+    return () => {};
 }
