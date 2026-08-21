@@ -1,6 +1,6 @@
 // filepath: src/tabletop/renderer.js
 import { ClientState } from './client_state.js';
-import { renderHistorySlider, renderCardHTML } from '../ui.js';
+import { renderHistorySlider, renderCardHTML, getLineIconSvg } from '../ui.js';
 import { canPlayCard, cloneGameState, LINES } from '../engine/index.js';
 
 window.scrubReplay = (step) => {
@@ -283,26 +283,53 @@ function renderPlayerBattlelines(player, prefix) {
     toggleLine('sideline', true);
 
     const centerLines = ['front', 'mid', 'back', 'sheltered'];
-    let centerOccupied = false;
+    let centerOccupiedCount = 0;
     for (const l of centerLines) {
       if (checkOccupied(l)) {
-        centerOccupied = true;
+        centerOccupiedCount++;
         toggleLine(l, true);
       } else {
         toggleLine(l, false);
       }
     }
-    if (!centerOccupied) toggleLine('front', true);
+    if (centerOccupiedCount === 0) {
+        toggleLine('front', true);
+        centerOccupiedCount = 1;
+    }
 
     for (const line of LINES) {
       const lineEl = document.getElementById(`${prefix}-line-${line}`);
       if (!lineEl) continue;
 
+      lineEl.classList.add('relative'); // Ensure absolute icon positioning works
+
       const units = player.lines[line] || [];
       
       const isNarrowColumn = ['avatar', 'bodyguard', 'sideline'].includes(line);
-      const nanoThreshold = isNarrowColumn ? 6 : 15;
-      const microThreshold = isNarrowColumn ? 2 : 5;
+      const isTaunt = line === 'taunt';
+      
+      let microThreshold = 5;
+      let nanoThreshold = 15;
+
+      if (isNarrowColumn) {
+          microThreshold = 2;
+          nanoThreshold = 6;
+      } else if (isTaunt) {
+          microThreshold = 6;
+          nanoThreshold = 12;
+      } else {
+          // Dynamic thresholds based on vertical space sharing
+          if (centerOccupiedCount === 1) {
+              microThreshold = 10;
+              nanoThreshold = 20;
+          } else if (centerOccupiedCount === 2) {
+              microThreshold = 5;
+              nanoThreshold = 12;
+          } else {
+              microThreshold = 3;
+              nanoThreshold = 8;
+          }
+      }
 
       const useNano = units.length > nanoThreshold;
       const useMicro = units.length > microThreshold && !useNano;
@@ -315,7 +342,9 @@ function renderPlayerBattlelines(player, prefix) {
           lineEl.classList.remove('content-start', 'items-start');
       }
 
-      lineEl.innerHTML = units.map(u => {
+      const bgIcon = `<div class="absolute top-2 left-2 w-8 h-8 sm:w-12 sm:h-12 text-slate-500/50 pointer-events-none z-0 drop-shadow-md">${getLineIconSvg(line)}</div>`;
+
+      const cardsHtml = units.map(u => {
         const json = encodeURIComponent(JSON.stringify(u)).replace(/'/g, "%27");
         const isAttacker = ClientState.pendingAbility && ClientState.pendingAbility.entityId === u.instanceId;
         const isTargetable = ClientState.validTargets.some(t => t.id === u.instanceId);
@@ -331,6 +360,8 @@ function renderPlayerBattlelines(player, prefix) {
           abilityUses: ClientState.gameState?.abilityUses || {}
         });
       }).join('');
+      
+      lineEl.innerHTML = bgIcon + cardsHtml;
     }
 }
 

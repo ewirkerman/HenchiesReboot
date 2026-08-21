@@ -64,7 +64,9 @@ async function launchRoom(roomId, state, popup) {
     try {
         await Promise.race([createGameRoom(roomId, state), createTimeout]);
     } catch (e) {
-        console.warn("[SANDBOX] Firebase write timed out or failed. Falling back to local storage.", e);
+        console.error("[SANDBOX] Firebase/Local write timed out or failed.", e);
+        if (popup) popup.document.write(`<h2 style="color:red; font-family:sans-serif; padding: 20px;">Failed to create Sandbox Room:<br/>${e.message || e}</h2>`);
+        return; // HALT REDIRECT SO USER CAN SEE THE ERROR
     }
     
     if (popup) {
@@ -461,25 +463,37 @@ function applyRelentlessModifier(state, abilitiesCatalog) {
  * @param {string} type - Identifies the payload type ('card', 'deck', 'avatar', 'ability').
  */
 export async function launchSandboxMatch(itemData, type = 'card') {
+    console.log(`[SANDBOX] Initiating launch for ${type}...`);
     const popup = openLoadingPopup();
     
-    // 1. Fetch live database context
-    const sandboxData = await fetchSandboxData();
-    
-    // 2. Setup Player Context
-    const username = localStorage.getItem('henchies_last_username') || 'Tester';
-    const state = createInitialState(username, sandboxData.customTribes);
-    
-    await configurePlayers(state, itemData, type, sandboxData);
-    
-    // 3. Setup Opponent Board & Global Rules
-    setupSandboxBoard(state, sandboxData);
-    applyRelentlessModifier(state, sandboxData.abilities);
+    try {
+        // 1. Fetch live database context
+        console.log("[SANDBOX] Fetching live database context...");
+        const sandboxData = await fetchSandboxData();
+        console.log("[SANDBOX] Database context fetched successfully.");
+        
+        // 2. Setup Player Context
+        const username = localStorage.getItem('henchies_last_username') || 'Tester';
+        const state = createInitialState(username, sandboxData.customTribes);
+        
+        console.log("[SANDBOX] Configuring players...");
+        await configurePlayers(state, itemData, type, sandboxData);
+        
+        // 3. Setup Opponent Board & Global Rules
+        console.log("[SANDBOX] Setting up opponent board...");
+        setupSandboxBoard(state, sandboxData);
+        applyRelentlessModifier(state, sandboxData.abilities);
 
-    // 4. Finalize
-    const roomId = 'TEST_' + Date.now();
-    state.gameId = roomId;
-    state.turn_start_state = JSON.stringify(state);
+        // 4. Finalize
+        const roomId = 'TEST_' + Date.now();
+        state.gameId = roomId;
+        state.turn_start_state = JSON.stringify(state);
 
-    await launchRoom(roomId, state, popup);
+        console.log(`[SANDBOX] Launching room ${roomId}...`);
+        await launchRoom(roomId, state, popup);
+    } catch (err) {
+        console.error("[SANDBOX] FATAL ERROR during launch:", err);
+        if (popup) popup.document.write(`<h2 style="color:red; font-family:sans-serif; padding: 20px;">Fatal Error Launching Sandbox:<br/>${err.message}</h2>`);
+        throw err;
+    }
 }

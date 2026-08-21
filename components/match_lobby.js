@@ -1,8 +1,9 @@
 export class MatchLobby extends HTMLElement {
     connectedCallback() {
-        this.style.display = 'contents';
+        const isTestMode = window.location.hash.startsWith('#test_');
+        this.style.display = isTestMode ? 'none' : 'contents';
         this.innerHTML = `
-        <div id="match-setup-screen" class="flex-1 max-w-xl w-full mx-auto p-4 flex flex-col justify-center my-auto">
+        <div id="match-setup-screen" class="flex-1 max-w-xl w-full mx-auto p-4 flex flex-col justify-center my-auto ${isTestMode ? 'hidden' : ''}">
             <div class="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800 flex flex-col gap-5">
             
             <div class="text-center border-b border-slate-800 pb-3">

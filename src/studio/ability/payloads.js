@@ -69,6 +69,7 @@ export function moveEffectGroup(index, direction) {
 }
 
 export function updateEffectGroup(index, field, value) { 
+    if (!StudioState.effectGroups[index]) return;
     StudioState.effectGroups[index][field] = value; 
     if (field === 'targetMethod') revalidatePayloadTypes();
     renderEffects(); 
@@ -77,6 +78,7 @@ export function updateEffectGroup(index, field, value) {
 
 export function addPayload(groupIndex) {
     const group = StudioState.effectGroups[groupIndex];
+    if (!group) return;
     let baseZones = group.quickTargeting?.zones || ['FIELD'];
     if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = StudioState.activationQuickTargeting?.zones || ['FIELD'];
         
@@ -135,6 +137,7 @@ export function handlePayloadDragEnd(e) {
 }
 
 export function updatePayload(groupIndex, payloadIndex, field, value) {
+  if (!StudioState.effectGroups[groupIndex] || !StudioState.effectGroups[groupIndex].payloads[payloadIndex]) return;
   const payload = StudioState.effectGroups[groupIndex].payloads[payloadIndex];
   
   if (field === 'stat') {

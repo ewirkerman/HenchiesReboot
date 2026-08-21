@@ -32,72 +32,76 @@ window.addEventListener("unhandledrejection", function(event) {
   if (btn) { btn.innerHTML = '🚀 Launch Battleboard Tabletop'; btn.disabled = false; }
 });
 
-// Initialize Engine Catalogs & UI
-fetchCustomAbilities().then(abs => {
-    ClientState.allAbilitiesRegistry = abs.map(ab => ({
-        ...ab,
-        displayDescription: generateAbilityDescription(ab, abs)
-    }));
-    console.log("[INIT] Abilities loaded for tooltips.");
-}).catch(e => console.warn('[INIT] Glossary fetch failed:', e));
-
-fetchCustomCards().then(cards => {
-    ClientState.allCardsRegistry = [...CARD_CATALOG, ...cards];
-    console.log("[INIT] Catalog loaded for engine.");
-}).catch(e => console.warn('[INIT] Catalog fetch failed:', e));
-
-fetchCustomTribes().then(tribes => {
-    ClientState.customTribesList = tribes;
-}).catch(e => console.warn('[INIT] Tribes fetch failed:', e));
-
-loadUI().then(() => console.log("[INIT] UI Styles loaded.")).catch(e => console.warn(e));
-
-// Lobby & Sandbox Setup
-const savedName = localStorage.getItem('henchies_last_username');
-if (savedName) document.getElementById('setup-username').value = savedName;
-
-const hashData = window.location.hash.replace('#', '');
-const isTestMode = hashData.startsWith('test_');
-const urlRoom = isTestMode ? hashData.replace('test_', '') : hashData;
-
-if (isTestMode && urlRoom) {
-  console.log("[INIT] Sandbox Test mode detected. Bypassing lobby.");
-  ClientState.roomCode = urlRoom;
-  ClientState.localPlayerRole = 'player1';
-  document.getElementById('header-room-badge').innerText = `Sandbox: ${ClientState.roomCode}`;
-  document.getElementById('match-setup-screen').classList.add('hidden');
-  document.getElementById('match-tabletop-screen').classList.remove('hidden');
-  
-  Promise.all([fetchCustomCards(), fetchCustomAbilities()]).then(([cards, abs]) => {
-      ClientState.allCardsRegistry = [...CARD_CATALOG, ...cards];
-      ClientState.allAbilitiesRegistry = abs.map(ab => {
-          let desc = '';
-          try { desc = generateAbilityDescription(ab, abs); } catch(e) {}
-          return { ...ab, displayDescription: desc };
-      });
-      subscribeToGameRoom(ClientState.roomCode, (data) => {
-          if (data && data.turn_start_state) reconstructStateFromLog(data);
-      });
-  }).catch(err => {
-      console.error("[INIT] Failed to initialize sandbox registries:", err);
-      showToast("Failed to initialize game registries.", "error");
-  });
-} else {
-  if (urlRoom) {
-    document.getElementById('setup-room-code').value = urlRoom;
-  } else {
-    document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
-  }
+// Synchronously swap UI to prevent lobby flashing in Sandbox mode
+if (window.location.hash.startsWith('#test_')) {
+    const tabletop = document.getElementById('match-tabletop-screen');
+    if (tabletop) tabletop.classList.remove('hidden');
 }
 
-const undoCheckbox = document.getElementById('setup-allow-undo');
-if (undoCheckbox) {
-    if (GLOBAL_UNDO_POLICY === 'FORCED_ON') {
-        undoCheckbox.checked = true;
-        undoCheckbox.disabled = true;
-    } else if (GLOBAL_UNDO_POLICY === 'FORCED_OFF') {
-        undoCheckbox.checked = false;
-        undoCheckbox.disabled = true;
+// Initialize Engine Catalogs & UI Safely
+async function initializeApp() {
+    try {
+        const [abs, cards, tribes] = await Promise.all([
+            fetchCustomAbilities(),
+            fetchCustomCards(),
+            fetchCustomTribes(),
+            loadUI()
+        ]);
+
+        ClientState.allCardsRegistry = [...CARD_CATALOG, ...cards];
+        ClientState.customTribesList = tribes;
+        ClientState.allAbilitiesRegistry = abs.map(ab => {
+            let desc = '';
+            try { desc = generateAbilityDescription(ab, abs); } catch(e) {}
+            return { ...ab, displayDescription: desc };
+        });
+        console.log("[INIT] Registries and UI Styles loaded.");
+
+        const hashData = window.location.hash.replace('#', '');
+        const isTestMode = hashData.startsWith('test_');
+        const urlRoom = isTestMode ? hashData.replace('test_', '') : hashData;
+
+        if (isTestMode && urlRoom) {
+            console.log("[INIT] Sandbox Test mode detected. Bypassing lobby.");
+            ClientState.roomCode = urlRoom;
+            ClientState.localPlayerRole = 'player1';
+            document.getElementById('header-room-badge').innerText = `Sandbox: ${ClientState.roomCode}`;
+            document.getElementById('match-setup-screen').classList.add('hidden');
+            document.getElementById('match-tabletop-screen').classList.remove('hidden');
+            
+            console.log("[INIT] Subscribing to local Game Room...");
+            subscribeToGameRoom(ClientState.roomCode, (data) => {
+                if (data && data.turn_start_state) {
+                    console.log("[INIT] Game room data received. Reconstructing board...");
+                    reconstructStateFromLog(data);
+                }
+            });
+        } else {
+            if (urlRoom) {
+                document.getElementById('setup-room-code').value = urlRoom;
+            } else {
+                document.getElementById('setup-room-code').value = 'ROOM_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+            }
+
+            const savedName = localStorage.getItem('henchies_last_username');
+            if (savedName) document.getElementById('setup-username').value = savedName;
+
+            const undoCheckbox = document.getElementById('setup-allow-undo');
+            if (undoCheckbox) {
+                if (GLOBAL_UNDO_POLICY === 'FORCED_ON') {
+                    undoCheckbox.checked = true;
+                    undoCheckbox.disabled = true;
+                } else if (GLOBAL_UNDO_POLICY === 'FORCED_OFF') {
+                    undoCheckbox.checked = false;
+                    undoCheckbox.disabled = true;
+                }
+            }
+
+            updateDeckDropdown();
+        }
+    } catch(err) {
+        console.error("[INIT] Initialization failed:", err);
+        showToast("Failed to initialize game registries.", "error");
     }
 }
 
@@ -189,4 +193,4 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Run Initial Setup
-updateDeckDropdown();
+initializeApp();
