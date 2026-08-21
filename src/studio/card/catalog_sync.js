@@ -16,6 +16,16 @@ export async function saveCard() {
         showToast('Units must have a Family assigned.', 'error');
         return;
     }
+    if ((card.type === 'unit' || card.type === 'avatar') && card.strength !== null && card.strength !== undefined) {
+        const hasAttack = card.abilities && card.abilities.some(a => 
+            a && (a.name.toLowerCase() === 'attack' || 
+            (a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'))))
+        );
+        if (!hasAttack) {
+            showToast('Units with strength must have an Attack ability.', 'error');
+            return;
+        }
+    }
 
     const btn = document.getElementById('save-card-btn');
     const origText = btn.innerHTML;

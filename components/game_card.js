@@ -172,31 +172,64 @@ export class GameCard extends HTMLElement {
         if (displayAbilities.length > 0) {
             abilitiesHTML = displayAbilities.map(ab => {
                 const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
+                const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'MODIFY_PLAY'].includes(ab.trigger);
                 
                 const abilityKey = `${card.instanceId}_${ab.abilityId}`;
                 const uses = (options.abilityUses || {})[abilityKey] || 0;
-                let isUsable = true;
-                if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) isUsable = false;
-                if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) isUsable = false;
-
-                const isBlockedAct = hasEngineFlag(card, 'BLOCK_ACT');
-                const isBlockedAttack = hasEngineFlag(card, 'BLOCK_ATTACK') || isBlockedAct;
-
-                if (isAttack && isBlockedAttack) isUsable = false;
                 
-                if (ab.trigger === 'MANUAL') {
-                    if (!isAttack && isBlockedAct) isUsable = false;
+                let isUsable = true;
+                let showHourglass = false;
+                
+                if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
+                if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
+
+                // Bypass field-state usability checks if the card is in hand or being previewed globally
+                if (!options.isHand && card.readiness !== undefined) {
+                    const checkBlock = (flag) => {
+                        if (!hasEngineFlag(card, flag)) return null;
+                        if (card.passiveFlags?.includes(flag)) return 'permanent';
+                        if (card.abilities?.some(a => a.passiveFlags?.includes(flag))) return 'permanent';
+                        const effect = card.activeEffects?.find(e => e.type === flag);
+                        if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
+                        return 'temporary';
+                    };
+
+                    const actBlock = checkBlock('BLOCK_ACT');
+                    const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+
+                    if (isAttack && attackBlock) {
+                        isUsable = false;
+                        if (attackBlock === 'temporary') showHourglass = true;
+                    }
                     
-                    if (isUsable) {
-                        const cost = ab.cost || {};
-                        if (!cost.freeAction && !isAttack && (card.acts === undefined || card.acts < 1)) isUsable = false;
+                    if (ab.trigger === 'MANUAL') {
+                        if (!isAttack && actBlock) {
+                            isUsable = false;
+                            if (actBlock === 'temporary') showHourglass = true;
+                        }
+                        
+                        if (isUsable) {
+                            const cost = ab.cost || {};
+                            if (!cost.freeAction && !isAttack && (card.acts === undefined || card.acts < 1)) {
+                                isUsable = false;
+                                showHourglass = true;
+                            }
+                        }
                     }
                 }
 
-                if (options.isHand) isUsable = true;
+                if (isPlayTrigger && !options.isHand && card.readiness !== undefined) {
+                    isUsable = false;
+                    showHourglass = false;
+                }
+
+                if (options.isHand || card.readiness === undefined) {
+                    isUsable = true;
+                    showHourglass = false;
+                }
 
                 const iconContent = isAttack ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5">${getIconSvg('attack')}</span>` : '';
-                const hourglassIcon = !isUsable ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+                const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
                 
                 const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
                 const nameColorClass = isUsable ? '' : 'text-slate-500';

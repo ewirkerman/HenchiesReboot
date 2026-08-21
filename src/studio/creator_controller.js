@@ -47,54 +47,9 @@ export const CreatorState = {
 window.CreatorController = {
     async init() {
         await loadUI();
-
-        // 1. Fetch Shared Dependencies
-        CardState.customTribes = await fetchCustomTribes();
-        StudioState.customTribesList = CardState.customTribes;
         
-        const rawAbs = await fetchCustomAbilities();
-        const customCards = await fetchCustomCards();
-        
-        // 2. Hydrate Global Registries
-        const tempCards = [...CARD_CATALOG, ...customCards];
-        
-        // --- Dynamically Populate Tribes & Genuses for Logic Trees ---
-        const allTribesSet = new Set(ATTRIBUTE_MANIFEST['tribe'].options || []);
-        const allGenusesSet = new Set();
-        
-        CardState.customTribes.forEach(t => {
-            if (t.name) allTribesSet.add(t.name);
-            if (t.validGenuses && Array.isArray(t.validGenuses)) {
-                t.validGenuses.forEach(g => { if (g) allGenusesSet.add(g.trim()); });
-            }
-        });
-        
-        tempCards.forEach(c => {
-            if (c.tribe && !c.tribe.startsWith('tribe_')) allTribesSet.add(c.tribe);
-            if (c.genus) allGenusesSet.add(c.genus.trim());
-        });
-        
-        ATTRIBUTE_MANIFEST['tribe'].options = Array.from(allTribesSet).sort();
-        const genusesArray = Array.from(allGenusesSet).filter(Boolean).sort();
-        ATTRIBUTE_MANIFEST['genus'].options = genusesArray.length > 0 ? genusesArray : ['Generic'];
-        // -------------------------------------------------------------
-
-        StudioState.allAbilities = rawAbs.map(ab => {
-            let desc = '';
-            try { desc = generateAbilityDescription(ab, rawAbs, tempCards, StudioState.customTribesList); } catch(e) {}
-            return { ...ab, displayDescription: desc };
-        });
-        StudioState.allAbilitiesRegistry = [...StudioState.allAbilities];
-        CardState.allAbilities = StudioState.allAbilities;
-        CardState.allAbilitiesRegistry = [...StudioState.allAbilities];
-
-        const hydratedCustomCards = customCards.map(c => {
-            if (c.abilities) c.abilities = c.abilities.map(ab => hydrateAbility(ab, rawAbs)).filter(Boolean);
-            return c;
-        });
-        
-        CardState.allCards = [...CARD_CATALOG, ...hydratedCustomCards];
-        StudioState.allCards = CardState.allCards;
+        // Initial Hydration
+        await this.refreshStudioData();
 
         // 3. Initialize Shared Form Elements
         const tribeSelect = document.getElementById('card-tribe');
@@ -183,6 +138,12 @@ window.CreatorController = {
         topbar.addEventListener('delete', () => this.handleDelete());
         topbar.addEventListener('import', (e) => this.handleImport(e.detail));
         
+        // Real-Time Delta Sync Listener
+        window.addEventListener('catalog_delta_sync', () => {
+            console.log("🔄 Real-time delta sync received! Updating catalog...");
+            this.refreshStudioData();
+        });
+
         // 6. Setup Catalog
         const catalogEl = document.getElementById('unified-catalog');
         catalogEl.setAttribute('hide-badges', 'true');
@@ -239,6 +200,60 @@ window.CreatorController = {
         this.handleHashRoute();
         
         initImagePanning();
+    },
+
+    async refreshStudioData() {
+        CardState.customTribes = await fetchCustomTribes();
+        StudioState.customTribesList = CardState.customTribes;
+        
+        const rawAbs = await fetchCustomAbilities();
+        const customCards = await fetchCustomCards();
+        
+        const tempCards = [...CARD_CATALOG, ...customCards];
+        
+        // Dynamically Populate Tribes & Genuses for Logic Trees
+        const allTribesSet = new Set(ATTRIBUTE_MANIFEST['tribe'].options || []);
+        const allGenusesSet = new Set();
+        
+        CardState.customTribes.forEach(t => {
+            if (t.name) allTribesSet.add(t.name);
+            if (t.validGenuses && Array.isArray(t.validGenuses)) {
+                t.validGenuses.forEach(g => { if (g) allGenusesSet.add(g.trim()); });
+            }
+        });
+        
+        tempCards.forEach(c => {
+            if (c.tribe && !c.tribe.startsWith('tribe_')) allTribesSet.add(c.tribe);
+            if (c.genus) allGenusesSet.add(c.genus.trim());
+        });
+        
+        ATTRIBUTE_MANIFEST['tribe'].options = Array.from(allTribesSet).sort();
+        const genusesArray = Array.from(allGenusesSet).filter(Boolean).sort();
+        ATTRIBUTE_MANIFEST['genus'].options = genusesArray.length > 0 ? genusesArray : ['Generic'];
+
+        StudioState.allAbilities = rawAbs.map(ab => {
+            let desc = '';
+            try { desc = generateAbilityDescription(ab, rawAbs, tempCards, StudioState.customTribesList); } catch(e) {}
+            return { ...ab, displayDescription: desc };
+        });
+        StudioState.allAbilitiesRegistry = [...StudioState.allAbilities];
+        CardState.allAbilities = StudioState.allAbilities;
+        CardState.allAbilitiesRegistry = [...StudioState.allAbilities];
+
+        const hydratedCustomCards = customCards.map(c => {
+            if (c.abilities) c.abilities = c.abilities.map(ab => hydrateAbility(ab, rawAbs)).filter(Boolean);
+            return c;
+        });
+        
+        CardState.allCards = [...CARD_CATALOG, ...hydratedCustomCards];
+        StudioState.allCards = CardState.allCards;
+
+        this.renderUnifiedCatalog();
+        
+        // Gracefully hot-swap the active form if it isn't currently being edited
+        if (CreatorState.activeId && !CreatorState.isDirty) {
+            this.switchWorkspace(CreatorState.activeMode, CreatorState.activeId);
+        }
     },
 
     renderUnifiedCatalog() {
@@ -681,6 +696,7 @@ window.CreatorController = {
 
         let isValid = true;
         let errorFields = [];
+        let specificWarning = null;
 
         if (CreatorState.activeMode === 'card') {
             try {
@@ -692,6 +708,17 @@ window.CreatorController = {
                 if (cardObj.type === 'unit' && !cardObj.family) {
                     isValid = false;
                     errorFields.push('card-family');
+                }
+                if ((cardObj.type === 'unit' || cardObj.type === 'avatar') && cardObj.strength !== null && cardObj.strength !== undefined) {
+                    const hasAttack = cardObj.abilities && cardObj.abilities.some(a => 
+                        a && (a.name.toLowerCase() === 'attack' || 
+                        (a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'))))
+                    );
+                    if (!hasAttack) {
+                        isValid = false;
+                        errorFields.push('card-strength');
+                        specificWarning = '⚠️ Draft (Needs Attack Ability)';
+                    }
                 }
             } catch(e) {
                 isValid = false;
@@ -729,7 +756,10 @@ window.CreatorController = {
             if (!btn.innerHTML.includes('Draft')) btn.innerHTML = btn.innerHTML.replace('Save', 'Save Draft');
             btn.classList.remove('bg-amber-500');
             btn.classList.add('bg-amber-600');
-            if (draftWarning) draftWarning.classList.remove('hidden');
+            if (draftWarning) {
+                draftWarning.innerText = specificWarning || '⚠️ Draft (Invalid)';
+                draftWarning.classList.remove('hidden');
+            }
         }
     },
 

@@ -124,36 +124,37 @@ export class GameEngine {
                 const scope = ability.triggerScope || 'PERSONAL';
                 
                 let isPassive = false;
-                let isActive = false;
+                let isPhaseEvent = eventType.includes('TURN_');
 
                 for (const actionKey in ACTION_MANIFEST) {
                     const manifest = ACTION_MANIFEST[actionKey];
-                    if (eventType === actionKey || eventType.endsWith(`_${actionKey}`)) isActive = true;
-                    if (manifest.passiveType && (eventType === manifest.passiveType || eventType.endsWith(`_${manifest.passiveType}`))) isPassive = true;
+                    if (manifest.passiveType && (eventType === manifest.passiveType || eventType.endsWith(`_${manifest.passiveType}`))) {
+                        isPassive = true;
+                        break;
+                    }
                 }
                 
                 let eventEntity = null;
-                if (payload) {
-                    if (isPassive) eventEntity = payload.target;
-                    if (isActive && !eventEntity) eventEntity = payload.source;
+                if (payload && !isPhaseEvent) {
+                    eventEntity = isPassive ? payload.target : payload.source;
                 }
 
                 if (payload) {
                     if (scope === 'PERSONAL') {
-                        if (isPassive && (!payload.target || payload.target.instanceId !== ent.instanceId)) isValid = false;
-                        if (isActive && (!payload.source || payload.source.instanceId !== ent.instanceId)) isValid = false;
-                        if (['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(eventType)) {
+                        if (isPhaseEvent) {
                             if (payload.playerId && payload.playerId !== ownerId) isValid = false;
+                        } else {
+                            if (!eventEntity || eventEntity.instanceId !== ent.instanceId) isValid = false;
                         }
                     } else if (scope === 'GLOBAL') {
-                        if (['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(eventType)) {
-                            // Phase events are naturally global and have no specific entity, let them pass
-                        } else if (!eventEntity) {
-                            isValid = false;
-                        } else {
-                            const qt = ability.activation?.quickTargeting;
-                            const pool = this.findEntitiesInScope(qt, ownerId);
-                            if (!pool.some(p => p.instanceId === eventEntity?.instanceId)) isValid = false;
+                        if (!isPhaseEvent) {
+                            if (!eventEntity) {
+                                isValid = false;
+                            } else {
+                                const qt = ability.activation?.quickTargeting;
+                                const pool = this.findEntitiesInScope(qt, ownerId);
+                                if (!pool.some(p => p.instanceId === eventEntity?.instanceId)) isValid = false;
+                            }
                         }
                     }
                 }

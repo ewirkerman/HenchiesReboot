@@ -82,7 +82,11 @@
       
       <div class="flex justify-between items-center border-b border-slate-800 pb-2">
         <h2 class="text-base font-black text-amber-400 uppercase tracking-wider">🛡️ Your Deck</h2>
-        <div class="text-[10px] font-black bg-slate-900 px-2 py-1 rounded text-amber-300 border border-slate-700 shadow-inner" id="deck-count-badge">0 / 40</div>
+        <div class="flex gap-2 items-center">
+            <button id="import-deck-btn" class="bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold px-2 py-1 rounded text-[10px] shadow border border-slate-700 transition">📥 Import</button>
+            <button id="export-deck-btn" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold px-2 py-1 rounded text-[10px] shadow border border-slate-700 transition">📤 Export</button>
+            <div class="text-[10px] font-black bg-slate-900 px-2 py-1 rounded text-amber-300 border border-slate-700 shadow-inner" id="deck-count-badge">0 / 40</div>
+        </div>
       </div>
 
       <!-- Dedicated Avatar Slot -->
@@ -118,6 +122,22 @@
           </div>
           <div id="avatar-modal-catalog" class="flex-1 overflow-y-auto p-4 flex flex-wrap gap-4 justify-center bg-slate-950">
               <!-- Avatars injected here -->
+          </div>
+      </div>
+  </div>
+
+  <!-- Deck Import Modal -->
+  <div id="deck-import-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-lg w-full p-5 flex flex-col gap-4">
+          <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+              <h3 class="text-lg font-black text-sky-400 uppercase tracking-wider">📥 Import Deck Code</h3>
+              <button onclick="document.getElementById('deck-import-modal').classList.add('hidden')" class="text-slate-400 hover:text-white font-bold text-xl leading-none">&times;</button>
+          </div>
+          <p class="text-xs text-slate-400">Paste a Base64 Deck Code below to import it into your workspace.</p>
+          <textarea id="import-deck-code-textarea" rows="4" class="bg-slate-950 border border-slate-700 p-3 rounded text-sky-300 font-mono text-xs w-full focus:outline-none focus:border-sky-500 custom-scrollbar" placeholder="e.g. eyJhIjoiU2Ficmlu..."></textarea>
+          <div class="flex justify-end gap-3 mt-2">
+              <button onclick="document.getElementById('deck-import-modal').classList.add('hidden')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2 rounded transition">Cancel</button>
+              <button id="confirm-deck-import-btn" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-4 py-2 rounded transition shadow">Import Deck</button>
           </div>
       </div>
   </div>
@@ -211,6 +231,76 @@
       document.getElementById('filter-search').addEventListener('input', renderCatalog);
       document.getElementById('deck-owner-input').addEventListener('input', () => localStorage.setItem('henchies_deck_owner', document.getElementById('deck-owner-input').value));
       document.getElementById('refresh-cloud-btn').addEventListener('click', refreshLoadDropdown);
+      
+      // Export & Import Deck Code
+      document.getElementById('export-deck-btn').addEventListener('click', () => {
+          if (!currentAvatar && currentDeck.length === 0) {
+              showToast('Cannot export an empty deck!', 'error');
+              return;
+          }
+          const payload = { a: currentAvatar ? currentAvatar.name : null, c: {} };
+          currentDeck.forEach(card => {
+              payload.c[card.name] = (payload.c[card.name] || 0) + 1;
+          });
+          const code = btoa(JSON.stringify(payload));
+          navigator.clipboard.writeText(code).then(() => showToast('Deck Code Copied to Clipboard!', 'success'));
+      });
+
+      document.getElementById('import-deck-btn').addEventListener('click', () => {
+          document.getElementById('import-deck-code-textarea').value = '';
+          document.getElementById('deck-import-modal').classList.remove('hidden');
+          document.getElementById('deck-import-modal').classList.add('flex');
+      });
+
+      document.getElementById('confirm-deck-import-btn').addEventListener('click', () => {
+          const code = document.getElementById('import-deck-code-textarea').value.trim();
+          if (!code) return;
+          try {
+              const data = JSON.parse(atob(code));
+              let newDeck = [];
+              let newAvatar = null;
+              let missing = [];
+
+              if (data.a) {
+                  const av = fullCatalog.find(c => c.name === data.a && c.type === 'avatar');
+                  if (av) newAvatar = JSON.parse(JSON.stringify(av));
+                  else missing.push(data.a);
+              }
+
+              if (data.c) {
+                  for (const [name, count] of Object.entries(data.c)) {
+                      const card = fullCatalog.find(c => c.name === name && c.type !== 'avatar');
+                      if (card) {
+                          for(let i=0; i<count; i++) newDeck.push(JSON.parse(JSON.stringify(card)));
+                      } else {
+                          missing.push(name);
+                      }
+                  }
+              }
+
+              currentAvatar = newAvatar;
+              currentDeck = newDeck;
+              
+              currentEditingId = null;
+              document.getElementById('deck-name-input').value = "Imported Deck";
+              document.getElementById('form-title').innerText = "⚡ Design Deck (Imported)";
+              document.getElementById('studio-topbar').showButtons(false);
+              
+              updateDeckUI();
+              
+              document.getElementById('deck-import-modal').classList.add('hidden');
+              document.getElementById('deck-import-modal').classList.remove('flex');
+              
+              if (missing.length > 0) {
+                  showToast(`Imported with missing cards: ${missing.join(', ')}`, 'warning');
+              } else {
+                  showToast('Deck imported successfully!', 'success');
+              }
+          } catch(e) {
+              console.error(e);
+              showToast('Invalid Deck Code format.', 'error');
+          }
+      });
       
       const topbar = document.getElementById('studio-topbar');
       topbar.addEventListener('save', saveDeck);

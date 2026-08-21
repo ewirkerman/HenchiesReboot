@@ -19,6 +19,14 @@ export function exportCurrentState(formData, uiState) {
         logicTree: JSON.parse(JSON.stringify(uiState.activationRoot))
     };
 
+    if (formData.actMethod === 'NONE' && formData.triggerScope !== 'GLOBAL') {
+        delete activationData.quickTargeting;
+    }
+    
+    if (activationData.logicTree && activationData.logicTree.children && activationData.logicTree.children.length === 0) {
+        delete activationData.logicTree;
+    }
+
     return {
         abilityId: formData.abilityId || uiState.currentEditingId || ('ability_' + Date.now()),
         name: formData.name,
@@ -44,6 +52,10 @@ export function exportCurrentState(formData, uiState) {
                 delete group.quickTargeting;
                 delete group.logicTree;
                 delete group.targetCount;
+            } else {
+                if (group.logicTree && group.logicTree.children && group.logicTree.children.length === 0) {
+                    delete group.logicTree;
+                }
             }
             return group;
         })

@@ -79,6 +79,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     let targets = [];
     const oppId = playerId === 'player1' ? 'player2' : 'player1';
     const isAttack = ability.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
+    const isPlayAbility = ['PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'MODIFY_PLAY'].includes(ability.trigger);
 
     if (qt.zones) {
         let alignments = qt.alignment || [];
@@ -99,7 +100,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
                 
                 if (!isFriendly) {
                     const isTargetHidden = hasEngineFlag(state, ent, 'BLOCK_TARGETING');
-                    if (isTargetHidden && !hasPerception) return;
+                    if (isTargetHidden && !hasPerception && !isPlayAbility) return;
                 }
                 if (!qt.entityType || qt.entityType.length === 0 || qt.entityType.includes(entType)) {
                     targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });

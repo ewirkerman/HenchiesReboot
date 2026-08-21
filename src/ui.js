@@ -408,32 +408,64 @@
                       formattedDesc = formattedDesc.replace(/\{Unready\}/g, SVG_UNREADY).replace(/\{Exhaust\}/g, SVG_EXHAUST).replace(/\{Power.*?\}/g, '').replace(/\{Resource.*?\}/g, '').replace(/\{Tent.*?\}/g, '').replace(/\{Free Action\}/g, '');
                       
                       const isAttack = a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
+                      const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'MODIFY_PLAY'].includes(a.trigger);
                       
                       const abilityKey = `${cardOrUnit.instanceId}_${a.abilityId}`;
                       const uses = (abilityUses || {})[abilityKey] || 0;
-                      let isUsable = true;
-                      if (a.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) isUsable = false;
-                      if (a.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) isUsable = false;
-
-                      const isBlockedAct = hasEngineFlag(cardOrUnit, 'BLOCK_ACT');
-                      const isBlockedAttack = hasEngineFlag(cardOrUnit, 'BLOCK_ATTACK') || isBlockedAct;
-
-                      if (isAttack && isBlockedAttack) isUsable = false;
                       
-                      if (a.trigger === 'MANUAL') {
-                          if (!isAttack && isBlockedAct) isUsable = false;
+                      let isUsable = true;
+                      let showHourglass = false;
+                      
+                      if (a.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
+                      if (a.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
+
+                      // Bypass field-state usability checks if the card is in hand or being previewed globally
+                      if (!isHand && cardOrUnit.readiness !== undefined) {
+                          const checkBlock = (flag) => {
+                              if (!hasEngineFlag(cardOrUnit, flag)) return null;
+                              if (cardOrUnit.passiveFlags?.includes(flag)) return 'permanent';
+                              if (cardOrUnit.abilities?.some(ab => ab.passiveFlags?.includes(flag))) return 'permanent';
+                              const effect = cardOrUnit.activeEffects?.find(e => e.type === flag);
+                              if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
+                              return 'temporary';
+                          };
+
+                          const actBlock = checkBlock('BLOCK_ACT');
+                          const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+
+                          if (isAttack && attackBlock) {
+                              isUsable = false;
+                              if (attackBlock === 'temporary') showHourglass = true;
+                          }
                           
-                          if (isUsable) {
-                              const cost = a.cost || {};
-                              // UI explicitly ignores readiness when graying out abilities
-                              if (!cost.freeAction && !isAttack && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) isUsable = false;
+                          if (a.trigger === 'MANUAL') {
+                              if (!isAttack && actBlock) {
+                                  isUsable = false;
+                                  if (actBlock === 'temporary') showHourglass = true;
+                              }
+                              
+                              if (isUsable) {
+                                  const cost = a.cost || {};
+                                  if (!cost.freeAction && !isAttack && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) {
+                                      isUsable = false;
+                                      showHourglass = true;
+                                  }
+                              }
                           }
                       }
 
-                      if (isHand) isUsable = true;
+                      if (isPlayTrigger && !isHand && cardOrUnit.readiness !== undefined) {
+                          isUsable = false;
+                          showHourglass = false;
+                      }
+
+                      if (isHand || cardOrUnit.readiness === undefined) {
+                          isUsable = true;
+                          showHourglass = false;
+                      }
 
                       const iconContent = isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
-                      const hourglassIcon = !isUsable ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+                      const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
                       
                       const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
                       const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';

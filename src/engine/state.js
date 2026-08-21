@@ -59,7 +59,7 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog, cardCatalog, tr
         avatar.ownerId = 'player1';
         avatar.originalOwnerId = 'player1';
         avatar.readiness = 1;
-        p1.lines.avatar = [avatar];
+        p1.unplayedAvatar = avatar;
     }
 
     // Shuffle deck
@@ -73,8 +73,8 @@ export function initGame(roomId, p1Name, p1Deck, abilityCatalog, cardCatalog, tr
         p1.deck.push(c);
     });
     
-    // Draw 5 cards
-    for (let i = 0; i < 5; i++) {
+    // Draw 4 initial cards
+    for (let i = 0; i < 4; i++) {
         if (p1.deck.length > 0) p1.hand.push(p1.deck.pop());
     }
 
@@ -91,6 +91,7 @@ export function joinGame(state, p2Name, p2Deck) {
     const p2 = state.players.player2;
     p2.name = p2Name;
     p2.isDummy = false;
+    p2.setupComplete = false;
     
     // Clear out dummy targets generated in test mode
     p2.lines.front = [];
@@ -106,14 +107,16 @@ export function joinGame(state, p2Name, p2Deck) {
         avatar.ownerId = 'player2';
         avatar.originalOwnerId = 'player2';
         avatar.readiness = 1;
-        p2.lines.avatar = [avatar];
+        p2.unplayedAvatar = avatar;
     } else {
+        p2.unplayedAvatar = null;
         p2.lines.avatar = [];
     }
 
     // Shuffle deck
     shuffleArray(state, deckClone);
     
+    p2.deck = [];
     deckClone.forEach((c, idx) => {
         c.instanceId = 'p2_deck_' + generateId(state, 6) + '_' + idx;
         c.ownerId = 'player2';
@@ -122,6 +125,7 @@ export function joinGame(state, p2Name, p2Deck) {
         p2.deck.push(c);
     });
     
+    p2.hand = [];
     // Draw 5 cards
     for (let i = 0; i < 5; i++) {
         if (p2.deck.length > 0) p2.hand.push(p2.deck.pop());

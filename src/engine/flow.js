@@ -34,20 +34,42 @@ export function startTurn(state, engine) {
     
     if (!player.setupComplete) {
         player.setupComplete = true;
+
+        if (player.unplayedAvatar) {
+            player.lines.avatar.push(player.unplayedAvatar);
+            delete player.unplayedAvatar;
+        }
+
         const avatar = getAvatar(state, pId);
-        if (avatar) avatar.isDeployed = true;
+        if (avatar) {
+            avatar.isDeployed = true;
+            const tTribe = resolveResourceKey(state, player, avatar.tribe);
+            if (tTribe !== 'Carnie' && tTribe !== 'Generic') {
+                if (!player.resources[tTribe]) player.resources[tTribe] = { current: 0, max: 0 };
+                player.resources[tTribe].max += 1;
+            } else if (tTribe === 'Carnie') {
+                player.resources['Carnie'].max += 1;
+            }
+        }
         
-        if (pId === 'player2' && player.isDummy) {
-            const catalogDummy = CARD_CATALOG.find(c => c.id === 'target_dummy' || c.name === 'Target Dummy');
+        if (pId === 'player2') {
+            const catalogDummy = state.catalog?.find(c => c.id === 'target_dummy' || c.name === 'Target Dummy') || CARD_CATALOG.find(c => c.id === 'target_dummy' || c.name === 'Target Dummy');
             let dummy = catalogDummy ? JSON.parse(JSON.stringify(catalogDummy)) : {
                 id: 'target_dummy', name: 'Target Dummy', type: 'unit', tribe: 'Robot', health: 1, maxHealth: 1, strength: 1, readiness: 0, abilities: []
             };
-            dummy.instanceId = 'inst_' + generateId(state, 9);
+            dummy.instanceId = 'p2_dum_' + generateId(state, 6);
+            dummy.ownerId = pId;
+            dummy.originalOwnerId = pId;
             dummy.readiness = 0;
-            if (dummy.health === undefined) dummy.health = dummy.maxHealth;
+            if (dummy.health === undefined) dummy.health = dummy.maxHealth || 1;
             if (!player.lines['front']) player.lines['front'] = [];
             player.lines['front'].push(dummy);
-            state.history_log.push({ text: `🤖 Dummy opponent deployed Avatar and summoned Target Dummy.`, depth: 0 });
+            
+            if (player.isDummy) {
+                state.history_log.push({ text: `🤖 Dummy opponent deployed Avatar and summoned Target Dummy.`, depth: 0 });
+            } else {
+                state.history_log.push({ text: `👤 ${player.name} deployed their Avatar and summoned a Target Dummy.`, depth: 0 });
+            }
         } else {
             state.history_log.push({ text: `👤 ${player.name} deployed their Avatar.`, depth: 0 });
         }
@@ -99,6 +121,7 @@ export function startTurn(state, engine) {
     }
 
     let drawn = 0;
+    
     for(let i=0; i<2; i++) {
         if (player.deck.length > 0) {
             const card = player.deck.pop();

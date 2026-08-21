@@ -1,5 +1,5 @@
 import { createGameRoom, fetchCustomAbilities, fetchCustomCards, fetchCustomTribes, fetchUserDecks } from './firebase.js';
-import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility } from './engine/index.js';
+import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility, GameEngine, startTurn } from './engine/index.js';
 
 /*
  * =========================================================================================
@@ -86,6 +86,8 @@ async function launchRoom(roomId, state, popup) {
  * @returns {Object} { abilities, cards, tribes }
  */
 async function fetchSandboxData() {
+    // Read from the persistent LocalStorage cache (0 reads). 
+    // Since saving in the studio synchronously updates LocalStorage, the cache is perfectly up-to-date!
     const abilities = await fetchCustomAbilities();
     const customTribes = await fetchCustomTribes();
     const rawCustomCards = await fetchCustomCards();
@@ -107,8 +109,19 @@ async function fetchSandboxData() {
  * Safely looks up an item in a catalog by Name or ID, injecting a fallback if missing.
  */
 function getCatalogItem(catalog, nameOrId, fallback, isAbility = false) {
+    if (!catalog || !Array.isArray(catalog)) return fallback;
     const idKey = isAbility ? 'abilityId' : 'id';
-    const found = catalog.find(item => item[idKey] === nameOrId || (item.name && item.name.toLowerCase() === nameOrId.toLowerCase()));
+    const searchVal = String(nameOrId).trim().toLowerCase();
+    
+    // Sort by updatedAt descending to guarantee we pull the absolute newest version
+    const sortedCatalog = [...catalog].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    
+    const found = sortedCatalog.find(item => {
+        if (item[idKey] === nameOrId) return true;
+        if (item.name && String(item.name).trim().toLowerCase() === searchVal) return true;
+        return false;
+    });
+    
     if (!found) console.warn(`[SANDBOX] ⚠️ Item '${nameOrId}' not found in catalog. Using hardcoded fallback.`);
     return found ? JSON.parse(JSON.stringify(found)) : fallback;
 }
@@ -118,16 +131,24 @@ function getCatalogItem(catalog, nameOrId, fallback, isAbility = false) {
  */
 function autoHealCard(card, targetLiveAbility) {
     if (!targetLiveAbility || !card.abilities) return;
-    const hasExactId = card.abilities.some(a => (a.abilityId || a) === targetLiveAbility.abilityId);
-    const hasNameMatch = card.abilities.some(a => a.name === targetLiveAbility.name);
+    const liveAbId = targetLiveAbility.abilityId || targetLiveAbility.id;
+    const liveAbName = String(targetLiveAbility.name || '').trim().toLowerCase();
     
-    if (!hasExactId && !hasNameMatch) {
-        console.warn(`[SANDBOX] 🩹 Auto-healing broken ability link on '${card.name}'. Injecting live ability: '${targetLiveAbility.name}'`);
+    let healed = false;
+    card.abilities = card.abilities.map(a => {
+        const aId = a.abilityId || a.id || a;
+        const aName = String(a.name || '').trim().toLowerCase();
+        if (aId === liveAbId || aName === liveAbName) {
+            healed = true;
+            return JSON.parse(JSON.stringify(targetLiveAbility));
+        }
+        return a;
+    });
+
+    if (!healed) {
+        console.warn(`[SANDBOX] 🩹 Auto-healing broken ability link on '${card.name}'. Injecting live ability.`);
         card.abilities = card.abilities.filter(a => typeof a === 'object'); // Clear dangling string references
         card.abilities.push(JSON.parse(JSON.stringify(targetLiveAbility)));
-    } else if (hasNameMatch) {
-        console.log(`[SANDBOX] 🔄 Overriding cached ability with live database version for '${targetLiveAbility.name}'`);
-        card.abilities = card.abilities.map(a => a.name === targetLiveAbility.name ? JSON.parse(JSON.stringify(targetLiveAbility)) : a);
     }
 }
 
@@ -282,14 +303,14 @@ async function configurePlayers(state, itemData, type, sandboxData) {
     });
 
     if (type === 'deck' || isAvatarTest) {
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 4; i++) {
             if (state.players.player1.deck.length > 0) {
                 state.players.player1.hand.push(state.players.player1.deck.pop());
             }
         }
     } else {
-        // Guarantee 5 copies of the specific card being tested
-        for(let i=0; i<5; i++) {
+        // Guarantee 4 copies of the specific card being tested
+        for(let i=0; i<4; i++) {
             state.players.player1.hand.push({...JSON.parse(JSON.stringify(targetCard)), instanceId: 'h_'+i, readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
         }
     }
@@ -487,6 +508,10 @@ export async function launchSandboxMatch(itemData, type = 'card') {
         // 4. Finalize
         const roomId = 'TEST_' + Date.now();
         state.gameId = roomId;
+
+        const engine = new GameEngine(state);
+        startTurn(state, engine);
+
         state.turn_start_state = JSON.stringify(state);
 
         console.log(`[SANDBOX] Launching room ${roomId}...`);

@@ -9,31 +9,30 @@ export function enforceAttackAbility() {
     const strVal = document.getElementById('card-strength').value;
     const cardType = document.getElementById('card-type').value;
     
+    // Only auto-manage the default attack ability if we are creating a brand NEW card
+    if (CardState.currentEditingId) return;
+    
     const defaultAtk = CardState.allAbilities.find(a => a.name.toLowerCase() === 'attack');
     if (!defaultAtk) return;
     
     const atkId = defaultAtk.abilityId;
 
-    const hasAlternativeAttack = CardState.currentAbilities.some(obj => {
-        if (obj.id === atkId) return false;
-        const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
-        return ab?.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
-    });
-
     let changed = false;
 
     if ((cardType === 'unit' || cardType === 'avatar') && strVal !== '') {
-        if (hasAlternativeAttack) {
-            const idx = CardState.currentAbilities.findIndex(a => a.id === atkId);
-            if (idx > -1) {
-                CardState.currentAbilities.splice(idx, 1);
-                changed = true;
-            }
-        } else if (!CardState.currentAbilities.some(a => a.id === atkId)) {
+        const hasAttack = CardState.currentAbilities.some(obj => {
+            const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
+            if (!ab) return false;
+            if (ab.name.toLowerCase() === 'attack') return true;
+            if (ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'))) return true;
+            return false;
+        });
+
+        if (!hasAttack) {
             CardState.currentAbilities.push({ id: atkId, paramX: null });
             changed = true;
         }
-    } else {
+    } else if (strVal === '') {
         const idx = CardState.currentAbilities.findIndex(a => a.id === atkId);
         if (idx > -1) {
             CardState.currentAbilities.splice(idx, 1);

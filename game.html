@@ -90,20 +90,20 @@
             <div class="flex-1 flex flex-col gap-1">
                 <div id="opp-lines-container" class="grid grid-cols-4 gap-1 w-full items-stretch">
                     <div class="flex flex-col gap-1 col-span-1 h-full">
-                        <div id="opp-line-avatar" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
-                        <div id="opp-line-bodyguard" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
+                        <div id="opp-line-avatar" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                        <div id="opp-line-bodyguard" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
                     </div>
                     <div class="flex flex-col gap-1 col-span-2 h-full">
-                        <div id="opp-line-sheltered" class="grow flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-back" class="grow flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-mid" class="grow flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-front" class="grow flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                        <div id="opp-line-sheltered" class="grow flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-back" class="grow flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-mid" class="grow flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-front" class="grow flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
                     </div>
                     <div class="flex flex-col gap-1 col-span-1 h-full">
-                        <div id="opp-line-sideline" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
+                        <div id="opp-line-sideline" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
                     </div>
                 </div>
-                <div id="opp-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
+                <div id="opp-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
             </div>
             
             <div class="shrink-0 flex flex-col justify-end" id="opp-discard-container"></div>
@@ -111,7 +111,7 @@
       </div>
 
       <!-- THE EQUATOR (CENTER NEUTRAL ZONE) -->
-      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border border-dashed border-amber-500/40 rounded-lg p-1 min-h-[45px] flex items-center gap-2 min-w-[800px]">
+      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border border-dashed border-amber-500/40 rounded-lg p-1 min-h-[179px] sm:min-h-[201px] flex items-center gap-2 min-w-[800px]">
         <span class="text-[9px] uppercase tracking-widest font-black text-amber-400 whitespace-nowrap shrink-0 pl-1">⚡ Equator</span>
         <div id="equator-cards-container" class="flex flex-wrap justify-center gap-1 items-center w-full">
           <span class="text-[10px] text-slate-500 italic" id="equator-empty-msg">No unattached items.</span>
@@ -131,20 +131,20 @@
             <div class="shrink-0 flex flex-col justify-start" id="player-deck-container"></div>
             
             <div class="flex-1 flex flex-col gap-1">
-                <div id="player-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
+                <div id="player-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
                 <div class="grid grid-cols-4 gap-1 w-full items-stretch">
                     <div class="flex flex-col gap-1 col-span-1 h-full">
-                        <div id="player-line-bodyguard" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
-                        <div id="player-line-avatar" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
+                        <div id="player-line-bodyguard" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
+                        <div id="player-line-avatar" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
                     </div>
                     <div class="flex flex-col gap-1 col-span-2 h-full">
-                        <div id="player-line-front" class="grow flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
-                        <div id="player-line-mid" class="grow flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
-                        <div id="player-line-back" class="grow flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
-                        <div id="player-line-sheltered" class="grow flex flex-wrap justify-center gap-1 min-h-[45px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
+                        <div id="player-line-front" class="grow flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
+                        <div id="player-line-mid" class="grow flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
+                        <div id="player-line-back" class="grow flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
+                        <div id="player-line-sheltered" class="grow flex flex-wrap justify-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
                     </div>
                     <div class="flex flex-col gap-1 col-span-1 h-full">
-                        <div id="player-line-sideline" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[45px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
+                        <div id="player-line-sideline" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[179px] sm:min-h-[201px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
                     </div>
                 </div>
             </div>

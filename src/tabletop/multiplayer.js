@@ -1,7 +1,7 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { createGameRoom, subscribeToGameRoom, pushActionToLog } from '../firebase.js';
-import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, hydrateAbility } from '../engine/index.js';
+import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, hydrateAbility, GameEngine, startTurn } from '../engine/index.js';
 import { showToast } from '../ui.js';
 
 export async function handleLaunchMatch() {
@@ -110,6 +110,9 @@ export async function handleLaunchMatch() {
               const allowUndoChk = document.getElementById('setup-allow-undo');
               if (allowUndoChk) ClientState.gameState.rules.allowUndo = allowUndoChk.checked;
               
+              const engine = new GameEngine(ClientState.gameState);
+              startTurn(ClientState.gameState, engine);
+
               const createTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
               await Promise.race([createGameRoom(ClientState.roomCode, ClientState.gameState), createTimeout]);
               
@@ -231,7 +234,7 @@ export function reconstructStateFromLog(data) {
           liveState.actionIndex = action.actionIndex;
           if (action.type !== 'UNDO') lastRealActionIndex = action.actionIndex;
           
-          if (action.isUnsafe || action.type === 'SACRIFICE_DECISION' || action.type === 'END_TURN' || action.type === 'PLAYER_JOINED') {
+          if (action.isUnsafe || (action.type === 'SACRIFICE_DECISION' && action.option !== 'SKIP') || action.type === 'END_TURN' || action.type === 'PLAYER_JOINED') {
               ClientState.lastSafeUndoIndex = action.actionIndex;
           }
         }

@@ -196,6 +196,8 @@ export async function subscribeToGameRoom(gameId, callback) {
         onSnapshot(doc(db, "games", gameId), (docSnap) => {
             if (docSnap.exists()) {
                 callback(docSnap.data());
+            } else {
+                callback(null);
             }
         }, (err) => {
             console.error("Firestore subscription error:", err);
@@ -203,7 +205,78 @@ export async function subscribeToGameRoom(gameId, callback) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// DELTA SYNC ENGINE (REAL-TIME CACHING)
+// ---------------------------------------------------------------------------
+
+let syncListeners = { cards: null, abilities: null, tribes: null };
+
+function syncCollection(collectionName, cacheKey, type, idKey) {
+    return new Promise(async (resolve) => {
+        const localData = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+        memoryCache[type] = localData.filter(i => !i.isDeleted);
+        
+        let maxUpdated = 0;
+        memoryCache[type].forEach(item => {
+            if (item.updatedAt && item.updatedAt > maxUpdated) maxUpdated = item.updatedAt;
+        });
+
+        // Resolve instantly from local cache to allow offline-first booting
+        if (maxUpdated > 0) resolve(memoryCache[type]);
+
+        if (await isReadyForDB()) {
+            if (syncListeners[type]) {
+                if (maxUpdated === 0) resolve(memoryCache[type]);
+                return; 
+            }
+
+            // Delta Query: Only fetch documents modified after our newest local document
+            let q = maxUpdated > 0 
+                ? query(collection(db, collectionName), where("updatedAt", ">", maxUpdated))
+                : collection(db, collectionName);
+
+            syncListeners[type] = onSnapshot(q, (snapshot) => {
+                let changed = false;
+                
+                if (!snapshot.empty) {
+                    snapshot.docChanges().forEach(change => {
+                        const data = change.doc.data();
+                        if (data.isDeleted) {
+                            memoryCache[type] = memoryCache[type].filter(item => item[idKey] !== data[idKey]);
+                        } else {
+                            const idx = memoryCache[type].findIndex(item => item[idKey] === data[idKey]);
+                            if (idx !== -1) memoryCache[type][idx] = data;
+                            else memoryCache[type].push(data);
+                        }
+                        changed = true;
+                    });
+                }
+
+                if (changed) {
+                    localStorage.setItem(cacheKey, JSON.stringify(memoryCache[type]));
+                    window.dispatchEvent(new CustomEvent('catalog_delta_sync', { detail: { type } }));
+                }
+                
+                if (maxUpdated === 0) {
+                    maxUpdated = Date.now();
+                    resolve(memoryCache[type]); // Resolve the promise for first-time empty boots
+                }
+            }, (error) => {
+                console.error(`Delta Sync Error (${type}):`, error);
+                if (maxUpdated === 0) resolve(memoryCache[type]);
+            });
+        } else {
+            if (maxUpdated === 0) resolve(memoryCache[type]);
+        }
+    });
+}
+
+// ---------------------------------------------------------------------------
+// CATALOG OPERATIONS
+// ---------------------------------------------------------------------------
+
 export async function saveCardToCatalog(cardData) {
+  cardData.updatedAt = Date.now(); // Force fresh timestamp for delta sync
   if (await isReadyForDB()) {
     try {
       await setDoc(doc(db, "cards", cardData.id), cardData);
@@ -229,36 +302,17 @@ export async function saveCardToCatalog(cardData) {
   return true;
 }
 
-export async function fetchCustomCards(forceRefresh = false) {
-  if (!forceRefresh && memoryCache.cards) return memoryCache.cards;
-
-  if (await isReadyForDB()) {
-    try {
-      const querySnapshot = await getDocs(collection(db, "cards"));
-      const cards = [];
-      querySnapshot.forEach((doc) => cards.push(doc.data()));
-      if (cards.length > 0) {
-          memoryCache.cards = cards;
-          localStorage.setItem('henchies_custom_cards', JSON.stringify(cards));
-          return cards;
-      }
-    } catch (e) {
-      console.warn("Firestore card fetch failed, reading LocalStorage", e);
-    }
-  }
-  
-  const local = JSON.parse(localStorage.getItem('henchies_custom_cards') || '[]');
-  memoryCache.cards = local;
-  return local;
+export function fetchCustomCards() {
+    return syncCollection('cards', 'henchies_custom_cards', 'cards', 'id');
 }
 
 export async function deleteCardFromCatalog(cardId) {
   if (await isReadyForDB()) {
     try {
-      await deleteDoc(doc(db, "cards", cardId));
-      console.log(`Card ${cardId} deleted from Firestore`);
+      await updateDoc(doc(db, "cards", cardId), { isDeleted: true, updatedAt: Date.now() });
+      console.log(`Card ${cardId} soft-deleted from Firestore`);
     } catch (e) {
-      console.warn("Firestore card delete failed, deleting from LocalStorage", e);
+      console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
     }
   }
 
@@ -273,6 +327,7 @@ export async function deleteCardFromCatalog(cardId) {
 
 
 export async function saveAbilityToCatalog(abilityData) {
+  abilityData.updatedAt = Date.now(); // Force fresh timestamp for delta sync
   if (await isReadyForDB()) {
     try {
       await setDoc(doc(db, "abilities", abilityData.abilityId), abilityData);
@@ -296,36 +351,17 @@ export async function saveAbilityToCatalog(abilityData) {
   return true;
 }
 
-export async function fetchCustomAbilities(forceRefresh = false) {
-  if (!forceRefresh && memoryCache.abilities) return memoryCache.abilities;
-
-  if (await isReadyForDB()) {
-    try {
-      const querySnapshot = await getDocs(collection(db, "abilities"));
-      const abs = [];
-      querySnapshot.forEach((doc) => abs.push(doc.data()));
-      if (abs.length > 0) {
-          memoryCache.abilities = abs;
-          localStorage.setItem('henchies_custom_abilities', JSON.stringify(abs));
-          return abs;
-      }
-    } catch (e) {
-      console.warn("Firestore ability fetch failed, reading LocalStorage", e);
-    }
-  }
-  
-  const local = JSON.parse(localStorage.getItem('henchies_custom_abilities') || '[]');
-  memoryCache.abilities = local;
-  return local;
+export function fetchCustomAbilities() {
+    return syncCollection('abilities', 'henchies_custom_abilities', 'abilities', 'abilityId');
 }
 
 export async function deleteAbilityFromCatalog(abilityId) {
   if (await isReadyForDB()) {
     try {
-      await deleteDoc(doc(db, "abilities", abilityId));
-      console.log(`Ability ${abilityId} deleted from Firestore`);
+      await updateDoc(doc(db, "abilities", abilityId), { isDeleted: true, updatedAt: Date.now() });
+      console.log(`Ability ${abilityId} soft-deleted from Firestore`);
     } catch (e) {
-      console.warn("Firestore ability delete failed, deleting from LocalStorage", e);
+      console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
     }
   }
 
@@ -340,6 +376,7 @@ export async function deleteAbilityFromCatalog(abilityId) {
 
 
 export async function saveTribeToCatalog(tribeData) {
+  tribeData.updatedAt = Date.now(); // Force fresh timestamp for delta sync
   if (await isReadyForDB()) {
     try {
       await setDoc(doc(db, "tribes", tribeData.id), tribeData);
@@ -363,36 +400,17 @@ export async function saveTribeToCatalog(tribeData) {
   return true;
 }
 
-export async function fetchCustomTribes(forceRefresh = false) {
-  if (!forceRefresh && memoryCache.tribes) return memoryCache.tribes;
-
-  if (await isReadyForDB()) {
-    try {
-      const querySnapshot = await getDocs(collection(db, "tribes"));
-      const tribes = [];
-      querySnapshot.forEach((doc) => tribes.push(doc.data()));
-      if (tribes.length > 0) {
-          memoryCache.tribes = tribes;
-          localStorage.setItem('henchies_custom_tribes', JSON.stringify(tribes));
-          return tribes;
-      }
-    } catch (e) {
-      console.warn("Firestore tribe fetch failed, reading LocalStorage", e);
-    }
-  }
-  
-  const local = JSON.parse(localStorage.getItem('henchies_custom_tribes') || '[]');
-  memoryCache.tribes = local;
-  return local;
+export function fetchCustomTribes() {
+    return syncCollection('tribes', 'henchies_custom_tribes', 'tribes', 'id');
 }
 
 export async function deleteTribeFromCatalog(tribeId) {
   if (await isReadyForDB()) {
     try {
-      await deleteDoc(doc(db, "tribes", tribeId));
-      console.log(`Tribe ${tribeId} deleted from Firestore`);
+      await updateDoc(doc(db, "tribes", tribeId), { isDeleted: true, updatedAt: Date.now() });
+      console.log(`Tribe ${tribeId} soft-deleted from Firestore`);
     } catch (e) {
-      console.warn("Firestore tribe delete failed, deleting from LocalStorage", e);
+      console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
     }
   }
 
@@ -426,9 +444,13 @@ export async function uploadCardArt(file) {
 export async function fetchUserDecks(username, forceRefresh = false) {
     if (!forceRefresh && memoryCache.decks[username]) return memoryCache.decks[username];
     
-    if (await isReadyForDB()) {
+    const localData = JSON.parse(localStorage.getItem(`henchies_decks_${username}`) || 'null');
+    const lastSync = localStorage.getItem(`henchies_sync_decks_${username}`);
+    const needsSync = forceRefresh || !localData || !lastSync || (Date.now() - parseInt(lastSync) > 1000 * 60 * 60 * 12);
+
+    if (needsSync && await isReadyForDB()) {
         try {
-            // FIX: Use a Firestore Query to only download decks belonging to this user!
+            console.log(`[FIREBASE] ☁️ Fetching DECKS for ${username} from Cloud...`);
             const q = query(collection(db, "custom_decks"), where("username", "==", username));
             const qSnapshot = await getDocs(q);
             
@@ -438,13 +460,18 @@ export async function fetchUserDecks(username, forceRefresh = false) {
                 userDecks[data.deckName] = data;
             });
             memoryCache.decks[username] = userDecks;
+            localStorage.setItem(`henchies_decks_${username}`, JSON.stringify(userDecks));
+            localStorage.setItem(`henchies_sync_decks_${username}`, Date.now().toString());
             return userDecks;
         } catch (e) {
             console.error("Error fetching decks:", e);
-            return memoryCache.decks[username] || {};
+            return localData || {};
         }
     }
-    return memoryCache.decks[username] || {};
+    
+    console.log(`[FIREBASE] 💾 Loading DECKS for ${username} from LocalStorage cache (0 reads).`);
+    memoryCache.decks[username] = localData || {};
+    return memoryCache.decks[username];
 }
 
 export async function saveDeckToCatalog(username, deckName, deckData) {
@@ -460,6 +487,7 @@ export async function saveDeckToCatalog(username, deckName, deckData) {
         
         if (!memoryCache.decks[username]) memoryCache.decks[username] = {};
         memoryCache.decks[username][deckName] = payload;
+        localStorage.setItem(`henchies_decks_${username}`, JSON.stringify(memoryCache.decks[username]));
         
         return true;
     } catch (e) {
@@ -475,6 +503,7 @@ export async function deleteDeckFromCatalog(username, deckName) {
         
         if (memoryCache.decks[username]) {
             delete memoryCache.decks[username][deckName];
+            localStorage.setItem(`henchies_decks_${username}`, JSON.stringify(memoryCache.decks[username]));
         }
         
         return true;
