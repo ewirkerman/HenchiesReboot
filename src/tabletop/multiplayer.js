@@ -323,6 +323,17 @@ export function reconstructStateFromLog(data) {
             executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
           } else if (action.type === 'END_TURN') {
             endTurn(liveState);
+          } else if (action.type === 'FORFEIT') {
+              liveState.status = 'finished';
+              let forfeitingPlayerId = action.playerId;
+              if (!forfeitingPlayerId) {
+                  if (liveState.players.player1.name === action.playerName) forfeitingPlayerId = 'player1';
+                  else if (liveState.players.player2.name === action.playerName) forfeitingPlayerId = 'player2';
+              }
+              if (forfeitingPlayerId) {
+                  liveState.winner = forfeitingPlayerId === 'player1' ? 'player2' : 'player1';
+                  liveState.history_log.push({ text: `🏳️ ${action.playerName} forfeited the match.`, depth: 0 });
+              }
           }
           liveState.actionIndex = action.actionIndex;
           if (action.type !== 'UNDO') lastRealActionIndex = action.actionIndex;

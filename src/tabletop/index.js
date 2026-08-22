@@ -1,6 +1,6 @@
 import { CARD_CATALOG, GLOBAL_UNDO_POLICY } from '../engine/index.js';
 import { showToast, loadUI } from '../ui.js';
-import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom, subscribeToUserInvites, subscribeToActiveMatches } from '../firebase.js';
+import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom, subscribeToUserInvites, subscribeToActiveMatches, pushActionToLog } from '../firebase.js';
 import { generateAbilityDescription } from '../language_description.js';
 
 import { ClientState } from './client_state.js';
@@ -171,18 +171,29 @@ async function updateLobbyData() {
                 listEl.innerHTML = '<span class="text-xs text-slate-500 italic">No active matches.</span>';
             } else {
                 listEl.innerHTML = matches.map(m => `
-                    <div class="bg-slate-950 p-2 rounded border border-slate-700 flex justify-between items-center cursor-pointer hover:border-emerald-500 transition-colors" onclick="window.handleResumeMatch('${m.gameId}')">
-                        <div class="flex flex-col">
+                    <div class="bg-slate-950 p-2 rounded border border-slate-700 flex justify-between items-center group">
+                        <div class="flex flex-col cursor-pointer flex-1 hover:opacity-80 transition-opacity" onclick="window.handleResumeMatch('${m.gameId}')">
                             <span class="text-xs text-emerald-400 font-bold">vs ${m.participants.find(p => p !== username) || 'Waiting...'}</span>
                             <span class="text-[9px] text-slate-500">Turn ${m.turnNumber || 1} • ${(m.turnPhase || 'Setup').replace('_', ' ')}</span>
                         </div>
-                        <span class="text-lg text-emerald-500">▶</span>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button onclick="window.handleForfeitFromLobby('${m.gameId}')" class="text-[10px] text-slate-500 hover:text-red-400 font-bold px-1.5 py-0.5 rounded border border-transparent hover:border-red-900 transition" title="Forfeit Match">🏳️</button>
+                            <span class="text-lg text-emerald-500 cursor-pointer" onclick="window.handleResumeMatch('${m.gameId}')">▶</span>
+                        </div>
                     </div>
                 `).join('');
             }
         }
     });
 }
+
+window.handleForfeitFromLobby = async (gameId) => {
+    if (!confirm("Are you sure you want to forfeit this match?")) return;
+    const username = document.getElementById('setup-username').value.trim();
+    const actionPayload = { type: 'FORFEIT', playerName: username, actionIndex: Date.now() };
+    await pushActionToLog(gameId, actionPayload, null, null);
+    showToast("Match forfeited.", "info");
+};
 
 // Bind Event Listeners
 let lobbyDebounce;

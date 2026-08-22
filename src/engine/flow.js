@@ -107,23 +107,32 @@ export function startTurn(state, engine) {
         }
     }
     
-    for (const line of LINES) {
-        if (player.lines[line]) {
-            player.lines[line].forEach(u => {
-                let currentReadiness = Number(u.readiness);
-                if (isNaN(currentReadiness)) currentReadiness = 0;
-                if (currentReadiness < 1) u.readiness = currentReadiness + 1;
-                u.acts = u.maxActs !== undefined ? u.maxActs : 1;
+    for (const pIdAll of ['player1', 'player2']) {
+        const pScan = state.players[pIdAll];
+        for (const line of LINES) {
+            if (pScan.lines[line]) {
+                pScan.lines[line].forEach(u => {
+                    const uOwner = u.ownerId || pIdAll;
+                    if (uOwner === pId) {
+                        let currentReadiness = Number(u.readiness);
+                        if (isNaN(currentReadiness)) currentReadiness = 0;
+                        if (currentReadiness < 1) u.readiness = currentReadiness + 1;
+                        u.acts = u.maxActs !== undefined ? u.maxActs : 1;
+                    }
 
-                if (u.attachments) {
-                    u.attachments.forEach(item => {
-                        let ir = Number(item.readiness);
-                        if (isNaN(ir)) ir = 0;
-                        if (ir < 1) item.readiness = ir + 1;
-                        item.acts = item.maxActs !== undefined ? item.maxActs : 1;
-                    });
-                }
-            });
+                    if (u.attachments) {
+                        u.attachments.forEach(item => {
+                            const iOwner = item.ownerId || uOwner;
+                            if (iOwner === pId) {
+                                let ir = Number(item.readiness);
+                                if (isNaN(ir)) ir = 0;
+                                if (ir < 1) item.readiness = ir + 1;
+                                item.acts = item.maxActs !== undefined ? item.maxActs : 1;
+                            }
+                        });
+                    }
+                });
+            }
         }
     }
 

@@ -156,12 +156,15 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
             const data = JSON.parse(existing);
             if (!data.action_log) data.action_log = [];
             data.action_log.push(actionPayload);
-            data.history_log = currentHistoryLog || data.history_log;
+            if (currentHistoryLog) data.history_log = currentHistoryLog;
             if (updatedTurnStartState) data.turn_start_state = updatedTurnStartState;
             if (actionPayload.type === 'PLAYER_JOINED') {
                 data.isOpen = false;
                 if (!data.participants) data.participants = [];
                 if (!data.participants.includes(actionPayload.playerName)) data.participants.push(actionPayload.playerName);
+            }
+            if (actionPayload.type === 'FORFEIT') {
+                data.status = 'finished';
             }
             data.updatedAt = Date.now();
             localStorage.setItem(`henchies_game_${gameId}`, JSON.stringify(data));
@@ -174,13 +177,16 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
         try {
             const updateData = {
                 action_log: arrayUnion(actionPayload),
-                history_log: currentHistoryLog,
                 updatedAt: Date.now()
             };
+            if (currentHistoryLog) updateData.history_log = currentHistoryLog;
             if (updatedTurnStartState) updateData.turn_start_state = updatedTurnStartState;
             if (actionPayload.type === 'PLAYER_JOINED') {
                 updateData.isOpen = false;
                 updateData.participants = arrayUnion(actionPayload.playerName);
+            }
+            if (actionPayload.type === 'FORFEIT') {
+                updateData.status = 'finished';
             }
             
             await updateDoc(doc(db, "games", gameId), updateData);

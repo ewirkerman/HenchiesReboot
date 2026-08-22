@@ -197,6 +197,22 @@ export async function handleRestartMatch() {
 }
 window.handleRestartMatch = handleRestartMatch;
 
+export async function handleForfeitInGame() {
+    if (!confirm("Are you sure you want to forfeit this match?")) return;
+    
+    ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    const actionPayload = { 
+        type: 'FORFEIT', 
+        playerId: ClientState.localPlayerRole,
+        playerName: ClientState.gameState.players[ClientState.localPlayerRole].name,
+        actionIndex: ClientState.gameState.actionIndex 
+    };
+    
+    await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
+    showToast("You have forfeited the match.", "info");
+}
+window.handleForfeitInGame = handleForfeitInGame;
+
 window.handleLineClick = async (clickedPrefix, line) => {
     if (event) event.stopPropagation();
     if (ClientState.pendingAbility) {

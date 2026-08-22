@@ -39,10 +39,16 @@ export function updateUI() {
         document.getElementById('active-lock-notice').innerText = state.winner === localPlayerRole ? "🏆 Victory!" : "💀 Defeat!";
         document.getElementById('active-lock-notice').className = state.winner === localPlayerRole ? "text-[10px] font-bold text-emerald-400" : "text-[10px] font-bold text-red-400";
         document.getElementById('active-lock-notice').classList.remove('hidden');
+        
+        const forfeitBtn = document.getElementById('forfeit-match-btn');
+        if (forfeitBtn) forfeitBtn.classList.add('hidden');
     } else {
         document.getElementById('active-lock-notice').innerText = "🔒 Opponent's Turn - Locked";
         document.getElementById('active-lock-notice').className = "text-[10px] font-bold text-yellow-400 hidden";
         document.getElementById('active-lock-notice').classList.toggle('hidden', !isLocked);
+        
+        const forfeitBtn = document.getElementById('forfeit-match-btn');
+        if (forfeitBtn) forfeitBtn.classList.remove('hidden');
     }
 
     const actionInputs = document.querySelectorAll('#phase3-action-controls button');
@@ -211,6 +217,7 @@ function renderEquator(equatorItems) {
         readiness: item.readiness,
         isSelected: isAttacker,
         isTargetable: isTargetable,
+        isMicro: true,
         onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
         onInspect: `window.inspectCard('${json}')`,
         abilityUses: ClientState.gameState?.abilityUses || {}
@@ -297,6 +304,9 @@ function renderPlayerBattlelines(player, prefix) {
         centerOccupiedCount = 1;
     }
 
+    const forceMicro = centerOccupiedCount >= 2;
+    const forceNano = centerOccupiedCount >= 3;
+
     for (const line of LINES) {
       const lineEl = document.getElementById(`${prefix}-line-${line}`);
       if (!lineEl) continue;
@@ -331,8 +341,8 @@ function renderPlayerBattlelines(player, prefix) {
           }
       }
 
-      const useNano = units.length > nanoThreshold;
-      const useMicro = units.length > microThreshold && !useNano;
+      const useNano = units.length > nanoThreshold || forceNano;
+      const useMicro = (units.length > microThreshold && !useNano) || forceMicro;
 
       if (useNano || useMicro) {
           lineEl.classList.remove('content-center', 'items-center');
@@ -370,18 +380,30 @@ function renderHand(handCards) {
     document.getElementById('hand-card-count').innerText = handCards.length;
 
     if (handCards.length === 0) {
+      container.className = 'flex flex-wrap justify-center gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[64px] items-start transition-all duration-300';
       container.innerHTML = `<span class="text-xs text-slate-500 italic mx-auto self-center">Your hand is empty.</span>`;
       return;
     }
 
-    container.innerHTML = handCards.map(c => {
+    const isCrowded = handCards.length > 5;
+    if (isCrowded) {
+        container.className = 'flex flex-nowrap overflow-x-auto overflow-y-visible items-end pb-4 pt-8 px-4 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[64px] transition-all duration-300 minimal-scrollbar justify-start sm:justify-center';
+    } else {
+        container.className = 'flex flex-wrap justify-center gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[64px] items-start transition-all duration-300';
+    }
+
+    container.innerHTML = handCards.map((c, idx) => {
       const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
       const cardRefId = c.instanceId || c.id;
       const isSelected = ClientState.selectedCardId === cardRefId;
       const playable = ClientState.gameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c).success : false;
       const isTargetable = ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === cardRefId);
 
-      return renderCardHTML(c, {
+      const overlapClass = isCrowded 
+          ? `transition-transform duration-200 hover:-translate-y-6 hover:z-50 relative ${idx > 0 ? '-ml-12 sm:-ml-16' : ''}` 
+          : '';
+
+      const cardHtml = renderCardHTML(c, {
         isHand: true,
         isSelected: isSelected,
         isTargetable: isTargetable,
@@ -390,5 +412,7 @@ function renderHand(handCards) {
         onInspect: `window.inspectCard('${json}', true)`,
         abilityUses: ClientState.gameState?.abilityUses || {}
       });
+
+      return isCrowded ? `<div class="${overlapClass}" style="z-index: ${10+idx}">${cardHtml}</div>` : cardHtml;
     }).join('');
 }
