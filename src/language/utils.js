@@ -55,13 +55,13 @@ export class ReferenceTracker {
 }
 
 export const ZONE_NAMES = {
-    'FIELD': 'the field',
-    'EQUATOR': 'the equator',
-    'HAND': 'hand',
-    'DECK': 'deck',
-    'DISCARD': 'the discard pile',
-    'BANISH': 'the banish zone',
-    'ORIGINAL_DECK': 'their original deck'
+    'FIELD': '[ZONE:field]',
+    'EQUATOR': '[ZONE:equator]',
+    'HAND': '[ZONE:hand]',
+    'DECK': '[ZONE:deck]',
+    'DISCARD': '[ZONE:discard]',
+    'BANISH': '[ZONE:banish]',
+    'ORIGINAL_DECK': '[ZONE:deck]'
 };
 
 export function formatResourceAmount(amount) {

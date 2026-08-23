@@ -32,7 +32,7 @@ export async function saveCard() {
     btn.innerHTML = 'Saving...';
     btn.disabled = true;
     
-    const topbar = document.getElementById('studio-topbar');
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
     if (topbar && topbar.setLoading) topbar.setLoading('save', true);
 
     const cloudSaveSuccess = await saveCardToCatalog(card);
@@ -40,8 +40,9 @@ export async function saveCard() {
     CardState.allCards = [...CardState.allCards.filter(c => c.id !== card.id), card];
     CardState.currentEditingId = card.id;
     
-    document.getElementById('form-title').innerText = `⚡ Edit: ${card.name}`;
-    document.getElementById('studio-topbar').showButtons(true);
+    const titleEl = document.getElementById('form-title') || document.getElementById('workspace-title');
+    if (titleEl) titleEl.innerText = `⚡ Edit: ${card.name}`;
+    if (topbar) topbar.showButtons(true);
 
     btn.innerHTML = origText;
     btn.disabled = false;
@@ -59,9 +60,13 @@ export async function saveCard() {
 export function cloneCard() {
     if (!CardState.currentEditingId) return;
     CardState.currentEditingId = null;
-    document.getElementById('form-title').innerText = `⚡ Design New Card (Cloned)`;
+    const titleEl = document.getElementById('form-title') || document.getElementById('workspace-title');
+    if (titleEl) titleEl.innerText = `⚡ Design New Card (Cloned)`;
     document.getElementById('card-name').value += ' (Copy)';
-    document.getElementById('studio-topbar').showButtons(false);
+    
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+    if (topbar) topbar.showButtons(false);
+    
     updatePreview();
     showToast('Card cloned! Save to keep it.', 'info');
 }
@@ -77,7 +82,7 @@ export async function deleteCard() {
 
 export async function launchTestMatch() {
     const card = buildCardState();
-    const topbar = document.getElementById('studio-topbar');
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
     if (topbar && topbar.setLoading) topbar.setLoading('test', true);
 
     await launchSandboxMatch(card, 'card');
@@ -113,7 +118,10 @@ export function loadCard(id) {
 
     CardState.currentEditingId = card.id;
     window.location.hash = id;
-    document.getElementById('form-title').innerText = `⚡ Edit: ${card.name}`;
+    
+    const titleEl = document.getElementById('form-title') || document.getElementById('workspace-title');
+    if (titleEl) titleEl.innerText = `⚡ Edit: ${card.name}`;
+    
     document.getElementById('card-name').value = card.name;
     
     let mappedTribe = card.tribe || 'Generic';
@@ -160,7 +168,8 @@ export function loadCard(id) {
         return { id: a.abilityId || a.id, paramX: a.paramX !== undefined ? a.paramX : null };
     });
     
-    document.getElementById('studio-topbar').showButtons(true);
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+    if (topbar) topbar.showButtons(true);
     
     toggleStatFields();
     renderAssignedAbilities();

@@ -13,6 +13,8 @@ export const SVG_STUNNED = `<svg class="${SVG_CLASS}" viewBox="0 0 24 24" fill="
 export const ICON_SVGS = {
     attack: `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full"><path d="m2.75 9.25 1.5 2.5 2 1.5m-4.5 0 1 1m1.5-2.5-1.5 1.5m3-1 8.5-8.5v-2h-2l-8.5 8.5"/><path d="M10.25 12.25 8 10m2-2 2.25 2.25m1-1-1.5 2.5-2 1.5m4.5 0-1 1m-1.5-2.5 1.5 1.5M6 8 1.75 3.75v-2h2L8 6"/></svg>`,
     armor: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>`,
+    health: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`,
+    power: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`,
     fast: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`,
     attach: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>`,
     'hourglass-empty': `<svg viewBox="-32 -32 320 320" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2a16.06 16.06 0 0 0-6.348 11.923A8 8 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a8 8 0 0 0-.053-.893 16.07 16.07 0 0 0-6.299-11.87L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M82.597 172.052l45.384-34.038 45.366 34.293ZM184 75.642l-56.019 42.344L72 76V40h112Z"/></svg>`,
@@ -28,7 +30,7 @@ export const LINE_SVGS = {
     back: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M21 12.8c-1.3.8-2.8 1.2-4.5 1.2-5 0-9-4-9-9 0-1.7.4-3.2 1.2-4.5C4.2 1.8 1 5.5 1 10c0 6.1 4.9 11 11 11 4.5 0 8.2-3.2 9-7.2z"/></svg>`,
     sheltered: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><circle cx="12" cy="12" r="10"/></svg>`,
     sideline: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M4 2v20h2v-8h14l-4-5 4-5H6V2H4z"/></svg>`,
-    taunt: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M4 21h16V9h-3v3h-2V9h-2v3h-2V9H9v3-3H7v3H5V9H4zm6-6h4v6h-4z"/></svg>`
+    taunt: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-full h-full"><path d="M4 21h16V9h-3v3h-2V9h-2v3h-2V9h-2v3H9V9H7v3H5V9H4v12zm6-6h4v6h-4v-6z"/></svg>`
 };
 
 export const SYSTEM_GLOSSARY = [

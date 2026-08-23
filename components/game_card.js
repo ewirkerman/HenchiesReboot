@@ -1,4 +1,4 @@
-import { TRIBE_STYLES, CARD_BASE_CLASSES, getIconSvg, getLineIconSvg, hasEngineFlag, formatAbilityCostBadge, SVG_STUNNED, SVG_DAZED } from '../src/ui.js';
+import { TRIBE_STYLES, CARD_BASE_CLASSES, getIconSvg, getLineIconSvg, hasEngineFlag, formatAbilityCostBadge, SVG_STUNNED, SVG_DAZED, formatCardText } from '../src/ui.js';
 
 export class GameCard extends HTMLElement {
     connectedCallback() {
@@ -121,9 +121,9 @@ export class GameCard extends HTMLElement {
         }
 
         const readinessBadge = (hasReadiness && readiness !== null) ? `
-          <div class="absolute top-1 right-1 text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider z-20 ${
+          <div class="absolute top-0 right-7 sm:right-8 text-[8px] sm:text-[9px] px-2 py-0.5 rounded-b-lg font-black uppercase tracking-wider z-20 border-x-2 border-b-2 border-black shadow-md ${
             readiness >= 1 ? 'bg-emerald-500 text-black' : 
-            readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border border-red-700'
+            readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400'
           }">
             ${readiness > 1 ? 'OVER-READY' : readiness === 1 ? 'READY' : readiness === 0 ? 'UNREADY' : 'EXHAUSTED'}
           </div>
@@ -132,7 +132,7 @@ export class GameCard extends HTMLElement {
         const inspectButton = onInspect ? `
           <button 
             onclick="event.stopPropagation(); ${onInspect}"
-            class="absolute ${(isMicro || isNano) ? 'top-6 right-1 w-4 h-4 text-[8px]' : (readiness !== null ? 'top-6 right-1 w-6 h-6 text-[10px]' : 'top-1 right-1 w-6 h-6 text-[10px]')} rounded-full bg-slate-900/80 hover:bg-slate-700 text-white font-black flex items-center justify-center border border-slate-500 shadow-lg z-30 transition-colors backdrop-blur-sm"
+            class="absolute top-0 right-0 ${(isMicro || isNano) ? 'w-[18px] h-[20px] text-[8px]' : 'w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] text-[10px] sm:text-xs'} rounded-bl-lg bg-slate-900/80 hover:bg-slate-700 text-white font-black flex items-start justify-end pt-[1px] pr-[2px] sm:pt-[2px] sm:pr-[3px] border-l-2 border-b-2 border-slate-500 shadow-lg z-30 transition-colors backdrop-blur-sm leading-none"
             title="Inspect Card"
           >
             🔍
@@ -165,44 +165,84 @@ export class GameCard extends HTMLElement {
                 abilityId: 'sys_line_' + defLine,
                 name: defLine.charAt(0).toUpperCase() + defLine.slice(1) + ' Line',
                 trigger: 'UNTRIGGERABLE',
+                isKeyword: true,
                 cost: {}
             });
         }
 
         if (displayAbilities.length > 0) {
-            abilitiesHTML = displayAbilities.map(ab => {
-                const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
-                const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'MODIFY_PLAY'].includes(ab.trigger);
-                
-                const abilityKey = `${card.instanceId}_${ab.abilityId}`;
-                const uses = (options.abilityUses || {})[abilityKey] || 0;
-                
-                let isUsable = true;
-                let showHourglass = false;
-                
-                if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
-                if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
+            const evergreen = [];
+            const bespoke = [];
+            const active = [];
 
-                // Bypass field-state usability checks if the card is in hand or being previewed globally
-                if (!options.isHand && card.readiness !== undefined) {
-                    const checkBlock = (flag) => {
-                        if (!hasEngineFlag(card, flag)) return null;
-                        if (card.passiveFlags?.includes(flag)) return 'permanent';
-                        if (card.abilities?.some(a => a.passiveFlags?.includes(flag))) return 'permanent';
-                        const effect = card.activeEffects?.find(e => e.type === flag);
-                        if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
-                        return 'temporary';
-                    };
+            // Bucket 1: Sorting
+            displayAbilities.forEach(ab => {
+                const isKeyword = ab.isKeyword || (ab.trigger === 'UNTRIGGERABLE' && (!ab.effects || ab.effects.length === 0 || ab.passiveFlags?.length > 0));
+                if (isKeyword) {
+                    evergreen.push(ab);
+                } else if (ab.trigger === 'MANUAL') {
+                    active.push(ab);
+                } else {
+                    bespoke.push(ab);
+                }
+            });
 
-                    const actBlock = checkBlock('BLOCK_ACT');
-                    const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+            // Bucket 2: Rendering Evergreen Keywords
+            if (evergreen.length > 0) {
+                const names = evergreen.map(a => a.name).join(', ');
+                const tooltips = evergreen.map(a => `${a.name}: ${a.displayDescription || a.description || 'System Keyword'}`).join('\n\n');
+                abilitiesHTML += `<div class="text-[10px] sm:text-[11px] font-black text-amber-300 text-center leading-tight mb-1.5 cursor-help drop-shadow-md" title="${tooltips.replace(/"/g, '&quot;')}">${names}</div>`;
+            }
 
-                    if (isAttack && attackBlock) {
-                        isUsable = false;
-                        if (attackBlock === 'temporary') showHourglass = true;
+            // Bucket 3: Rendering Bespoke Automated Triggers
+            if (bespoke.length > 0) {
+                bespoke.forEach(ab => {
+                    let desc = ab.displayDescription || ab.description || '';
+                    
+                    // Strip the redundant Ability Name from the start of the auto-generated string if it exists
+                    if (ab.name && desc.startsWith(ab.name)) {
+                        desc = desc.substring(ab.name.length).trim();
+                        if (desc.startsWith(':') || desc.startsWith('-')) desc = desc.substring(1).trim();
                     }
                     
-                    if (ab.trigger === 'MANUAL') {
+                    const formatted = formatCardText(desc);
+                    const safeTooltip = (ab.name ? ab.name + ': ' : '') + desc.replace(/"/g, '&quot;');
+                    abilitiesHTML += `<div class="text-[9px] text-slate-200 leading-snug mb-1 text-center drop-shadow-sm" title="${safeTooltip}">${formatted}</div>`;
+                });
+            }
+
+            // Bucket 4: Rendering Active Manual Buttons
+            if (active.length > 0) {
+                active.forEach(ab => {
+                    const abilityKey = `${card.instanceId}_${ab.abilityId}`;
+                    const uses = (options.abilityUses || {})[abilityKey] || 0;
+                    
+                    let isUsable = true;
+                    let showHourglass = false;
+                    
+                    if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
+                    if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
+
+                    const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
+
+                    if (!options.isHand && card.readiness !== undefined) {
+                        const checkBlock = (flag) => {
+                            if (!hasEngineFlag(card, flag)) return null;
+                            if (card.passiveFlags?.includes(flag)) return 'permanent';
+                            if (card.abilities?.some(a => a.passiveFlags?.includes(flag))) return 'permanent';
+                            const effect = card.activeEffects?.find(e => e.type === flag);
+                            if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
+                            return 'temporary';
+                        };
+
+                        const actBlock = checkBlock('BLOCK_ACT');
+                        const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+
+                        if (isAttack && attackBlock) {
+                            isUsable = false;
+                            if (attackBlock === 'temporary') showHourglass = true;
+                        }
+                        
                         if (!isAttack && actBlock) {
                             isUsable = false;
                             if (actBlock === 'temporary') showHourglass = true;
@@ -216,30 +256,26 @@ export class GameCard extends HTMLElement {
                             }
                         }
                     }
-                }
 
-                if (isPlayTrigger && !options.isHand && card.readiness !== undefined) {
-                    isUsable = false;
-                    showHourglass = false;
-                }
+                    if (options.isHand || card.readiness === undefined) {
+                        isUsable = true;
+                        showHourglass = false;
+                    }
 
-                if (options.isHand || card.readiness === undefined) {
-                    isUsable = true;
-                    showHourglass = false;
-                }
-
-                const iconContent = isAttack ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5">${getIconSvg('attack')}</span>` : '';
-                const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
-                
-                const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
-                const nameColorClass = isUsable ? '' : 'text-slate-500';
-                
-                return `
-                  <div class="text-[9px] ${textColorClass} font-bold leading-tight truncate w-full text-center">
-                    <span>${hourglassIcon}${iconContent}<span class="${nameColorClass}">${ab.name || 'Unknown'}</span></span>${formatAbilityCostBadge(ab.cost, card.tribe)}
-                  </div>
-                `;
-            }).filter(Boolean).join('');
+                    const iconContent = isAttack ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5">${getIconSvg('attack')}</span>` : '';
+                    const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+                    
+                    const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
+                    const nameColorClass = isUsable ? '' : 'text-slate-500';
+                    const safeTooltip = (ab.displayDescription || ab.description || '').replace(/"/g, '&quot;');
+                    
+                    abilitiesHTML += `
+                      <div class="text-[9px] ${textColorClass} font-bold leading-tight truncate w-full text-center mt-0.5 cursor-help bg-black/20 rounded py-0.5 border border-white/5" title="${safeTooltip}">
+                        <span>${hourglassIcon}${iconContent}<span class="${nameColorClass}">${ab.name || 'Unknown'}</span></span>${formatAbilityCostBadge(ab.cost, card.tribe)}
+                      </div>
+                    `;
+                });
+            }
         }
         hoverTooltip += `\n\n(Right-click or tap 🔍 to inspect fully)`;
         const safeTooltip = hoverTooltip.replace(/"/g, '&quot;').replace(/'/g, '&apos;');
@@ -369,33 +405,33 @@ export class GameCard extends HTMLElement {
               </div>
 
               ${showBottomStats ? `
-                <div class="absolute bottom-1.5 left-1.5 right-1.5 flex justify-between items-end pointer-events-none">
+                <div class="absolute bottom-0 left-0 right-0 flex justify-between items-end pointer-events-none z-20">
                   ${hasStrength ? `
-                    <div class="w-6 h-6 rounded-full bg-yellow-500 border border-black text-black font-black text-[11px] flex items-center justify-center shadow pointer-events-auto" title="Strength">${Math.max(0, card.strength)}</div>
-                  ` : '<div class="w-6 h-6 shrink-0"></div>'}
+                    <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] rounded-tr-lg bg-yellow-500 border-r-2 border-t-2 border-black text-black font-black text-sm sm:text-base flex items-end justify-start pb-[1px] pl-[2px] sm:pb-[2px] sm:pl-[3px] shadow-lg pointer-events-auto leading-none" title="Strength">${Math.max(0, card.strength)}</div>
+                  ` : '<div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] shrink-0"></div>'}
                   ${hasArmor ? `
-                    <div class="w-6 h-6 rounded bg-cyan-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow pointer-events-auto" title="Armor: ${card.armor}"><div class="w-3 h-3 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
-                  ` : '<div class="w-6 h-6 shrink-0"></div>'}
+                    <div class="h-[20px] sm:h-[24px] px-1 rounded-t-lg bg-cyan-600 border-x-2 border-t-2 border-black text-white font-black text-[9px] sm:text-[10px] flex items-end justify-center pb-[1px] sm:pb-[2px] shadow-lg pointer-events-auto leading-none" title="Armor: ${card.armor}"><div class="w-2.5 h-2.5 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
+                  ` : ''}
                   ${showHealth ? `
-                    <div class="w-6 h-6 rounded-full bg-red-600 border border-black text-white font-black text-[11px] flex items-center justify-center shadow pointer-events-auto" title="Health">${displayHealth}</div>
-                  ` : '<div class="w-6 h-6 shrink-0"></div>'}
+                    <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] rounded-tl-lg bg-red-600 border-l-2 border-t-2 border-black text-white font-black text-sm sm:text-base flex items-end justify-end pb-[1px] pr-[2px] sm:pb-[2px] sm:pr-[3px] shadow-lg pointer-events-auto leading-none" title="Health">${displayHealth}</div>
+                  ` : '<div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] shrink-0"></div>'}
                 </div>
               ` : ''}
             </div>
 
-            <div class="absolute top-1 left-1 flex flex-col items-center gap-1.5 z-10 pointer-events-none">
+            <div class="absolute top-0 left-0 flex flex-col items-start z-10 pointer-events-none">
               ${!isAvatar ? `
-                <div class="w-7 h-7 rounded-full bg-amber-500 text-black font-black text-[12px] flex items-center justify-center border border-black shadow pointer-events-auto" title="Cost">
+                <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] rounded-br-lg bg-amber-500 text-black font-black text-sm sm:text-base flex items-start justify-start pt-[1px] pl-[2px] sm:pt-[2px] sm:pl-[3px] border-r-2 border-b-2 border-black shadow-lg pointer-events-auto leading-none" title="Cost">
                   ${card.cost ?? 0}
                 </div>
               ` : ''}
               ${card.power > 0 ? `
-                <div class="w-7 h-7 rounded-full bg-purple-600 text-white font-black text-[12px] flex items-center justify-center border border-black shadow pointer-events-auto" title="Power">
+                <div class="w-[16px] h-[18px] sm:w-[20px] sm:h-[22px] rounded-br-lg bg-purple-600 text-white font-black text-[10px] sm:text-xs flex items-start justify-start pt-[1px] pl-[2px] sm:pt-[2px] sm:pl-[3px] border-r-2 border-b-2 border-black shadow-lg pointer-events-auto leading-none -mt-0.5" title="Power">
                   ${card.power}
                 </div>
               ` : ''}
               ${isUnit ? `
-                <div class="w-5 h-5 flex items-center justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_6px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
+                <div class="w-5 h-5 sm:w-6 sm:h-6 mt-1 ml-1 flex items-center justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_6px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
                   ${getLineIconSvg(activeLine)}
                 </div>
               ` : ''}

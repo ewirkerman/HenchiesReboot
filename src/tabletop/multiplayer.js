@@ -42,7 +42,13 @@ export async function validateAndGetDeck() {
           
           const clone = JSON.parse(JSON.stringify(fresh));
           if (clone.abilities) {
-              clone.abilities = clone.abilities.map(ab => hydrateAbility(ab, rawAbs)).filter(Boolean);
+              clone.abilities = clone.abilities.map(ab => {
+                  const hyd = hydrateAbility(ab, rawAbs);
+                  if (hyd) {
+                      try { hyd.displayDescription = generateAbilityDescription(hyd, rawAbs, combinedCatalog, ClientState.customTribesList); } catch(e){}
+                  }
+                  return hyd;
+              }).filter(Boolean);
           }
           hydratedDeck.push(clone);
       }

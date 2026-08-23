@@ -99,7 +99,8 @@ export function processTargetGroups(ability, ctx) {
                 possessiveStr = `${targetStr}'s`;
             } else if (actMethod === 'PLAYER_CHOICE') {
                 let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, true, 'FIELD', false, allTribes, allAbilities);
-                targetStr = `a chosen ${actDesc}`;
+                const article = /^[aeiou]/i.test(actDesc) ? 'an' : 'a';
+                targetStr = `${article} ${actDesc}`;
                 possessiveStr = `${targetStr}'s`;
             } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
                 targetStr = 'this card';
@@ -159,7 +160,7 @@ export function processTargetGroups(ability, ctx) {
 
             if (text.includes('{PER_TARGET}')) {
                 tracker.mention(groupId, targetStr, isPlural);
-                if (['this card', 'it', 'the triggering card', 'the targeted card', 'the attacker', 'the defender', 'the damaged character', 'the damage source', 'the healed character', 'the target', 'your avatar', 'the enemy avatar'].includes(targetStr) || targetStr.startsWith('a chosen')) {
+                if (['this card', 'it', 'the triggering card', 'the targeted card', 'the attacker', 'the defender', 'the damaged character', 'the damage source', 'the healed character', 'the target', 'your avatar', 'the enemy avatar'].includes(targetStr) || targetStr.startsWith('a ') || targetStr.startsWith('an ')) {
                     text = text.replace(/\{PER_TARGET\}/g, '');
                 } else if (group.targetMethod === 'AUTO_ALL') {
                     text = text.replace(/\{PER_TARGET\}/g, ` for each ${singularDesc}`);
@@ -168,26 +169,11 @@ export function processTargetGroups(ability, ctx) {
                 }
             }
 
-            text = text.replace(/\{TARGET\}|\{POSS\}|\{DYNAMIC_STAT:(.*?)\|(.*?)\}/g, (match, action, statText) => {
+            text = text.replace(/\{TARGET\}|\{POSS\}/g, (match) => {
                 if (match === '{TARGET}') {
                     return tracker.mention(groupId, targetStr, isPlural);
                 } else if (match === '{POSS}') {
                     return tracker.mentionPoss(groupId, possessiveStr, isPlural);
-                } else {
-                    let resolvedEntity = tracker.mention(groupId, targetStr, isPlural);
-                    if (resolvedEntity === 'them') {
-                        return `${action} their ${statText}`;
-                    } else if (resolvedEntity === 'it') {
-                        return `${action} its ${statText}`;
-                    } else {
-                        const isComplex = /\b(on|in|with|that|during)\b/i.test(resolvedEntity);
-                        if (isComplex) {
-                            return `${action} the ${statText} of ${resolvedEntity}`;
-                        } else {
-                            let dynamicPoss = resolvedEntity.endsWith('s') ? `${resolvedEntity}'` : `${resolvedEntity}'s`;
-                            return `${action} ${dynamicPoss} ${statText}`;
-                        }
-                    }
                 }
             });
 
@@ -200,13 +186,13 @@ export function processTargetGroups(ability, ctx) {
             switch(eff.type) {
                 case 'DEAL_DAMAGE': 
                     if (eff.amountIsX) effText = `deal X damage to {TARGET}`;
-                    else if (eff.amount < 0) effText = `restore ${Math.abs(eff.amount)} health to {TARGET}`;
+                    else if (eff.amount < 0) effText = `heal {TARGET} for ${Math.abs(eff.amount)}`;
                     else effText = `deal ${eff.amount !== undefined ? eff.amount : 1} damage to {TARGET}`; 
                     break;
                 case 'HEAL': 
-                    if (eff.amountIsX) effText = `restore X health to {TARGET}`;
+                    if (eff.amountIsX) effText = `heal {TARGET} for X`;
                     else if (eff.amount < 0) effText = `deal ${Math.abs(eff.amount)} damage to {TARGET}`;
-                    else effText = `restore ${eff.amount !== undefined ? eff.amount : 1} health to {TARGET}`; 
+                    else effText = `heal {TARGET} for ${eff.amount !== undefined ? eff.amount : 1}`; 
                     break;
                 case 'DRAW_CARD': 
                     let isStandardTypes = true;
@@ -223,51 +209,53 @@ export function processTargetGroups(ability, ctx) {
                     checkTree(group.logicTree);
                     
                     let isStandardAlignment = !group.quickTargeting?.alignment || group.quickTargeting.alignment.length === 0 || (group.quickTargeting.alignment.length === 1 && group.quickTargeting.alignment[0] === 'FRIENDLY');
+                    let isDeck = group.quickTargeting?.zones?.length === 1 && group.quickTargeting.zones[0] === 'DECK';
                     
-                    let isNormalDraw = group.targetMethod === 'AUTO_FIRST' && isStandardAlignment && isStandardTypes && !hasConditions;
+                    let isNormalDraw = group.targetMethod === 'AUTO_FIRST' && isStandardAlignment && isDeck && !hasConditions;
                     
                     if (isNormalDraw) {
                         let drawAmt = group.targetCount || 1;
-                        if (eff.amountIsX) effText = `draw X cards{OMIT_TARGET}`;
-                        else effText = `draw ${drawAmt === 1 ? 'a card' : drawAmt + ' cards'}{OMIT_TARGET}`;
+                        let typeStr = 'card';
+                        if (group.quickTargeting?.entityType?.length === 1) {
+                            typeStr = group.quickTargeting.entityType[0].toLowerCase();
+                        }
+                        
+                        if (eff.amountIsX) effText = `draw X ${typeStr}s{OMIT_TARGET}`;
+                        else effText = `draw ${drawAmt === 1 ? (/^[aeiou]/i.test(typeStr) ? 'an' : 'a') + ' ' + typeStr : drawAmt + ' ' + (typeStr === 'equipment' ? typeStr : typeStr + 's')}{OMIT_TARGET}`;
                     } else {
                         effText = `draw {TARGET}`;
                     }
                     break;
-            case 'DISCARD':
-            case 'DISCARD_CARD':
-                effText = `discard {TARGET}`; 
-                break;
-            case 'TRASH':
-                effText = `trash {TARGET}`; 
-                break;
-            case 'HARVEST':
-                if (eff.amount !== undefined && eff.amount !== 2) {
-                    let resName = (eff.resource && eff.resource !== 'maxCarnie') ? eff.resource : 'Carnie resources';
-                    effText = `harvest {TARGET} for ${eff.amount} ${resName}`;
-                } else {
-                    effText = `harvest {TARGET}`;
-                }
-                break;
-            case 'RECOVER': effText = `recover {TARGET}`; break;
-            case 'REVIVE': effText = `revive {TARGET}`; break;
+                case 'DISCARD':
+                case 'DISCARD_CARD':
+                    effText = `discard {TARGET}`; 
+                    break;
+                case 'TRASH':
+                    effText = `trash {TARGET}`; 
+                    break;
+                case 'HARVEST':
+                    if (eff.amount !== undefined && eff.amount !== 2) {
+                        let resName = (eff.resource && eff.resource !== 'maxCarnie') ? eff.resource : 'Carnie';
+                        effText = `harvest {TARGET} for ${eff.amount} ${resName}`;
+                    } else {
+                        effText = `harvest {TARGET}`;
+                    }
+                    break;
+                case 'RECOVER': effText = `recover {TARGET}`; break;
+                case 'REVIVE': effText = `revive {TARGET}`; break;
                 case 'MODIFY_STAT': 
+                    let modStat = `[STAT:${eff.stat || 'stat'}]`;
+                    let sign = eff.amount > 0 && !eff.amountIsX ? '+' : '';
+                    let amtStr = eff.amountIsX ? 'X' : eff.amount;
                     if (eff.stat === 'readiness') {
-                        if (eff.amountIsX) effText = `{DYNAMIC_STAT:modify|readiness by X}`;
+                        if (eff.amountIsX) effText = `modify [STAT:readiness] by X`;
                         else if (eff.amount <= -2) effText = `exhaust {TARGET}`;
                         else if (eff.amount === -1) effText = `unready {TARGET}`;
                         else if (eff.amount === 1) effText = `ready {TARGET}`;
                         else if (eff.amount >= 2) effText = `over-ready {TARGET}`;
-                        else effText = `{DYNAMIC_STAT:modify|readiness by ${eff.amount}}`;
-                    } else if (eff.stat === 'power') {
-                        if (eff.amountIsX) effText = `give {TARGET} X power`;
-                        else if (eff.amount < 0) effText = `cause {TARGET} to lose ${Math.abs(eff.amount)} power`;
-                        else effText = `give {TARGET} ${eff.amount !== undefined ? eff.amount : 1} power`;
+                        else effText = `modify {TARGET} [STAT:readiness] by ${eff.amount}`;
                     } else {
-                        let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        if (eff.amountIsX) effText = `{DYNAMIC_STAT:increase|${modStat} by X}`;
-                        else if (eff.amount < 0) effText = `{DYNAMIC_STAT:reduce|${modStat} by ${Math.abs(eff.amount)}}`;
-                        else effText = `{DYNAMIC_STAT:increase|${modStat} by ${eff.amount !== undefined ? eff.amount : 1}}`;
+                        effText = `give {TARGET} ${sign}${amtStr} ${modStat}`;
                     }
                     break;
                 case 'MODIFY_RESOURCE': 
@@ -288,64 +276,62 @@ export function processTargetGroups(ability, ctx) {
                     else effText = `gain ${eff.amount !== undefined ? eff.amount : 1} ${resName}{PER_TARGET}`;
                     break;
                 case 'SET_STAT': 
-                    if (eff.stat === 'readiness') {
-                        if (eff.amountIsX) effText = `{DYNAMIC_STAT:set|readiness to X}`;
+                    let setAmtStr = eff.amountIsX ? 'X' : eff.amount;
+                    if (eff.stat === 'line') {
+                        if (targetStr === 'this card' || targetStr === 'self' || targetStr === 'itself') {
+                            effText = `move to [ZONE:${setAmtStr}]{OMIT_TARGET}`;
+                        } else {
+                            effText = `move {TARGET} to [ZONE:${setAmtStr}]`;
+                        }
+                    } else if (eff.stat === 'readiness') {
+                        if (eff.amountIsX) effText = `set [STAT:readiness] to X`;
                         else if (eff.amount <= -1) effText = `exhaust {TARGET}`;
                         else if (eff.amount === 0) effText = `unready {TARGET}`;
                         else if (eff.amount === 1) effText = `ready {TARGET}`;
                         else if (eff.amount >= 2) effText = `over-ready {TARGET}`;
-                        else effText = `{DYNAMIC_STAT:set|readiness to ${eff.amount}}`;
-                        break;
+                        else effText = `set {POSS} [STAT:readiness] to ${eff.amount}`;
+                    } else {
+                        let setStat = `[STAT:${eff.stat || 'stat'}]`;
+                        effText = `set {POSS} ${setStat} to ${setAmtStr}`;
                     }
-                    let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                    if (eff.amountIsX) effText = `{DYNAMIC_STAT:set|${setStat} to X}`;
-                    else effText = `{DYNAMIC_STAT:set|${setStat} to ${eff.amount !== undefined ? eff.amount : 1}}`;
                     break;
-                case 'BLOCK_ACT': effText = `block {TARGET} from acting`; break;
-                case 'BLOCK_ATTACK': effText = `block {TARGET} from attacking`; break;
-                case 'BLOCK_RETALIATE': effText = `block {TARGET} from retaliating`; break;
-                case 'BLOCK_TARGETING': effText = `prevent enemies from targeting {TARGET}`; break;
-                case 'SHUFFLE': effText = `shuffle {TARGET} into deck`; break;
-                case 'RETURN': effText = `return {TARGET} to hand`; break;
+                case 'BLOCK_ACT': effText = `stun {TARGET}`; break;
+                case 'BLOCK_ATTACK': effText = `pacify {TARGET}`; break;
+                case 'BLOCK_RETALIATE': effText = `daze {TARGET}`; break;
+                case 'BLOCK_TARGETING': effText = `stealth {TARGET}`; break;
+                case 'SHUFFLE': effText = `shuffle {TARGET} into [ZONE:deck]`; break;
+                case 'RETURN': effText = `return {TARGET}`; break;
                 case 'ATTACH': effText = eff.invertRoles ? `attach to {TARGET}` : `attach {TARGET} to {SELF}`; break;
                 case 'UNATTACH': effText = `unattach {TARGET}`; break;
                 case 'FIELD': effText = `field {TARGET}`; break;
                 case 'BANISH': effText = `banish {TARGET}`; break;
                 case 'KILL': effText = `kill {TARGET}`; break;
                 case 'ATTACK': effText = `attack {TARGET}`; break;
-                case 'CANCEL_EVENT': effText = `cancel the triggering event instead{OMIT_TARGET}`; break;
+                case 'CANCEL_EVENT': effText = `instead{OMIT_TARGET}`; break;
                 case 'CLEANSE': effText = `cleanse temporary effects from {TARGET}`; break;
                 case 'CHANGE_DESTINATION': 
                     let targetDest = (eff.zone || 'DECK').toUpperCase();
-                    let destName = ZONE_NAMES[targetDest] || targetDest.toLowerCase();
-                    if (targetDest === 'FIELD') effText = `field {TARGET} instead`;
-                    else if (targetDest === 'HAND') effText = `return {TARGET} to hand instead`;
-                    else if (targetDest === 'DISCARD') effText = `discard {TARGET} instead`;
-                    else if (targetDest === 'DECK' || targetDest === 'ORIGINAL_DECK') effText = `shuffle {TARGET} into ${destName} instead`;
-                    else if (targetDest === 'BANISH') effText = `banish {TARGET} instead`;
-                    else effText = `move {TARGET} to ${destName} instead`;
+                    let destName = ZONE_NAMES[targetDest] || `[ZONE:${targetDest.toLowerCase()}]`;
+                    if (targetDest === 'FIELD') effText = `field {TARGET}`;
+                    else if (targetDest === 'HAND') effText = `return {TARGET} to [ZONE:hand]`;
+                    else if (targetDest === 'DISCARD') effText = `discard {TARGET}`;
+                    else if (targetDest === 'DECK' || targetDest === 'ORIGINAL_DECK') effText = `shuffle {TARGET} into ${destName}`;
+                    else if (targetDest === 'BANISH') effText = `banish {TARGET}`;
+                    else effText = `move {TARGET} to ${destName}`;
                     break;
-                case 'REBEL': effText = eff.invertRoles ? `give control of {SELF} to {TARGET}` : `take control of {TARGET}`; break;
-                case 'DONATE': effText = `give {TARGET} to the opponent`; break;
+                case 'REBEL': effText = eff.invertRoles ? `give control of this card to {TARGET}` : `take control of {TARGET}`; break;
+                case 'DONATE': effText = `donate {TARGET}`; break;
                 case 'MODIFY_EVENT': 
-                    let eventNoun = "amount";
-                    if (trigger.includes('DAMAGE') || trigger.includes('ATTACK')) eventNoun = "damage";
-                    else if (trigger.includes('HEAL')) eventNoun = "healing";
-                    else if (trigger.includes('DRAW')) eventNoun = "cards drawn";
-                    else if (trigger.includes('DISCARD') || trigger.includes('TRASH')) eventNoun = "cards discarded";
-                    else if (trigger.includes('RESOURCE')) eventNoun = "resources";
-                    else if (trigger.includes('SUMMON')) eventNoun = "units summoned";
-                    
                     if (eff.stat === 'amount') {
-                        if (eff.amountIsX) effText = `increase the ${eventNoun} by X{OMIT_TARGET}`;
-                        else effText = eff.amount < 0 ? `decrease the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${eventNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}`;
+                        if (eff.amountIsX) effText = `modify effect amount by X{OMIT_TARGET}`;
+                        else effText = eff.amount < 0 ? `decrease effect amount by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase effect amount by ${eff.amount}{OMIT_TARGET}`;
                     } else {
-                        let statName = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                        if (eff.amountIsX) effText = `increase the ${statName} by X{OMIT_TARGET}`;
-                        else effText = eff.amount < 0 ? `decrease the ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `increase the ${statName} by ${Math.abs(eff.amount)}{OMIT_TARGET}`;
+                        let statName = `[STAT:${eff.stat || 'stat'}]`;
+                        if (eff.amountIsX) effText = `modify ${statName} by X{OMIT_TARGET}`;
+                        else effText = eff.amount < 0 ? `modify ${statName} by ${eff.amount}{OMIT_TARGET}` : `modify ${statName} by +${eff.amount}{OMIT_TARGET}`;
                     }
                     break;
-                case 'CUSTOM_SCRIPT': effText = eff.description ? eff.description + '{OMIT_TARGET}' : `execute custom script on {TARGET}`; break;
+                case 'CUSTOM_SCRIPT': effText = eff.description ? eff.description + '{OMIT_TARGET}' : `execute script on {TARGET}`; break;
                 case 'GRANT_ABILITY':
                     let abilityName = eff.grantedAbilityId;
                     if (allAbilities && Array.isArray(allAbilities)) {
@@ -358,8 +344,12 @@ export function processTargetGroups(ability, ctx) {
                     let paramSuffix = '';
                     if (eff.grantedAbilityParamXIsX) paramSuffix = ' (X)';
                     else if (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null) paramSuffix = ` (${eff.grantedAbilityParamX})`;
+                    
                     effText = `grant @[${abilityName}]${paramSuffix} to {TARGET}`;
-                    if (eff.blockDuplicates) effText += ` (if not present)`;
+                    if (eff.duration === 'WHILE_ATTACHED' || trigger === 'ON_BE_ATTACHED') {
+                        effText = `grant @[${abilityName}]${paramSuffix}{OMIT_TARGET}`;
+                    }
+                    if (eff.blockDuplicates) effText += ` (unique)`;
                     break;
                 case 'TRANSFORM':
                     let transCardName = eff.cardId;
@@ -371,16 +361,18 @@ export function processTargetGroups(ability, ctx) {
                         if (foundCard) transCardName = foundCard.name;
                     }
                     
+                    let isSelfTarget = ['this card', 'it', 'the triggering card', 'self', 'itself'].includes(targetStr);
+                    
                     if (isPlural) {
                         let pluralSuffix = transCardName.endsWith('s') ? '' : 's';
-                        if (targetStr === 'self' || targetStr === 'itself') {
+                        if (isSelfTarget) {
                             effText = `transform into ${transCardName}${pluralSuffix}{OMIT_TARGET}`;
                         } else {
                             effText = `transform {TARGET} into ${transCardName}${pluralSuffix}`;
                         }
                     } else {
                         let article = /^[aeiou]/i.test(transCardName) ? 'an' : 'a';
-                        if (targetStr === 'self' || targetStr === 'itself') {
+                        if (isSelfTarget) {
                             effText = `transform into ${article} ${transCardName}{OMIT_TARGET}`;
                         } else {
                             effText = `transform {TARGET} into ${article} ${transCardName}`;
@@ -396,7 +388,7 @@ export function processTargetGroups(ability, ctx) {
                      const grantedAb = getAbility(eff.grantedAbilityId);
                      if(grantedAb) rmAbilityName = grantedAb.name;
                 }
-                effText = `remove @[${rmAbilityName}] from {TARGET}`;
+                effText = `remove **${rmAbilityName}** from {TARGET}`;
                 break;
             case 'SUMMON':
                 let cardName = eff.cardId;
@@ -407,10 +399,11 @@ export function processTargetGroups(ability, ctx) {
                         const foundCard = getCard(eff.cardId);
                         if (foundCard) cardName = foundCard.name;
                     }
-                    const summonAmt = Math.max(1, Math.abs(eff.amount !== undefined ? eff.amount : 1));
-                    const pluralSuffix = ((eff.amountIsX || summonAmt > 1) && !cardName.endsWith('s')) ? 's' : '';
+                    const summonAmt = Math.max(1, Math.abs(eff.amount || 1));
+                    const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
                     
-                    let destZone = (eff.zone || 'FIELD').toLowerCase();
+                    let destZone = (eff.zone || 'FIELD').toUpperCase();
+                    let zonePh = ZONE_NAMES[destZone] || `[ZONE:${destZone.toLowerCase()}]`;
                     let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
 
                     let durAdj = '';
@@ -423,6 +416,7 @@ export function processTargetGroups(ability, ctx) {
                     }
 
                     let readinessAdj = '';
+                    let lineAdj = '';
                     let remainingNestedPayloads = [];
 
                     if (eff.nestedGroup && eff.nestedGroup.payloads && eff.nestedGroup.payloads.length > 0) {
@@ -439,6 +433,8 @@ export function processTargetGroups(ability, ctx) {
                                 else if (np.amount === 1) readinessAdj = 'ready ';
                                 else if (np.amount >= 2) readinessAdj = 'over-ready ';
                                 else remainingNestedPayloads.push(np);
+                            } else if (np.type === 'SET_STAT' && np.stat === 'line') {
+                                lineAdj = `[ZONE:${np.amount}] `;
                             } else {
                                 remainingNestedPayloads.push(np);
                             }
@@ -447,30 +443,43 @@ export function processTargetGroups(ability, ctx) {
 
                     let amtText = eff.amountIsX ? 'X' : summonAmt;
                     if (!eff.amountIsX && summonAmt === 1) {
-                        const nextWord = durAdj || readinessAdj || cardName;
-                        amtText = /^[aeiou]/i.test(nextWord) ? 'an' : 'a';
+                        const nextWord = durAdj || readinessAdj || lineAdj || cardName;
+                        let testWord = nextWord;
+                        if (nextWord === lineAdj) {
+                            const match = lineAdj.match(/\[ZONE:([a-z_]+)\]/i);
+                            if (match) testWord = match[1];
+                        }
+                        amtText = /^[aeiou]/i.test(testWord) ? 'an' : 'a';
                     }
 
-                    effText = `summon ${amtText} ${durAdj}${readinessAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
+                    effText = `summon ${amtText} ${durAdj}${readinessAdj}${lineAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
                     
                     if (isCasterZone) {
-                        if (destZone !== 'field') effText += ` to ${destZone}`;
+                        if (destZone !== 'FIELD') effText += ` to ${zonePh}`;
                     } else {
-                        effText += ` to {POSS} ${destZone}`;
+                        effText += ` to {POSS} ${zonePh}`;
                     }
                     
                     if (remainingNestedPayloads.length > 0) {
+                        let tempTargetStr = targetStr;
+                        let tempGroupId = groupId;
+                        targetStr = 'them';
+                        groupId = 'summon_nested';
+                        
                         let nestedPayloadsText = remainingNestedPayloads.map(np => {
                             let npText = formatPayload(np);
-                            let targetPronoun = (eff.amountIsX || summonAmt > 1) ? 'them' : 'it';
-                            let possPronoun = (eff.amountIsX || summonAmt > 1) ? 'their' : 'its';
-                            npText = npText.replace(/\{TARGET\}/g, targetPronoun).replace(/\{POSS\}/g, possPronoun).replace(/\{OMIT_TARGET\}/g, '');
-                            if (np.type === 'ATTACH' && targetStr === 'self') {
+                            if (npText) npText = npText.charAt(0).toLowerCase() + npText.slice(1);
+                            npText = npText.replace(/\{TARGET\}/g, 'them').replace(/\{POSS\}/g, 'their').replace(/\{OMIT_TARGET\}/g, '');
+                            if (np.type === 'ATTACH' && tempTargetStr === 'self') {
                                 npText = npText.replace('attach them to self', 'attach them to it');
                                 npText = npText.replace('attach it to self', 'attach it to it');
                             }
                             return npText;
                         });
+                        
+                        targetStr = tempTargetStr;
+                        groupId = tempGroupId;
+                        
                         let combinedNested = joinWithAnd(nestedPayloadsText);
                         
                         let targetMethod = eff.nestedGroup.targetMethod || 'AUTO_ALL';
@@ -486,7 +495,7 @@ export function processTargetGroups(ability, ctx) {
                     }
                     break;
                 default:
-                    let readableType = eff.type.toLowerCase().replace(/_/g, ' ');
+                    let readableType = eff.type.replace(/_/g, ' ').toLowerCase();
                     effText = `${readableType} {TARGET}`;
             }
 
@@ -501,26 +510,24 @@ export function processTargetGroups(ability, ctx) {
 
             let adverb = '';
             let suffix = '';
+            let isCustomMovement = (eff.type === 'SET_STAT' && eff.stat === 'line');
             
             if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
                 if (eff.duration === 'WHILE_ATTACHED') {
-                    suffix = ' while attached';
+                    if (trigger !== 'ON_BE_ATTACHED') suffix = ' while attached';
                 } else if (eff.duration === 'ACTION') {
-                    suffix = ' for the current action';
+                    if (isCustomMovement) suffix = ' this action'; else suffix = ' for the current action';
                 } else if (eff.duration === 'TEMPORARY') {
-                    adverb = 'temporarily ';
+                    if (isCustomMovement) suffix = ' this round'; else adverb = 'temporarily ';
                 } else if (eff.duration === 'BRIEF') {
-                    adverb = 'briefly ';
+                    if (isCustomMovement) suffix = ' this turn'; else adverb = 'briefly ';
                 } else if (eff.duration === 'PERMANENT') {
                     adverb = 'permanently ';
                 }
             }
 
             if (adverb && eff.type !== 'SUMMON') {
-                if (effText.endsWith(' instead')) {
-                    effText = effText.replace(' instead', '');
-                    effText = adverb + effText + ' instead';
-                } else if (effText.startsWith('force {TARGET} to ')) {
+                if (effText.startsWith('force {TARGET} to ')) {
                     effText = effText.replace('force {TARGET} to ', `force {TARGET} to ${adverb}`);
                 } else {
                     effText = adverb + effText;
@@ -531,7 +538,11 @@ export function processTargetGroups(ability, ctx) {
                 effText += suffix;
             }
 
-            return resolveTokens(effText);
+            let resolved = resolveTokens(effText);
+            if (resolved) {
+                resolved = resolved.charAt(0).toUpperCase() + resolved.slice(1);
+            }
+            return resolved;
         };
 
         const getSimilarityKey = (eff) => {
@@ -574,8 +585,8 @@ export function processTargetGroups(ability, ctx) {
                     else if (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null) paramSuffix = ` (${eff.grantedAbilityParamX})`;
                     return `@[${abilityName}]${paramSuffix}`;
                 });
-                effText = `grant abilities ${joinWithAnd(abNames)} to {TARGET}`;
-                if (first.blockDuplicates) effText += ` (if not present)`;
+                effText = `grant ${joinWithAnd(abNames)} to {TARGET}`;
+                if (first.blockDuplicates) effText += ` (unique)`;
             } else if (first.type === 'REMOVE_ABILITY') {
                 let abNames = effs.map(eff => {
                     let rmAbilityName = eff.grantedAbilityId;
@@ -586,52 +597,62 @@ export function processTargetGroups(ability, ctx) {
                          const grantedAb = getAbility(eff.grantedAbilityId);
                          if(grantedAb) rmAbilityName = grantedAb.name;
                     }
-                    return `@[${rmAbilityName}]`;
+                    return `**${rmAbilityName}**`;
                 });
-                effText = `remove abilities ${joinWithAnd(abNames)} from {TARGET}`;
+                effText = `remove ${joinWithAnd(abNames)} from {TARGET}`;
             } else if (first.type === 'MODIFY_STAT' && first.stat !== 'readiness') {
-                let isDecrease = first.amount < 0;
                 let changes = effs.map(eff => {
-                     let modStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                     if (eff.amountIsX) return `${modStat} by X`;
-                     return `${modStat} by ${Math.abs(eff.amount !== undefined ? eff.amount : 1)}`;
+                     let modStat = `[STAT:${eff.stat || 'stat'}]`;
+                     let sign = eff.amount > 0 && !eff.amountIsX ? '+' : '';
+                     let amtStr = eff.amountIsX ? 'X' : eff.amount;
+                     return `${sign}${amtStr} ${modStat}`;
                 });
-                if (first.amountIsX || !isDecrease) {
-                    effText = `{DYNAMIC_STAT:increase|${joinWithAnd(changes)}}`;
-                } else {
-                    effText = `{DYNAMIC_STAT:decrease|${joinWithAnd(changes)}}`;
-                }
+                effText = `give {TARGET} ${joinWithAnd(changes)}`;
             } else if (first.type === 'MODIFY_RESOURCE') {
-                let isSpend = first.amount < 0;
                 let changes = effs.map(eff => {
                      let resName = eff.resource || 'resource';
-                     if (eff.amountIsX) return `X ${resName}`;
-                     return `${Math.abs(eff.amount !== undefined ? eff.amount : 1)} ${resName}`;
+                     let amtStr = eff.amountIsX ? 'X' : Math.abs(eff.amount);
+                     return `${amtStr} ${resName}`;
                 });
-                if (first.amountIsX || !isSpend) {
-                    effText = `gain ${joinWithAnd(changes)}{PER_TARGET}`;
-                } else {
-                    effText = `lose ${joinWithAnd(changes)}{PER_TARGET}`;
-                }
+                let isSpend = first.amount < 0;
+                effText = `${isSpend ? 'lose' : 'gain'} ${joinWithAnd(changes)}{PER_TARGET}`;
             } else if (first.type === 'SET_STAT' && first.stat !== 'readiness') {
-                let changes = effs.map(eff => {
-                     let setStat = eff.stat === 'maxHealth' ? 'max health' : (eff.stat || 'stat');
-                     if (eff.amountIsX) return `${setStat} to X`;
-                     return `${setStat} to ${eff.amount !== undefined ? eff.amount : 1}`;
-                });
-                effText = `{DYNAMIC_STAT:set|${joinWithAnd(changes)}}`;
+                if (first.stat === 'line') {
+                    let changes = effs.map(eff => {
+                         let amtStr = eff.amountIsX ? 'X' : eff.amount;
+                         return `[ZONE:${amtStr}]`;
+                    });
+                    if (targetStr === 'this card' || targetStr === 'self' || targetStr === 'itself') {
+                        effText = `move to ${joinWithAnd(changes)}{OMIT_TARGET}`;
+                    } else {
+                        effText = `move {TARGET} to ${joinWithAnd(changes)}`;
+                    }
+                } else {
+                    let changes = effs.map(eff => {
+                         let setStat = `[STAT:${eff.stat || 'stat'}]`;
+                         let amtStr = eff.amountIsX ? 'X' : eff.amount;
+                         return `${setStat} to ${amtStr}`;
+                    });
+                    effText = `set {POSS} ${joinWithAnd(changes)}`;
+                }
             } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(first.type)) {
                 let blockedActions = effs.map(eff => {
-                    if (eff.type === 'BLOCK_ACT') return 'acting';
-                    if (eff.type === 'BLOCK_ATTACK') return 'attacking';
-                    if (eff.type === 'BLOCK_RETALIATE') return 'retaliating';
+                    if (eff.type === 'BLOCK_ACT') return 'act';
+                    if (eff.type === 'BLOCK_ATTACK') return 'attack';
+                    if (eff.type === 'BLOCK_RETALIATE') return 'retaliate';
                     return '';
                 }).filter(Boolean);
-                effText = `block {TARGET} from ${joinWithAnd(blockedActions)}`;
+                effText = `prevent {TARGET} from ${blockedActions.map(a => a + 'ing').join(' and ')}`;
             } else {
                 let formatted = effs.map(formatPayload);
                 formatted = [...new Set(formatted)];
-                return formatted.join(', then ');
+                let joined = '';
+                if (formatted[0] === 'Instead') {
+                    joined = formatted.length > 1 ? formatted[0] + ', ' + formatted.slice(1).join(', then ') : formatted[0];
+                } else {
+                    joined = formatted.join(', then ');
+                }
+                return joined;
             }
             
             if (first.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL', 'DONATE'].includes(first.type)) {
@@ -645,26 +666,24 @@ export function processTargetGroups(ability, ctx) {
 
             let adverb = '';
             let suffix = '';
+            let isCustomMovement = (first.type === 'SET_STAT' && first.stat === 'line');
             
             if (first.duration && first.duration !== 'INSTANT' && first.duration !== 'INDEFINITE') {
                 if (first.duration === 'WHILE_ATTACHED') {
-                    suffix = ' while attached';
+                    if (trigger !== 'ON_BE_ATTACHED') suffix = ' while attached';
                 } else if (first.duration === 'ACTION') {
-                    suffix = ' for the current action';
+                    if (isCustomMovement) suffix = ' this action'; else suffix = ' for the current action';
                 } else if (first.duration === 'TEMPORARY') {
-                    adverb = 'temporarily ';
+                    if (isCustomMovement) suffix = ' this round'; else adverb = 'temporarily ';
                 } else if (first.duration === 'BRIEF') {
-                    adverb = 'briefly ';
+                    if (isCustomMovement) suffix = ' this turn'; else adverb = 'briefly ';
                 } else if (first.duration === 'PERMANENT') {
                     adverb = 'permanently ';
                 }
             }
 
             if (adverb && first.type !== 'SUMMON') {
-                if (effText.endsWith(' instead')) {
-                    effText = effText.replace(' instead', '');
-                    effText = adverb + effText + ' instead';
-                } else if (effText.startsWith('force {TARGET} to ')) {
+                if (effText.startsWith('force {TARGET} to ')) {
                     effText = effText.replace('force {TARGET} to ', `force {TARGET} to ${adverb}`);
                 } else {
                     effText = adverb + effText;
@@ -675,18 +694,31 @@ export function processTargetGroups(ability, ctx) {
                 effText += suffix;
             }
 
-            return resolveTokens(effText);
+            let resolved = resolveTokens(effText);
+            if (resolved) {
+                resolved = resolved.charAt(0).toUpperCase() + resolved.slice(1);
+            }
+            return resolved;
         };
 
-        const finalizeString = (arr) => {
+        const finalizeString = (arr, isCost) => {
             if(arr.length === 0) return null;
             
-            let combined = joinWithAnd(arr);
+            let combined = '';
+            if (isCost) {
+                combined = joinWithAnd(arr);
+            } else {
+                if (arr[0] === 'Instead') {
+                    combined = arr.length > 1 ? arr[0] + ', ' + arr.slice(1).join(', then ') : arr[0];
+                } else {
+                    combined = arr.join(', then ');
+                }
+            }
             
             if (!tracker.hasMentioned(groupId)) {
                 if (combined.includes(' for each ')) {
                     combined = combined.replace(' for each ', ` to ${tracker.mention(groupId, targetStr, isPlural)} for each `);
-                } else {
+                } else if (combined !== 'Instead') {
                     combined += ` to ${tracker.mention(groupId, targetStr, isPlural)}`;
                 }
             }
@@ -711,12 +743,18 @@ export function processTargetGroups(ability, ctx) {
         let costs = groupPayloads(group.payloads.filter(p => p.isCost));
         let effects = groupPayloads(group.payloads.filter(p => !p.isCost));
         
-        let cStr = finalizeString(costs);
+        let cStr = finalizeString(costs, true);
         if (cStr) allCostSentences.push(cStr);
         
-        let eStr = finalizeString(effects);
+        let eStr = finalizeString(effects, false);
         if (eStr) allEffectSentences.push(eStr);
     });
+
+    if (trigger.startsWith('WOULD_') && allEffectSentences.length > 0) {
+        if (!allEffectSentences[0].startsWith('Instead')) {
+            allEffectSentences[0] = 'Instead, ' + allEffectSentences[0];
+        }
+    }
 
     return { allCostSentences, allEffectSentences };
 }

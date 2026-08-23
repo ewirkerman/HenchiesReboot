@@ -293,10 +293,16 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
 // ---------------------------------------------------------------------------
 
 export async function saveCardToCatalog(cardData) {
-  cardData.updatedAt = Date.now(); // Force fresh timestamp for delta sync
+  const dbPayload = JSON.parse(JSON.stringify(cardData));
+  if (dbPayload.abilities) {
+      dbPayload.abilities.forEach(ab => {
+          delete ab.displayDescription;
+      });
+  }
+  dbPayload.updatedAt = Date.now(); // Force fresh timestamp for delta sync
   if (await isReadyForDB()) {
     try {
-      await setDoc(doc(db, "cards", cardData.id), cardData);
+      await setDoc(doc(db, "cards", dbPayload.id), dbPayload);
       console.log("Card saved to Firestore");
     } catch (e) {
       console.warn("Firestore card save failed, saving to LocalStorage", e);
@@ -305,16 +311,16 @@ export async function saveCardToCatalog(cardData) {
 
   // Update RAM cache
   if (memoryCache.cards) {
-      const idx = memoryCache.cards.findIndex(c => c.id === cardData.id);
-      if (idx !== -1) memoryCache.cards[idx] = cardData;
-      else memoryCache.cards.push(cardData);
+      const idx = memoryCache.cards.findIndex(c => c.id === dbPayload.id);
+      if (idx !== -1) memoryCache.cards[idx] = dbPayload;
+      else memoryCache.cards.push(dbPayload);
   }
 
   // Update LocalStorage fallback
   const existing = JSON.parse(localStorage.getItem('henchies_custom_cards') || '[]');
-  const idx = existing.findIndex(c => c.id === cardData.id);
-  if (idx !== -1) existing[idx] = cardData;
-  else existing.push(cardData);
+  const idx = existing.findIndex(c => c.id === dbPayload.id);
+  if (idx !== -1) existing[idx] = dbPayload;
+  else existing.push(dbPayload);
   localStorage.setItem('henchies_custom_cards', JSON.stringify(existing));
   return true;
 }
@@ -344,10 +350,12 @@ export async function deleteCardFromCatalog(cardId) {
 
 
 export async function saveAbilityToCatalog(abilityData) {
-  abilityData.updatedAt = Date.now(); // Force fresh timestamp for delta sync
+  const dbPayload = JSON.parse(JSON.stringify(abilityData));
+  delete dbPayload.displayDescription;
+  dbPayload.updatedAt = Date.now(); // Force fresh timestamp for delta sync
   if (await isReadyForDB()) {
     try {
-      await setDoc(doc(db, "abilities", abilityData.abilityId), abilityData);
+      await setDoc(doc(db, "abilities", dbPayload.abilityId), dbPayload);
       console.log("Ability saved to Firestore");
     } catch (e) {
       console.warn("Firestore ability save failed, saving to LocalStorage", e);
@@ -355,15 +363,15 @@ export async function saveAbilityToCatalog(abilityData) {
   }
 
   if (memoryCache.abilities) {
-      const idx = memoryCache.abilities.findIndex(a => a.abilityId === abilityData.abilityId);
-      if (idx !== -1) memoryCache.abilities[idx] = abilityData;
-      else memoryCache.abilities.push(abilityData);
+      const idx = memoryCache.abilities.findIndex(a => a.abilityId === dbPayload.abilityId);
+      if (idx !== -1) memoryCache.abilities[idx] = dbPayload;
+      else memoryCache.abilities.push(dbPayload);
   }
 
   const existing = JSON.parse(localStorage.getItem('henchies_custom_abilities') || '[]');
-  const idx = existing.findIndex(a => a.abilityId === abilityData.abilityId);
-  if (idx !== -1) existing[idx] = abilityData;
-  else existing.push(abilityData);
+  const idx = existing.findIndex(a => a.abilityId === dbPayload.abilityId);
+  if (idx !== -1) existing[idx] = dbPayload;
+  else existing.push(dbPayload);
   localStorage.setItem('henchies_custom_abilities', JSON.stringify(existing));
   return true;
 }

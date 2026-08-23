@@ -95,7 +95,13 @@ async function fetchSandboxData() {
     // Hydrate cards with full ability objects instead of string IDs
     const hydratedCards = rawCustomCards.map(c => {
         if (c.abilities) {
-            c.abilities = c.abilities.map(ab => hydrateAbility(ab, abilities)).filter(Boolean);
+            c.abilities = c.abilities.map(ab => {
+                const hyd = hydrateAbility(ab, abilities);
+                if (hyd) {
+                    try { hyd.displayDescription = generateAbilityDescription(hyd, abilities, rawCustomCards, customTribes); } catch(e){}
+                }
+                return hyd;
+            }).filter(Boolean);
         }
         return c;
     });

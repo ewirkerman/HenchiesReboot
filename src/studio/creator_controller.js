@@ -19,12 +19,13 @@ import { StudioState } from './ability/state.js';
 import { populateGenuses, populateFamily, toggleStatFields, resetForm as resetCardForm, buildCardState, enforceAttackAbility } from './card/form.js';
 import { renderAssignedAbilities, renderReferencedAbilities } from './card/abilities.js';
 import { updatePreview as updateCardPreview, initImagePanning } from './card/preview.js';
+import { loadCard } from './card/catalog_sync.js';
 
 // Ability logic
-import { resetForm as resetAbilityForm, updateJSONPreview as updateAbilityJSONPreview, renderCatalogList as renderAbilityCatalogList, renderAssociatedCards, getCurrentAbilityState } from './ability/catalog_sync.js';
+import { resetForm as resetAbilityForm, updateJSONPreview as updateAbilityJSONPreview, renderCatalogList as renderAbilityCatalogList, renderAssociatedCards, getCurrentAbilityState, loadAbility } from './ability/catalog_sync.js';
 import { renderEffects, revalidatePayloadTypes, handleAddEffectGroup } from './ability/payloads.js';
 import { renderLogicTrees } from './ability/logic_tree.js';
-import { updateTargetingUI, updateTriggerComposite, populateBaseTriggers } from './ability/triggers.js';
+import { updateTargetingUI, updateTriggerComposite, populateBaseTriggers, renderAdditionalTriggers } from './ability/triggers.js';
 import { validateAbilityLogic } from '../ability_validation.js';
 import { handleDescriptionInput, handleDescriptionKeydown, closeMentionDropdown } from './ability/mentions.js';
 import { ATTRIBUTE_MANIFEST } from '../engine/attributes.js';
@@ -209,6 +210,46 @@ window.CreatorController = {
         const rawAbs = await fetchCustomAbilities();
         const customCards = await fetchCustomCards();
         
+        // Auto-normalize legacy 'custom_' IDs to 'card_' when encountered
+        for (const c of customCards) {
+            if (c.id && c.id.startsWith('custom_')) {
+                const oldId = c.id;
+                c.id = c.id.replace('custom_', 'card_');
+                console.log(`🔄 Auto-migrating legacy ID: ${oldId} -> ${c.id}`);
+                // Fire and forget the migration to the database
+                saveCardToCatalog(c).then(() => deleteCardFromCatalog(oldId)).catch(console.error);
+            }
+        }
+        
+        // Auto-normalize legacy 'custom_' IDs referenced inside ability payloads
+        for (const ab of rawAbs) {
+            let abChanged = false;
+            if (ab.effects) {
+                ab.effects.forEach(effect => {
+                    if (effect.payloads) {
+                        effect.payloads.forEach(p => {
+                            if (p.cardId && p.cardId.startsWith('custom_')) {
+                                p.cardId = p.cardId.replace('custom_', 'card_');
+                                abChanged = true;
+                            }
+                            if (p.nestedGroup && p.nestedGroup.payloads) {
+                                p.nestedGroup.payloads.forEach(np => {
+                                    if (np.cardId && np.cardId.startsWith('custom_')) {
+                                        np.cardId = np.cardId.replace('custom_', 'card_');
+                                        abChanged = true;
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+            if (abChanged) {
+                console.log(`🔄 Auto-migrating legacy card references in ability: ${ab.name}`);
+                saveAbilityToCatalog(ab).catch(console.error);
+            }
+        }
+        
         const tempCards = [...CARD_CATALOG, ...customCards];
         
         // Dynamically Populate Tribes & Genuses for Logic Trees
@@ -241,7 +282,15 @@ window.CreatorController = {
         CardState.allAbilitiesRegistry = [...StudioState.allAbilities];
 
         const hydratedCustomCards = customCards.map(c => {
-            if (c.abilities) c.abilities = c.abilities.map(ab => hydrateAbility(ab, rawAbs)).filter(Boolean);
+            if (c.abilities) {
+                c.abilities = c.abilities.map(ab => {
+                    const hyd = hydrateAbility(ab, rawAbs);
+                    if (hyd) {
+                        try { hyd.displayDescription = generateAbilityDescription(hyd, rawAbs, tempCards, StudioState.customTribesList); } catch(e){}
+                    }
+                    return hyd;
+                }).filter(Boolean);
+            }
             return c;
         });
         
@@ -360,14 +409,28 @@ window.CreatorController = {
         if (hash.startsWith('new_')) {
             type = hash.split('_')[1]; // 'card' or 'ability'
             id = '';
-        } else if (hash.startsWith('card_')) {
+        } else if (hash.startsWith('card_') || hash.startsWith('custom_')) {
             type = 'card';
-            id = hash;
+            id = hash.replace('custom_', 'card_');
+            
+            // Normalize the URL if they followed an old link
+            if (hash.startsWith('custom_')) {
+                window.history.replaceState(null, '', `#${id}`);
+            }
         } else if (hash.startsWith('ability_')) {
             type = 'ability';
             id = hash;
         } else {
-            return; // Unknown hash
+            // Fallback for legacy or imported IDs
+            if (CardState.allCards.some(c => c.id === hash)) {
+                type = 'card';
+                id = hash;
+            } else if (StudioState.allAbilities.some(a => a.abilityId === hash || a.id === hash)) {
+                type = 'ability';
+                id = hash;
+            } else {
+                return; // Unknown hash
+            }
         }
 
         if (type === 'card' || type === 'ability') {
@@ -398,41 +461,15 @@ window.CreatorController = {
             document.getElementById('workspace-card').classList.add('flex');
             
             if (id) {
-                // We map window.loadCard from the old system to our master state logic here
                 const card = CardState.allCards.find(c => c.id === id);
                 if (card) {
-                    CardState.currentEditingId = card.id;
-                    const setVal = (fid, v) => { const el = document.getElementById(fid); if (el) el.value = v; };
-                    setVal('card-name', card.name);
-                    let mappedTribe = card.tribe || 'Generic';
-                    if (!mappedTribe.startsWith('tribe_')) {
-                        const match = CardState.customTribes.find(t => t.name.toLowerCase() === mappedTribe.toLowerCase());
-                        if (match) mappedTribe = match.id;
+                    if (!document.getElementById('form-title')) {
+                        const dummy = document.createElement('div');
+                        dummy.id = 'form-title';
+                        dummy.className = 'hidden';
+                        document.body.appendChild(dummy);
                     }
-                    setVal('card-tribe', mappedTribe);
-                    populateGenuses(mappedTribe, card.genus || '');
-                    setVal('card-type', card.type || 'unit');
-                    setVal('card-default-line', card.defaultLine || 'mid');
-                    setVal('card-genus', card.genus || '');
-                    populateFamily(card.family || '');
-                    setVal('card-cost', card.cost || 0);
-                    setVal('card-power', card.power || 0);
-                    setVal('card-health', card.maxHealth || card.health || 1);
-                    setVal('card-strength', (card.strength !== undefined && card.strength !== null) ? card.strength : '');
-                    setVal('card-art', card.artUrl || '');
-                    setVal('card-art-x', card.artX ?? 0); setVal('card-art-y', card.artY ?? 0); setVal('card-art-scale', card.artScale ?? 100);
-                    setVal('card-micro-art-x', card.microArtX ?? 0); setVal('card-micro-art-y', card.microArtY ?? 0); setVal('card-micro-art-scale', card.microArtScale ?? 185);
-                    setVal('card-nano-art-x', card.nanoArtX ?? 0); setVal('card-nano-art-y', card.nanoArtY ?? 0); setVal('card-nano-art-scale', card.nanoArtScale ?? 110);
-                    setVal('card-description', card.description || '');
-                    
-                    CardState.currentAbilities = (card.abilities || []).map(a => {
-                        if (typeof a === 'string') return { id: a, paramX: null };
-                        return { id: a.abilityId || a.id, paramX: a.paramX !== undefined ? a.paramX : null };
-                    });
-                    
-                    toggleStatFields();
-                    renderAssignedAbilities();
-                    updateCardPreview();
+                    loadCard(id);
                     this.updateRightPanePreview(card, 'card');
                     topbar.showButtons(true);
                 } else {
@@ -463,47 +500,17 @@ window.CreatorController = {
             }
 
             if (id) {
-                // Simulate loadAbility from ability_controller
                 const ab = StudioState.allAbilities.find(a => a.abilityId === id);
                 if (ab) {
-                    StudioState.currentEditingId = ab.abilityId;
-                    const setVal = (fid, v) => { const el = document.getElementById(fid); if (el) el.value = v; };
-                    setVal('ab-name', ab.name);
-                    setVal('ab-description', ab.description || '');
-                    setVal('ab-trigger-scope', ab.triggerScope || 'PERSONAL');
-                    setVal('ab-trigger-limit', ab.triggerLimit || 'UNLIMITED');
+                    loadAbility(id);
                     
-                    const comp = window.parseTriggerToComposite ? window.parseTriggerToComposite(ab.trigger) : {base: ab.trigger, phase: 'ON', role: 'ACTIVE'};
-                    setVal('ab-base-trigger', comp.base);
-                    setVal('ab-trigger-phase', comp.phase);
-                    setVal('ab-trigger-role', comp.role);
                     updateTriggerComposite();
-                    
-                    document.querySelectorAll('.ab-flag-chk').forEach(cb => {
-                        cb.checked = ab.passiveFlags ? ab.passiveFlags.includes(cb.value) : false;
-                    });
-                    
-                    const cost = ab.cost || {};
-                    setVal('ab-cost-tribe-amt', cost.tribeAmount || 0);
-                    setVal('ab-cost-tent', cost.carnie || cost.tent || 0);
-                    setVal('ab-cost-power', cost.power || 0);
-                    setVal('ab-cost-readiness', cost.readinessCost || (cost.exhausts ? 'EXHAUSTS' : 'NONE'));
-                    document.getElementById('ab-cost-reuse-exempt').checked = !!cost.reuseIgnoresReadiness;
-                    document.getElementById('ab-cost-free-action').checked = !!cost.freeAction;
-                    
-                    // We must rely on the ability module state sync functions for deep nested logic
-                    // so we mock a tiny reset and call render
-                    const srcAct = ab.activation || ab.targeting || {};
-                    setVal('ab-act-method', srcAct.method || 'NONE');
-                    if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
-                    else StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-                    
-                    StudioState.effectGroups = ab.effects ? JSON.parse(JSON.stringify(ab.effects)) : [];
-                    
+                    renderAdditionalTriggers();
                     renderLogicTrees();
                     renderEffects();
                     updateTargetingUI();
                     updateAbilityJSONPreview();
+                    
                     this.updateRightPanePreview(ab, 'ability');
                     renderAssociatedCards();
                     topbar.showButtons(true);
@@ -514,6 +521,15 @@ window.CreatorController = {
                 }
             } else {
                 resetAbilityForm();
+                
+                updateTriggerComposite();
+                renderAdditionalTriggers();
+                renderLogicTrees();
+                renderEffects();
+                updateTargetingUI();
+                updateAbilityJSONPreview();
+                renderAssociatedCards();
+                
                 topbar.showButtons(false);
             }
             
@@ -570,7 +586,8 @@ window.CreatorController = {
         const cardObj = buildCardState();
         CreatorState.returnContext = { id: cardObj.id, name: cardObj.name };
         
-        window.location.hash = 'new_ability'; 
+        const newAbilityId = 'ability_' + Date.now();
+        window.location.hash = newAbilityId; 
     },
 
     cancelJump() {

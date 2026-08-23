@@ -30,6 +30,7 @@ export function exportCurrentState(formData, uiState) {
     return {
         abilityId: formData.abilityId || uiState.currentEditingId || ('ability_' + Date.now()),
         name: formData.name,
+        isKeyword: !!formData.isKeyword,
         description: formData.description || '',
         trigger: formData.trigger,
         additionalTriggers: formData.additionalTriggers || [],
@@ -81,6 +82,7 @@ export function getCurrentAbilityState(forceId = null) {
   const formData = {
     abilityId: forceId || StudioState.currentEditingId,
     name: document.getElementById('ab-name').value.trim(),
+    isKeyword: document.getElementById('ab-is-keyword') ? document.getElementById('ab-is-keyword').checked : false,
     description: document.getElementById('ab-description').value,
     trigger: derivedTrigger,
     additionalTriggers: StudioState.additionalTriggers || [],
@@ -238,6 +240,9 @@ export function resetForm() {
   const elName = document.getElementById('ab-name');
   if (elName) elName.value = '';
   
+  const elKeyword = document.getElementById('ab-is-keyword');
+  if (elKeyword) elKeyword.checked = false;
+  
   const elDesc = document.getElementById('ab-description');
   if (elDesc) elDesc.value = '';
   
@@ -350,6 +355,9 @@ export function loadAbility(id) {
   
   const elName = document.getElementById('ab-name');
   if (elName) elName.value = ab.name;
+  
+  const elKeyword = document.getElementById('ab-is-keyword');
+  if (elKeyword) elKeyword.checked = !!ab.isKeyword;
   
   const elDesc = document.getElementById('ab-description');
   if (elDesc) elDesc.value = ab.description || '';

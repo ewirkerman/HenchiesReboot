@@ -99,6 +99,47 @@
       return false;
   };
 
+  export function formatCardText(text) {
+      if (!text) return '';
+      let formatted = text;
+
+      // 1. Markdown Bolding (Used by NLG Triggers)
+      formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<span class="font-black text-amber-400 uppercase tracking-widest">$1</span>');
+
+      // 2. Stat Token Placeholders -> SVGs
+      const statMap = {
+          'strength': getIconSvg('attack'),
+          'health': getIconSvg('health'),
+          'maxHealth': getIconSvg('health'),
+          'power': getIconSvg('power'),
+          'armor': getIconSvg('armor'),
+          'acts': getIconSvg('fast')
+      };
+
+      formatted = formatted.replace(/\[STAT:([a-zA-Z]+)\]/gi, (match, p1) => {
+          const svg = statMap[p1] || statMap[p1.toLowerCase()];
+          if (svg) {
+              return `<span class="inline-block w-[1.1em] h-[1.1em] align-middle text-amber-300 drop-shadow-md -mt-0.5">${svg}</span>`;
+          }
+          return `<span class="font-bold text-amber-300 uppercase">${p1}</span>`;
+      });
+
+      // 3. Zone Token Placeholders
+      formatted = formatted.replace(/\[ZONE:([a-zA-Z_]+)\]/gi, (match, p1) => {
+          const line = p1.toLowerCase();
+          const svg = getLineIconSvg(line);
+          if (svg) {
+              return `<span class="inline-block w-[1.1em] h-[1.1em] align-middle text-sky-300 drop-shadow-md -mt-0.5">${svg}</span>`;
+          }
+          return `<span class="font-bold text-sky-300 uppercase">${p1.replace(/_/g, ' ')}</span>`;
+      });
+      
+      // 4. Manual Glossary Links
+      formatted = formatted.replace(/@\[(.*?)\]/g, '<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary">$1</span>');
+
+      return formatted;
+  }
+
   export function renderCardHTML(card, options = {}) {
     const json = encodeURIComponent(JSON.stringify(card)).replace(/'/g, "%27");
     let attrs = `card-data="${json}"`;
@@ -121,6 +162,17 @@
       let glossaryMap = new Map();
       let systemMap = new Map();
       let baseIds = new Set((baseAbilities || []).map(a => a.abilityId));
+
+      if (baseAbilities) {
+          baseAbilities.forEach(a => {
+              // Automatically extract Evergreen Keywords into the Glossary, even if they aren't explicitly mentioned in text!
+              if (a.isKeyword || a.trigger === 'UNTRIGGERABLE') {
+                  if (!glossaryMap.has(a.abilityId) && a.name) {
+                      glossaryMap.set(a.abilityId, a);
+                  }
+              }
+          });
+      }
 
       function processAbility(current) {
           if (!current) return;

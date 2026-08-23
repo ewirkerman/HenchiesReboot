@@ -143,13 +143,13 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
     if (isPlural) {
         scopeTypes = validTypes.map(s => {
             let l = s.toLowerCase();
-            if (isCardZone) return l === 'entity' ? 'cards' : l + ' cards';
-            return l === 'entity' ? 'entities' : l + 's';
+            if (isCardZone && l !== 'equipment') return l === 'entity' ? 'cards' : l + ' cards';
+            return l === 'entity' ? 'entities' : (l === 'equipment' ? l : l + 's');
         }).join(' or ');
     } else {
         scopeTypes = validTypes.map(s => {
             let l = s.toLowerCase();
-            if (isCardZone) return l === 'entity' ? 'card' : l + ' card';
+            if (isCardZone && l !== 'equipment') return l === 'entity' ? 'card' : l + ' card';
             return l;
         }).join(' or ');
     }
@@ -158,6 +158,8 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
          else scopeTypes = isPlural ? 'entities' : 'entity';
     }
     
+    let isPlayerZone = qt && qt.zones && qt.zones.length > 0 && qt.zones.every(z => ['HAND', 'DECK', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'].includes(z));
+
     let noun = scopeTypes;
     if (['ally', 'allies', 'enemy', 'enemies', 'character', 'characters', 'card', 'cards'].includes(scopeAlignments)) {
         let adjAlign = '';
@@ -166,13 +168,17 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             if (adjAlign === 'friendly') adjAlign = 'ally';
         }
         
+        if (isPlayerZone && adjAlign === 'ally') {
+            adjAlign = '';
+        }
+        
         let canDropUnit = validTypes.length === 1 && validTypes[0] === 'UNIT' && !isCardZone;
         
         if (validTypes.length === 0 || canDropUnit) {
             if (adjAlign) {
                  noun = isCardZone ? `${adjAlign} ${isPlural ? 'cards' : 'card'}` : scopeAlignments;
             } else {
-                 noun = scopeAlignments;
+                 noun = isCardZone ? (isPlural ? 'cards' : 'card') : (isPlural ? 'units' : 'unit');
             }
         } else {
             noun = adjAlign ? `${adjAlign} ${scopeTypes}` : scopeTypes;

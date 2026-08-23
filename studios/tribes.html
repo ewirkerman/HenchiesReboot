@@ -153,8 +153,9 @@
   </main>
   
   <script type="module">
-    import { fetchCustomTribes, saveTribeToCatalog, deleteTribeFromCatalog } from '../src/firebase.js';
+    import { fetchCustomTribes, saveTribeToCatalog, deleteTribeFromCatalog, fetchCustomAbilities, fetchCustomCards, saveAbilityToCatalog, saveCardToCatalog } from '../src/firebase.js';
     import { showToast, renderJSONPreview, renderCardHTML, TRIBE_STYLES } from '../src/ui.js';
+    import { generateAbilityDescription } from '../src/language_description.js';
     import '../components/main_nav.js';
     import '../components/catalog.js'; 
     import '../components/topbar.js';

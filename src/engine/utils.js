@@ -240,7 +240,6 @@ export function hydrateAbility(abRef, catalogAbs) {
             }
             cloned.name = `${cloned.name} (${abRef.paramX})`;
         }
-        if (abRef.displayDescription) cloned.displayDescription = abRef.displayDescription;
         if (abRef.description) cloned.description = abRef.description;
     }
     return cloned;

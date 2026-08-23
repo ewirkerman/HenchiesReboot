@@ -210,7 +210,13 @@
         if (customCards && customCards.length > 0) {
            const hydratedCustomCards = customCards.map(c => {
                if (c.abilities) {
-                   c.abilities = c.abilities.map(ab => hydrateAbility(ab, rawAbs)).filter(Boolean);
+                   c.abilities = c.abilities.map(ab => {
+                       const hyd = hydrateAbility(ab, rawAbs);
+                       if (hyd) {
+                           try { hyd.displayDescription = generateAbilityDescription(hyd, rawAbs, tempCards, customTribesList); } catch(e){}
+                       }
+                       return hyd;
+                   }).filter(Boolean);
                }
                return c;
            });

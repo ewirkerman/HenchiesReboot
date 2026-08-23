@@ -135,7 +135,7 @@ export function resetForm() {
     CardState.currentEditingId = null;
     window.location.hash = '';
     
-    const titleEl = document.getElementById('form-title');
+    const titleEl = document.getElementById('form-title') || document.getElementById('workspace-title');
     if (titleEl) titleEl.innerText = '⚡ Design New Card';
     
     document.getElementById('card-name').value = '';
@@ -162,7 +162,7 @@ export function resetForm() {
     
     CardState.currentAbilities = [];
     
-    const topbar = document.getElementById('studio-topbar');
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
     if (topbar) topbar.showButtons(false);
     
     toggleStatFields();
