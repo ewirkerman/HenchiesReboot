@@ -214,7 +214,7 @@ export async function handleForfeitInGame() {
 window.handleForfeitInGame = handleForfeitInGame;
 
 window.handleLineClick = async (clickedPrefix, line) => {
-    if (event) event.stopPropagation();
+    if (typeof event !== 'undefined' && event) event.stopPropagation();
     if (ClientState.pendingAbility) {
         showToast("Targeting cancelled.", "info");
         ClientState.pendingAbility = null;
@@ -225,7 +225,7 @@ window.handleLineClick = async (clickedPrefix, line) => {
 };
 
 window.handleEntityClick = async (prefix, line, entityId) => {
-    if (event) event.stopPropagation();
+    if (typeof event !== 'undefined' && event) event.stopPropagation();
     
     if (!ClientState.isMyTurn()) {
         let entity = null;
@@ -279,12 +279,14 @@ window.handleEntityClick = async (prefix, line, entityId) => {
                 ClientState.validTargets = [];
                 updateUI();
             }
+            window.closeUnitActionModal();
             return;
         } else {
             showToast("Targeting cancelled.", "info");
             ClientState.pendingAbility = null;
             ClientState.validTargets = [];
             updateUI();
+            window.closeUnitActionModal();
             return;
         }
     }
@@ -293,11 +295,6 @@ window.handleEntityClick = async (prefix, line, entityId) => {
       if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
         const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
         if (actions.length > 0) {
-          if (actions.length === 1 && actions[0].undoable) {
-            window.activateAbility(entityId, actions[0].abilityId);
-            return;
-          }
-
           let entityName = "Unknown Entity";
           if (prefix === 'equator') {
               const eq = ClientState.gameState.equator.find(i => i.instanceId === entityId);
@@ -308,7 +305,8 @@ window.handleEntityClick = async (prefix, line, entityId) => {
               if (u) { entityName = u.name; break; }
             }
           }
-          window.openActionModal(entityId, entityName, actions);
+          
+          window.openActionModal(entityId, entityName, actions, false);
         } else {
           let entity = null;
           if (prefix === 'equator') entity = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
@@ -343,8 +341,7 @@ function maybeOpenZoneModal() {
 }
 
 window.activateHandCardAbility = async (cardId, abilityId) => {
-    if (event) event.stopPropagation();
-    window.closeUnitActionModal();
+    if (typeof event !== 'undefined' && event) event.stopPropagation();
     const player = ClientState.gameState.players[ClientState.localPlayerRole];
     const card = player.hand.find(c => c.instanceId === cardId || c.id === cardId);
     if (!card) return;
@@ -354,6 +351,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
     const isHandActivate = ability.trigger === 'MANUAL' && ability.passiveFlags?.includes('ACTIVATE_FROM_HAND');
     
     if (ability?.activation?.method === 'PLAYER_CHOICE') {
+        window.closeUnitActionModal();
         ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, abilityId);
         ClientState.pendingAbility = { entityId: cardId, abilityId: abilityId, isHandCard: true, isHandActivate };
         showToast(`Select a target for ${ability.name}`, 'info');
@@ -363,6 +361,8 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
         return;
     }
 
+    window.closeUnitActionModal();
+
     if (isHandActivate) {
         executeAndLogAbility(cardId, abilityId, null, null);
     } else {
@@ -371,8 +371,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
 };
 
 window.activateAbility = async (entityId, abilityId) => {
-    if (event) event.stopPropagation();
-    window.closeUnitActionModal();
+    if (typeof event !== 'undefined' && event) event.stopPropagation();
     if (!ClientState.isMyTurn()) return;
     
     let entity = null;
@@ -389,6 +388,7 @@ window.activateAbility = async (entityId, abilityId) => {
     const ability = entity.abilities?.find(a => a.abilityId === abilityId);
     
     if (ability?.activation?.method === 'PLAYER_CHOICE') {
+        window.closeUnitActionModal();
         ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, entityId, abilityId);
         ClientState.pendingAbility = { entityId, abilityId };
         showToast(`Select a target for ${ability.name}`, 'info');
@@ -398,11 +398,12 @@ window.activateAbility = async (entityId, abilityId) => {
         return;
     }
     
+    window.closeUnitActionModal();
     executeAndLogAbility(entityId, abilityId, null, null);
 };
 
 window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetId = null) => {
-    if (event) event.stopPropagation();
+    if (typeof event !== 'undefined' && event) event.stopPropagation();
     window.closeUnitActionModal();
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     const card = getEntityRef(cardId);
@@ -433,7 +434,7 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
 };
 
 window.handleHandCardClick = async (cardId) => {
-  if (event) event.stopPropagation();
+  if (typeof event !== 'undefined' && event) event.stopPropagation();
   if (!ClientState.isMyTurn()) return;
 
   if (ClientState.gameState.turnPhase === 'SACRIFICE_DECISION') {
@@ -486,12 +487,14 @@ window.handleHandCardClick = async (cardId) => {
               ClientState.validTargets = [];
               updateUI();
           }
+          window.closeUnitActionModal();
           return;
       } else {
           showToast("Targeting cancelled.", "info");
           ClientState.pendingAbility = null;
           ClientState.validTargets = [];
           updateUI();
+          window.closeUnitActionModal();
           return;
       }
   }
@@ -589,36 +592,19 @@ window.handleHandCardClick = async (cardId) => {
         const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
         const showPlayNormally = canPlay && !hasMandatoryTarget;
 
-        if ((showPlayNormally ? 1 : 0) + playAbilities.length === 1) {
-            if (showPlayNormally && !isPlayUnsafe(c, null)) {
-                window.executeNormalPlay(cardId);
-                return;
-            }
-            if (playAbilities.length === 1 && isUndoable(ClientState.gameState, playAbilities[0])) {
-                window.activateHandCardAbility(cardId, playAbilities[0].abilityId);
-                return;
-            }
-        }
-
         if (playAbilities.length > 0 || canPlay) {
-            document.getElementById('modal-unit-name').innerText = `Action: ${c.name}`;
-            const container = document.getElementById('modal-abilities-container');
-            let html = '';
-            let idx = 1;
+            const actions = [];
             
             if (showPlayNormally) {
-                const undoWarning = isPlayUnsafe(c, null) ? ' <span title="Cannot be undone" class="text-yellow-400 drop-shadow-md">⚠️</span>' : '';
-                html += `<button onclick="window.executeNormalPlay('${cardId}')" class="bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">🃏 [${idx++}] Play Normally${undoWarning}</button>`;
+                actions.push({ type: 'PLAY', name: 'Play Normally', undoable: !isPlayUnsafe(c, null), cost: c.cost });
             }
 
             playAbilities.forEach(ab => {
-                const undoWarning = (!isUndoable(ClientState.gameState, ab)) ? ' <span title="Cannot be undone" class="text-yellow-400 drop-shadow-md">⚠️</span>' : '';
-                html += `<button onclick="window.activateHandCardAbility('${cardId}', '${ab.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ [${idx++}] ${ab.name}${undoWarning}</button>`;
+                actions.push({ type: 'ABILITY', name: ab.name, abilityId: ab.abilityId, undoable: isUndoable(ClientState.gameState, ab), cost: ab.cost });
             });
             
-            if (html !== '') {
-                container.innerHTML = html;
-                document.getElementById('unit-action-modal').classList.remove('hidden');
+            if (actions.length > 0) {
+                window.openActionModal(cardId, c.name, actions, true);
             } else if (!canPlay) {
                 showToast("Cannot play this card.", "error");
             }
@@ -628,28 +614,14 @@ window.handleHandCardClick = async (cardId) => {
   }
 };
 
-window.openActionModal = (entityId, entityName, actions) => {
-    document.getElementById('modal-unit-name').innerText = entityName;
-    const container = document.getElementById('modal-abilities-container');
-    
-    let html = '';
-    
-    actions.forEach((act, idx) => {
-      const hotkey = `[${idx + 1}]`;
-      const undoWarning = (!act.undoable) ? ' <span title="Cannot be undone" class="text-yellow-400 drop-shadow-md">⚠️</span>' : '';
-      if (act.type === 'ATTACK') {
-        html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">⚔️ ${hotkey} ${act.name}${undoWarning}</button>`;
-      } else if (act.type === 'ABILITY') {
-        html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ ${hotkey} ${act.name}${undoWarning}</button>`;
-      }
-    });
-    
-    container.innerHTML = html;
-    document.getElementById('unit-action-modal').classList.remove('hidden');
+window.openActionModal = (entityId, entityName, actions, isHand = false) => {
+    const menu = document.querySelector('unit-action-modal');
+    if (menu) menu.open(entityId, entityName, actions, isHand);
 };
 
 window.closeUnitActionModal = () => {
-    document.getElementById('unit-action-modal').classList.add('hidden');
+    const menu = document.querySelector('unit-action-modal');
+    if (menu) menu.close();
 };
 
 window.handleUndo = handleUndo;

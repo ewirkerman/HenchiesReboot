@@ -129,12 +129,11 @@
                 <span>Resource Icon (Raw SVG HTML)</span>
                 <span class="text-slate-500 font-normal italic text-[10px]">Use viewBox="0 0 24 24" and fill="currentColor"</span>
              </label>
-             <div class="flex gap-4 items-stretch">
-                <div class="w-20 h-20 shrink-0 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center p-2 shadow-inner" id="tribe-svg-large-preview">
-                    <span class="text-slate-600 text-[10px] font-bold text-center">No Icon</span>
-                </div>
-                <textarea id="tribe-svg" rows="4" class="bg-slate-900 border border-slate-700 p-3 rounded text-amber-100 font-mono text-[10px] w-full focus:outline-none focus:border-amber-500 placeholder-slate-600" placeholder='<svg viewBox="0 0 24 24" ...></svg>'></textarea>
-             </div>
+             <textarea id="tribe-svg" rows="4" class="bg-slate-900 border border-slate-700 p-3 rounded text-amber-100 font-mono text-[10px] w-full focus:outline-none focus:border-amber-500 placeholder-slate-600" placeholder='<svg viewBox="0 0 24 24" ...></svg>'></textarea>
+          </div>
+
+          <div class="flex flex-col gap-2 lg:col-span-2">
+            <art-panner title="Background Pan/Zoom" prefix="tribe-bg" default-scale="100"></art-panner>
           </div>
 
         </div>
@@ -153,12 +152,12 @@
   </main>
   
   <script type="module">
-    import { fetchCustomTribes, saveTribeToCatalog, deleteTribeFromCatalog, fetchCustomAbilities, fetchCustomCards, saveAbilityToCatalog, saveCardToCatalog } from '../src/firebase.js';
-    import { showToast, renderJSONPreview, renderCardHTML, TRIBE_STYLES } from '../src/ui.js';
-    import { generateAbilityDescription } from '../src/language_description.js';
+    import { fetchCustomTribes, saveTribeToCatalog, deleteTribeFromCatalog } from '../src/firebase.js';
+    import { showToast, renderJSONPreview, TRIBE_STYLES } from '../src/ui.js';
     import '../components/main_nav.js';
     import '../components/catalog.js'; 
     import '../components/topbar.js';
+    import '../components/art_panner.js';
 
     let allTribes = [];
     let currentEditingId = null;
@@ -231,6 +230,75 @@
         renderCatalog();
     };
 
+    function initTribeImagePanning() {
+        const previewContainer = document.getElementById('tribe-preview-container');
+        if (!previewContainer) return;
+        
+        let isDraggingArt = false;
+        let startMouseX, startMouseY, startArtX, startArtY;
+        let activeXInput, activeYInput;
+
+        previewContainer.addEventListener('mousedown', (e) => {
+            const cardEl = e.target.closest('game-card');
+            if (!cardEl || !document.getElementById('tribe-bg-image').value) return;
+            
+            activeXInput = document.getElementById('tribe-bg-x');
+            activeYInput = document.getElementById('tribe-bg-y');
+            
+            if (!activeXInput || !activeYInput) return;
+
+            isDraggingArt = true;
+            startMouseX = e.clientX;
+            startMouseY = e.clientY;
+            startArtX = parseInt(activeXInput.value) || 0;
+            startArtY = parseInt(activeYInput.value) || 0;
+            previewContainer.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDraggingArt || !activeXInput || !activeYInput) return;
+            
+            const deltaX = (e.clientX - startMouseX) * 0.5;
+            const deltaY = (e.clientY - startMouseY) * 0.5;
+            
+            const newX = startArtX + deltaX;
+            const newY = startArtY + deltaY;
+            
+            if (newX < Number(activeXInput.min)) activeXInput.min = Math.floor(newX - 100);
+            if (newX > Number(activeXInput.max)) activeXInput.max = Math.ceil(newX + 100);
+            if (newY < Number(activeYInput.min)) activeYInput.min = Math.floor(newY - 100);
+            if (newY > Number(activeYInput.max)) activeYInput.max = Math.ceil(newY + 100);
+
+            activeXInput.value = newX;
+            activeYInput.value = newY;
+            
+            updatePreview();
+        });
+
+        window.addEventListener('mouseup', () => { isDraggingArt = false; previewContainer.style.cursor = 'grab'; activeXInput = null; activeYInput = null; });
+        window.addEventListener('mouseleave', () => { isDraggingArt = false; previewContainer.style.cursor = 'grab'; activeXInput = null; activeYInput = null; });
+
+        previewContainer.addEventListener('wheel', (e) => {
+            const cardEl = e.target.closest('game-card');
+            if (!cardEl || !document.getElementById('tribe-bg-image').value) return;
+            
+            e.preventDefault(); 
+            
+            const scaleInput = document.getElementById('tribe-bg-scale');
+            if (!scaleInput) return;
+
+            let currentScale = parseInt(scaleInput.value) || 100;
+            let zoomSpeed = 5;
+            
+            if (e.deltaY < 0) currentScale += zoomSpeed;
+            else if (e.deltaY > 0) currentScale -= zoomSpeed;
+
+            currentScale = Math.max(Number(scaleInput.min), Math.min(Number(scaleInput.max), currentScale));
+            scaleInput.value = currentScale;
+            updatePreview();
+        }, { passive: false });
+    }
+
     init();
 
     async function init() {
@@ -268,21 +336,13 @@
       topbar.querySelector('#btn-test').classList.add('hidden');
       topbar.querySelector('#btn-import').classList.add('hidden');
 
-      const hashId = window.location.hash.replace('#', '');
-
       renderCatalog();
       resetForm();
 
+      const hashId = window.location.hash.replace('#', '');
       if (hashId) setTimeout(() => window.loadTribe(hashId), 50);
-
-      window.addEventListener('hashchange', () => {
-          const newHash = window.location.hash.replace('#', '');
-          if (newHash && newHash !== currentEditingId) {
-              window.loadTribe(newHash);
-          } else if (!newHash && currentEditingId) {
-              resetForm();
-          }
-      });
+      
+      initTribeImagePanning();
     }
 
     function buildTribeState() {
@@ -299,9 +359,11 @@
             colorLightBgHex: document.getElementById('hex-light').value,
             colorBorderHex: document.getElementById('hex-border').value,
             colorTextHex: document.getElementById('hex-text').value,
-            validGenuses: document.getElementById('tribe-genuses').value.split(',').map(s => s.trim()).filter(Boolean),
             iconSvg: document.getElementById('tribe-svg').value,
-            bgImageUrl: document.getElementById('tribe-bg-image').value
+            bgImageUrl: document.getElementById('tribe-bg-image').value,
+            bgImageX: parseInt(document.getElementById('tribe-bg-x')?.value) || 0,
+            bgImageY: parseInt(document.getElementById('tribe-bg-y')?.value) || 0,
+            bgImageScale: parseInt(document.getElementById('tribe-bg-scale')?.value) || 100
         };
     }
 
@@ -335,6 +397,10 @@
             hexBorder: tribe.colorBorderHex,
             hexText: tribe.colorTextHex,
             iconSvg: tribe.iconSvg,
+            bgImageUrl: tribe.bgImageUrl,
+            bgImageX: tribe.bgImageX,
+            bgImageY: tribe.bgImageY,
+            bgImageScale: tribe.bgImageScale,
             name: tribe.name || 'Preview'
         };
 
@@ -469,9 +535,11 @@
         setVal('hex-light', tribe.colorLightBgHex);
         setVal('hex-border', tribe.colorBorderHex);
         setVal('hex-text', tribe.colorTextHex);
-        setVal('tribe-genuses', (tribe.validGenuses || []).join(', '));
         setVal('tribe-svg', tribe.iconSvg);
         setVal('tribe-bg-image', tribe.bgImageUrl);
+        setVal('tribe-bg-x', tribe.bgImageX ?? 0);
+        setVal('tribe-bg-y', tribe.bgImageY ?? 0);
+        setVal('tribe-bg-scale', tribe.bgImageScale ?? 100);
         
         const syncColor = (pickerId, hex) => { if(/^#[0-9A-F]{6}$/i.test(hex)) document.getElementById(pickerId).value = hex; else document.getElementById(pickerId).value = '#000000'; };
         syncColor('hex-bg-picker', tribe.colorBgHex);
@@ -512,9 +580,11 @@
         setVal('hex-light', ''); setVal('hex-light-picker', '#000000');
         setVal('hex-border', ''); setVal('hex-border-picker', '#000000');
         setVal('hex-text', ''); setVal('hex-text-picker', '#000000');
-        setVal('tribe-genuses', '');
         setVal('tribe-svg', '');
         setVal('tribe-bg-image', '');
+        setVal('tribe-bg-x', 0);
+        setVal('tribe-bg-y', 0);
+        setVal('tribe-bg-scale', 100);
         
         const topbar = document.getElementById('studio-topbar');
         topbar.showButtons(false);

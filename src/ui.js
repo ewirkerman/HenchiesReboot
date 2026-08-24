@@ -54,6 +54,10 @@
                   hexBorder: t.colorBorderHex,
                   hexText: t.colorTextHex,
                   iconSvg: t.iconSvg,
+                  bgImageUrl: t.bgImageUrl,
+                  bgImageX: t.bgImageX,
+                  bgImageY: t.bgImageY,
+                  bgImageScale: t.bgImageScale,
                   name: t.name
               };
               if (t.name) TRIBE_STYLES[t.name] = TRIBE_STYLES[t.id];
@@ -148,6 +152,7 @@
     if (options.isHand) attrs += ` is-hand="true"`;
     if (options.isSelected) attrs += ` is-selected="true"`;
     if (options.isTargetable) attrs += ` is-targetable="true"`;
+    if (options.isCasting) attrs += ` is-casting="true"`;
     if (options.readiness !== undefined && options.readiness !== null) attrs += ` readiness="${options.readiness}"`;
     if (options.onClick) attrs += ` on-click="${options.onClick.replace(/"/g, '&quot;')}"`;
     if (options.onInspect) attrs += ` on-inspect="${options.onInspect.replace(/"/g, '&quot;')}"`;
@@ -334,6 +339,14 @@
     // Extract Glossary
     const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry, cardOrUnit.description);
 
+    const cardArtUrl = cardOrUnit.artUrl;
+    const bgArtUrl = style.bgImageUrl;
+
+    const bgTransX = style.bgImageX ?? 0;
+    const bgTransY = style.bgImageY ?? 0;
+    const bgScale = style.bgImageScale ?? 100;
+    const bgArtStyle = `object-position: center; transform: translate(${bgTransX}px, ${bgTransY}px) scale(${bgScale / 100});`;
+
     let transX = cardOrUnit.artX ?? 0;
     let transY = cardOrUnit.artY ?? 0;
     let scale = cardOrUnit.artScale ?? 100;
@@ -357,8 +370,9 @@
             
             <!-- Top Section: Art & Cost (60%) -->
             <div class="relative w-full h-[60%] bg-slate-900 border-b-2 ${separatorClass} shrink-0 overflow-hidden flex items-center justify-center">
-              ${cardOrUnit.artUrl ? `<img src="${cardOrUnit.artUrl}" alt="${cardOrUnit.name}" class="w-full h-full object-contain" style="${artStyle}" draggable="false" />` : `
-                <div class="w-full h-full bg-slate-800 flex items-center justify-center text-slate-400 text-6xl font-bold">
+              ${bgArtUrl ? `<img src="${bgArtUrl}" class="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-60 mix-blend-overlay" style="${bgArtStyle}" draggable="false" />` : ''}
+              ${cardArtUrl ? `<img src="${cardArtUrl}" alt="${cardOrUnit.name}" class="w-full h-full object-contain relative z-10" style="${artStyle}" draggable="false" />` : `
+                <div class="relative z-10 w-full h-full bg-slate-800/60 flex items-center justify-center text-slate-400 text-6xl font-bold">
                   ${cardOrUnit.type === 'unit' ? '⚔️' : cardOrUnit.type === 'avatar' ? '👑' : cardOrUnit.type === 'boon' ? '✨' : cardOrUnit.type === 'buff' ? '🛡️' : '📜'}
                 </div>
               `}
@@ -441,98 +455,128 @@
                     
                     if (displayAbilities.length === 0) return '';
                     
-                    return `
-                  <div class="flex flex-col gap-2 mt-1">
-                    ${displayAbilities.map(a => {
-                      const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
-                      let finalDesc = a.displayDescription || a.description || regMatch.displayDescription || regMatch.description || 'Executes effects on trigger.';
-                      if (cardOrUnit.type === 'spell') {
-                          finalDesc = finalDesc.replace(/^When played,\s*/i, '');
-                          if (finalDesc) finalDesc = finalDesc.charAt(0).toUpperCase() + finalDesc.slice(1);
-                      }
-                      
-                      let formattedDesc = finalDesc.replace(/@\[(.*?)\]/g, (match, p1) => {
-                          let displayName = p1;
-                          const foundAb = allAbilitiesRegistry.find(reg => reg.abilityId === p1 || reg.name.toLowerCase() === p1.toLowerCase());
-                          if (foundAb) displayName = foundAb.name;
-                          return `<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary">${displayName}</span>`;
-                      });
-                      formattedDesc = formattedDesc.replace(/\{Unready\}/g, SVG_UNREADY).replace(/\{Exhaust\}/g, SVG_EXHAUST).replace(/\{Power.*?\}/g, '').replace(/\{Resource.*?\}/g, '').replace(/\{Tent.*?\}/g, '').replace(/\{Free Action\}/g, '');
-                      
-                      const isAttack = a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
-                      const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'MODIFY_PLAY'].includes(a.trigger);
-                      
-                      const abilityKey = `${cardOrUnit.instanceId}_${a.abilityId}`;
-                      const uses = (abilityUses || {})[abilityKey] || 0;
-                      
-                      let isUsable = true;
-                      let showHourglass = false;
-                      
-                      if (a.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
-                      if (a.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
+                    let abilitiesHTML = '<div class="flex flex-col gap-1 mt-1">';
+                    
+                    const evergreen = [];
+                    const bespoke = [];
+                    const active = [];
 
-                      // Bypass field-state usability checks if the card is in hand or being previewed globally
-                      if (!isHand && cardOrUnit.readiness !== undefined) {
-                          const checkBlock = (flag) => {
-                              if (!hasEngineFlag(cardOrUnit, flag)) return null;
-                              if (cardOrUnit.passiveFlags?.includes(flag)) return 'permanent';
-                              if (cardOrUnit.abilities?.some(ab => ab.passiveFlags?.includes(flag))) return 'permanent';
-                              const effect = cardOrUnit.activeEffects?.find(e => e.type === flag);
-                              if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
-                              return 'temporary';
-                          };
+                    displayAbilities.forEach(a => {
+                        const ab = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
+                        const isKeyword = ab.isKeyword || (ab.trigger === 'UNTRIGGERABLE' && (!ab.effects || ab.effects.length === 0 || ab.passiveFlags?.length > 0));
+                        if (isKeyword) {
+                            evergreen.push(ab);
+                        } else if (ab.trigger === 'MANUAL') {
+                            active.push(ab);
+                        } else {
+                            bespoke.push(ab);
+                        }
+                    });
 
-                          const actBlock = checkBlock('BLOCK_ACT');
-                          const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+                    // Bucket 2: Evergreen
+                    if (evergreen.length > 0) {
+                        const names = evergreen.map(a => a.name).join(', ');
+                        abilitiesHTML += `<div class="text-sm sm:text-base font-black text-amber-300 text-center leading-tight mb-2 drop-shadow-md">${names}</div>`;
+                    }
 
-                          if (isAttack && attackBlock) {
-                              isUsable = false;
-                              if (attackBlock === 'temporary') showHourglass = true;
-                          }
-                          
-                          if (a.trigger === 'MANUAL') {
-                              if (!isAttack && actBlock) {
-                                  isUsable = false;
-                                  if (actBlock === 'temporary') showHourglass = true;
-                              }
-                              
-                              if (isUsable) {
-                                  const cost = a.cost || {};
-                                  if (!cost.freeAction && !isAttack && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) {
-                                      isUsable = false;
-                                      showHourglass = true;
-                                  }
-                              }
-                          }
-                      }
+                    // Bucket 3: Bespoke
+                    if (bespoke.length > 0) {
+                        bespoke.forEach(ab => {
+                            let desc = ab.displayDescription || ab.description || '';
+                            if (cardOrUnit.type === 'spell') {
+                                desc = desc.replace(/^When played,\s*/i, '');
+                                if (desc) desc = desc.charAt(0).toUpperCase() + desc.slice(1);
+                            }
+                            const abName = ab.name || ab.abilityId;
+                            if (abName && desc.startsWith(abName)) {
+                                desc = desc.substring(abName.length).trim();
+                                if (desc.startsWith(':') || desc.startsWith('-')) desc = desc.substring(1).trim();
+                            }
+                            
+                            const formatted = formatCardText(desc);
+                            abilitiesHTML += `
+                            <div class="bg-black/30 backdrop-blur-sm p-2 rounded-lg border border-white/5 shadow-sm text-sm sm:text-base text-slate-200 leading-snug mb-1.5 text-center">
+                                ${formatted}
+                            </div>`;
+                        });
+                    }
 
-                      if (isPlayTrigger && !isHand && cardOrUnit.readiness !== undefined) {
-                          isUsable = false;
-                          showHourglass = false;
-                      }
+                    // Bucket 4: Active
+                    if (active.length > 0) {
+                        active.forEach(ab => {
+                            let desc = ab.displayDescription || ab.description || '';
+                            const abName = ab.name || ab.abilityId;
+                            if (abName && desc.startsWith(abName)) {
+                                desc = desc.substring(abName.length).trim();
+                                if (desc.startsWith(':') || desc.startsWith('-')) desc = desc.substring(1).trim();
+                            }
+                            const formatted = formatCardText(desc);
+                            
+                            const abilityKey = `${cardOrUnit.instanceId}_${ab.abilityId}`;
+                            const uses = (abilityUses || {})[abilityKey] || 0;
+                            let isUsable = true;
+                            let showHourglass = false;
+                            
+                            if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
+                            if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
 
-                      if (isHand || cardOrUnit.readiness === undefined) {
-                          isUsable = true;
-                          showHourglass = false;
-                      }
+                            const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
 
-                      const iconContent = isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
-                      const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
-                      
-                      const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
-                      const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
+                            if (!isHand && cardOrUnit.readiness !== undefined) {
+                                const checkBlock = (flag) => {
+                                    if (!hasEngineFlag(cardOrUnit, flag)) return null;
+                                    if (cardOrUnit.passiveFlags?.includes(flag)) return 'permanent';
+                                    if (cardOrUnit.abilities?.some(a => a.passiveFlags?.includes(flag))) return 'permanent';
+                                    const effect = cardOrUnit.activeEffects?.find(e => e.type === flag);
+                                    if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
+                                    return 'temporary';
+                                };
 
-                      const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}${a.name || regMatch.name || a.abilityId}</span>`;
-                      const costBadge = formatAbilityCostBadge(a.cost, cardOrUnit.tribe);
-                      const triggerPill = `<span class="text-[9px] sm:text-[10px] bg-slate-800 text-slate-300 px-1 py-px rounded font-bold uppercase tracking-widest mx-1.5 shadow-inner opacity-90">${a.trigger || 'MANUAL'}</span>`;
-                      
-                      return `
-                      <div class="bg-black/30 backdrop-blur-sm p-2 rounded border border-white/5 shadow-sm text-xs sm:text-sm ${textColorClass} leading-snug">
-                        ${nameContent}${costBadge}${triggerPill}<span>${formattedDesc}</span>
-                      </div>
-                    `}).join('')}
-                  </div>
-                `;
+                                const actBlock = checkBlock('BLOCK_ACT');
+                                const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+
+                                if (isAttack && attackBlock) {
+                                    isUsable = false;
+                                    if (attackBlock === 'temporary') showHourglass = true;
+                                }
+                                if (!isAttack && actBlock) {
+                                    isUsable = false;
+                                    if (actBlock === 'temporary') showHourglass = true;
+                                }
+                                
+                                if (isUsable) {
+                                    const cost = ab.cost || {};
+                                    if (!cost.freeAction && !isAttack && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) {
+                                        isUsable = false;
+                                        showHourglass = true;
+                                    }
+                                }
+                            }
+
+                            if (isHand || cardOrUnit.readiness === undefined) {
+                                isUsable = true;
+                                showHourglass = false;
+                            }
+
+                            const iconContent = isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
+                            const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+                            
+                            const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
+                            const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
+
+                            const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}</span>`;
+                            const costBadge = formatAbilityCostBadge(ab.cost, cardOrUnit.tribe);
+                            
+                            abilitiesHTML += `
+                            <div class="bg-black/40 backdrop-blur-sm p-2.5 rounded-lg border border-white/10 shadow-md text-sm sm:text-base flex flex-col gap-0.5 items-center mb-1.5">
+                                <div class="flex items-center gap-2">${nameContent}${costBadge}</div>
+                                <div class="${textColorClass} text-center leading-snug px-1">${formatted}</div>
+                            </div>`;
+                        });
+                    }
+                    
+                    abilitiesHTML += '</div>';
+                    return abilitiesHTML;
                 })()}
 
               </div>

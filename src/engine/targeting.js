@@ -279,7 +279,7 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                     }
                 }
                 
-                if (canAfford) actions.push({ type: isAttack ? 'ATTACK' : 'ABILITY', name: ab.name, abilityId: ab.abilityId, undoable: isUndoable(state, ab) });
+                if (canAfford) actions.push({ type: isAttack ? 'ATTACK' : 'ABILITY', name: ab.name, abilityId: ab.abilityId, undoable: isUndoable(state, ab), cost: ab.cost });
             }
         });
     }

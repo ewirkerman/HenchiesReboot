@@ -210,12 +210,12 @@ function renderEquator(equatorItems) {
 
     container.innerHTML = equatorItems.map((item, idx) => {
       const json = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
-      const isAttacker = ClientState.pendingAbility && ClientState.pendingAbility.entityId === item.instanceId;
+      const isCasting = ClientState.pendingAbility && ClientState.pendingAbility.entityId === item.instanceId;
       const isTargetable = ClientState.validTargets.some(t => t.id === item.instanceId);
 
       return renderCardHTML(item, {
         readiness: item.readiness,
-        isSelected: isAttacker,
+        isCasting: isCasting,
         isTargetable: isTargetable,
         isMicro: true,
         onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
@@ -315,56 +315,23 @@ function renderPlayerBattlelines(player, prefix) {
 
       const units = player.lines[line] || [];
       
-      const isNarrowColumn = ['avatar', 'bodyguard', 'sideline'].includes(line);
-      const isTaunt = line === 'taunt';
-      
-      let microThreshold = 5;
-      let nanoThreshold = 15;
-
-      if (isNarrowColumn) {
-          microThreshold = 2;
-          nanoThreshold = 6;
-      } else if (isTaunt) {
-          microThreshold = 6;
-          nanoThreshold = 12;
-      } else {
-          // Dynamic thresholds based on vertical space sharing
-          if (centerOccupiedCount === 1) {
-              microThreshold = 10;
-              nanoThreshold = 20;
-          } else if (centerOccupiedCount === 2) {
-              microThreshold = 5;
-              nanoThreshold = 12;
-          } else {
-              microThreshold = 3;
-              nanoThreshold = 8;
-          }
-      }
-
-      const useNano = units.length > nanoThreshold || forceNano;
-      const useMicro = (units.length > microThreshold && !useNano) || forceMicro;
-
-      if (useNano || useMicro) {
-          lineEl.classList.remove('content-center', 'items-center');
-          lineEl.classList.add('content-start', 'items-start');
-      } else {
-          lineEl.classList.add('content-center', 'items-center');
-          lineEl.classList.remove('content-start', 'items-start');
-      }
+      // Force wrap and even spacing for nano cards
+      lineEl.classList.remove('justify-center', 'content-center', 'items-center');
+      lineEl.classList.add('justify-evenly', 'content-start', 'items-start', 'flex-wrap', 'gap-2');
 
       const bgIcon = `<div class="absolute top-2 left-2 w-8 h-8 sm:w-12 sm:h-12 text-slate-500/50 pointer-events-none z-0 drop-shadow-md">${getLineIconSvg(line)}</div>`;
 
       const cardsHtml = units.map(u => {
         const json = encodeURIComponent(JSON.stringify(u)).replace(/'/g, "%27");
-        const isAttacker = ClientState.pendingAbility && ClientState.pendingAbility.entityId === u.instanceId;
+        const isCasting = ClientState.pendingAbility && ClientState.pendingAbility.entityId === u.instanceId;
         const isTargetable = ClientState.validTargets.some(t => t.id === u.instanceId);
 
         return renderCardHTML(u, {
           readiness: u.readiness,
-          isSelected: isAttacker,
+          isCasting: isCasting,
           isTargetable: isTargetable,
-          isMicro: useMicro,
-          isNano: useNano,
+          isMicro: false,
+          isNano: true, // Always force nano sizing
           onClick: `window.handleEntityClick('${prefix}', '${line}', '${u.instanceId}')`,
           onInspect: `window.inspectCard('${json}')`,
           abilityUses: ClientState.gameState?.abilityUses || {}
@@ -396,16 +363,18 @@ function renderHand(handCards) {
       const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
       const cardRefId = c.instanceId || c.id;
       const isSelected = ClientState.selectedCardId === cardRefId;
+      const isCasting = ClientState.pendingAbility && ClientState.pendingAbility.entityId === cardRefId;
       const playable = ClientState.gameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c).success : false;
       const isTargetable = ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === cardRefId);
 
       const overlapClass = isCrowded 
-          ? `transition-transform duration-200 hover:-translate-y-6 hover:z-50 relative ${idx > 0 ? '-ml-12 sm:-ml-16' : ''}` 
-          : '';
+          ? `relative ${idx > 0 ? '-ml-12 sm:-ml-16' : ''} hover:z-[100] hover:-translate-y-8 hover:mr-12 sm:hover:mr-16` 
+          : 'relative hover:z-[100] hover:-translate-y-8';
 
       const cardHtml = renderCardHTML(c, {
         isHand: true,
         isSelected: isSelected,
+        isCasting: isCasting,
         isTargetable: isTargetable,
         isPlayable: playable,
         onClick: `window.handleHandCardClick('${cardRefId}')`,

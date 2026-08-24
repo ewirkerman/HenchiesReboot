@@ -90,27 +90,14 @@ window.handleZoneCardClick = (prefix, zone, cardId) => {
     }
 };
 
-window.openActionModal = (entityId, entityName, actions) => {
-    document.getElementById('modal-unit-name').innerText = entityName;
-    const container = document.getElementById('modal-abilities-container');
-    
-    let html = '';
-    
-    actions.forEach((act, idx) => {
-      const hotkey = `[${idx + 1}]`;
-      if (act.type === 'ATTACK') {
-        html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">⚔️ ${hotkey} ${act.name}</button>`;
-      } else if (act.type === 'ABILITY') {
-        html += `<button onclick="window.activateAbility('${entityId}', '${act.abilityId}')" class="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-500/50 p-3 rounded-xl text-sm font-bold shadow-lg transition flex justify-center items-center gap-2">✨ ${hotkey} ${act.name}</button>`;
-      }
-    });
-    
-    container.innerHTML = html;
-    document.getElementById('unit-action-modal').classList.remove('hidden');
+window.openActionModal = (entityId, entityName, actions, isHand = false) => {
+    const menu = document.querySelector('unit-action-modal');
+    if (menu) menu.open(entityId, entityName, actions, isHand);
 };
 
 window.closeUnitActionModal = () => {
-    document.getElementById('unit-action-modal').classList.add('hidden');
+    const menu = document.querySelector('unit-action-modal');
+    if (menu) menu.close();
 };
 
 window.inspectCard = (cardJson, isHand = false) => {

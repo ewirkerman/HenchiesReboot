@@ -222,9 +222,11 @@ document.getElementById('undo-action-btn').addEventListener('click', handleUndo)
 document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-    const modal = document.getElementById('unit-action-modal');
+    const radialMenu = document.querySelector('radial-action-menu');
+    const overlay = radialMenu?.querySelector('#radial-menu-overlay');
+    const isMenuOpen = overlay && !overlay.classList.contains('hidden');
+    
     const zoneModal = document.getElementById('zone-viewer-modal');
-    const isModalOpen = !modal.classList.contains('hidden');
     const isZoneOpen = zoneModal && !zoneModal.classList.contains('hidden');
 
     if (isZoneOpen) {
@@ -232,15 +234,24 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    if (isModalOpen) {
+    if (isMenuOpen) {
         const num = parseInt(e.key);
         if (!isNaN(num) && num >= 1 && num <= 9) {
-            const buttons = modal.querySelectorAll('#modal-abilities-container button');
-            if (buttons[num - 1]) {
-                buttons[num - 1].click();
+            const bg = overlay.querySelector('.bg-black\\/40');
+            const isTargeting = bg && bg.classList.contains('opacity-0');
+            if (!isTargeting && radialMenu.actions[num - 1]) {
+                radialMenu.selectAction(num - 1);
             }
         }
-        if (e.key === 'Escape') window.closeUnitActionModal();
+        if (e.key === 'Escape') {
+            const bg = overlay.querySelector('.bg-black\\/40');
+            const isTargeting = bg && bg.classList.contains('opacity-0');
+            if (isTargeting) {
+                document.getElementById('cancel-action-btn')?.click();
+            } else {
+                radialMenu.close();
+            }
+        }
         return;
     }
 
@@ -256,6 +267,8 @@ document.addEventListener('keydown', (e) => {
     } else if (e.key.toLowerCase() === 'u') {
         const btn = document.getElementById('undo-action-btn');
         if (btn && !btn.disabled && !btn.classList.contains('hidden')) btn.click();
+    } else if (e.key === 'Escape') {
+        if (ClientState.pendingAbility) document.getElementById('cancel-action-btn')?.click();
     }
 });
 

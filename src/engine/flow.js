@@ -174,8 +174,8 @@ export function startTurn(state, engine) {
         engine.emit('TURN_STARTED', { playerId: pId });
     }
 
-    if (pId === 'player2' && player.isAI) {
-        state.history_log.push({ text: `⏭️ AI auto-skipped turn.`, depth: 0 });
+    if (pId === 'player2' && (player.isAI || player.isDummy)) {
+        state.history_log.push({ text: `⏭️ ${player.isAI ? 'AI' : 'Dummy'} auto-skipped turn.`, depth: 0 });
         endTurn(state);
     }
 }

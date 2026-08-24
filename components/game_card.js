@@ -7,7 +7,7 @@ export class GameCard extends HTMLElement {
     }
 
     static get observedAttributes() { 
-        return ['card-data', 'size', 'is-hand', 'is-selected', 'is-targetable', 'readiness', 'ability-uses']; 
+        return ['card-data', 'size', 'is-hand', 'is-selected', 'is-targetable', 'is-casting', 'readiness', 'ability-uses']; 
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
@@ -28,6 +28,7 @@ export class GameCard extends HTMLElement {
         const isHand = this.getAttribute('is-hand') === 'true';
         const isSelected = this.getAttribute('is-selected') === 'true';
         const isTargetable = this.getAttribute('is-targetable') === 'true';
+        const isCasting = this.getAttribute('is-casting') === 'true';
         
         const readinessAttr = this.getAttribute('readiness');
         const readiness = readinessAttr !== null && readinessAttr !== 'null' && readinessAttr !== 'undefined' ? parseInt(readinessAttr) : null;
@@ -41,7 +42,14 @@ export class GameCard extends HTMLElement {
         const options = { abilityUses, isHand };
 
         const style = TRIBE_STYLES[card.tribe] || TRIBE_STYLES.Mythic;
+        const cardArtUrl = card.artUrl;
+        const bgArtUrl = style.bgImageUrl;
         
+        const bgTransX = style.bgImageX ?? 0;
+        const bgTransY = style.bgImageY ?? 0;
+        const bgScale = style.bgImageScale ?? 100;
+        const bgArtStyle = `object-position: center; transform: translate(${bgTransX}px, ${bgTransY}px) scale(${bgScale / 100});`;
+
         const hexBg = style.hexBg ? `background-color: ${style.hexBg};` : '';
         const hexLightBg = style.hexLightBg ? `background-color: ${style.hexLightBg};` : '';
         const hexBorder = style.hexBorder ? `border-color: ${style.hexBorder};` : '';
@@ -266,12 +274,11 @@ export class GameCard extends HTMLElement {
                     const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
                     
                     const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
-                    const nameColorClass = isUsable ? '' : 'text-slate-500';
                     const safeTooltip = (ab.displayDescription || ab.description || '').replace(/"/g, '&quot;');
                     
                     abilitiesHTML += `
                       <div class="text-[9px] ${textColorClass} font-bold leading-tight truncate w-full text-center mt-0.5 cursor-help bg-black/20 rounded py-0.5 border border-white/5" title="${safeTooltip}">
-                        <span>${hourglassIcon}${iconContent}<span class="${nameColorClass}">${ab.name || 'Unknown'}</span></span>${formatAbilityCostBadge(ab.cost, card.tribe)}
+                        <span>${hourglassIcon}${iconContent}</span>${formatAbilityCostBadge(ab.cost, card.tribe)}
                       </div>
                     `;
                 });
@@ -303,11 +310,11 @@ export class GameCard extends HTMLElement {
               onclick="${onClick}"
               ${rightClickAttr}
               title="${safeTooltip}"
-              class="group relative flex-shrink-0 w-[64px] sm:w-[72px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
+              class="group relative flex-shrink-0 w-[80px] sm:w-[90px] h-[80px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} ${isCasting ? 'ring-4 ring-fuchsia-500 shadow-[0_0_25px_rgba(217,70,239,0.8)] scale-105 z-30' : ''} cursor-pointer transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
               style="${hexBg} ${dynamicBorderStyle}"
             >
               <div class="absolute inset-0 z-0 flex items-center justify-center ${fieldDimmingClass}">
-                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain opacity-90" style="${artStyle}" draggable="false" />` : ''}
+                ${cardArtUrl ? `<img src="${cardArtUrl}" class="w-full h-full object-contain opacity-90" style="${artStyle}" draggable="false" />` : ''}
               </div>
               <div class="relative z-10 w-full h-full p-1 flex flex-col justify-between bg-gradient-to-t from-black/80 via-transparent to-black/60 ${fieldDimmingClass}">
                 <div class="flex items-start justify-between w-full relative z-20">
@@ -316,7 +323,7 @@ export class GameCard extends HTMLElement {
                     <div class="w-2.5 h-2.5 rounded-full ${readiness >= 1 ? 'bg-emerald-500' : readiness === 0 ? 'bg-yellow-500' : 'bg-red-600'} border border-black shadow z-20"></div>
                   ` : ''}
                 </div>
-                ${!card.artUrl ? `
+                ${!cardArtUrl ? `
                 <div class="absolute inset-0 flex items-center justify-center p-1 pointer-events-none z-10">
                   <span class="text-[9px] font-bold text-white text-center leading-tight drop-shadow-[0_2px_2px_rgba(0,0,0,1)] break-words w-full px-1">${card.name}</span>
                 </div>
@@ -341,11 +348,11 @@ export class GameCard extends HTMLElement {
               onclick="${onClick}"
               ${rightClickAttr}
               title="${safeTooltip}"
-              class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} cursor-pointer transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
+              class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-2 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : ''} ${isCasting ? 'ring-4 ring-fuchsia-500 shadow-[0_0_25px_rgba(217,70,239,0.8)] scale-105 z-30' : ''} cursor-pointer transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${hiddenClass}"
               style="${hexBg} ${dynamicBorderStyle}"
             >
               <div class="absolute inset-0 z-0 flex items-center justify-center ${fieldDimmingClass}">
-                ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain opacity-90" style="${artStyle}" draggable="false" />` : ''}
+                ${cardArtUrl ? `<img src="${cardArtUrl}" class="w-full h-full object-contain opacity-90" style="${artStyle}" draggable="false" />` : ''}
               </div>
               <div class="relative z-10 w-full h-full p-1.5 flex flex-col justify-between bg-gradient-to-t from-black/80 via-transparent to-black/60 ${fieldDimmingClass}">
                 <div class="flex items-center gap-1.5 w-full pr-6">
@@ -383,13 +390,14 @@ export class GameCard extends HTMLElement {
             onclick="${onClick}"
             ${rightClickAttr}
             title="${safeTooltip}"
-            class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]' : ''} cursor-pointer transition-all duration-200 flex flex-col select-none overflow-hidden ${hiddenClass}"
+            class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${style.bg} ${dynamicBorderClass} ${isSelected ? 'ring-4 ring-yellow-400 scale-105 z-20' : ''} ${isTargetable ? 'ring-4 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]' : ''} ${isCasting ? 'ring-4 ring-fuchsia-500 shadow-[0_0_25px_rgba(217,70,239,0.8)] scale-105 z-30' : ''} cursor-pointer transition-all duration-200 flex flex-col select-none overflow-hidden ${hiddenClass}"
             style="${hexBg} ${dynamicBorderStyle}"
           >
             <div class="absolute inset-0 opacity-10 mix-blend-overlay ${fieldDimmingClass}"></div>
             
             <div class="w-full h-[60%] bg-slate-900 border-b-2 ${separatorClass} shrink-0 relative overflow-hidden flex items-center justify-center ${fieldDimmingClass}">
-              ${card.artUrl ? `<img src="${card.artUrl}" class="w-full h-full object-contain" style="${artStyle}" draggable="false" />` : ''}
+              ${bgArtUrl ? `<img src="${bgArtUrl}" class="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-60 mix-blend-overlay" style="${bgArtStyle}" draggable="false" />` : ''}
+              ${cardArtUrl ? `<img src="${cardArtUrl}" class="w-full h-full object-contain relative z-10" style="${artStyle}" draggable="false" />` : ''}
               <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[90%] flex justify-center z-30 pointer-events-none">
                 <div class="bg-black/20 backdrop-blur-sm text-white text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full truncate text-center max-w-full shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide">
                   ${card.name}
