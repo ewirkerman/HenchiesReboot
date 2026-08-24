@@ -5,46 +5,6 @@ import { ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
 import { hydrateAbility } from '../../engine/utils.js';
 import { generateAbilityDescription } from '../../language_description.js';
 
-export function enforceAttackAbility() {
-    const strVal = document.getElementById('card-strength').value;
-    const cardType = document.getElementById('card-type').value;
-    
-    // Only auto-manage the default attack ability if we are creating a brand NEW card
-    if (CardState.currentEditingId) return;
-    
-    const defaultAtk = CardState.allAbilities.find(a => a.name.toLowerCase() === 'attack');
-    if (!defaultAtk) return;
-    
-    const atkId = defaultAtk.abilityId;
-
-    let changed = false;
-
-    if ((cardType === 'unit' || cardType === 'avatar') && strVal !== '') {
-        const hasAttack = CardState.currentAbilities.some(obj => {
-            const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
-            if (!ab) return false;
-            if (ab.name.toLowerCase() === 'attack') return true;
-            if (ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'))) return true;
-            return false;
-        });
-
-        if (!hasAttack) {
-            CardState.currentAbilities.push({ id: atkId, paramX: null });
-            changed = true;
-        }
-    } else if (strVal === '') {
-        const idx = CardState.currentAbilities.findIndex(a => a.id === atkId);
-        if (idx > -1) {
-            CardState.currentAbilities.splice(idx, 1);
-            changed = true;
-        }
-    }
-
-    if (changed) {
-        renderAssignedAbilities();
-    }
-}
-
 export function populateGenuses(tribeId, currentGenus = '') {
     const genusSelect = document.getElementById('card-genus');
     let optionsHtml = '<option value="">None</option>';
@@ -128,7 +88,6 @@ export function toggleStatFields() {
             updatePreview();
         }
     }
-    enforceAttackAbility();
 }
 
 export function resetForm() {
@@ -199,9 +158,12 @@ export function buildCardState(forceId = null) {
     const nanoY = parseInt(document.getElementById('card-nano-art-y')?.value) || 0;
     const nanoScale = parseInt(document.getElementById('card-nano-art-scale')?.value);
     
+    const searchId = forceId || CardState.currentEditingId;
+    const existingCard = CardState.allCards.find(c => c.id === searchId);
+    
     const state = {
-        id: forceId || CardState.currentEditingId || ('card_' + Date.now()),
-        updatedAt: Date.now(),
+        id: searchId || ('card_' + Date.now()),
+        updatedAt: existingCard ? existingCard.updatedAt : Date.now(),
         name: document.getElementById('card-name').value || 'Unnamed Card',
         tribe: document.getElementById('card-tribe').value,
         type: cardType,
@@ -247,16 +209,6 @@ export function buildCardState(forceId = null) {
             return hydrated;
         }).filter(Boolean)
     };
-    
-    // Guarantee the primary attack is strictly the first ability
-    const attackIdx = state.abilities.findIndex(a => 
-        a.name.toLowerCase() === 'attack' ||
-        (a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK')))
-    );
-    if (attackIdx > 0) {
-        const attackAb = state.abilities.splice(attackIdx, 1)[0];
-        state.abilities.unshift(attackAb);
-    }
 
     if (isAllowed('line')) {
         state.defaultLine = document.getElementById('card-default-line').value;

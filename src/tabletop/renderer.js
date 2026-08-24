@@ -1,7 +1,7 @@
 // filepath: src/tabletop/renderer.js
 import { ClientState } from './client_state.js';
 import { renderHistorySlider, renderCardHTML, getLineIconSvg } from '../ui.js';
-import { canPlayCard, cloneGameState, LINES } from '../engine/index.js';
+import { canPlayCard, cloneGameState, LINES, getEntityAvailableActions, resolveResourceKey } from '../engine/index.js';
 
 window.scrubReplay = (step) => {
     ClientState.replayStepIndex = parseInt(step);
@@ -17,6 +17,11 @@ window.scrubReplay = (step) => {
 
 export function updateUI() {
     if (!ClientState.gameState) return;
+
+    if (!ClientState.pendingAbility && !window._isDragging) {
+        const overlay = document.getElementById('drag-tether-overlay');
+        if (overlay) overlay.classList.add('hidden');
+    }
 
     const state = ClientState.gameState;
     const localPlayerRole = ClientState.localPlayerRole;
@@ -201,6 +206,102 @@ export function updateUI() {
     }
 }
 
+function getHandActionCount(player, c) {
+    if (!ClientState.isMyTurn() || ClientState.gameState.turnPhase !== 'ACTION_PHASE') return 0;
+    
+    const playCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c);
+    const canPlay = playCheck.success;
+
+    let baseCost = typeof c.cost === 'object' ? (c.cost.tribeAmount > 0 ? c.cost.tribeAmount : (c.cost.carnie || c.cost.tent || 0)) : (c.cost || 0);
+    let cTribe = resolveResourceKey(ClientState.gameState, player, c.tribe);
+    
+    let simCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
+    let simTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
+    
+    if (canPlay && baseCost > 0) {
+        if (cTribe === 'Carnie') {
+            simCarnie -= baseCost;
+        } else {
+            let costRemaining = baseCost;
+            let tribeResToUse = Math.min(simTribe, costRemaining);
+            costRemaining -= tribeResToUse;
+            simTribe -= tribeResToUse;
+            simCarnie -= (costRemaining * 3);
+        }
+    }
+
+    const canAffordAbility = (abCost) => {
+        if (!abCost) return true;
+        let reqCarnie = abCost.carnie || abCost.tent || 0;
+        let reqTribe = abCost.tribeAmount || 0;
+        
+        if (reqCarnie === 0 && reqTribe === 0) return true;
+        
+        let availCarnie = simCarnie;
+        let availTribe = simTribe;
+
+        if (reqCarnie > 0) {
+            if (availCarnie < reqCarnie) return false;
+            availCarnie -= reqCarnie;
+        }
+
+        if (reqTribe > 0) {
+            if (cTribe === 'Carnie') {
+                if (availCarnie < reqTribe) return false;
+            } else {
+                let maxConversion = Math.floor(availCarnie / 3);
+                if ((availTribe + maxConversion) < reqTribe) return false;
+            }
+        }
+        return true;
+    };
+
+    const playAbilities = c.abilities ? c.abilities.filter(ab => {
+        const t = ab.trigger || 'MANUAL';
+        const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
+        const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
+        
+        if (t === 'PLAY_OPTIONAL') {
+            return canPlay && canAffordAbility(ab.cost);
+        }
+
+        if (t === 'MANUAL' && ab.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
+            let rawCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
+            let rawTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
+            
+            let reqCarnie = ab.cost?.carnie || ab.cost?.tent || 0;
+            let reqTribe = ab.cost?.tribeAmount || 0;
+            
+            if (reqCarnie === 0 && reqTribe === 0) return true;
+            
+            if (reqCarnie > 0) {
+                if (rawCarnie < reqCarnie) return false;
+                rawCarnie -= reqCarnie;
+            }
+            
+            if (reqTribe > 0) {
+                if (cTribe === 'Carnie') {
+                    if (rawCarnie < reqTribe) return false;
+                } else {
+                    let maxConversion = Math.floor(rawCarnie / 3);
+                    if ((rawTribe + maxConversion) < reqTribe) return false;
+                }
+            }
+            return true;
+        }
+        
+        return canPlay && isPlayTrigger && requiresTarget;
+    }) : [];
+
+    const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
+    const showPlayNormally = canPlay && !hasMandatoryTarget;
+
+    let totalActs = playAbilities.length;
+    if (showPlayNormally) totalActs++;
+    
+    return totalActs;
+}
+
 function renderEquator(equatorItems) {
     const container = document.getElementById('equator-cards-container');
     if (!equatorItems || equatorItems.length === 0) {
@@ -213,10 +314,18 @@ function renderEquator(equatorItems) {
       const isCasting = ClientState.pendingAbility && ClientState.pendingAbility.entityId === item.instanceId;
       const isTargetable = ClientState.validTargets.some(t => t.id === item.instanceId);
 
+      let actionState = 'none';
+      if (ClientState.gameState.turnPhase === 'ACTION_PHASE' && ClientState.isMyTurn() && !ClientState.pendingAbility && !window._isDragging) {
+          const acts = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, item.instanceId);
+          if (acts.length === 1) actionState = 'single';
+          else if (acts.length > 1) actionState = 'multiple';
+      }
+
       return renderCardHTML(item, {
         readiness: item.readiness,
         isCasting: isCasting,
         isTargetable: isTargetable,
+        actionState: actionState,
         isMicro: true,
         onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
         onInspect: `window.inspectCard('${json}')`,
@@ -314,6 +423,7 @@ function renderPlayerBattlelines(player, prefix) {
       lineEl.classList.add('relative'); // Ensure absolute icon positioning works
 
       const units = player.lines[line] || [];
+      const isLocalPlayer = prefix === 'player';
       
       // Force wrap and even spacing for nano cards
       lineEl.classList.remove('justify-center', 'content-center', 'items-center');
@@ -326,10 +436,18 @@ function renderPlayerBattlelines(player, prefix) {
         const isCasting = ClientState.pendingAbility && ClientState.pendingAbility.entityId === u.instanceId;
         const isTargetable = ClientState.validTargets.some(t => t.id === u.instanceId);
 
+        let actionState = 'none';
+        if (isLocalPlayer && ClientState.gameState.turnPhase === 'ACTION_PHASE' && ClientState.isMyTurn() && !ClientState.pendingAbility && !window._isDragging) {
+            const acts = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, u.instanceId);
+            if (acts.length === 1) actionState = 'single';
+            else if (acts.length > 1) actionState = 'multiple';
+        }
+
         return renderCardHTML(u, {
           readiness: u.readiness,
           isCasting: isCasting,
           isTargetable: isTargetable,
+          actionState: actionState,
           isMicro: false,
           isNano: true, // Always force nano sizing
           onClick: `window.handleEntityClick('${prefix}', '${line}', '${u.instanceId}')`,
@@ -367,15 +485,23 @@ function renderHand(handCards) {
       const playable = ClientState.gameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c).success : false;
       const isTargetable = ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === cardRefId);
 
+      let actionState = 'none';
+      if (ClientState.isMyTurn() && ClientState.gameState.turnPhase === 'ACTION_PHASE' && !ClientState.pendingAbility && !window._isDragging) {
+          const count = getHandActionCount(ClientState.gameState.players[ClientState.localPlayerRole], c);
+          if (count === 1) actionState = 'single';
+          else if (count > 1) actionState = 'multiple';
+      }
+
       const overlapClass = isCrowded 
-          ? `relative ${idx > 0 ? '-ml-12 sm:-ml-16' : ''} hover:z-[100] hover:-translate-y-8 hover:mr-12 sm:hover:mr-16` 
-          : 'relative hover:z-[100] hover:-translate-y-8';
+          ? `relative ${idx > 0 ? '-ml-12 sm:-ml-16' : ''} hover:z-[100] hover:mr-12 sm:hover:mr-16 transition-all` 
+          : 'relative hover:z-[100] transition-all';
 
       const cardHtml = renderCardHTML(c, {
         isHand: true,
         isSelected: isSelected,
         isCasting: isCasting,
         isTargetable: isTargetable,
+        actionState: actionState,
         isPlayable: playable,
         onClick: `window.handleHandCardClick('${cardRefId}')`,
         onInspect: `window.inspectCard('${json}', true)`,

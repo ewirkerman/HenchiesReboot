@@ -23,13 +23,12 @@ import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility, GameEngine, startTurn
 // CONSTANTS & FALLBACK DATA
 // ============================================================================
 
-const FALLBACK_ATTACK = {"abilityId":"ability_dummy_attack","name":"Attack","trigger":"MANUAL","cost":{"readinessCost":"EXHAUSTS"},"activation":{"method":"PLAYER_CHOICE","quickTargeting":{"zones":["FIELD"],"alignment":["ENEMY"],"entityType":["UNIT","AVATAR"],"ignoreBattlelines":false}},"effects":[{"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"type":"ATTACK","duration":"INSTANT"}]}]};
 const FALLBACK_TAUNT_ABILITY = {"abilityId":"ability_taunting_call","name":"Taunting Call","trigger":"ON_BE_PLAYED","triggerScope":"PERSONAL","triggerLimit":"UNLIMITED","cost":{"readinessCost":"NONE"},"activation":{"method":"PLAYER_CHOICE","quickTargeting":{"zones":["FIELD"],"alignment":["FRIENDLY"],"entityType":["UNIT","AVATAR"],"ignoreBattlelines":true}},"effects":[{"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"type":"CUSTOM_SCRIPT","script":"const oppId = target.ownerId === 'player1' ? 'player2' : 'player1'; const validEnemies = []; const opp = state.players[oppId]; for (const line of ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard']) { if (opp.lines[line]) { for (const u of opp.lines[line]) { const acts = engine.utils.getEntityAvailableActions(state, oppId, u.instanceId); if (acts.some(a => a.type === 'ATTACK')) { validEnemies.push(u); } } } } if (validEnemies.length > 0) { const enemy = validEnemies[engine.utils.randomInt(state, 0, validEnemies.length)]; enemy.readiness = Math.max(0, (enemy.readiness || 0) - 1); state.history_log.push(`🎯 ${enemy.name} was provoked into attacking ${target.name}!`); engine.executeAbility({ abilityId: 'temp_provoked_attack', name: 'Provoked Attack', effects: [{ targetMethod: 'EVENT_TARGET', payloads: [{ type: 'ATTACK' }] }] }, enemy, { target: target }); }","duration":"INSTANT"}]}]};
 
-const FALLBACK_DUMMY = {"id":"custom_1785272139394","name":"Target Dummy","tribe":"Carnie","type":"unit","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":1,"description":"","artUrl":"","abilities":[FALLBACK_ATTACK],"defaultLine":"mid"};
+const FALLBACK_DUMMY = {"id":"custom_1785272139394","name":"Target Dummy","tribe":"Carnie","type":"unit","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":1,"description":"","artUrl":"","abilities":[],"defaultLine":"mid"};
 const FALLBACK_SHOVEL = {"id":"card_1785786111173","name":"Skull Shovel","tribe":"Undead","type":"equipment","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[]};
 const FALLBACK_TAUNT_CARD = {"id":"card_taunting_call_test","name":"Taunting Call","tribe":"Carnie","type":"spell","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[FALLBACK_TAUNT_ABILITY]};
-const FALLBACK_ARRRMSMAN = {"id":"card_arrrmsman_test","name":"Arrrmsman","tribe":"tribe_pirate","type":"unit","genus":"Pirate","cost":2,"health":2,"maxHealth":2,"strength":2,"description":"","artUrl":"","abilities":[FALLBACK_ATTACK],"defaultLine":"mid"};
+const FALLBACK_ARRRMSMAN = {"id":"card_arrrmsman_test","name":"Arrrmsman","tribe":"tribe_pirate","type":"unit","genus":"Pirate","cost":2,"health":2,"maxHealth":2,"strength":2,"description":"","artUrl":"","abilities":[],"defaultLine":"mid"};
 
 
 // ============================================================================
@@ -270,11 +269,10 @@ async function configurePlayers(state, itemData, type, sandboxData) {
         }
         targetCard = dummyCard; 
     } else if (type === 'ability') {
-        const standardAttack = getCatalogItem(abilities, 'Attack', FALLBACK_ATTACK, true);
         targetCard = JSON.parse(JSON.stringify(dummyCard));
         targetCard.id = 'test_card';
         targetCard.name = 'Test Dummy';
-        targetCard.abilities = [itemData, standardAttack];
+        targetCard.abilities = [itemData];
         targetCard.description = itemData.name + ' test wrapper.';
     } else {
         targetCard = JSON.parse(JSON.stringify(itemData));
@@ -404,14 +402,8 @@ async function configurePlayers(state, itemData, type, sandboxData) {
  */
 function setupSandboxBoard(state, sandboxData) {
     const { cards, abilities } = sandboxData;
-    const standardAttack = getCatalogItem(abilities, 'Attack', FALLBACK_ATTACK, true);
     
     const dummyCard = getCatalogItem(cards, 'Target Dummy', FALLBACK_DUMMY);
-    // Force-inject Attack onto the dummy so it can be provoked
-    if (!dummyCard.abilities) dummyCard.abilities = [];
-    if (!dummyCard.abilities.some(a => (a.abilityId || a) === standardAttack.abilityId || a.name === 'Attack')) {
-        dummyCard.abilities.push(standardAttack);
-    }
     if (dummyCard.strength === null || dummyCard.strength === undefined) dummyCard.strength = 1;
 
     // Only inject Dummy Avatar if P2 didn't load a real one from the deck context
@@ -433,11 +425,10 @@ function setupSandboxBoard(state, sandboxData) {
     state.players.player2.lines[aLine].push({...JSON.parse(JSON.stringify(arrrmsmanCard)), instanceId: 'e_arrrmsman_1', readiness: 1, line: aLine, defaultLine: aLine, ownerId: 'player2', originalOwnerId: 'player2'});
     state.players.player2.hand.push({...JSON.parse(JSON.stringify(arrrmsmanCard)), instanceId: 'e_arrrmsman_hand_1', readiness: 0, ownerId: 'player2', originalOwnerId: 'player2'});
 
-
     // Stealth dummy edge-case
     const stealthDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Stealth Dummy', instanceId: 'e_dum_stealth', readiness: 1, line: dLine, defaultLine: dLine, ownerId: 'player2', originalOwnerId: 'player2'};
     const realStealth = getCatalogItem(abilities, 'Stealth', { abilityId: 'stealth_trait', name: 'Stealth', trigger: 'UNTRIGGERABLE', description: 'This unit has Stealth.' }, true);
-    stealthDummy.abilities = [realStealth, standardAttack];
+    stealthDummy.abilities = [realStealth];
     state.players.player2.lines[dLine].push(stealthDummy);
 
     // Big dummy edge-case
@@ -445,7 +436,7 @@ function setupSandboxBoard(state, sandboxData) {
 
     // Friendly dummy to test friendly-fire and attachments
     const friendlyDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Dazed Ally', instanceId: 'f_dum_1', readiness: 1, line: 'back', defaultLine: 'back', ownerId: 'player1', originalOwnerId: 'player1'};
-    friendlyDummy.abilities = [{ abilityId: 'dazed_trait', name: 'Dazed', trigger: 'UNTRIGGERABLE', description: 'This unit is Dazed.' }, standardAttack];
+    friendlyDummy.abilities = [{ abilityId: 'dazed_trait', name: 'Dazed', trigger: 'UNTRIGGERABLE', description: 'This unit is Dazed.' }];
     const shovelCard = getCatalogItem(cards, 'Skull Shovel', FALLBACK_SHOVEL);
     const shovelInst = {...JSON.parse(JSON.stringify(shovelCard)), instanceId: 'f_shovel_1', ownerId: 'player1', readiness: 1};
     friendlyDummy.attachments = [shovelInst];

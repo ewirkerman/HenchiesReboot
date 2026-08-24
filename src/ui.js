@@ -4,6 +4,7 @@
    */
 
   import { fetchCustomTribes } from './firebase.js';
+  import { generateAbilityDescription } from './language_description.js';
 
   export const TRIBE_STYLES = {
     Robot: { bg: 'bg-pink-900', lightBg: 'bg-pink-950/90', border: 'border-black', text: 'text-pink-300' },
@@ -71,29 +72,31 @@
     if (!cost) return '';
     let badgeStr = '';
     const carnieCost = cost.carnie || cost.tent || 0;
-    if (carnieCost > 0) badgeStr += `${carnieCost}<span class="inline-block w-[11px] h-[11px] align-middle ml-px mr-0.5 text-purple-400 drop-shadow-sm">${getIconSvg('tent')}</span>`;
+    for (let i = 0; i < carnieCost; i++) {
+      badgeStr += `<span class="inline-block w-[1.1em] h-[1.1em] align-middle -translate-y-[0.1em] ml-px text-purple-400 drop-shadow-sm">${getIconSvg('tent')}</span>`
+    }
     if (cost.power > 0) badgeStr += `${cost.power}⚡`;
-        if (cost.tribeAmount > 0) {
-            const tType = cost.tribeType || cardTribe || 'Generic';
-            if (tType && tType !== 'NONE' && tType !== 'Generic') {
-                const style = TRIBE_STYLES[tType];
-                if (style && style.iconSvg) {
-                    badgeStr += `${cost.tribeAmount}<span class="inline-block w-[11px] h-[11px] overflow-hidden align-middle ml-px mr-0.5"><div class="raw-user-svg-container w-full h-full">${style.iconSvg}</div></span>`;
-                } else {
-                    const tribeName = style && style.name ? style.name : tType;
-                    badgeStr += `${cost.tribeAmount}${tribeName.charAt(0).toUpperCase()}`;
-                }
+    if (cost.tribeAmount > 0) {
+        const tType = cost.tribeType || cardTribe || 'Generic';
+        if (tType && tType !== 'NONE' && tType !== 'Generic') {
+            const style = TRIBE_STYLES[tType];
+            if (style && style.iconSvg) {
+                badgeStr += `${cost.tribeAmount}<span class="inline-block w-[1.1em] h-[1.1em] overflow-hidden align-middle -translate-y-[0.1em] ml-px mr-0.5"><div class="raw-user-svg-container w-full h-full">${style.iconSvg}</div></span>`;
             } else {
-                badgeStr += `${cost.tribeAmount}💎`;
+                const tribeName = style && style.name ? style.name : tType;
+                badgeStr += `${cost.tribeAmount}${tribeName.charAt(0).toUpperCase()}`;
             }
+        } else {
+            badgeStr += `${cost.tribeAmount}💎`;
         }
-        
-        if (cost.readinessCost === 'EXHAUSTS') badgeStr += SVG_EXHAUST;
-        if (cost.readinessCost === 'UNREADIES') badgeStr += SVG_UNREADY;
-        if (cost.freeAction) badgeStr += SVG_FREE;
-        
-        return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-1 tracking-tighter whitespace-nowrap opacity-90">[${badgeStr}]</span>` : '';
-      }
+    }
+    
+    if (cost.readinessCost === 'EXHAUSTS') badgeStr += SVG_EXHAUST;
+    if (cost.readinessCost === 'UNREADIES') badgeStr += SVG_UNREADY;
+    if (cost.freeAction) badgeStr += SVG_FREE;
+    
+    return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-1 tracking-tighter whitespace-nowrap opacity-90">${badgeStr}</span>` : '';
+  }
 
   export const hasEngineFlag = (card, flag) => {
       if (!card) return false;
@@ -110,55 +113,291 @@
       // 1. Markdown Bolding (Used by NLG Triggers)
       formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<span class="font-black text-amber-400 uppercase tracking-widest">$1</span>');
 
-      // 2. Stat Token Placeholders -> SVGs
+      // 2. Stat/Resource Token Placeholders -> SVGs
       const statMap = {
           'strength': getIconSvg('attack'),
           'health': getIconSvg('health'),
-          'maxHealth': getIconSvg('health'),
+          'maxhealth': getIconSvg('health'),
           'power': getIconSvg('power'),
           'armor': getIconSvg('armor'),
-          'acts': getIconSvg('fast')
+          'acts': getIconSvg('fast'),
+          'carnie': getIconSvg('tent'),
+          'tent': getIconSvg('tent'),
+          'readiness': getIconSvg('hourglass-full')
       };
 
-      formatted = formatted.replace(/\[STAT:([a-zA-Z]+)\]/gi, (match, p1) => {
-          const svg = statMap[p1] || statMap[p1.toLowerCase()];
-          if (svg) {
-              return `<span class="inline-block w-[1.1em] h-[1.1em] align-middle text-amber-300 drop-shadow-md -mt-0.5">${svg}</span>`;
+      // Support [STAT:x], [RESOURCE:x], and [[RESOURCES:x]] syntax
+      // Dynamically captures and colors preceding text based on context
+      formatted = formatted.replace(/((?:(?:gain|lose|heal|deal|take|pay|recover|harvest)\s*)?[+-]?\s*\d*\s*)\[\[?(?:STAT|RESOURCE|RESOURCES):([a-zA-Z]+)\]\]?/gi, (match, prefix, p1) => {
+          const key = p1.toLowerCase();
+          const svg = statMap[key];
+          
+          let tokenColor = (key === 'carnie' || key === 'tent') ? 'text-purple-400' : 'text-amber-300';
+          let prefixColor = 'text-slate-200';
+          
+          const lowerPrefix = prefix.toLowerCase();
+          if (lowerPrefix.includes('+') || lowerPrefix.includes('gain') || lowerPrefix.includes('heal') || lowerPrefix.includes('recover') || lowerPrefix.includes('harvest')) {
+              prefixColor = 'text-emerald-400';
+          } else if (lowerPrefix.includes('-') || lowerPrefix.includes('lose') || lowerPrefix.includes('deal') || lowerPrefix.includes('take') || lowerPrefix.includes('pay')) {
+              prefixColor = 'text-red-400';
           }
-          return `<span class="font-bold text-amber-300 uppercase">${p1}</span>`;
+
+          let prefixHtml = prefix ? `<span class="${prefixColor} font-bold drop-shadow-sm">${prefix}</span>` : '';
+
+          if (svg) {
+              return `<span class="whitespace-nowrap">${prefixHtml}<span class="inline-block w-[1.1em] h-[1.1em] align-middle -translate-y-[0.1em] ml-0.5 ${tokenColor} drop-shadow-md">${svg}</span></span>`;
+          }
+          return `<span class="whitespace-nowrap">${prefixHtml}<span class="font-bold ${tokenColor} uppercase">${p1}</span></span>`;
       });
 
       // 3. Zone Token Placeholders
-      formatted = formatted.replace(/\[ZONE:([a-zA-Z_]+)\]/gi, (match, p1) => {
+      formatted = formatted.replace(/((?:(?:move|return|shuffle|draw|discard|banish|trash)\s*)?(?:to|from|in|into)?\s*)\[ZONE:([a-zA-Z_]+)\]/gi, (match, prefix, p1) => {
           const line = p1.toLowerCase();
           const svg = getLineIconSvg(line);
-          if (svg) {
-              return `<span class="inline-block w-[1.1em] h-[1.1em] align-middle text-sky-300 drop-shadow-md -mt-0.5">${svg}</span>`;
+          
+          let prefixColor = 'text-slate-200';
+          const lowerPrefix = prefix.toLowerCase();
+          if (lowerPrefix.includes('move') || lowerPrefix.includes('return') || lowerPrefix.includes('draw')) {
+              prefixColor = 'text-sky-400';
+          } else if (lowerPrefix.includes('discard') || lowerPrefix.includes('banish') || lowerPrefix.includes('trash')) {
+              prefixColor = 'text-red-400';
+          } else if (lowerPrefix.includes('shuffle')) {
+              prefixColor = 'text-fuchsia-400';
           }
-          return `<span class="font-bold text-sky-300 uppercase">${p1.replace(/_/g, ' ')}</span>`;
+
+          let prefixHtml = prefix ? `<span class="${prefixColor} font-bold drop-shadow-sm">${prefix}</span>` : '';
+
+          if (svg) {
+              return `<span class="whitespace-nowrap">${prefixHtml}<span class="inline-block w-[1.1em] h-[1.1em] align-middle -translate-y-[0.1em] ml-0.5 text-sky-300 drop-shadow-md">${svg}</span></span>`;
+          }
+          return `<span class="whitespace-nowrap">${prefixHtml}<span class="font-bold text-sky-300 uppercase">${p1.replace(/_/g, ' ')}</span></span>`;
       });
       
       // 4. Manual Glossary Links
-      formatted = formatted.replace(/@\[(.*?)\]/g, '<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary">$1</span>');
+      formatted = formatted.replace(/@\[(.*?)\]/g, '<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary: $1">$1</span>');
 
       return formatted;
   }
 
   export function renderCardHTML(card, options = {}) {
     const json = encodeURIComponent(JSON.stringify(card)).replace(/'/g, "%27");
-    let attrs = `card-data="${json}"`;
+    const instanceId = card.instanceId || card.id;
+    let attrs = `card-data="${json}" data-instance-id="${instanceId}"`;
     if (options.isMicro) attrs += ` size="micro"`;
     else if (options.isNano) attrs += ` size="nano"`;
     if (options.isHand) attrs += ` is-hand="true"`;
     if (options.isSelected) attrs += ` is-selected="true"`;
     if (options.isTargetable) attrs += ` is-targetable="true"`;
     if (options.isCasting) attrs += ` is-casting="true"`;
+    if (options.actionState) attrs += ` action-state="${options.actionState}"`;
     if (options.readiness !== undefined && options.readiness !== null) attrs += ` readiness="${options.readiness}"`;
     if (options.onClick) attrs += ` on-click="${options.onClick.replace(/"/g, '&quot;')}"`;
     if (options.onInspect) attrs += ` on-inspect="${options.onInspect.replace(/"/g, '&quot;')}"`;
     if (options.abilityUses) attrs += ` ability-uses="${encodeURIComponent(JSON.stringify(options.abilityUses))}"`;
     
     return `<game-card ${attrs}></game-card>`;
+  }
+
+  export function buildAbilitiesHTML(card, options, isInspectMode, allAbilitiesRegistry = []) {
+      let abilitiesHTML = isInspectMode ? '<div class="flex flex-col gap-1 mt-1">' : '';
+      let displayAbilities = card.abilities ? [...card.abilities] : [];
+      const isUnit = card.type === 'unit' || card.type === 'avatar';
+      const isAvatar = card.type === 'avatar';
+      const defLine = card.defaultLine || 'mid';
+      
+      if (isUnit && !isAvatar && defLine !== 'mid') {
+          if (isInspectMode) {
+              const lineAb = getSystemLineAbility(defLine);
+              if (lineAb) displayAbilities.push(lineAb);
+          } else {
+              displayAbilities.push({
+                  abilityId: 'sys_line_' + defLine,
+                  name: defLine.charAt(0).toUpperCase() + defLine.slice(1) + ' Line',
+                  trigger: 'UNTRIGGERABLE',
+                  isKeyword: true,
+                  cost: {}
+              });
+          }
+      }
+      
+      if (displayAbilities.length === 0) return '';
+      
+      const evergreen = [];
+      const bespoke = [];
+      const active = [];
+
+      displayAbilities.forEach(a => {
+          const ab = isInspectMode ? (allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a) : a;
+          const isKeyword = ab.isKeyword || (ab.trigger === 'UNTRIGGERABLE' && (!ab.effects || ab.effects.length === 0 || ab.passiveFlags?.length > 0));
+          if (isKeyword) {
+              evergreen.push(ab);
+          } else if (ab.trigger === 'MANUAL') {
+              active.push(ab);
+          } else {
+              bespoke.push(ab);
+          }
+      });
+
+      if (evergreen.length > 0) {
+          const namesHtml = evergreen.map(a => {
+              const costBadge = formatAbilityCostBadge(a.cost, card.tribe);
+              return a.name + (costBadge ? ' ' + costBadge : '');
+          }).join(', ');
+          
+          if (isInspectMode) {
+              abilitiesHTML += `<div class="text-sm sm:text-base font-black text-amber-300 text-center leading-tight mb-2 drop-shadow-md">${namesHtml}</div>`;
+          } else {
+              const tooltips = evergreen.map(a => {
+                  let rawDesc = a.displayDescription || a.description || '';
+                  if (!rawDesc) {
+                      try { rawDesc = generateAbilityDescription(a); } catch (e) {}
+                  }
+                  return `${a.name}: ${rawDesc || 'System Keyword'}`;
+              }).join('\n\n');
+              abilitiesHTML += `<div class="text-[10px] sm:text-[11px] font-black text-amber-300 text-center leading-tight cursor-help drop-shadow-md" title="${tooltips.replace(/"/g, '&quot;')}">${namesHtml}</div>`;
+          }
+      }
+
+      if (bespoke.length > 0) {
+          bespoke.forEach(ab => {
+              let rawDesc = ab.displayDescription || ab.description || '';
+              if (!rawDesc) {
+                  try { rawDesc = generateAbilityDescription(ab, allAbilitiesRegistry); } catch (e) {}
+              }
+              if (!rawDesc && ab.name) rawDesc = `**${ab.name}**`;
+              let desc = rawDesc;
+              
+              const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
+              const hasCost = costBadge && costBadge.trim() !== '';
+              
+              if (hasCost) {
+                  const triggerMatch = desc.match(/^(\*\*[^*]+?):\*\*\s*(.*)/);
+                  if (triggerMatch) {
+                      desc = `${triggerMatch[1]} ${costBadge}:** ${triggerMatch[2]}`;
+                  } else {
+                      desc = `**${ab.name} ${costBadge}:** ${desc}`;
+                  }
+              }
+              
+              const formatted = formatCardText(desc);
+              
+              if (isInspectMode) {
+                  abilitiesHTML += `<div class="bg-black/40 backdrop-blur-sm p-2 rounded-lg border border-white/10 shadow-sm text-sm sm:text-base text-slate-200 text-center leading-snug px-2">${formatted}</div>`;
+              } else {
+                  abilitiesHTML += `<div class="text-[9px] text-slate-200 font-bold leading-tight text-center w-full">${formatted}</div>`;
+              }
+          });
+      }
+
+      if (active.length > 0) {
+          active.forEach(ab => {
+              let rawDesc = ab.displayDescription || ab.description || '';
+              if (!rawDesc) {
+                  try { rawDesc = generateAbilityDescription(ab, allAbilitiesRegistry); } catch (e) {}
+              }
+              let desc = rawDesc;
+              
+              if (isInspectMode) {
+                  const abName = ab.name || ab.abilityId;
+                  if (abName && desc.startsWith(abName)) {
+                      desc = desc.substring(abName.length).trim();
+                      if (desc.startsWith(':') || desc.startsWith('-')) desc = desc.substring(1).trim();
+                  }
+              }
+              const formatted = formatCardText(desc);
+              
+              const abilityKey = `${card.instanceId}_${ab.abilityId}`;
+              const uses = (options.abilityUses || {})[abilityKey] || 0;
+              let isUsable = true;
+              let showHourglass = false;
+              
+              if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
+              if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
+
+              const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
+
+              if (!options.isHand && card.readiness !== undefined) {
+                  const checkBlock = (flag) => {
+                      if (!hasEngineFlag(card, flag)) return null;
+                      if (card.passiveFlags?.includes(flag)) return 'permanent';
+                      if (card.abilities?.some(a => a.passiveFlags?.includes(flag))) return 'permanent';
+                      const effect = card.activeEffects?.find(e => e.type === flag);
+                      if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
+                      return 'temporary';
+                  };
+
+                  const actBlock = checkBlock('BLOCK_ACT');
+                  const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+
+                  if (isAttack && attackBlock) {
+                      isUsable = false;
+                      if (attackBlock === 'temporary') showHourglass = true;
+                  }
+                  if (!isAttack && actBlock) {
+                      isUsable = false;
+                      if (actBlock === 'temporary') showHourglass = true;
+                  }
+                  
+                  if (isUsable) {
+                      const cost = ab.cost || {};
+                      if (!cost.freeAction && !isAttack && (card.acts === undefined || card.acts < 1)) {
+                          isUsable = false;
+                          showHourglass = true;
+                      }
+                  }
+              }
+
+              if (options.isHand || card.readiness === undefined) {
+                  isUsable = true;
+                  showHourglass = false;
+              }
+
+              if (isInspectMode) {
+                  const iconContent = isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
+                  const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+                  
+                  const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
+                  const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
+
+                  const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}</span>`;
+                  const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
+                  
+                  abilitiesHTML += `
+                  <div class="bg-black/40 backdrop-blur-sm p-2.5 rounded-lg border border-white/10 shadow-md text-sm sm:text-base flex flex-col gap-0.5 items-center">
+                      <div class="flex items-center gap-2">${nameContent}${costBadge}</div>
+                      <div class="${textColorClass} text-center leading-snug px-1">${formatted}</div>
+                  </div>`;
+              } else {
+                  const iconContent = isAttack ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5">${getIconSvg('attack')}</span>` : '';
+                  const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+                  
+                  const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
+                  let rawDesc = ab.displayDescription || ab.description || '';
+                  if (!rawDesc) {
+                      try { rawDesc = generateAbilityDescription(ab); } catch (e) {}
+                  }
+                  const safeTooltip = rawDesc.replace(/"/g, '&quot;');
+                  
+                  abilitiesHTML += `
+                    <div class="text-[9px] ${textColorClass} font-bold leading-tight w-full cursor-help bg-black/20 rounded py-0.5 border border-white/5 flex justify-center items-center px-1" title="${safeTooltip}">
+                      <div class="flex items-center gap-0.5 truncate pr-1">
+                          ${hourglassIcon}${iconContent}
+                          <span class="truncate">${ab.name || 'Action'}</span>
+                      </div>
+                      <div class="shrink-0 flex items-center">
+                          ${formatAbilityCostBadge(ab.cost, card.tribe)}
+                      </div>
+                    </div>
+                  `;
+              }
+          });
+      }
+      
+      if (isInspectMode) {
+          abilitiesHTML += '</div>';
+      }
+      
+      return abilitiesHTML;
   }
 
   export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = '') {
@@ -181,7 +420,10 @@
 
       function processAbility(current) {
           if (!current) return;
-          const text = (current.displayDescription || current.description || '');
+          let text = (current.displayDescription || current.description || '');
+          if (!text) {
+              try { text = generateAbilityDescription(current, allAbilitiesRegistry); } catch (e) {}
+          }
 
           const mentionRegex = /@\[(.*?)\]/g;
           let match;
@@ -445,139 +687,7 @@
                 ` : ''}
 
                 <!-- Full Abilities with Registry Lookup -->
-                ${(function() {
-                    let displayAbilities = cardOrUnit.abilities ? [...cardOrUnit.abilities] : [];
-                    const defLine = cardOrUnit.defaultLine || 'mid';
-                    if (isUnit && !isAvatar && defLine !== 'mid') {
-                        const lineAb = getSystemLineAbility(defLine);
-                        if (lineAb) displayAbilities.push(lineAb);
-                    }
-                    
-                    if (displayAbilities.length === 0) return '';
-                    
-                    let abilitiesHTML = '<div class="flex flex-col gap-1 mt-1">';
-                    
-                    const evergreen = [];
-                    const bespoke = [];
-                    const active = [];
-
-                    displayAbilities.forEach(a => {
-                        const ab = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a;
-                        const isKeyword = ab.isKeyword || (ab.trigger === 'UNTRIGGERABLE' && (!ab.effects || ab.effects.length === 0 || ab.passiveFlags?.length > 0));
-                        if (isKeyword) {
-                            evergreen.push(ab);
-                        } else if (ab.trigger === 'MANUAL') {
-                            active.push(ab);
-                        } else {
-                            bespoke.push(ab);
-                        }
-                    });
-
-                    // Bucket 2: Evergreen
-                    if (evergreen.length > 0) {
-                        const names = evergreen.map(a => a.name).join(', ');
-                        abilitiesHTML += `<div class="text-sm sm:text-base font-black text-amber-300 text-center leading-tight mb-2 drop-shadow-md">${names}</div>`;
-                    }
-
-                    // Bucket 3: Bespoke
-                    if (bespoke.length > 0) {
-                        bespoke.forEach(ab => {
-                            let desc = ab.displayDescription || ab.description || '';
-                            if (cardOrUnit.type === 'spell') {
-                                desc = desc.replace(/^When played,\s*/i, '');
-                                if (desc) desc = desc.charAt(0).toUpperCase() + desc.slice(1);
-                            }
-                            const abName = ab.name || ab.abilityId;
-                            if (abName && desc.startsWith(abName)) {
-                                desc = desc.substring(abName.length).trim();
-                                if (desc.startsWith(':') || desc.startsWith('-')) desc = desc.substring(1).trim();
-                            }
-                            
-                            const formatted = formatCardText(desc);
-                            abilitiesHTML += `
-                            <div class="bg-black/30 backdrop-blur-sm p-2 rounded-lg border border-white/5 shadow-sm text-sm sm:text-base text-slate-200 leading-snug mb-1.5 text-center">
-                                ${formatted}
-                            </div>`;
-                        });
-                    }
-
-                    // Bucket 4: Active
-                    if (active.length > 0) {
-                        active.forEach(ab => {
-                            let desc = ab.displayDescription || ab.description || '';
-                            const abName = ab.name || ab.abilityId;
-                            if (abName && desc.startsWith(abName)) {
-                                desc = desc.substring(abName.length).trim();
-                                if (desc.startsWith(':') || desc.startsWith('-')) desc = desc.substring(1).trim();
-                            }
-                            const formatted = formatCardText(desc);
-                            
-                            const abilityKey = `${cardOrUnit.instanceId}_${ab.abilityId}`;
-                            const uses = (abilityUses || {})[abilityKey] || 0;
-                            let isUsable = true;
-                            let showHourglass = false;
-                            
-                            if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
-                            if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
-
-                            const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
-
-                            if (!isHand && cardOrUnit.readiness !== undefined) {
-                                const checkBlock = (flag) => {
-                                    if (!hasEngineFlag(cardOrUnit, flag)) return null;
-                                    if (cardOrUnit.passiveFlags?.includes(flag)) return 'permanent';
-                                    if (cardOrUnit.abilities?.some(a => a.passiveFlags?.includes(flag))) return 'permanent';
-                                    const effect = cardOrUnit.activeEffects?.find(e => e.type === flag);
-                                    if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
-                                    return 'temporary';
-                                };
-
-                                const actBlock = checkBlock('BLOCK_ACT');
-                                const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
-
-                                if (isAttack && attackBlock) {
-                                    isUsable = false;
-                                    if (attackBlock === 'temporary') showHourglass = true;
-                                }
-                                if (!isAttack && actBlock) {
-                                    isUsable = false;
-                                    if (actBlock === 'temporary') showHourglass = true;
-                                }
-                                
-                                if (isUsable) {
-                                    const cost = ab.cost || {};
-                                    if (!cost.freeAction && !isAttack && (cardOrUnit.acts === undefined || cardOrUnit.acts < 1)) {
-                                        isUsable = false;
-                                        showHourglass = true;
-                                    }
-                                }
-                            }
-
-                            if (isHand || cardOrUnit.readiness === undefined) {
-                                isUsable = true;
-                                showHourglass = false;
-                            }
-
-                            const iconContent = isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
-                            const hourglassIcon = (!isUsable && showHourglass) ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
-                            
-                            const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
-                            const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
-
-                            const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}</span>`;
-                            const costBadge = formatAbilityCostBadge(ab.cost, cardOrUnit.tribe);
-                            
-                            abilitiesHTML += `
-                            <div class="bg-black/40 backdrop-blur-sm p-2.5 rounded-lg border border-white/10 shadow-md text-sm sm:text-base flex flex-col gap-0.5 items-center mb-1.5">
-                                <div class="flex items-center gap-2">${nameContent}${costBadge}</div>
-                                <div class="${textColorClass} text-center leading-snug px-1">${formatted}</div>
-                            </div>`;
-                        });
-                    }
-                    
-                    abilitiesHTML += '</div>';
-                    return abilitiesHTML;
-                })()}
+                ${buildAbilitiesHTML(cardOrUnit, { abilityUses, isHand }, true, allAbilitiesRegistry)}
 
               </div>
 
@@ -631,13 +741,17 @@
                 ${glossaryAbilities.map(a => {
                   const isSystem = a.id && a.id.startsWith('sys_');
                   const displayStyle = localStorage.getItem('henchies_glossary_mode') === 'essentials' && isSystem ? 'none' : 'flex';
+                  let rawDesc = a.displayDescription || a.description || '';
+                  if (!rawDesc) {
+                      try { rawDesc = generateAbilityDescription(a, allAbilitiesRegistry); } catch (e) {}
+                  }
                   return `
                   <div class="glossary-item bg-slate-900/90 backdrop-blur-md p-4 rounded-xl border border-slate-700 shadow-2xl flex-col gap-1.5 transform transition-transform hover:scale-[1.02]" data-is-system="${isSystem}" style="display: ${displayStyle};">
                     <div class="flex justify-between items-center border-b border-slate-700/50 pb-1.5">
                         <div class="font-black text-fuchsia-300 text-sm drop-shadow-md">${a.name || a.abilityId || a.id}</div>
                         <span class="text-[9px] bg-slate-950 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-bold uppercase tracking-wider">${a.trigger || 'MANUAL'}</span>
                     </div>
-                    <div class="text-slate-200 text-xs leading-snug">${a.displayDescription || a.description || 'No details.'}</div>
+                    <div class="text-slate-200 text-xs leading-snug">${rawDesc || 'No details.'}</div>
                   </div>
                 `}).join('')}
               </div>
@@ -650,12 +764,12 @@
     modal.classList.remove('hidden');
   }
 
-  export function renderHistorySlider(container, historyLog, currentStep, onStepChange) {
+  export function renderHistorySlider(container, historyLog, currentStep, onStepChange, label = "Replay Scrub:") {
     if (!container) return;
 
     container.innerHTML = `
       <div class="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2 shadow-xl backdrop-blur-md">
-        <span class="text-xs font-black text-amber-400 uppercase tracking-wider">Replay Scrub:</span>
+        <span class="text-xs font-black text-amber-400 uppercase tracking-wider">${label}</span>
         <input 
           type="range" 
           min="0" 
@@ -669,7 +783,7 @@
     `;
   }
 
-  export function renderJSONPreview(containerId, jsonObject, copyCallbackName) {
+  export function renderJSONPreview(containerId, jsonObject, copyCallbackName, title = "Data Structure Preview") {
       const container = document.getElementById(containerId);
       if (!container) return;
       
@@ -677,7 +791,7 @@
         <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 w-full h-full relative flex-1">
           <div class="flex justify-between items-center border-b border-slate-800 pb-1 shrink-0">
             <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-              Data Structure Preview
+              ${title}
             </h2>
             <button type="button" onclick="window.${copyCallbackName}()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition shadow font-bold border border-slate-600">
               📋 Copy JSON

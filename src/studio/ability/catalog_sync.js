@@ -27,8 +27,12 @@ export function exportCurrentState(formData, uiState) {
         delete activationData.logicTree;
     }
 
+    const existingId = formData.abilityId || uiState.currentEditingId;
+    const existingAb = StudioState.allAbilities?.find(a => a.abilityId === existingId);
+
     return {
-        abilityId: formData.abilityId || uiState.currentEditingId || ('ability_' + Date.now()),
+        abilityId: existingId || ('ability_' + Date.now()),
+        updatedAt: existingAb ? existingAb.updatedAt : Date.now(),
         name: formData.name,
         isKeyword: !!formData.isKeyword,
         description: formData.description || '',
@@ -185,7 +189,7 @@ export async function handleSaveAbility() {
       window.location.hash = ability.abilityId;
       document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
   } else {
-      window.history.replaceState(null, '', `#ability_${ability.abilityId}`);
+      window.history.replaceState(null, '', `#${ability.abilityId}`);
       document.getElementById('workspace-title').innerText = "⚡ Editing Ability";
   }
   

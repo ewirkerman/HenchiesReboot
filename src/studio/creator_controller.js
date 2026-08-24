@@ -16,7 +16,7 @@ import { CardState } from './card/state.js';
 import { StudioState } from './ability/state.js';
 
 // Card logic
-import { populateGenuses, populateFamily, toggleStatFields, resetForm as resetCardForm, buildCardState, enforceAttackAbility } from './card/form.js';
+import { populateGenuses, populateFamily, toggleStatFields, resetForm as resetCardForm, buildCardState } from './card/form.js';
 import { renderAssignedAbilities, renderReferencedAbilities } from './card/abilities.js';
 import { updatePreview as updateCardPreview, initImagePanning } from './card/preview.js';
 import { loadCard } from './card/catalog_sync.js';
@@ -42,7 +42,8 @@ export const CreatorState = {
     activeId: null,
     isDirty: false,
     returnContext: null,
-    pendingNavigation: null
+    pendingNavigation: null,
+    hasRunMigration: false
 };
 
 window.CreatorController = {
@@ -68,9 +69,6 @@ window.CreatorController = {
         const typeSelect = document.getElementById('card-type');
         if (typeSelect) typeSelect.addEventListener('change', () => toggleStatFields());
 
-        const strengthInput = document.getElementById('card-strength');
-        if (strengthInput) strengthInput.addEventListener('input', () => enforceAttackAbility());
-
         const abilityDatalist = document.getElementById('ability-options');
         if (abilityDatalist) {
             abilityDatalist.innerHTML = CardState.allAbilities.map(ab => `<option value="${(ab.name || '').replace(/"/g, '&quot;')}"></option>`).join('');
@@ -86,7 +84,6 @@ window.CreatorController = {
                     const abId = match.abilityId;
                     if (abId && !CardState.currentAbilities.some(a => a.id === abId)) {
                         CardState.currentAbilities.push({ id: abId, paramX: null });
-                        enforceAttackAbility();
                         renderAssignedAbilities();
                         window.updatePreview();
                         this.markDirty();
@@ -210,43 +207,47 @@ window.CreatorController = {
         const rawAbs = await fetchCustomAbilities();
         const customCards = await fetchCustomCards();
         
-        // Auto-normalize legacy 'custom_' IDs to 'card_' when encountered
-        for (const c of customCards) {
-            if (c.id && c.id.startsWith('custom_')) {
-                const oldId = c.id;
-                c.id = c.id.replace('custom_', 'card_');
-                console.log(`🔄 Auto-migrating legacy ID: ${oldId} -> ${c.id}`);
-                // Fire and forget the migration to the database
-                saveCardToCatalog(c).then(() => deleteCardFromCatalog(oldId)).catch(console.error);
+        if (!CreatorState.hasRunMigration) {
+            CreatorState.hasRunMigration = true;
+            
+            // Auto-normalize legacy 'custom_' IDs to 'card_' when encountered
+            for (const c of customCards) {
+                if (c.id && c.id.startsWith('custom_')) {
+                    const oldId = c.id;
+                    c.id = c.id.replace('custom_', 'card_');
+                    console.log(`🔄 Auto-migrating legacy ID: ${oldId} -> ${c.id}`);
+                    // Fire and forget the migration to the database
+                    saveCardToCatalog(c).then(() => deleteCardFromCatalog(oldId)).catch(console.error);
+                }
             }
-        }
-        
-        // Auto-normalize legacy 'custom_' IDs referenced inside ability payloads
-        for (const ab of rawAbs) {
-            let abChanged = false;
-            if (ab.effects) {
-                ab.effects.forEach(effect => {
-                    if (effect.payloads) {
-                        effect.payloads.forEach(p => {
-                            if (p.cardId && p.cardId.startsWith('custom_')) {
-                                p.cardId = p.cardId.replace('custom_', 'card_');
-                                abChanged = true;
-                            }
-                            if (p.nestedGroup && p.nestedGroup.payloads) {
-                                p.nestedGroup.payloads.forEach(np => {
-                                    if (np.cardId && np.cardId.startsWith('custom_')) {
-                                        np.cardId = np.cardId.replace('custom_', 'card_');
-                                        abChanged = true;
-                                    }
-                                });
-                            }
-                        });
-                    }
-                });
-            }
-            if (abChanged) {
-                console.log(`🔄 Auto-migrating legacy card references in ability: ${ab.name}`);
-                saveAbilityToCatalog(ab).catch(console.error);
+            
+            // Auto-normalize legacy 'custom_' IDs referenced inside ability payloads
+            for (const ab of rawAbs) {
+                let abChanged = false;
+                if (ab.effects) {
+                    ab.effects.forEach(effect => {
+                        if (effect.payloads) {
+                            effect.payloads.forEach(p => {
+                                if (p.cardId && p.cardId.startsWith('custom_')) {
+                                    p.cardId = p.cardId.replace('custom_', 'card_');
+                                    abChanged = true;
+                                }
+                                if (p.nestedGroup && p.nestedGroup.payloads) {
+                                    p.nestedGroup.payloads.forEach(np => {
+                                        if (np.cardId && np.cardId.startsWith('custom_')) {
+                                            np.cardId = np.cardId.replace('custom_', 'card_');
+                                            abChanged = true;
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+                if (abChanged) {
+                    console.log(`🔄 Auto-migrating legacy card references in ability: ${ab.name}`);
+                    saveAbilityToCatalog(ab).catch(console.error);
+                }
             }
         }
         
@@ -614,7 +615,7 @@ window.CreatorController = {
 
             CreatorState.activeId = cardObj.id;
             CardState.currentEditingId = cardObj.id;
-            window.history.replaceState(null, '', `#card_${cardObj.id}`);
+            window.history.replaceState(null, '', `#${cardObj.id}`);
             document.getElementById('workspace-title').innerText = "⚡ Editing Card";
             topbar.showButtons(true);
 
@@ -632,7 +633,7 @@ window.CreatorController = {
             
             CreatorState.activeId = abObj.abilityId;
             StudioState.currentEditingId = abObj.abilityId;
-            window.history.replaceState(null, '', `#ability_${abObj.abilityId}`);
+            window.history.replaceState(null, '', `#${abObj.abilityId}`);
             document.getElementById('workspace-title').innerText = "⚡ Editing Ability";
             topbar.showButtons(true);
             
@@ -725,17 +726,6 @@ window.CreatorController = {
                 if (cardObj.type === 'unit' && !cardObj.family) {
                     isValid = false;
                     errorFields.push('card-family');
-                }
-                if ((cardObj.type === 'unit' || cardObj.type === 'avatar') && cardObj.strength !== null && cardObj.strength !== undefined) {
-                    const hasAttack = cardObj.abilities && cardObj.abilities.some(a => 
-                        a && (a.name.toLowerCase() === 'attack' || 
-                        (a.effects && a.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'))))
-                    );
-                    if (!hasAttack) {
-                        isValid = false;
-                        errorFields.push('card-strength');
-                        specificWarning = '⚠️ Draft (Needs Attack Ability)';
-                    }
                 }
             } catch(e) {
                 isValid = false;

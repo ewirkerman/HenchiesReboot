@@ -1,7 +1,7 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { pushActionToLog } from '../firebase.js';
-import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable } from '../engine/index.js';
+import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getValidAttackTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable } from '../engine/index.js';
 import { resolveResourceKey } from '../engine/index.js';
 import { showToast } from '../ui.js';
 import { reconstructStateFromLog } from './multiplayer.js';
@@ -47,7 +47,7 @@ export async function executeAndLogAbility(entityId, abilityId, targetId, target
     const entity = getEntityRef(entityId);
     
     const ability = entity?.abilities?.find(a => a.abilityId === abilityId);
-    const isAttack = ability?.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
+    const isAttack = abilityId === 'native_attack' || ability?.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
     const actionType = isAttack ? 'ATTACK' : 'ABILITY';
     
     ClientState.gameState._irreversibleActionOccurred = false;
@@ -70,6 +70,7 @@ export async function executeAndLogAbility(entityId, abilityId, targetId, target
     if (result && result.success) {
         showToast('Ability Activated!', 'success');
         await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
+        window._isDragging = false; // Add this line
         updateUI();
     } else {
         showToast(result?.reason || 'Failed to activate ability', 'error');
@@ -138,6 +139,7 @@ export async function handleUndo() {
         actionIndex: ClientState.gameState.actionIndex 
     };
     
+    window._isDragging = false; // Add this line
     console.log(`[UNDO] Processing undo for action index ${targetIdx}. New sequence index: ${actionPayload.actionIndex}`);
     showToast('Rewinding action...', 'info');
     
@@ -214,6 +216,7 @@ export async function handleForfeitInGame() {
 window.handleForfeitInGame = handleForfeitInGame;
 
 window.handleLineClick = async (clickedPrefix, line) => {
+    if (window._isDragging) return;
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     if (ClientState.pendingAbility) {
         showToast("Targeting cancelled.", "info");
@@ -225,6 +228,7 @@ window.handleLineClick = async (clickedPrefix, line) => {
 };
 
 window.handleEntityClick = async (prefix, line, entityId) => {
+    if (window._isDragging) return;
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     
     if (!ClientState.isMyTurn()) {
@@ -385,6 +389,16 @@ window.activateAbility = async (entityId, abilityId) => {
     }
     
     if (!entity) return;
+
+    if (abilityId === 'native_attack') {
+        window.closeUnitActionModal();
+        ClientState.validTargets = getValidAttackTargets(ClientState.gameState, ClientState.localPlayerRole, entity);
+        ClientState.pendingAbility = { entityId, abilityId };
+        showToast(`Select a target to attack`, 'info');
+        updateUI();
+        return;
+    }
+
     const ability = entity.abilities?.find(a => a.abilityId === abilityId);
     
     if (ability?.activation?.method === 'PLAYER_CHOICE') {
@@ -427,6 +441,7 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
     if (result.success) {
       ClientState.selectedCardId = null;
       await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
+      window._isDragging = false; // Add this line
       updateUI();
     } else {
       showToast(result.reason, 'error');
@@ -434,6 +449,7 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
 };
 
 window.handleHandCardClick = async (cardId) => {
+  if (window._isDragging) return;
   if (typeof event !== 'undefined' && event) event.stopPropagation();
   if (!ClientState.isMyTurn()) return;
 
@@ -623,5 +639,272 @@ window.closeUnitActionModal = () => {
     const menu = document.querySelector('unit-action-modal');
     if (menu) menu.close();
 };
+
+// ==========================================
+// DRAG-TO-ACT ENGINE
+// ==========================================
+let dState = {
+    down: false, dragging: false, cardId: null, card: null, type: null, rect: null, targets: [], abilityId: null, gc: null, clone: null, hoveredTarget: null
+};
+
+window.addEventListener('mousedown', e => {
+    if (!ClientState.isMyTurn() || ClientState.gameState.turnPhase !== 'ACTION_PHASE') return;
+    
+    if (e.target.closest('unit-action-modal') || e.target.closest('zone-viewer-modal') || e.target.closest('button') || e.target.closest('#harvest-overlay')) return;
+
+    const gc = e.target.closest('game-card');
+    if (!gc) return;
+
+    const isHand = gc.hasAttribute('is-hand');
+    const cardId = gc.getAttribute('data-instance-id');
+    if (!cardId) return;
+
+    const liveCard = getEntityRef(cardId);
+    if (!liveCard) return;
+
+    dState.down = true; dState.dragging = false; dState.cardId = cardId; dState.card = liveCard;
+    dState.rect = gc.firstElementChild.getBoundingClientRect(); dState.gc = gc; dState.targets = []; dState.type = 'INVALID'; dState.abilityId = null;
+
+    if (isHand) {
+        const playCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, liveCard);
+        if (!playCheck.success) {
+            dState.type = 'INVALID';
+        } else {
+            const playAbs = liveCard.abilities?.filter(a => ['PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED'].includes(a.trigger)) || [];
+            const hasOptional = playAbs.some(a => a.trigger === 'PLAY_OPTIONAL');
+            
+            if (hasOptional) {
+                dState.type = 'OPTIONAL';
+                // Trigger modal instantly on clickdown to bypass drag logic
+                window.handleHandCardClick(cardId);
+                dState.down = false; 
+                return;
+            } else {
+                const hasMandatoryTarget = playAbs.find(a => a.activation?.method === 'PLAYER_CHOICE');
+                if (hasMandatoryTarget) {
+                    dState.abilityId = hasMandatoryTarget.abilityId;
+                    const targets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, dState.abilityId);
+                    if (targets.length > 0) {
+                        dState.type = 'PLAY_TARGET';
+                        dState.targets = targets.map(t => t.id);
+                    } else {
+                        dState.type = 'INVALID';
+                    }
+                } else if (liveCard.type === 'spell') {
+                     const spellTarget = playAbs.find(a => a.activation?.method === 'PLAYER_CHOICE');
+                     if (spellTarget) {
+                         dState.abilityId = spellTarget.abilityId;
+                         const targets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, dState.abilityId);
+                         if (targets.length > 0) {
+                             dState.type = 'PLAY_TARGET'; dState.targets = targets.map(t => t.id);
+                         } else {
+                             dState.type = 'INVALID';
+                         }
+                     } else {
+                         dState.type = 'PLAY_BOARD';
+                     }
+                } else {
+                    dState.type = 'PLAY_BOARD';
+                }
+            }
+        }
+    } else {
+        // Board Drag = Attack ONLY
+        if (gc.closest('#equator-cards-container')) {
+            dState.type = 'INVALID'; 
+        } else {
+            const available = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId);
+            const canAtk = available.find(a => a.type === 'ATTACK');
+            if (canAtk) {
+                const targets = getValidAttackTargets(ClientState.gameState, ClientState.localPlayerRole, liveCard);
+                if (targets.length > 0) {
+                    dState.type = 'ATTACK';
+                    dState.abilityId = canAtk.abilityId;
+                    dState.targets = targets.map(t => t.id);
+                } else {
+                    dState.type = 'INVALID';
+                }
+            } else {
+                dState.type = 'INVALID';
+            }
+        }
+    }
+});
+
+window.addEventListener('mousemove', e => {
+    if (!dState.down && ClientState.pendingAbility) {
+        const sourceCardId = ClientState.pendingAbility.entityId;
+        const sourceGc = document.querySelector(`game-card[data-instance-id="${sourceCardId}"]`);
+        if (sourceGc && sourceGc.firstElementChild) {
+            const rect = sourceGc.firstElementChild.getBoundingClientRect();
+            const startX = rect.left + rect.width / 2;
+            const startY = rect.top + rect.height / 2;
+            
+            document.getElementById('drag-tether-overlay').classList.remove('hidden');
+            
+            const line = document.getElementById('drag-tether-line');
+            const head = document.getElementById('drag-tether-head');
+            const ctrlY = startY + (e.clientY - startY) / 2;
+            
+            line.setAttribute('d', `M ${startX},${startY} Q ${startX},${ctrlY} ${e.clientX},${e.clientY}`);
+            head.setAttribute('cx', e.clientX);
+            head.setAttribute('cy', e.clientY);
+            
+            ClientState.validTargets.forEach(t => {
+               const el = document.querySelector(`game-card[data-instance-id="${t.id}"]`);
+               const inner = el?.firstElementChild;
+               if (inner) {
+                   const tr = inner.getBoundingClientRect();
+                   if (e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom) {
+                       inner.classList.replace('ring-cyan-400', 'ring-amber-400');
+                   } else {
+                       inner.classList.replace('ring-amber-400', 'ring-cyan-400');
+                   }
+               }
+            });
+        }
+        return;
+    }
+
+    if (!dState.down) return;
+
+    if (!dState.dragging) {
+        if (e.clientX < dState.rect.left || e.clientX > dState.rect.right || 
+            e.clientY < dState.rect.top || e.clientY > dState.rect.bottom) {
+            
+            if (dState.type === 'INVALID') {
+                const innerCard = dState.gc.firstElementChild;
+                innerCard.classList.add('animate-error-flash');
+                setTimeout(() => innerCard.classList.remove('animate-error-flash'), 500);
+                dState.down = false;
+                return;
+            }
+
+            dState.dragging = true;
+            window._isDragging = true;
+            
+            if (ClientState.pendingAbility) {
+                ClientState.pendingAbility = null; ClientState.validTargets = []; 
+            }
+
+            updateUI(); // Hide the affordance glows FIRST so DOM is fresh
+
+            // Refresh the source card reference since updateUI rebuilt the DOM
+            dState.gc = document.querySelector(`game-card[data-instance-id="${dState.cardId}"]`);
+
+            if (dState.gc && dState.gc.firstElementChild) {
+                dState.gc.firstElementChild.classList.add('ring-4', 'ring-fuchsia-500', 'shadow-[0_0_25px_rgba(217,70,239,0.8)]', 'scale-105', 'z-30');
+            }
+
+            document.getElementById('drag-tether-overlay').classList.remove('hidden');
+
+            if (dState.type === 'PLAY_BOARD') {
+                document.getElementById('player-board').classList.add('ring-4', 'ring-cyan-400', 'shadow-[0_0_30px_rgba(34,211,238,0.5)]');
+            } else {
+                dState.targets.forEach(tid => {
+                    const el = document.querySelector(`game-card[data-instance-id="${tid}"]`);
+                    const inner = el ? el.firstElementChild : null;
+                    if (inner) {
+                        const isNano = el.getAttribute('size') === 'nano';
+                        if (isNano) {
+                            inner.classList.add('ring-2', 'ring-cyan-400', 'shadow-[0_0_15px_rgba(34,211,238,0.6)]');
+                        } else {
+                            inner.classList.add('ring-4', 'ring-cyan-400', 'shadow-[0_0_20px_rgba(34,211,238,0.6)]');
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    if (dState.dragging) {
+        const line = document.getElementById('drag-tether-line');
+        const head = document.getElementById('drag-tether-head');
+        
+        const startX = dState.rect.left + dState.rect.width / 2;
+        const startY = dState.rect.top + dState.rect.height / 2;
+        const ctrlY = startY + (e.clientY - startY) / 2;
+        
+        line.setAttribute('d', `M ${startX},${startY} Q ${startX},${ctrlY} ${e.clientX},${e.clientY}`);
+        head.setAttribute('cx', e.clientX);
+        head.setAttribute('cy', e.clientY);
+
+        if (dState.type === 'PLAY_BOARD') {
+            const handWrapper = document.getElementById('player-hand-wrapper').getBoundingClientRect();
+            if (e.clientY < handWrapper.top) {
+                document.getElementById('player-board').classList.replace('ring-cyan-400', 'ring-amber-400');
+            } else {
+                document.getElementById('player-board').classList.replace('ring-amber-400', 'ring-cyan-400');
+            }
+        } else {
+            dState.targets.forEach(tid => {
+                const el = document.querySelector(`game-card[data-instance-id="${tid}"]`);
+                const tr = el?.firstElementChild?.getBoundingClientRect();
+                const inner = el?.firstElementChild;
+                if (tr && e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom) {
+                    inner?.classList.replace('ring-cyan-400', 'ring-amber-400');
+                    dState.hoveredTarget = tid;
+                } else if (inner) {
+                    inner.classList.replace('ring-amber-400', 'ring-cyan-400');
+                    if (dState.hoveredTarget === tid) dState.hoveredTarget = null;
+                }
+            });
+        }
+    }
+});
+
+window.addEventListener('mouseup', e => {
+    if (dState.dragging) {
+        if (dState.type === 'PLAY_BOARD') {
+            const handWrapper = document.getElementById('player-hand-wrapper').getBoundingClientRect();
+            if (e.clientY < handWrapper.top) {
+                window.executeNormalPlay(dState.cardId);
+            }
+        } else if (dState.type === 'ATTACK' || dState.type === 'PLAY_TARGET') {
+            let hitTarget = null;
+            dState.targets.forEach(tid => {
+                const el = document.querySelector(`game-card[data-instance-id="${tid}"]`);
+                const tr = el?.firstElementChild?.getBoundingClientRect();
+                if (tr && e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom) {
+                    hitTarget = tid;
+                }
+            });
+
+            if (hitTarget) {
+                if (dState.type === 'ATTACK') {
+                    const tgc = document.querySelector(`game-card[data-instance-id="${hitTarget}"]`);
+                    const lineDiv = tgc.closest('[id^="opp-line-"], [id^="player-line-"]');
+                    const line = lineDiv ? lineDiv.id.split('-').pop() : 'mid';
+                    executeAndLogAbility(dState.cardId, dState.abilityId, hitTarget, line);
+                } else if (dState.type === 'PLAY_TARGET') {
+                    window.executeNormalPlay(dState.cardId, dState.abilityId, hitTarget);
+                }
+            }
+        }
+
+        document.getElementById('drag-tether-overlay').classList.add('hidden');
+        document.getElementById('player-board').classList.remove('ring-4', 'ring-cyan-400', 'ring-amber-400', 'shadow-[0_0_30px_rgba(34,211,238,0.5)]');
+        
+        if (dState.gc && dState.gc.firstElementChild) {
+            dState.gc.firstElementChild.classList.remove('ring-4', 'ring-fuchsia-500', 'shadow-[0_0_25px_rgba(217,70,239,0.8)]', 'scale-105', 'z-30');
+        }
+        
+        dState.targets.forEach(tid => {
+            const tgc = document.querySelector(`game-card[data-instance-id="${tid}"] > div`);
+            if (tgc) {
+                tgc.classList.remove('ring-4', 'ring-2', 'ring-cyan-400', 'ring-amber-400', 'shadow-[0_0_20px_rgba(34,211,238,0.6)]', 'shadow-[0_0_15px_rgba(34,211,238,0.6)]');
+            }
+        });
+        
+        setTimeout(() => {
+            window._isDragging = false;
+            updateUI();
+        }, 50);
+    } else {
+        window._isDragging = false;
+    }
+
+    dState.down = false; dState.dragging = false; dState.type = null; dState.targets = []; dState.hoveredTarget = null;
+});
 
 window.handleUndo = handleUndo;

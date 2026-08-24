@@ -2,7 +2,7 @@
 
 import { CardState } from './state.js';
 import { updatePreview } from './preview.js';
-import { buildCardState, enforceAttackAbility } from './form.js';
+import { buildCardState } from './form.js';
 import { saveCardToCatalog } from '../../firebase.js';
 import { showToast, getIconSvg } from '../../ui.js';
 
@@ -142,7 +142,6 @@ export function renderReferencedAbilities() {
 
 export function removeAbility(index) {
     CardState.currentAbilities.splice(index, 1);
-    enforceAttackAbility();
     renderAssignedAbilities();
     updatePreview();
 }
@@ -177,7 +176,6 @@ export function handleDrop(e, targetIndex) {
     if (CardState.draggedAbilityIndex === null || CardState.draggedAbilityIndex === targetIndex) return;
     const draggedItem = CardState.currentAbilities.splice(CardState.draggedAbilityIndex, 1)[0];
     CardState.currentAbilities.splice(targetIndex, 0, draggedItem);
-    enforceAttackAbility();
     renderAssignedAbilities();
     updatePreview();
 }

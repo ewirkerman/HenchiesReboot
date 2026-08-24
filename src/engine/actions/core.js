@@ -203,7 +203,7 @@ export class Action {
 }
 
 export function findEntityLocation(engine, target) {
-    if (!target) return null;
+    if (!target || !target.instanceId) return null;
     
     const searchAttachments = (host, pId, zoneName) => {
         if (host.attachments) {

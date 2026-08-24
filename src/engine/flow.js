@@ -334,7 +334,16 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         }
         if (!entity) return { success: false, reason: "Entity not found" };
         
-        const ability = entity.abilities?.find(a => a.abilityId === abilityId);
+        let ability = entity.abilities?.find(a => a.abilityId === abilityId);
+        if (abilityId === 'native_attack') {
+            ability = {
+                abilityId: 'native_attack',
+                name: 'Attack',
+                trigger: 'MANUAL',
+                cost: { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' },
+                effects: [{ targetMethod: 'EVENT_TARGET', payloads: [{ type: 'ATTACK' }] }]
+            };
+        }
         if (!ability) return { success: false, reason: "Ability not found" };
 
         const isHandAct = ability.passiveFlags?.includes('ACTIVATE_FROM_HAND') && ['hand', 'discard', 'deck'].some(z => state.players[playerId][z]?.some(c => c.instanceId === entity.instanceId));

@@ -15,6 +15,11 @@
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
+    @keyframes error-flash {
+      0% { box-shadow: 0 0 0 2px #ef4444, 0 0 15px 5px rgba(239,68,68,0.8); }
+      100% { box-shadow: 0 0 0 0px transparent, 0 0 0px 0px transparent; }
+    }
+    .animate-error-flash { animation: error-flash 0.5s ease-out; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
@@ -179,6 +184,21 @@
     <zone-viewer-modal></zone-viewer-modal>
 
   </main>
+  
+  <!-- Drag Tether Overlay -->
+  <svg id="drag-tether-overlay" class="fixed inset-0 w-full h-full pointer-events-none z-[90] hidden">
+      <defs>
+          <filter id="tether-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+              <feMerge>
+                  <feMergeNode in="blur"/>
+                  <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+          </filter>
+      </defs>
+      <path id="drag-tether-line" fill="none" stroke="#22d3ee" stroke-width="4" stroke-dasharray="8,4" filter="url(#tether-glow)" />
+      <circle id="drag-tether-head" r="6" fill="#22d3ee" filter="url(#tether-glow)" />
+  </svg>
 
   <script type="module" src="./src/tabletop/index.js"></script>
 </body>

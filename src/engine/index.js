@@ -224,10 +224,25 @@ export class GameEngine {
     }
 
     executeAbility(ability, source, eventPayload, ownerId, originatingEvent = null) {
+        if (ability === 'native_attack' || ability?.abilityId === 'native_attack') {
+            ability = {
+                abilityId: 'native_attack',
+                name: 'Attack',
+                trigger: 'MANUAL',
+                cost: { readinessCost: hasEngineFlag(this.state, source, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' },
+                effects: [{
+                    targetMethod: 'EVENT_TARGET',
+                    payloads: [{ type: 'ATTACK' }]
+                }]
+            };
+        }
+
         const sId = source?.instanceId || source?.id || 'none';
         log(this.state, `  ▶ [ABILITY] '${ability.name}' from source '${source?.name} (${sId})'`);
         try {
-            this.state.history_log.push({ text: `✨ ${source.name || 'Entity'} activated '${ability.name}'`, depth: Math.max(0, (this.state._actionDepth || 0) + (this.processingDepth || 0) - 1) });
+            if (ability.abilityId !== 'native_attack') {
+                this.state.history_log.push({ text: `✨ ${source.name || 'Entity'} activated '${ability.name}'`, depth: Math.max(0, (this.state._actionDepth || 0) + (this.processingDepth || 0) - 1) });
+            }
             
             if (!ability.effects || !Array.isArray(ability.effects)) {
                 warn(this.state, `[Engine] Ability '${ability.name}' has no effects array. Skipping.`);

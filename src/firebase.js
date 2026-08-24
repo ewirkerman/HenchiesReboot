@@ -238,12 +238,9 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
             if (item.updatedAt && item.updatedAt > maxUpdated) maxUpdated = item.updatedAt;
         });
 
-        // Resolve instantly from local cache to allow offline-first booting
-        if (maxUpdated > 0) resolve(memoryCache[type]);
-
         if (await isReadyForDB()) {
             if (syncListeners[type]) {
-                if (maxUpdated === 0) resolve(memoryCache[type]);
+                resolve(memoryCache[type]);
                 return; 
             }
 
@@ -251,6 +248,8 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
             let q = maxUpdated > 0 
                 ? query(collection(db, collectionName), where("updatedAt", ">", maxUpdated))
                 : collection(db, collectionName);
+
+            let isFirstSnapshot = true;
 
             syncListeners[type] = onSnapshot(q, (snapshot) => {
                 let changed = false;
@@ -269,21 +268,26 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
                     });
                 }
 
-                if (changed) {
+                if (changed || isFirstSnapshot) {
                     localStorage.setItem(cacheKey, JSON.stringify(memoryCache[type]));
-                    window.dispatchEvent(new CustomEvent('catalog_delta_sync', { detail: { type } }));
+                    if (!isFirstSnapshot) {
+                        window.dispatchEvent(new CustomEvent('catalog_delta_sync', { detail: { type } }));
+                    }
                 }
                 
-                if (maxUpdated === 0) {
-                    maxUpdated = Date.now();
-                    resolve(memoryCache[type]); // Resolve the promise for first-time empty boots
+                if (isFirstSnapshot) {
+                    isFirstSnapshot = false;
+                    resolve(memoryCache[type]); // Resolve ONLY after cloud delta is merged!
                 }
             }, (error) => {
                 console.error(`Delta Sync Error (${type}):`, error);
-                if (maxUpdated === 0) resolve(memoryCache[type]);
+                if (isFirstSnapshot) {
+                    isFirstSnapshot = false;
+                    resolve(memoryCache[type]);
+                }
             });
         } else {
-            if (maxUpdated === 0) resolve(memoryCache[type]);
+            resolve(memoryCache[type]); // Offline fallback
         }
     });
 }
@@ -295,8 +299,11 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
 export async function saveCardToCatalog(cardData) {
   const dbPayload = JSON.parse(JSON.stringify(cardData));
   if (dbPayload.abilities) {
-      dbPayload.abilities.forEach(ab => {
-          delete ab.displayDescription;
+      dbPayload.abilities = dbPayload.abilities.map(ab => {
+          return {
+              abilityId: ab.abilityId || ab.id || ab,
+              paramX: ab.paramX !== undefined ? ab.paramX : null
+          };
       });
   }
   dbPayload.updatedAt = Date.now(); // Force fresh timestamp for delta sync
@@ -467,13 +474,9 @@ export async function uploadCardArt(file) {
 // =====================================
 
 export async function fetchUserDecks(username, forceRefresh = false) {
-    if (!forceRefresh && memoryCache.decks[username]) return memoryCache.decks[username];
-    
     const localData = JSON.parse(localStorage.getItem(`henchies_decks_${username}`) || 'null');
-    const lastSync = localStorage.getItem(`henchies_sync_decks_${username}`);
-    const needsSync = forceRefresh || !localData || !lastSync || (Date.now() - parseInt(lastSync) > 1000 * 60 * 60 * 12);
 
-    if (needsSync && await isReadyForDB()) {
+    if (await isReadyForDB()) {
         try {
             console.log(`[FIREBASE] ☁️ Fetching DECKS for ${username} from Cloud...`);
             const q = query(collection(db, "custom_decks"), where("username", "==", username));
@@ -486,7 +489,6 @@ export async function fetchUserDecks(username, forceRefresh = false) {
             });
             memoryCache.decks[username] = userDecks;
             localStorage.setItem(`henchies_decks_${username}`, JSON.stringify(userDecks));
-            localStorage.setItem(`henchies_sync_decks_${username}`, Date.now().toString());
             return userDecks;
         } catch (e) {
             console.error("Error fetching decks:", e);
@@ -494,7 +496,7 @@ export async function fetchUserDecks(username, forceRefresh = false) {
         }
     }
     
-    console.log(`[FIREBASE] 💾 Loading DECKS for ${username} from LocalStorage cache (0 reads).`);
+    console.log(`[FIREBASE] 💾 Loading DECKS for ${username} from LocalStorage cache (offline fallback).`);
     memoryCache.decks[username] = localData || {};
     return memoryCache.decks[username];
 }
