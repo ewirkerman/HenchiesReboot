@@ -15,21 +15,29 @@ export function formatCombinedPayloads(effs, formatCtx) {
     let effText = '';
     
     if (first.type === 'GRANT_ABILITY') {
+        let hasManual = false;
         let abNames = effs.map(eff => {
             let abilityName = eff.grantedAbilityId;
             if (allAbilities && Array.isArray(allAbilities)) {
                 const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
-                if (match) abilityName = match.name;
+                if (match) {
+                    abilityName = match.name;
+                    if (match.trigger === 'MANUAL') hasManual = true;
+                }
             } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
                  const grantedAb = getAbility(eff.grantedAbilityId);
-                 if(grantedAb) abilityName = grantedAb.name;
+                 if(grantedAb) {
+                     abilityName = grantedAb.name;
+                     if (grantedAb.trigger === 'MANUAL') hasManual = true;
+                 }
             }
             let paramSuffix = '';
             if (eff.grantedAbilityParamXIsX) paramSuffix = ' (X)';
             else if (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null) paramSuffix = ` (${eff.grantedAbilityParamX})`;
             return `@[${abilityName}]${paramSuffix}`;
         });
-        effText = `grant ${joinWithAnd(abNames)} to {TARGET}`;
+        let grantVerb = hasManual ? 'grant' : 'apply';
+        effText = `${grantVerb} ${joinWithAnd(abNames)} to {TARGET}`;
         if (first.blockDuplicates) effText += ` (unique)`;
     } else if (first.type === 'REMOVE_ABILITY') {
         let abNames = effs.map(eff => {
@@ -145,18 +153,21 @@ export function formatCombinedPayloads(effs, formatCtx) {
         } else if (first.duration === 'ACTION') {
             if (isCustomMovement) suffix = ' this action'; else suffix = ' for the current action';
         } else if (first.duration === 'TEMPORARY') {
-            if (isCustomMovement) suffix = ' this round'; else adverb = 'temporarily ';
+            suffix = ' this round';
         } else if (first.duration === 'BRIEF') {
-            if (isCustomMovement) suffix = ' this turn'; else adverb = 'briefly ';
+            suffix = ' this turn';
         } else if (first.duration === 'PERMANENT') {
             adverb = 'permanently ';
         }
     }
 
-    if (adverb && first.type !== 'SUMMON') {
+    if (adverb) {
         if (effText.endsWith(' instead')) {
             effText = effText.replace(' instead', '');
             effText = adverb + effText + ' instead';
+        } else if (effText.endsWith(' instead{OMIT_TARGET}')) {
+            effText = effText.replace(' instead{OMIT_TARGET}', '');
+            effText = adverb + effText + ' instead{OMIT_TARGET}';
         } else if (effText.startsWith('force {TARGET} to ')) {
             effText = effText.replace('force {TARGET} to ', `force {TARGET} to ${adverb}`);
         } else {
@@ -164,8 +175,14 @@ export function formatCombinedPayloads(effs, formatCtx) {
         }
     }
 
-    if (suffix && first.type !== 'SUMMON') {
-        effText += suffix;
+    if (suffix) {
+        if (effText.endsWith(' instead')) {
+            effText = effText.replace(' instead', suffix + ' instead');
+        } else if (effText.endsWith(' instead{OMIT_TARGET}')) {
+            effText = effText.replace(' instead{OMIT_TARGET}', suffix + ' instead{OMIT_TARGET}');
+        } else {
+            effText += suffix;
+        }
     }
 
     let resolved = resolveTokens(effText, formatCtx);

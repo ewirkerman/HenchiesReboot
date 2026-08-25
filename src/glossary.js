@@ -51,13 +51,13 @@ export const SYSTEM_GLOSSARY = [
     { regex: /\bstun(ned)?\b/i, id: 'sys_stun', name: `${SVG_STUNNED} Stunned`, trigger: 'STATUS', displayDescription: 'A Stunned unit skips its next opportunity to act.' },
 
     // Core Zones & Lines
-    { regex: /\btaunt\b/i, id: 'sys_taunt', name: 'Taunt (Line)', trigger: 'ZONE', displayDescription: 'Units in the Taunt line force enemies to attack them before any other target can be attacked.' },
-    { regex: /\bbodyguard(s)?\b/i, id: 'sys_bodyguard', name: 'Bodyguard (Line)', trigger: 'ZONE', displayDescription: 'Units in the Bodyguard line protect the Avatar, forcing enemies to attack them before the Avatar can be targeted.' },
-    { regex: /\bfront\b/i, id: 'sys_front', name: 'Front (Line)', trigger: 'ZONE', displayDescription: 'Units in the Front line block attacks from reaching the Mid, Back, and Sheltered lines.' },
-    { regex: /\bmid\b/i, id: 'sys_mid', name: 'Mid (Line)', trigger: 'ZONE', displayDescription: 'Units in the Mid line cannot be attacked while your Front line is occupied.' },
-    { regex: /\bback\b/i, id: 'sys_back', name: 'Back (Line)', trigger: 'ZONE', displayDescription: 'Units in the Back line cannot be attacked while your Front or Mid lines are occupied.' },
-    { regex: /\bsheltered\b/i, id: 'sys_sheltered', name: 'Sheltered (Line)', trigger: 'ZONE', displayDescription: 'Units in the Sheltered line cannot be attacked while your Front, Mid, or Back lines are occupied.' },
-    { regex: /\bsideline(s)?\b/i, id: 'sys_sideline', name: 'Sideline (Line)', trigger: 'ZONE', displayDescription: 'Units in the Sideline provide no combat protection to other lines.' },
+    { regex: /\btaunt\b/i, id: 'sys_taunt', name: 'Taunt', trigger: 'ZONE', displayDescription: 'Units in the Taunt line force enemies to attack them before any other target can be attacked.' },
+    { regex: /\bbodyguard(s)?\b/i, id: 'sys_bodyguard', name: 'Bodyguard', trigger: 'ZONE', displayDescription: 'Units in the Bodyguard line protect the Avatar, forcing enemies to attack them before the Avatar can be targeted.' },
+    { regex: /\bfront(line)?\b/i, id: 'sys_front', name: 'Frontline', trigger: 'ZONE', displayDescription: 'Units in the Front line block attacks from reaching the Mid, Back, and Sheltered lines.' },
+    { regex: /\bmid(line)?\b/i, id: 'sys_mid', name: 'Midline', trigger: 'ZONE', displayDescription: 'Units in the Mid line cannot be attacked while your Front line is occupied.' },
+    { regex: /\bback(line)?\b/i, id: 'sys_back', name: 'Backline', trigger: 'ZONE', displayDescription: 'Units in the Back line cannot be attacked while your Front or Mid lines are occupied.' },
+    { regex: /\bsheltered\b/i, id: 'sys_sheltered', name: 'Sheltered', trigger: 'ZONE', displayDescription: 'Units in the Sheltered line cannot be attacked while your Front, Mid, or Back lines are occupied.' },
+    { regex: /\bsideline(s)?\b/i, id: 'sys_sideline', name: 'Sideline', trigger: 'ZONE', displayDescription: 'Units in the Sideline provide no combat protection to other lines.' },
     { regex: /\bequator\b/i, id: 'sys_equator', name: 'Equator', trigger: 'ZONE', displayDescription: 'The center neutral zone of the board where unattached artifacts and equipment reside.' },
 
     // Game Actions

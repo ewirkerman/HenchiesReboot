@@ -5,41 +5,43 @@
 
 import { buildTargetDesc } from './targeting.js';
 
+export function getTriggerWord(t) {
+    if (t === 'MANUAL') return '';
+    if (t === 'UNTRIGGERABLE') return 'PASSIVE';
+    if (t === 'ON_BE_ATTACHED') return 'WHILE ATTACHED';
+    if (t.includes('STARTING') || t.includes('STARTED')) return 'START';
+    if (t.includes('ENDING') || t.includes('ENDED')) return 'END';
+    if (t.includes('PLAY')) return 'PLAY';
+
+    let isPassive = t.includes('_BE_') || t.includes('ATTACKED') || t.includes('DAMAGED') || t.includes('HEALED') || t.includes('KILLED') || t.includes('DRAWN') || t.includes('DISCARDED') || t.includes('SUMMONED');
+    
+    let base = '';
+    if (t.includes('ATTACK')) base = isPassive ? 'ATTACKED' : 'ATTACK';
+    else if (t.includes('DAMAGE')) base = isPassive ? 'DAMAGED' : 'DAMAGE';
+    else if (t.includes('HEAL')) base = isPassive ? 'HEALED' : 'HEAL';
+    else if (t.includes('KILL')) base = isPassive ? 'KILLED' : 'KILL';
+    else if (t.includes('DRAW')) base = isPassive ? 'DRAWN' : 'DRAW';
+    else if (t.includes('DISCARD')) base = isPassive ? 'DISCARDED' : 'DISCARD';
+    else if (t.includes('SUMMON')) base = isPassive ? 'SUMMONED' : 'SUMMON';
+    else if (t.includes('REBEL')) base = isPassive ? 'CONTROLLED' : 'CONTROL';
+    else if (t.includes('FIELD')) base = isPassive ? 'FIELDED' : 'FIELD';
+    else if (t.includes('RECOVER')) base = isPassive ? 'RECOVERED' : 'RECOVER';
+    else if (t.includes('REVIVE')) base = isPassive ? 'REVIVED' : 'REVIVE';
+    else if (t.includes('HARVEST')) base = isPassive ? 'HARVESTED' : 'HARVEST';
+    else base = t.split('_').pop();
+
+    if (t.startsWith('MODIFY_')) return `BEFORE ${base}`;
+    return `${base}`;
+};
+
 export function parseTriggers(ability, allTribes) {
     const allTriggers = [ability.trigger || 'MANUAL', ...(ability.additionalTriggers || [])];
     let globalTargetNoun = null;
 
-    const getTriggerWord = (t) => {
-        if (t === 'MANUAL') return '';
-        if (t === 'UNTRIGGERABLE') return 'PASSIVE:';
-        if (t === 'ON_BE_ATTACHED') return 'WHILE ATTACHED:';
-        if (t.includes('STARTING') || t.includes('STARTED')) return 'START:';
-        if (t.includes('ENDING') || t.includes('ENDED')) return 'END:';
-        if (t.includes('PLAY')) return 'PLAY:';
 
-        let isPassive = t.includes('_BE_') || t.includes('ATTACKED') || t.includes('DAMAGED') || t.includes('HEALED') || t.includes('KILLED') || t.includes('DRAWN') || t.includes('DISCARDED') || t.includes('SUMMONED');
-        
-        let base = '';
-        if (t.includes('ATTACK')) base = isPassive ? 'ATTACKED' : 'ATTACK';
-        else if (t.includes('DAMAGE')) base = isPassive ? 'DAMAGED' : 'DAMAGE';
-        else if (t.includes('HEAL')) base = isPassive ? 'HEALED' : 'HEAL';
-        else if (t.includes('KILL')) base = isPassive ? 'KILLED' : 'KILL';
-        else if (t.includes('DRAW')) base = isPassive ? 'DRAWN' : 'DRAW';
-        else if (t.includes('DISCARD')) base = isPassive ? 'DISCARDED' : 'DISCARD';
-        else if (t.includes('SUMMON')) base = isPassive ? 'SUMMONED' : 'SUMMON';
-        else if (t.includes('REBEL')) base = isPassive ? 'CONTROLLED' : 'CONTROL';
-        else if (t.includes('FIELD')) base = isPassive ? 'FIELDED' : 'FIELD';
-        else if (t.includes('RECOVER')) base = isPassive ? 'RECOVERED' : 'RECOVER';
-        else if (t.includes('REVIVE')) base = isPassive ? 'REVIVED' : 'REVIVE';
-        else if (t.includes('HARVEST')) base = isPassive ? 'HARVESTED' : 'HARVEST';
-        else base = t.split('_').pop();
-
-        if (t.startsWith('MODIFY_')) return `BEFORE ${base}:`;
-        return `${base}:`;
-    };
 
     const words = allTriggers.map(t => getTriggerWord(t)).filter(Boolean);
-    let triggerText = words.length > 0 ? words.join(' / ') : '';
+    let triggerText = ''; // Omit prefix so the UI can compose it cleanly
 
     let conditionPhrases = [];
     let logicalOperator = 'AND';
@@ -78,7 +80,7 @@ export function parseTriggers(ability, allTribes) {
                     if (checkAttr === 'isCombat') {
                         conditionPhrases.push(isTrue ? 'in combat' : 'not in combat');
                     } else {
-                        conditionPhrases.push(isTrue ? `${contextPronoun} is attacker` : `${contextPronoun} is defender`);
+                        conditionPhrases.push(isTrue ? `the event is an attack` : `the event is not an attack`);
                     }
                 } else if (checkAttr === 'eventAbility') {
                     if (node.operator === '==') conditionPhrases.push(`event is '${node.value}'`);

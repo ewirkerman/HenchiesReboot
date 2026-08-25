@@ -668,6 +668,7 @@ let dState = {
 };
 
 window.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
     if (!ClientState.isMyTurn() || ClientState.gameState.turnPhase !== 'ACTION_PHASE') return;
     
     if (e.target.closest('unit-action-modal') || e.target.closest('zone-viewer-modal') || e.target.closest('button') || e.target.closest('#harvest-overlay')) return;

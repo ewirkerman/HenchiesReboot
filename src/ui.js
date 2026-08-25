@@ -5,6 +5,7 @@
 
   import { fetchCustomTribes } from './firebase.js';
   import { generateAbilityDescription } from './language_description.js';
+  import { getTriggerWord } from './language/triggers.js';
 
   export const TRIBE_STYLES = {
     Robot: { bg: 'bg-pink-900', lightBg: 'bg-pink-950/90', border: 'border-black', text: 'text-pink-300' },
@@ -77,7 +78,7 @@
     let badgeStr = '';
     const carnieCost = cost.carnie || cost.tent || 0;
     for (let i = 0; i < carnieCost; i++) {
-      badgeStr += `<span class="inline-block w-[1.1em] h-[1.1em] align-middle -translate-y-[0.1em] ml-px text-purple-400 drop-shadow-sm">${getIconSvg('tent')}</span>`
+      badgeStr += `<span class="inline-block w-[1.2em] h-[1.2em] align-middle -translate-y-[0.225em] text-purple-400 drop-shadow-sm">${getIconSvg('tent')}</span>`
     }
     if (cost.power > 0) badgeStr += `${cost.power}⚡`;
     if (cost.tribeAmount > 0) {
@@ -85,7 +86,7 @@
         if (tType && tType !== 'NONE' && tType !== 'Generic') {
             const style = TRIBE_STYLES[tType];
             if (style && style.iconSvg) {
-                badgeStr += `${cost.tribeAmount}<span class="inline-block w-[1.1em] h-[1.1em] overflow-hidden align-middle -translate-y-[0.1em] ml-px mr-0.5"><div class="raw-user-svg-container w-full h-full">${style.iconSvg}</div></span>`;
+                badgeStr += `${cost.tribeAmount}<span class="inline-block w-[1.2em] h-[1.2em] overflow-hidden align-middle -translate-y-[0.225em] mr-0.5"><div class="raw-user-svg-container w-full h-full">${style.iconSvg}</div></span>`;
             } else {
                 const tribeName = style && style.name ? style.name : tType;
                 badgeStr += `${cost.tribeAmount}${tribeName.charAt(0).toUpperCase()}`;
@@ -99,7 +100,7 @@
     if (cost.readinessCost === 'UNREADIES') badgeStr += SVG_UNREADY;
     if (cost.freeAction) badgeStr += SVG_FREE;
     
-    return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-1 tracking-tighter whitespace-nowrap opacity-90">${badgeStr}</span>` : '';
+    return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-0.5 mr-0.5 tracking-tighter whitespace-nowrap opacity-90">${badgeStr}</span>` : '';
   }
 
   export const hasEngineFlag = (card, flag) => {
@@ -115,7 +116,9 @@
       let formatted = text;
 
       // 1. Markdown Bolding (Used by NLG Triggers)
-      formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<span class="font-black text-amber-400 uppercase tracking-widest">$1</span>');
+      // Updated to reliably match even if HTML badges are injected inside the bold wrappers.
+      // We use [\s\S]*? instead of .*? to ensure it can span across any unexpected newlines or complex HTML strings safely.
+      formatted = formatted.replace(/\*\*([\s\S]*?)\*\*/g, '<span class="font-black text-amber-400 uppercase tracking-widest">$1</span>');
 
       // 2. Stat/Resource Token Placeholders -> SVGs
       const statMap = {
@@ -213,17 +216,16 @@
       const defLine = card.defaultLine || 'mid';
       
       if (isUnit && !isAvatar && defLine !== 'mid') {
-          if (isInspectMode) {
-              const lineAb = getSystemLineAbility(defLine);
-              if (lineAb) displayAbilities.push(lineAb);
-          } else {
-              displayAbilities.push({
-                  abilityId: 'sys_line_' + defLine,
-                  name: defLine.charAt(0).toUpperCase() + defLine.slice(1) + ' Line',
-                  trigger: 'UNTRIGGERABLE',
-                  isKeyword: true,
-                  cost: {}
-              });
+          const lineAb = getSystemLineAbility(defLine);
+          if (lineAb) {
+              if (isInspectMode) {
+                  displayAbilities.push(lineAb);
+              } else {
+                  displayAbilities.push({
+                      ...lineAb,
+                      isKeyword: true
+                  });
+              }
           }
       }
       
@@ -275,36 +277,16 @@
               let desc = rawDesc;
               
               const isSpellPlay = card.type === 'spell' && ['PLAY', 'ON_BE_PLAYED', 'ON_PLAYED'].includes(ab.trigger);
+              const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
+              const event = getTriggerWord(ab.trigger);
               
               if (isSpellPlay) {
-                  // Robustly strip PLAY:, **PLAY:**, **PLAY**: etc.
-                  desc = desc.replace(/^(?:\*\*)?PLAY(?:\*\*)?:(?:\*\*)?\s*/i, '');
-              }
-              
-              const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
-              const hasCost = costBadge && costBadge.trim() !== '';
-              
-              if (hasCost && !isSpellPlay) {
-                  // Find the first colon to split the trigger name and the effect
-                  const colonIdx = desc.indexOf(':');
-                  
-                  // If there's a colon early in the string, assume it's the trigger prefix
-                  if (colonIdx !== -1 && colonIdx < 40) {
-                      let prefix = desc.substring(0, colonIdx).trim();
-                      let suffix = desc.substring(colonIdx + 1).trim();
-                      
-                      // Strip trailing asterisks on prefix and leading on suffix to ensure clean badge insertion
-                      prefix = prefix.replace(/\*\*$/, '').trim();
-                      suffix = suffix.replace(/^\*\*/, '').trim();
-                      
-                      // Re-wrap cleanly
-                      desc = `${prefix.startsWith('**') ? prefix : '**' + prefix} ${costBadge}:** ${suffix}`;
-                  } else {
-                      // Fallback if no colon is found
-                      desc = `**${ab.name} ${costBadge}:** ${desc}`;
-                  }
-              } else if (hasCost && isSpellPlay) {
-                  desc = `${costBadge} ${desc}`;
+                  desc = costBadge ? `${costBadge} ${desc}` : desc;
+              } else {
+                  // Standard composition: **Ability Name [Cost]:** Effect Text
+                  const badgeStr = costBadge ? `${costBadge}` : '';
+                  //<span class="font-bold [font-variant:small-caps] text-slate-300 tracking-wide mr-1">${eventName.toLowerCase()}:</span>
+                  desc = `<span class="font-bold [font-variant:small-caps] text-slate-300 tracking-wide">**${event || 'Ability'}</span>:**${badgeStr}${desc}`;
               }
               
               const formatted = formatCardText(desc);
@@ -325,13 +307,6 @@
               }
               let desc = rawDesc;
               
-              if (isInspectMode) {
-                  const abName = ab.name || ab.abilityId;
-                  if (abName && desc.startsWith(abName)) {
-                      desc = desc.substring(abName.length).trim();
-                      if (desc.startsWith(':') || desc.startsWith('-')) desc = desc.substring(1).trim();
-                  }
-              }
               const formatted = formatCardText(desc);
               
               const abilityKey = `${card.instanceId}_${ab.abilityId}`;
@@ -387,7 +362,7 @@
                   const nameColorClass = isUsable ? 'text-amber-400' : 'text-slate-500';
                   const textColorClass = isUsable ? 'text-slate-200' : 'text-slate-500 opacity-80';
 
-                  const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}</span>`;
+                  const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}${ab.name || 'Action'}</span>`;
                   const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
                   
                   abilitiesHTML += `

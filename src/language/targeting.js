@@ -208,19 +208,24 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
     let baseDesc = `${adjectivesStr} ${noun}`.trim();
 
     if (!matchesImpliedZone) {
-        let mappedZones = (qt.zones || []).map(z => {
-            let zl = z.toLowerCase();
-            if (zl === 'field') return 'on the field';
-            if (zl === 'equator') return 'on the equator';
-            if (zl === 'hand') return 'in hand';
-            if (zl === 'deck') return 'in the deck';
-            if (zl === 'discard') return 'in the discard pile';
-            if (zl === 'banish') return 'in the banish zone';
-            if (zl === 'original_deck') return 'in their original deck';
-            return `in ${zl}`;
-        });
-        let scopeZones = mappedZones.join(' or ');
-        baseDesc += ` ${scopeZones}`;
+        let isOnlyEnemy = validAlignments.length === 1 && validAlignments[0] === 'ENEMY';
+        let isOnlyField = qt && qt.zones && qt.zones.length === 1 && qt.zones[0] === 'FIELD';
+
+        if (!(isOnlyEnemy && isOnlyField)) {
+            let mappedZones = (qt.zones || []).map(z => {
+                let zl = z.toLowerCase();
+                if (zl === 'field') return 'on the field';
+                if (zl === 'equator') return 'on the equator';
+                if (zl === 'hand') return 'in hand';
+                if (zl === 'deck') return 'in the deck';
+                if (zl === 'discard') return 'in the discard pile';
+                if (zl === 'banish') return 'in the banish zone';
+                if (zl === 'original_deck') return 'in their original deck';
+                return `in ${zl}`;
+            });
+            let scopeZones = mappedZones.join(' or ');
+            if (scopeZones) baseDesc += ` ${scopeZones}`;
+        }
     }
 
     if (suffixes.length > 0) {

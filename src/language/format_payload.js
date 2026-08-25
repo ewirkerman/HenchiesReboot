@@ -145,7 +145,7 @@ export function formatPayload(eff, formatCtx) {
             else if (targetDest === 'BANISH') effText = `banish {TARGET} instead`;
             else effText = `move {TARGET} to ${destName} instead`;
             break;
-        case 'REBEL': effText = eff.invertRoles ? `give control of this card to {TARGET}` : `control {TARGET}`; break;
+        case 'REBEL': effText = eff.invertRoles ? `donate this card to {TARGET}` : `steal {TARGET}`; break;
         case 'DONATE': effText = `donate {TARGET}`; break;
         case 'MODIFY_EVENT': 
             if (eff.stat === 'amount') {
@@ -160,20 +160,27 @@ export function formatPayload(eff, formatCtx) {
         case 'CUSTOM_SCRIPT': effText = eff.description ? eff.description + '{OMIT_TARGET}' : `execute script on {TARGET}`; break;
         case 'GRANT_ABILITY':
             let abilityName = eff.grantedAbilityId;
+            let grantVerb = 'grant';
             if (allAbilities && Array.isArray(allAbilities)) {
                 const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
-                if (match) abilityName = match.name;
+                if (match) {
+                    abilityName = match.name;
+                    if (match.trigger !== 'MANUAL') grantVerb = 'apply';
+                }
             } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
                  const grantedAb = getAbility(eff.grantedAbilityId);
-                 if(grantedAb) abilityName = grantedAb.name;
+                 if(grantedAb) {
+                     abilityName = grantedAb.name;
+                     if (grantedAb.trigger !== 'MANUAL') grantVerb = 'apply';
+                 }
             }
             let paramSuffix = '';
             if (eff.grantedAbilityParamXIsX) paramSuffix = ' (X)';
             else if (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null) paramSuffix = ` (${eff.grantedAbilityParamX})`;
             
-            effText = `grant @[${abilityName}]${paramSuffix} to {TARGET}`;
+            effText = `${grantVerb} @[${abilityName}]${paramSuffix} to {TARGET}`;
             if (eff.duration === 'WHILE_ATTACHED' || trigger === 'ON_BE_ATTACHED') {
-                effText = `grant @[${abilityName}]${paramSuffix}{OMIT_TARGET}`;
+                effText = `${grantVerb} @[${abilityName}]${paramSuffix}{OMIT_TARGET}`;
             }
             if (eff.blockDuplicates) effText += ` (unique)`;
             break;
@@ -229,23 +236,14 @@ export function formatPayload(eff, formatCtx) {
                 const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
                 
                 let destZone = (eff.zone || 'FIELD').toUpperCase();
-                let zonePh = ZONE_NAMES[destZone] || `[ZONE:${destZone.toLowerCase()}]`;
-                let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
+            let zonePh = ZONE_NAMES[destZone] || `[ZONE:${destZone.toLowerCase()}]`;
+            let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
 
-                let durAdj = '';
-                if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
-                    if (eff.duration === 'TEMPORARY') durAdj = 'temporary ';
-                    else if (eff.duration === 'BRIEF') durAdj = 'brief ';
-                    else if (eff.duration === 'PERMANENT') durAdj = 'permanent ';
-                    else if (eff.duration === 'ACTION') durAdj = 'action-bound ';
-                    else if (eff.duration === 'WHILE_ATTACHED') durAdj = 'attached ';
-                }
+            let readinessAdj = '';
+            let lineAdj = '';
+            let remainingNestedPayloads = [];
 
-                let readinessAdj = '';
-                let lineAdj = '';
-                let remainingNestedPayloads = [];
-
-                if (eff.nestedGroup && eff.nestedGroup.payloads && eff.nestedGroup.payloads.length > 0) {
+            if (eff.nestedGroup && eff.nestedGroup.payloads && eff.nestedGroup.payloads.length > 0) {
                     eff.nestedGroup.payloads.forEach(np => {
                         if (np.type === 'MODIFY_STAT' && np.stat === 'readiness') {
                             if (np.amount <= -2) readinessAdj = 'exhausted ';
@@ -262,25 +260,25 @@ export function formatPayload(eff, formatCtx) {
                         } else if (np.type === 'SET_STAT' && np.stat === 'line') {
                             lineAdj = `[ZONE:${np.amount}] `;
                         } else {
-                            remainingNestedPayloads.push(np);
-                        }
-                    });
-                }
-
-                let amtText = eff.amountIsX ? 'X' : summonAmt;
-                if (!eff.amountIsX && summonAmt === 1) {
-                    const nextWord = durAdj || readinessAdj || lineAdj || cardName;
-                    let testWord = nextWord;
-                    if (nextWord === lineAdj) {
-                        const match = lineAdj.match(/\[ZONE:([a-z_]+)\]/i);
-                        if (match) testWord = match[1];
+                        remainingNestedPayloads.push(np);
                     }
-                    amtText = /^[aeiou]/i.test(testWord) ? 'an' : 'a';
-                }
+                });
+            }
 
-                effText = `summon ${amtText} ${durAdj}${readinessAdj}${lineAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
-                
-                if (isCasterZone) {
+            let amtText = eff.amountIsX ? 'X' : summonAmt;
+            if (!eff.amountIsX && summonAmt === 1) {
+                const nextWord = readinessAdj || lineAdj || cardName;
+                let testWord = nextWord;
+                if (nextWord === lineAdj) {
+                    const match = lineAdj.match(/\[ZONE:([a-z_]+)\]/i);
+                    if (match) testWord = match[1];
+                }
+                amtText = /^[aeiou]/i.test(testWord) ? 'an' : 'a';
+            }
+
+            effText = `summon ${amtText} ${readinessAdj}${lineAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
+            
+            if (isCasterZone) {
                     if (destZone !== 'FIELD') effText += ` to ${zonePh}`;
                 } else {
                     effText += ` to {POSS} ${zonePh}`;
@@ -345,18 +343,21 @@ export function formatPayload(eff, formatCtx) {
         } else if (eff.duration === 'ACTION') {
             if (isCustomMovement) suffix = ' this action'; else suffix = ' for the current action';
         } else if (eff.duration === 'TEMPORARY') {
-            if (isCustomMovement) suffix = ' this round'; else adverb = 'temporarily ';
+            suffix = ' this round';
         } else if (eff.duration === 'BRIEF') {
-            if (isCustomMovement) suffix = ' this turn'; else adverb = 'briefly ';
+            suffix = ' this turn';
         } else if (eff.duration === 'PERMANENT') {
             adverb = 'permanently ';
         }
     }
 
-    if (adverb && eff.type !== 'SUMMON') {
+    if (adverb) {
         if (effText.endsWith(' instead')) {
             effText = effText.replace(' instead', '');
             effText = adverb + effText + ' instead';
+        } else if (effText.endsWith(' instead{OMIT_TARGET}')) {
+            effText = effText.replace(' instead{OMIT_TARGET}', '');
+            effText = adverb + effText + ' instead{OMIT_TARGET}';
         } else if (effText.startsWith('force {TARGET} to ')) {
             effText = effText.replace('force {TARGET} to ', `force {TARGET} to ${adverb}`);
         } else {
@@ -364,8 +365,14 @@ export function formatPayload(eff, formatCtx) {
         }
     }
 
-    if (suffix && eff.type !== 'SUMMON') {
-        effText += suffix;
+    if (suffix) {
+        if (effText.endsWith(' instead')) {
+            effText = effText.replace(' instead', suffix + ' instead');
+        } else if (effText.endsWith(' instead{OMIT_TARGET}')) {
+            effText = effText.replace(' instead{OMIT_TARGET}', suffix + ' instead{OMIT_TARGET}');
+        } else {
+            effText += suffix;
+        }
     }
 
     let resolved = resolveTokens(effText, formatCtx);
