@@ -193,7 +193,7 @@ export function getEntityAvailableActions(state, playerId, entityId) {
     if (!entity) return actions;
 
     const hasBlockAct = hasEngineFlag(state, entity, 'BLOCK_ACT');
-    const hasBlockAttack = hasEngineFlag(state, entity, 'BLOCK_ATTACK') || hasBlockAct;
+    const hasBlockAttack = hasEngineFlag(state, entity, 'BLOCK_ATTACK');
 
     // Native Attack Check
     if (entity.strength !== undefined && entity.strength !== null) {
@@ -217,6 +217,8 @@ export function getEntityAvailableActions(state, playerId, entityId) {
             if (ab.trigger === 'MANUAL') {
                 const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
                 if (isAttack) return; // Skip old manual attack abilities to avoid duplicates
+                
+                if (hasBlockAct) return;
 
                 const cost = ab.cost || {};
                 let canAfford = true;
