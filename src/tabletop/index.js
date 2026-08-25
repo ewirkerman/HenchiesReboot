@@ -217,7 +217,6 @@ document.getElementById('send-challenge-btn').addEventListener('click', (e) => h
 document.getElementById('overlay-sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
 document.getElementById('overlay-sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
 document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
-document.getElementById('undo-action-btn').addEventListener('click', handleUndo);
 
 document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;

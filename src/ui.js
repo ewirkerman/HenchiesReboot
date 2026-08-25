@@ -327,7 +327,7 @@
                   };
 
                   const actBlock = checkBlock('BLOCK_ACT');
-                  const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+                  const attackBlock = checkBlock('BLOCK_ATTACK');
 
                   if (isAttack && attackBlock) {
                       isUsable = false;

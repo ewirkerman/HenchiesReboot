@@ -44,6 +44,7 @@ function isPlayUnsafe(card, chosenAbilityId) {
 
 export async function executeAndLogAbility(entityId, abilityId, targetId, targetLine) {
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const entity = getEntityRef(entityId);
     
     const ability = entity?.abilities?.find(a => a.abilityId === abilityId);
@@ -88,6 +89,7 @@ export async function handleSacrificeConfirm() {
 export async function handleSacrificeDecision(option, cardId = null) {
     if (!ClientState.isMyTurn()) return;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const actionPayload = { type: 'SACRIFICE_DECISION', option, cardId, actionIndex: ClientState.gameState.actionIndex, isUnsafe: false };
     executeSacrificeDecision(ClientState.gameState, option, cardId);
     ClientState.selectedCardId = null;
@@ -98,12 +100,15 @@ export async function handleSacrificeDecision(option, cardId = null) {
 export async function handleEndTurn() {
     if (!ClientState.isMyTurn()) return;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const actionPayload = { type: 'END_TURN', actionIndex: ClientState.gameState.actionIndex, isUnsafe: true };
     endTurn(ClientState.gameState);
     const snapshot = JSON.stringify(ClientState.gameState);
     await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, ClientState.gameState.history_log);
     updateUI();
 }
+
+let isProcessingUndo = false;
 
 export async function handleUndo() {
     console.log("[UNDO] Button clicked! State checks:", {
@@ -113,8 +118,8 @@ export async function handleUndo() {
         lastSafeUndoIndex: ClientState.lastSafeUndoIndex
     });
 
-    if (!ClientState.isMyTurn()) {
-        console.warn("[UNDO] Aborted: Not your turn.");
+    if (!ClientState.isMyTurn() || isProcessingUndo) {
+        console.warn("[UNDO] Aborted: Not your turn or already processing.");
         return;
     }
     
@@ -131,6 +136,7 @@ export async function handleUndo() {
         return;
     }
 
+    isProcessingUndo = true;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     
     const actionPayload = { 
@@ -144,6 +150,7 @@ export async function handleUndo() {
     showToast('Rewinding action...', 'info');
     
     await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
+    isProcessingUndo = false;
 }
 
 export async function handleRestartMatch() {
@@ -203,6 +210,7 @@ export async function handleForfeitInGame() {
     if (!confirm("Are you sure you want to forfeit this match?")) return;
     
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const actionPayload = { 
         type: 'FORFEIT', 
         playerId: ClientState.localPlayerRole,
@@ -251,6 +259,7 @@ window.handleEntityClick = async (prefix, line, entityId) => {
                 console.log(`[UI] Executing targeted play for card ${ClientState.pendingAbility.entityId} onto target ${entityId}`);
                 
                 ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+                ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
                 const card = getEntityRef(ClientState.pendingAbility.entityId);
                 
                 ClientState.gameState._irreversibleActionOccurred = false;
@@ -420,6 +429,7 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     window.closeUnitActionModal();
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const card = getEntityRef(cardId);
     
     ClientState.gameState._irreversibleActionOccurred = false;
@@ -471,6 +481,7 @@ window.handleHandCardClick = async (cardId) => {
               }
 
               ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+              ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
               const card = getEntityRef(ClientState.pendingAbility.entityId);
               
               ClientState.gameState._irreversibleActionOccurred = false;
