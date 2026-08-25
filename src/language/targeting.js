@@ -9,6 +9,16 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
     if (!qt) return isPlural ? 'targets' : 'target';
     
     let isCardZone = qt && qt.zones && qt.zones.length > 0 && qt.zones.every(z => ['HAND', 'DECK', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'].includes(z));
+    
+    // Robustly match the implied zone (case-insensitive) to suppress redundant location text
+    let matchesImpliedZone = false;
+    if (allHaveSameImpliedZone && impliedZone && qt && qt.zones) {
+        matchesImpliedZone = qt.zones.some(z => String(z).toUpperCase() === impliedZone);
+    }
+    
+    if (matchesImpliedZone) {
+        isCardZone = false; // Prevents forcing "card" suffix if the verb implies a physical unit
+    }
 
     let adjectives = [];
     let suffixes = [];
@@ -63,9 +73,8 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             } else if (checkAttr === 'isAttacking') {
                 let isTrue = String(node.value).toLowerCase() === 'true';
                 if (node.operator === '!=') isTrue = !isTrue; 
-                let verb = isTrue ? `the attacker` : `the defender`;
-                if (ctx === 'EVAL_TARGET') attackingState = `as ${verb}`;
-                else suffixes.push(`where ${contextSubject}is ${verb}`);
+                if (isTrue) suffixes.push(`where the event is an attack`);
+                else suffixes.push(`where the event is not an attack`);
             } else if (checkAttr === 'eventAbility') {
                 if (node.operator === '==') suffixes.push(`where the event ability is '${node.value}'`);
                 else suffixes.push(`where the event ability is not '${node.value}'`);
@@ -198,7 +207,7 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
 
     let baseDesc = `${adjectivesStr} ${noun}`.trim();
 
-    if (!(allHaveSameImpliedZone && qt.zones && qt.zones.length === 1 && qt.zones[0] === impliedZone)) {
+    if (!matchesImpliedZone) {
         let mappedZones = (qt.zones || []).map(z => {
             let zl = z.toLowerCase();
             if (zl === 'field') return 'on the field';

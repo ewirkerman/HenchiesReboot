@@ -1,4 +1,5 @@
 import { ClientState } from './client_state.js';
+import { updateUI } from './renderer.js';
 import { renderCardHTML, showToast, openInspectionModal } from '../ui.js';
 
 window.toggleActionLog = () => {
@@ -91,11 +92,15 @@ window.handleZoneCardClick = (prefix, zone, cardId) => {
 };
 
 window.openActionModal = (entityId, entityName, actions, isHand = false) => {
+    ClientState.activeMenuEntityId = entityId;
+    updateUI();
     const menu = document.querySelector('unit-action-modal');
     if (menu) menu.open(entityId, entityName, actions, isHand);
 };
 
 window.closeUnitActionModal = () => {
+    ClientState.activeMenuEntityId = null;
+    updateUI();
     const menu = document.querySelector('unit-action-modal');
     if (menu) menu.close();
 };

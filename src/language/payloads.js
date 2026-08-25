@@ -18,21 +18,16 @@ export function processTargetGroups(ability, ctx) {
     targetGroups.forEach((group, gIdx) => {
         if (!group.payloads || group.payloads.length === 0) return;
 
-        let allHaveSameImpliedZone = group.payloads.length > 0;
+        // Simplify: The primary action verb dictates the implied zone context.
         let impliedZone = null;
-        for (const p of group.payloads) {
-            let z = null;
-            const manifest = ACTION_MANIFEST[p.type];
-            if (manifest) {
-                if (manifest.endZone && manifest.endZone.length === 1) z = manifest.endZone[0];
-                else if (Array.isArray(manifest.validZones) && manifest.validZones.length === 1) z = manifest.validZones[0];
-            }
-            if (!z && ['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK'].includes(p.type)) z = 'FIELD';
+        const primaryType = group.payloads[0].type;
+        
+        if (['REVIVE', 'RECOVER'].includes(primaryType)) impliedZone = 'DISCARD';
+        else if (['DRAW_CARD', 'MILL'].includes(primaryType)) impliedZone = 'DECK';
+        else if (['DISCARD', 'DISCARD_CARD'].includes(primaryType)) impliedZone = 'HAND';
+        else if (['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK', 'TRASH', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(primaryType)) impliedZone = 'FIELD';
 
-            if (!z) { allHaveSameImpliedZone = false; break; }
-            if (!impliedZone) impliedZone = z;
-            else if (impliedZone !== z) { allHaveSameImpliedZone = false; break; }
-        }
+        let allHaveSameImpliedZone = impliedZone !== null;
 
         let targetStr = 'them';
         let possessiveStr = 'their';
@@ -99,8 +94,9 @@ export function processTargetGroups(ability, ctx) {
                 isPlural = /(allies|enemies|cards|characters|entities|all\b)/i.test(globalTargetNoun) || globalTargetNoun.endsWith('s');
                 possessiveStr = `${targetStr}'s`;
             } else if (actMethod === 'PLAYER_CHOICE') {
-                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, true, 'FIELD', false, allTribes, allAbilities);
-                targetStr = `a chosen ${actDesc}`;
+                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities);
+                let article = /^[aeiou]/i.test(actDesc) ? 'an' : 'a';
+                targetStr = `${article} ${actDesc}`;
                 possessiveStr = `${targetStr}'s`;
             } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
                 targetStr = 'this card';

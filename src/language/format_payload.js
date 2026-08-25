@@ -57,6 +57,11 @@ export function formatPayload(eff, formatCtx) {
         case 'DISCARD_CARD':
             effText = `discard {TARGET}`; 
             break;
+        case 'MILL':
+            if (eff.amountIsX) effText = `mill X cards{OMIT_TARGET}`;
+            else if (eff.amount > 1) effText = `mill ${eff.amount} cards{OMIT_TARGET}`;
+            else effText = `mill {TARGET}`;
+            break;
         case 'TRASH':
             effText = `trash {TARGET}`; 
             break;
@@ -140,7 +145,7 @@ export function formatPayload(eff, formatCtx) {
             else if (targetDest === 'BANISH') effText = `banish {TARGET} instead`;
             else effText = `move {TARGET} to ${destName} instead`;
             break;
-        case 'REBEL': effText = eff.invertRoles ? `give control of this card to {TARGET}` : `take control of {TARGET}`; break;
+        case 'REBEL': effText = eff.invertRoles ? `give control of this card to {TARGET}` : `control {TARGET}`; break;
         case 'DONATE': effText = `donate {TARGET}`; break;
         case 'MODIFY_EVENT': 
             if (eff.stat === 'amount') {

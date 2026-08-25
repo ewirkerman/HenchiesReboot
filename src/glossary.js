@@ -3,7 +3,7 @@
  * Contains all SVGs and static keyword definitions.
  */
 
-export const SVG_CLASS = "inline-block h-[1.3em] w-auto ml-0.5 align-text-bottom text-white drop-shadow-[0_1px_1px_rgba(0,0,0,1)]";
+export const SVG_CLASS = "inline-block h-[1.2em] w-auto ml-0.5 align-middle -translate-y-[0.1em] text-white drop-shadow-[0_1px_1px_rgba(0,0,0,1)]";
 export const SVG_EXHAUST = `<svg class="${SVG_CLASS}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg>`;
 export const SVG_UNREADY = `<svg class="${SVG_CLASS}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>`;
 export const SVG_FREE = `<svg class="${SVG_CLASS}" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>`;
@@ -67,6 +67,7 @@ export const SYSTEM_GLOSSARY = [
     { regex: /\bbanish(ed|es)?\b/i, id: 'sys_banish', name: 'Banish', trigger: 'ACTION', displayDescription: 'To remove a card from the game completely. It cannot be recovered.' },
     { regex: /\btrash(ed|es)?\b/i, id: 'sys_trash', name: 'Trash', trigger: 'ACTION', displayDescription: 'To move a card from the field, hand, or deck to the discard pile.' },
     { regex: /\brecover(ed|s)?\b/i, id: 'sys_recover', name: 'Recover', trigger: 'ACTION', displayDescription: 'To return a card from the discard pile to your hand.' },
+    { regex: /\bmill(ed|s)?\b/i, id: 'sys_mill', name: 'Mill', trigger: 'ACTION', displayDescription: 'To move a card directly from a player\'s deck to their discard pile.' },
     { regex: /\bharvest(ed|s)?\b/i, id: 'sys_harvest', name: 'Harvest', trigger: 'ACTION', displayDescription: 'Sacrificing a card from your hand at the start of your turn to gain +1 Max Carnie and +1 Max Tribe Resource.' },
 
     // Stats & Combat

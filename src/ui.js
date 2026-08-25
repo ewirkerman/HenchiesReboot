@@ -32,6 +32,10 @@
       const style = document.createElement('style');
       style.id = 'raw-svg-styles';
       style.innerHTML = `
+          @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700;900&display=swap');
+          .font-roboto-condensed {
+              font-family: 'Roboto Condensed', sans-serif !important;
+          }
           .raw-user-svg-container { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
           .raw-user-svg-container svg { width: 100% !important; height: 100% !important; display: block !important; opacity: 0.9 !important; }
           .raw-user-svg-container svg, .raw-user-svg-container svg * { fill: #ffffff !important; }
@@ -189,6 +193,9 @@
     if (options.isSelected) attrs += ` is-selected="true"`;
     if (options.isTargetable) attrs += ` is-targetable="true"`;
     if (options.isCasting) attrs += ` is-casting="true"`;
+    if (options.isTargetingMode) attrs += ` is-targeting-mode="true"`;
+    if (options.isForceHover) attrs += ` is-force-hover="true"`;
+    if (options.onMouseLeave) attrs += ` onmouseleave="${options.onMouseLeave.replace(/"/g, '&quot;')}"`;
     if (options.actionState) attrs += ` action-state="${options.actionState}"`;
     if (options.readiness !== undefined && options.readiness !== null) attrs += ` readiness="${options.readiness}"`;
     if (options.onClick) attrs += ` on-click="${options.onClick.replace(/"/g, '&quot;')}"`;
@@ -254,7 +261,7 @@
                   }
                   return `${a.name}: ${rawDesc || 'System Keyword'}`;
               }).join('\n\n');
-              abilitiesHTML += `<div class="text-[10px] sm:text-[11px] font-black text-amber-300 text-center leading-tight cursor-help drop-shadow-md" title="${tooltips.replace(/"/g, '&quot;')}">${namesHtml}</div>`;
+              abilitiesHTML += `<div class="font-roboto-condensed text-[11px] leading-tight font-black text-amber-300 text-center cursor-help drop-shadow-md" title="${tooltips.replace(/"/g, '&quot;')}">${namesHtml}</div>`;
           }
       }
 
@@ -267,16 +274,37 @@
               if (!rawDesc && ab.name) rawDesc = `**${ab.name}**`;
               let desc = rawDesc;
               
+              const isSpellPlay = card.type === 'spell' && ['PLAY', 'ON_BE_PLAYED', 'ON_PLAYED'].includes(ab.trigger);
+              
+              if (isSpellPlay) {
+                  // Robustly strip PLAY:, **PLAY:**, **PLAY**: etc.
+                  desc = desc.replace(/^(?:\*\*)?PLAY(?:\*\*)?:(?:\*\*)?\s*/i, '');
+              }
+              
               const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
               const hasCost = costBadge && costBadge.trim() !== '';
               
-              if (hasCost) {
-                  const triggerMatch = desc.match(/^(\*\*[^*]+?):\*\*\s*(.*)/);
-                  if (triggerMatch) {
-                      desc = `${triggerMatch[1]} ${costBadge}:** ${triggerMatch[2]}`;
+              if (hasCost && !isSpellPlay) {
+                  // Find the first colon to split the trigger name and the effect
+                  const colonIdx = desc.indexOf(':');
+                  
+                  // If there's a colon early in the string, assume it's the trigger prefix
+                  if (colonIdx !== -1 && colonIdx < 40) {
+                      let prefix = desc.substring(0, colonIdx).trim();
+                      let suffix = desc.substring(colonIdx + 1).trim();
+                      
+                      // Strip trailing asterisks on prefix and leading on suffix to ensure clean badge insertion
+                      prefix = prefix.replace(/\*\*$/, '').trim();
+                      suffix = suffix.replace(/^\*\*/, '').trim();
+                      
+                      // Re-wrap cleanly
+                      desc = `${prefix.startsWith('**') ? prefix : '**' + prefix} ${costBadge}:** ${suffix}`;
                   } else {
+                      // Fallback if no colon is found
                       desc = `**${ab.name} ${costBadge}:** ${desc}`;
                   }
+              } else if (hasCost && isSpellPlay) {
+                  desc = `${costBadge} ${desc}`;
               }
               
               const formatted = formatCardText(desc);
@@ -284,7 +312,7 @@
               if (isInspectMode) {
                   abilitiesHTML += `<div class="bg-black/40 backdrop-blur-sm p-2 rounded-lg border border-white/10 shadow-sm text-sm sm:text-base text-slate-200 text-center leading-snug px-2">${formatted}</div>`;
               } else {
-                  abilitiesHTML += `<div class="text-[9px] text-slate-200 font-bold leading-tight text-center w-full">${formatted}</div>`;
+                  abilitiesHTML += `<div class="font-roboto-condensed text-[11px] leading-tight text-slate-200 font-bold text-center w-full">${formatted}</div>`;
               }
           });
       }
@@ -327,7 +355,7 @@
                   };
 
                   const actBlock = checkBlock('BLOCK_ACT');
-                  const attackBlock = checkBlock('BLOCK_ATTACK') || actBlock;
+                  const attackBlock = checkBlock('BLOCK_ATTACK');
 
                   if (isAttack && attackBlock) {
                       isUsable = false;
@@ -379,7 +407,7 @@
                   const safeTooltip = rawDesc.replace(/"/g, '&quot;');
                   
                   abilitiesHTML += `
-                    <div class="text-[9px] ${textColorClass} font-bold leading-tight w-full cursor-help bg-black/20 rounded py-0.5 border border-white/5 flex justify-center items-center px-1" title="${safeTooltip}">
+                    <div class="font-roboto-condensed text-[11px] leading-tight ${textColorClass} font-bold w-full cursor-help bg-black/20 rounded py-0.5 border border-white/5 flex justify-center items-center px-1" title="${safeTooltip}">
                       <div class="flex items-center gap-0.5 truncate pr-1">
                           ${hourglassIcon}${iconContent}
                           <span class="truncate">${ab.name || 'Action'}</span>

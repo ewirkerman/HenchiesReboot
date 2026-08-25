@@ -44,6 +44,7 @@ function isPlayUnsafe(card, chosenAbilityId) {
 
 export async function executeAndLogAbility(entityId, abilityId, targetId, targetLine) {
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const entity = getEntityRef(entityId);
     
     const ability = entity?.abilities?.find(a => a.abilityId === abilityId);
@@ -88,6 +89,7 @@ export async function handleSacrificeConfirm() {
 export async function handleSacrificeDecision(option, cardId = null) {
     if (!ClientState.isMyTurn()) return;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const actionPayload = { type: 'SACRIFICE_DECISION', option, cardId, actionIndex: ClientState.gameState.actionIndex, isUnsafe: false };
     executeSacrificeDecision(ClientState.gameState, option, cardId);
     ClientState.selectedCardId = null;
@@ -98,12 +100,15 @@ export async function handleSacrificeDecision(option, cardId = null) {
 export async function handleEndTurn() {
     if (!ClientState.isMyTurn()) return;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const actionPayload = { type: 'END_TURN', actionIndex: ClientState.gameState.actionIndex, isUnsafe: true };
     endTurn(ClientState.gameState);
     const snapshot = JSON.stringify(ClientState.gameState);
     await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, ClientState.gameState.history_log);
     updateUI();
 }
+
+let isProcessingUndo = false;
 
 export async function handleUndo() {
     console.log("[UNDO] Button clicked! State checks:", {
@@ -113,8 +118,8 @@ export async function handleUndo() {
         lastSafeUndoIndex: ClientState.lastSafeUndoIndex
     });
 
-    if (!ClientState.isMyTurn()) {
-        console.warn("[UNDO] Aborted: Not your turn.");
+    if (!ClientState.isMyTurn() || isProcessingUndo) {
+        console.warn("[UNDO] Aborted: Not your turn or already processing.");
         return;
     }
     
@@ -131,6 +136,7 @@ export async function handleUndo() {
         return;
     }
 
+    isProcessingUndo = true;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     
     const actionPayload = { 
@@ -144,6 +150,7 @@ export async function handleUndo() {
     showToast('Rewinding action...', 'info');
     
     await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
+    isProcessingUndo = false;
 }
 
 export async function handleRestartMatch() {
@@ -203,6 +210,7 @@ export async function handleForfeitInGame() {
     if (!confirm("Are you sure you want to forfeit this match?")) return;
     
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const actionPayload = { 
         type: 'FORFEIT', 
         playerId: ClientState.localPlayerRole,
@@ -216,10 +224,11 @@ export async function handleForfeitInGame() {
 window.handleForfeitInGame = handleForfeitInGame;
 
 window.handleLineClick = async (clickedPrefix, line) => {
-    if (window._isDragging) return;
+    if (window._isDragging || window._blockClick) return;
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     if (ClientState.pendingAbility) {
         showToast("Targeting cancelled.", "info");
+        window._forceHoverCardId = null;
         ClientState.pendingAbility = null;
         ClientState.validTargets = [];
         updateUI();
@@ -228,7 +237,7 @@ window.handleLineClick = async (clickedPrefix, line) => {
 };
 
 window.handleEntityClick = async (prefix, line, entityId) => {
-    if (window._isDragging) return;
+    if (window._isDragging || window._blockClick) return;
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     
     if (!ClientState.isMyTurn()) {
@@ -251,6 +260,7 @@ window.handleEntityClick = async (prefix, line, entityId) => {
                 console.log(`[UI] Executing targeted play for card ${ClientState.pendingAbility.entityId} onto target ${entityId}`);
                 
                 ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+                ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
                 const card = getEntityRef(ClientState.pendingAbility.entityId);
                 
                 ClientState.gameState._irreversibleActionOccurred = false;
@@ -287,6 +297,8 @@ window.handleEntityClick = async (prefix, line, entityId) => {
             return;
         } else {
             showToast("Targeting cancelled.", "info");
+            if (entityId === ClientState.pendingAbility.entityId) window._forceHoverCardId = entityId;
+            else window._forceHoverCardId = null;
             ClientState.pendingAbility = null;
             ClientState.validTargets = [];
             updateUI();
@@ -420,6 +432,7 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     window.closeUnitActionModal();
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+    ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     const card = getEntityRef(cardId);
     
     ClientState.gameState._irreversibleActionOccurred = false;
@@ -449,7 +462,7 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
 };
 
 window.handleHandCardClick = async (cardId) => {
-  if (window._isDragging) return;
+  if (window._isDragging || window._blockClick) return;
   if (typeof event !== 'undefined' && event) event.stopPropagation();
   if (!ClientState.isMyTurn()) return;
 
@@ -471,6 +484,7 @@ window.handleHandCardClick = async (cardId) => {
               }
 
               ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+              ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
               const card = getEntityRef(ClientState.pendingAbility.entityId);
               
               ClientState.gameState._irreversibleActionOccurred = false;
@@ -507,6 +521,8 @@ window.handleHandCardClick = async (cardId) => {
           return;
       } else {
           showToast("Targeting cancelled.", "info");
+          if (cardId === ClientState.pendingAbility.entityId) window._forceHoverCardId = cardId;
+          else window._forceHoverCardId = null;
           ClientState.pendingAbility = null;
           ClientState.validTargets = [];
           updateUI();
@@ -631,11 +647,15 @@ window.handleHandCardClick = async (cardId) => {
 };
 
 window.openActionModal = (entityId, entityName, actions, isHand = false) => {
+    ClientState.activeMenuEntityId = entityId;
+    updateUI();
     const menu = document.querySelector('unit-action-modal');
     if (menu) menu.open(entityId, entityName, actions, isHand);
 };
 
 window.closeUnitActionModal = () => {
+    ClientState.activeMenuEntityId = null;
+    updateUI();
     const menu = document.querySelector('unit-action-modal');
     if (menu) menu.close();
 };
@@ -782,37 +802,25 @@ window.addEventListener('mousemove', e => {
 
             dState.dragging = true;
             window._isDragging = true;
+            window._dragCardId = dState.cardId;
+            window._dragTargets = dState.targets;
             
             if (ClientState.pendingAbility) {
                 ClientState.pendingAbility = null; ClientState.validTargets = []; 
             }
 
-            updateUI(); // Hide the affordance glows FIRST so DOM is fresh
+            updateUI(); // Renders the casting/target states dynamically
 
-            // Refresh the source card reference since updateUI rebuilt the DOM
+            // Refresh the source card reference and RECT so the tether perfectly tracks the raised card
             dState.gc = document.querySelector(`game-card[data-instance-id="${dState.cardId}"]`);
-
             if (dState.gc && dState.gc.firstElementChild) {
-                dState.gc.firstElementChild.classList.add('ring-4', 'ring-fuchsia-500', 'shadow-[0_0_25px_rgba(217,70,239,0.8)]', 'scale-105', 'z-30');
+                dState.rect = dState.gc.firstElementChild.getBoundingClientRect();
             }
 
             document.getElementById('drag-tether-overlay').classList.remove('hidden');
 
             if (dState.type === 'PLAY_BOARD') {
                 document.getElementById('player-board').classList.add('ring-4', 'ring-cyan-400', 'shadow-[0_0_30px_rgba(34,211,238,0.5)]');
-            } else {
-                dState.targets.forEach(tid => {
-                    const el = document.querySelector(`game-card[data-instance-id="${tid}"]`);
-                    const inner = el ? el.firstElementChild : null;
-                    if (inner) {
-                        const isNano = el.getAttribute('size') === 'nano';
-                        if (isNano) {
-                            inner.classList.add('ring-2', 'ring-cyan-400', 'shadow-[0_0_15px_rgba(34,211,238,0.6)]');
-                        } else {
-                            inner.classList.add('ring-4', 'ring-cyan-400', 'shadow-[0_0_20px_rgba(34,211,238,0.6)]');
-                        }
-                    }
-                });
             }
         }
     }
@@ -855,10 +863,12 @@ window.addEventListener('mousemove', e => {
 
 window.addEventListener('mouseup', e => {
     if (dState.dragging) {
+        let executed = false;
         if (dState.type === 'PLAY_BOARD') {
             const handWrapper = document.getElementById('player-hand-wrapper').getBoundingClientRect();
             if (e.clientY < handWrapper.top) {
                 window.executeNormalPlay(dState.cardId);
+                executed = true;
             }
         } else if (dState.type === 'ATTACK' || dState.type === 'PLAY_TARGET') {
             let hitTarget = null;
@@ -876,32 +886,36 @@ window.addEventListener('mouseup', e => {
                     const lineDiv = tgc.closest('[id^="opp-line-"], [id^="player-line-"]');
                     const line = lineDiv ? lineDiv.id.split('-').pop() : 'mid';
                     executeAndLogAbility(dState.cardId, dState.abilityId, hitTarget, line);
+                    executed = true;
                 } else if (dState.type === 'PLAY_TARGET') {
                     window.executeNormalPlay(dState.cardId, dState.abilityId, hitTarget);
+                    executed = true;
                 }
             }
+        }
+
+        if (!executed && dState.rect && e.clientX >= dState.rect.left && e.clientX <= dState.rect.right && e.clientY >= dState.rect.top && e.clientY <= dState.rect.bottom) {
+            window._forceHoverCardId = dState.cardId;
+        } else {
+            window._forceHoverCardId = null;
         }
 
         document.getElementById('drag-tether-overlay').classList.add('hidden');
         document.getElementById('player-board').classList.remove('ring-4', 'ring-cyan-400', 'ring-amber-400', 'shadow-[0_0_30px_rgba(34,211,238,0.5)]');
         
-        if (dState.gc && dState.gc.firstElementChild) {
-            dState.gc.firstElementChild.classList.remove('ring-4', 'ring-fuchsia-500', 'shadow-[0_0_25px_rgba(217,70,239,0.8)]', 'scale-105', 'z-30');
-        }
-        
-        dState.targets.forEach(tid => {
-            const tgc = document.querySelector(`game-card[data-instance-id="${tid}"] > div`);
-            if (tgc) {
-                tgc.classList.remove('ring-4', 'ring-2', 'ring-cyan-400', 'ring-amber-400', 'shadow-[0_0_20px_rgba(34,211,238,0.6)]', 'shadow-[0_0_15px_rgba(34,211,238,0.6)]');
-            }
-        });
+        window._isDragging = false;
+        window._dragCardId = null;
+        window._dragTargets = [];
+        window._blockClick = true;
+        updateUI();
         
         setTimeout(() => {
-            window._isDragging = false;
-            updateUI();
+            window._blockClick = false;
         }, 50);
     } else {
         window._isDragging = false;
+        window._dragCardId = null;
+        window._dragTargets = [];
     }
 
     dState.down = false; dState.dragging = false; dState.type = null; dState.targets = []; dState.hoveredTarget = null;

@@ -205,6 +205,7 @@ export function updateUI() {
       tickerBox.innerHTML = typeof lastMsg === 'string' ? lastMsg : lastMsg.text;
     }
 }
+window.updateUI = updateUI;
 
 function getHandActionCount(player, c) {
     if (!ClientState.isMyTurn() || ClientState.gameState.turnPhase !== 'ACTION_PHASE') return 0;
@@ -311,8 +312,8 @@ function renderEquator(equatorItems) {
 
     container.innerHTML = equatorItems.map((item, idx) => {
       const json = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
-      const isCasting = ClientState.pendingAbility && ClientState.pendingAbility.entityId === item.instanceId;
-      const isTargetable = ClientState.validTargets.some(t => t.id === item.instanceId);
+      const isCasting = (ClientState.pendingAbility && ClientState.pendingAbility.entityId === item.instanceId) || ClientState.activeMenuEntityId === item.instanceId || (window._isDragging && window._dragCardId === item.instanceId);
+      const isTargetable = (ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === item.instanceId)) || (window._isDragging && window._dragTargets && window._dragTargets.includes(item.instanceId));
 
       let actionState = 'none';
       if (ClientState.gameState.turnPhase === 'ACTION_PHASE' && ClientState.isMyTurn() && !ClientState.pendingAbility && !window._isDragging) {
@@ -361,7 +362,10 @@ function renderDeckAndDiscard(player, prefix) {
         const json = encodeURIComponent(JSON.stringify(topCard)).replace(/'/g, "%27");
         
         let targetHighlight = '';
-        if (ClientState.pendingAbility && ClientState.validTargets.some(t => t.line === 'discard' && t.playerId === player.id)) {
+        const hasDiscardTarget = (ClientState.pendingAbility && ClientState.validTargets.some(t => t.line === 'discard' && t.playerId === player.id)) || 
+                                 (window._isDragging && window._dragTargets && window._dragTargets.some(tid => player.discard.some(c => c.instanceId === tid || c.id === tid)));
+        
+        if (hasDiscardTarget) {
             targetHighlight = 'ring-2 ring-cyan-400 animate-pulse z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]';
         }
 
@@ -433,8 +437,8 @@ function renderPlayerBattlelines(player, prefix) {
 
       const cardsHtml = units.map(u => {
         const json = encodeURIComponent(JSON.stringify(u)).replace(/'/g, "%27");
-        const isCasting = ClientState.pendingAbility && ClientState.pendingAbility.entityId === u.instanceId;
-        const isTargetable = ClientState.validTargets.some(t => t.id === u.instanceId);
+        const isCasting = (ClientState.pendingAbility && ClientState.pendingAbility.entityId === u.instanceId) || ClientState.activeMenuEntityId === u.instanceId || (window._isDragging && window._dragCardId === u.instanceId);
+        const isTargetable = (ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === u.instanceId)) || (window._isDragging && window._dragTargets && window._dragTargets.includes(u.instanceId));
 
         let actionState = 'none';
         if (isLocalPlayer && ClientState.gameState.turnPhase === 'ACTION_PHASE' && ClientState.isMyTurn() && !ClientState.pendingAbility && !window._isDragging) {
@@ -463,6 +467,8 @@ function renderPlayerBattlelines(player, prefix) {
 function renderHand(handCards) {
     const container = document.getElementById('player-hand-container');
     document.getElementById('hand-card-count').innerText = handCards.length;
+    
+    const isTargetingMode = !!ClientState.pendingAbility || window._isDragging;
 
     if (handCards.length === 0) {
       container.className = 'flex flex-wrap justify-center gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[64px] items-start transition-all duration-300';
@@ -481,9 +487,10 @@ function renderHand(handCards) {
       const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
       const cardRefId = c.instanceId || c.id;
       const isSelected = ClientState.selectedCardId === cardRefId;
-      const isCasting = ClientState.pendingAbility && ClientState.pendingAbility.entityId === cardRefId;
+      const isCasting = (ClientState.pendingAbility && ClientState.pendingAbility.entityId === cardRefId) || ClientState.activeMenuEntityId === cardRefId || (window._isDragging && window._dragCardId === cardRefId);
       const playable = ClientState.gameState.turnPhase === 'ACTION_PHASE' ? canPlayCard(ClientState.gameState, ClientState.localPlayerRole, c).success : false;
-      const isTargetable = ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === cardRefId);
+      const isTargetable = (ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === cardRefId)) || (window._isDragging && window._dragTargets && window._dragTargets.includes(cardRefId));
+      const isForceHover = window._forceHoverCardId === cardRefId;
 
       let actionState = 'none';
       if (ClientState.isMyTurn() && ClientState.gameState.turnPhase === 'ACTION_PHASE' && !ClientState.pendingAbility && !window._isDragging) {
@@ -492,22 +499,40 @@ function renderHand(handCards) {
           else if (count > 1) actionState = 'multiple';
       }
 
-      const overlapClass = isCrowded 
-          ? `relative ${idx > 0 ? '-ml-12 sm:-ml-16' : ''} hover:z-[100] hover:mr-12 sm:hover:mr-16 transition-all` 
-          : 'relative hover:z-[100] transition-all';
-
       const cardHtml = renderCardHTML(c, {
         isHand: true,
         isSelected: isSelected,
         isCasting: isCasting,
         isTargetable: isTargetable,
+        isTargetingMode: isTargetingMode,
+        isForceHover: isForceHover,
         actionState: actionState,
         isPlayable: playable,
+        onMouseLeave: isForceHover ? `window._forceHoverCardId = null; window.updateUI();` : null,
         onClick: `window.handleHandCardClick('${cardRefId}')`,
         onInspect: `window.inspectCard('${json}', true)`,
         abilityUses: ClientState.gameState?.abilityUses || {}
       });
 
-      return isCrowded ? `<div class="${overlapClass}" style="z-index: ${10+idx}">${cardHtml}</div>` : cardHtml;
+      let overlapClass = '';
+      let wrapperZ = 10 + idx;
+      
+      if (isCrowded) {
+          overlapClass = `relative ${idx > 0 ? '-ml-12 sm:-ml-16' : ''}`;
+          
+          if (isCasting || isSelected) {
+              overlapClass += ' mr-12 sm:mr-16 !z-[110]';
+              wrapperZ = 110;
+          } else if (isForceHover) {
+              overlapClass += ' mr-12 sm:mr-16 hover:!z-[100]';
+              wrapperZ = 100;
+          } else {
+              if (!isTargetingMode || isTargetable) {
+                  overlapClass += ' hover:mr-12 sm:hover:mr-16 hover:!z-[100]';
+              }
+          }
+      }
+
+      return isCrowded ? `<div class="${overlapClass}" style="z-index: ${wrapperZ}">${cardHtml}</div>` : cardHtml;
     }).join('');
 }

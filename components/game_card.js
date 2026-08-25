@@ -10,7 +10,7 @@ export class GameCard extends HTMLElement {
     }
 
     static get observedAttributes() { 
-        return ['card-data', 'size', 'is-hand', 'is-selected', 'is-targetable', 'is-casting', 'action-state', 'readiness', 'ability-uses']; 
+        return ['card-data', 'size', 'is-hand', 'is-selected', 'is-targetable', 'is-casting', 'action-state', 'readiness', 'ability-uses', 'is-targeting-mode', 'is-force-hover']; 
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
@@ -34,6 +34,8 @@ export class GameCard extends HTMLElement {
         const isSelected = this.getAttribute('is-selected') === 'true';
         const isTargetable = this.getAttribute('is-targetable') === 'true';
         const isCasting = this.getAttribute('is-casting') === 'true';
+        const isTargetingMode = this.getAttribute('is-targeting-mode') === 'true';
+        const isForceHover = this.getAttribute('is-force-hover') === 'true';
         const actionState = this.getAttribute('action-state');
         
         const readinessAttr = this.getAttribute('readiness');
@@ -92,6 +94,12 @@ export class GameCard extends HTMLElement {
             stateClasses = isNano ? 'ring-2 ring-cyan-400 z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : 'ring-4 ring-cyan-400 z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]';
         } else if (isSelected) {
             stateClasses = isNano ? 'ring-2 ring-yellow-400 scale-105 z-20' : 'ring-4 ring-yellow-400 scale-105 z-20';
+        } else if (isForceHover && actionState === 'single') {
+            stateClasses = 'ring-2 ring-blue-300 shadow-[0_0_15px_rgba(96,165,250,0.6)] z-10 cursor-pointer scale-105';
+        } else if (isForceHover && actionState === 'multiple') {
+            stateClasses = 'ring-2 ring-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.6)] z-10 cursor-pointer scale-105';
+        } else if (isForceHover) {
+            stateClasses = 'scale-105 z-10 cursor-pointer';
         } else if (actionState === 'single') {
             stateClasses = 'ring-2 ring-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.6)] z-10 cursor-pointer hover:ring-blue-300 hover:scale-105';
         } else if (actionState === 'multiple') {
@@ -211,7 +219,8 @@ export class GameCard extends HTMLElement {
             isAvatar, card, hasReadiness, readiness, showBottomStats, hasStrength, showHealth,
             displayHealth, overlayHTML, inspectButton, hasArmor, isToken, separatorClass,
             bgArtUrl, bgArtStyle, abilitiesHTML, isTempLine, activeLine, readinessBadge,
-            attachmentsBadge, fastBadge, isHand, isUnit
+            attachmentsBadge, fastBadge, isHand, isUnit, isCasting, isSelected,
+            isTargetable, isTargetingMode, isForceHover
         };
 
         if (isNano) {

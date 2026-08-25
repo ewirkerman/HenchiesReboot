@@ -1,12 +1,16 @@
 import { getIconSvg, getLineIconSvg, CARD_BASE_CLASSES } from '../src/ui.js';
 
 export function renderStandard(ctx) {
+  const handHoverClass = (ctx.isHand && (!ctx.isTargetingMode || ctx.isTargetable) && !ctx.isCasting && !ctx.isSelected) ? 'hover:-translate-y-6 hover:!z-[100]' : '';
+  const handCastingClass = (ctx.isHand && (ctx.isCasting || ctx.isSelected)) ? '-translate-y-6 !z-[110]' : '';
+  const forceHoverClass = ctx.isForceHover ? '-translate-y-6 !z-[100]' : '';
+
   return `
     <div 
       onclick="${ctx.onClick}"
       ${ctx.rightClickAttr}
       title="${ctx.safeTooltip}"
-      class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} cursor-pointer transition-all duration-200 flex flex-col select-none overflow-hidden ${ctx.hiddenClass} ${ctx.isHand ? 'hover:-translate-y-6' : ''}"
+      class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} cursor-pointer transition-all duration-200 flex flex-col select-none overflow-hidden ${ctx.hiddenClass} ${handHoverClass} ${handCastingClass} ${forceHoverClass}"
       style="${ctx.hexBg} ${ctx.dynamicBorderStyle}"
     >
       <div class="absolute inset-0 opacity-10 mix-blend-overlay ${ctx.fieldDimmingClass}"></div>

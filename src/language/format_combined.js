@@ -105,10 +105,23 @@ export function formatCombinedPayloads(effs, formatCtx) {
         let formatted = effs.map(e => formatPayload(e, formatCtx));
         formatted = [...new Set(formatted)];
         let joined = '';
-        if (formatted[0] === 'Instead') {
-            joined = formatted.length > 1 ? formatted[0] + ', ' + formatted.slice(1).join(', then ') : formatted[0];
+        
+        let parts = formatted.map((f, i) => i > 0 && f !== 'Instead' ? f.charAt(0).toLowerCase() + f.slice(1) : f);
+
+        if (parts[0] === 'Instead') {
+            if (parts.length === 1) joined = parts[0];
+            else if (parts.length === 2) joined = parts[0] + ', ' + parts[1];
+            else {
+                const last = parts.pop();
+                joined = parts[0] + ', ' + parts.slice(1).join(', ') + ', then ' + last;
+            }
         } else {
-            joined = formatted.join(', then ');
+            if (parts.length === 1) joined = parts[0];
+            else if (parts.length === 2) joined = parts[0] + ', then ' + parts[1];
+            else {
+                const last = parts.pop();
+                joined = parts.join(', ') + ', then ' + last;
+            }
         }
         return joined;
     }

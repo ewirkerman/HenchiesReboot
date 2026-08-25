@@ -48,10 +48,22 @@ export function finalizeString(arr, isCost, formatCtx) {
     if (isCost) {
         combined = joinWithAnd(arr);
     } else {
-        if (arr[0] === 'Instead') {
-            combined = arr.length > 1 ? arr[0] + ', ' + arr.slice(1).join(', then ') : arr[0];
+        let parts = arr.map((f, i) => i > 0 && f !== 'Instead' ? f.charAt(0).toLowerCase() + f.slice(1) : f);
+
+        if (parts[0] === 'Instead') {
+            if (parts.length === 1) combined = parts[0];
+            else if (parts.length === 2) combined = parts[0] + ', ' + parts[1];
+            else {
+                const last = parts.pop();
+                combined = parts[0] + ', ' + parts.slice(1).join(', ') + ', then ' + last;
+            }
         } else {
-            combined = arr.join(', then ');
+            if (parts.length === 1) combined = parts[0];
+            else if (parts.length === 2) combined = parts[0] + ', then ' + parts[1];
+            else {
+                const last = parts.pop();
+                combined = parts.join(', ') + ', then ' + last;
+            }
         }
     }
     
