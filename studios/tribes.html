@@ -13,7 +13,6 @@
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans select-none overflow-x-hidden">
-  
   <div id="toast-container" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center"></div>
 
   <main-nav active-page="tribe_studio" subtitle="Tribe & Identity Studio"></main-nav>
@@ -153,7 +152,7 @@
   
   <script type="module">
     import { fetchCustomTribes, saveTribeToCatalog, deleteTribeFromCatalog } from '../src/firebase.js';
-    import { showToast, renderJSONPreview, TRIBE_STYLES } from '../src/ui.js';
+    import { showToast, renderJSONPreview } from '../src/ui.js';
     import '../components/main_nav.js';
     import '../components/catalog.js'; 
     import '../components/topbar.js';
@@ -189,7 +188,6 @@
         for (const [name, styles] of Object.entries(LEGACY_TRIBES)) {
             const id = `tribe_${name.toLowerCase()}`;
             
-            // Keep existing SVG/Image if it's already in the DB during a re-seed
             let existingSvg = '';
             let existingImg = '';
             const existingTribe = allTribes.find(t => t.id === id);
@@ -223,6 +221,8 @@
             if (idx > -1) allTribes[idx] = payload;
             else allTribes.push(payload);
         }
+
+        window.StudioState.customTribesList = allTribes; // Sync State
 
         btn.innerHTML = '🌱 Seed Default Tribes (One-Time)';
         btn.disabled = false;
@@ -302,7 +302,9 @@
     init();
 
     async function init() {
+      window.StudioState = window.StudioState || {};
       allTribes = await fetchCustomTribes();
+      window.StudioState.customTribesList = allTribes; // Sync global state immediately
 
       const inputs = document.querySelectorAll('input:not(#catalog-search-input), textarea');
       inputs.forEach(el => {
@@ -378,24 +380,20 @@
         const tribe = buildTribeState();
         renderJSONPreview('json-preview-container', tribe, 'copyTribeJSON');
 
-        const svgContainer = document.getElementById('tribe-svg-large-preview');
-        if (svgContainer) {
-            if (tribe.iconSvg) {
-                svgContainer.innerHTML = `<div class="w-full h-full raw-user-svg-container overflow-hidden">${tribe.iconSvg}</div>`;
-            } else {
-                svgContainer.innerHTML = `<span class="text-slate-600 text-[10px] font-bold text-center">No Icon</span>`;
-            }
-        }
-
-        TRIBE_STYLES['preview_tribe'] = {
-            bg: tribe.colorBgClass || 'bg-slate-900',
-            lightBg: tribe.colorLightBgClass || 'bg-slate-950/90',
-            border: tribe.colorBorderClass || 'border-black',
-            text: tribe.colorTextClass || 'text-slate-300',
+        // Dynamically inject the preview tribe into global state so <game-card> finds it
+        window.StudioState = window.StudioState || {};
+        window.StudioState.customTribesList = window.StudioState.customTribesList || [];
+        
+        const previewTribe = {
+            id: 'preview_tribe',
+            bgClass: tribe.colorBgClass,
+            lightBgClass: tribe.colorLightBgClass,
+            borderClass: tribe.colorBorderClass,
+            textClass: tribe.colorTextClass,
             hexBg: tribe.colorBgHex,
             hexLightBg: tribe.colorLightBgHex,
             hexBorder: tribe.colorBorderHex,
-            hexText: tribe.colorTextHex,
+            textClass: tribe.colorTextClass, // Keep textClass for backward compat
             iconSvg: tribe.iconSvg,
             bgImageUrl: tribe.bgImageUrl,
             bgImageX: tribe.bgImageX,
@@ -404,10 +402,17 @@
             name: tribe.name || 'Preview'
         };
 
+        const existingIdx = window.StudioState.customTribesList.findIndex(t => t.id === 'preview_tribe');
+        if (existingIdx > -1) {
+            window.StudioState.customTribesList[existingIdx] = previewTribe;
+        } else {
+            window.StudioState.customTribesList.push(previewTribe);
+        }
+
         const dummyCard = {
             id: 'dummy_preview',
             name: tribe.name || 'Tribe Preview',
-            tribe: 'preview_tribe',
+            tribe: 'preview_tribe', // Triggers <game-card> to use the object we just injected
             type: 'unit',
             cost: 2,
             power: 1,
@@ -447,6 +452,7 @@
         const cloudSaveSuccess = await saveTribeToCatalog(tribe);
         
         allTribes = [...allTribes.filter(t => t.id !== tribe.id), tribe];
+        window.StudioState.customTribesList = allTribes; // Sync state
         currentEditingId = tribe.id;
         
         document.getElementById('form-title').innerText = `⚡ Edit: ${tribe.name}`;
@@ -488,6 +494,7 @@
         }
         await deleteTribeFromCatalog(currentEditingId);
         allTribes = allTribes.filter(t => t.id !== currentEditingId);
+        window.StudioState.customTribesList = allTribes; // Sync state
         showToast('Tribe deleted.', 'success');
         resetForm();
         renderCatalog();

@@ -201,13 +201,16 @@ export function getEntityAvailableActions(state, playerId, entityId) {
             let currentReadiness = Number(entity.readiness);
             if (isNaN(currentReadiness)) currentReadiness = 0;
             if (currentReadiness >= 1) {
-                actions.push({
-                    type: 'ATTACK',
-                    name: 'Attack',
-                    abilityId: 'native_attack',
-                    undoable: true,
-                    cost: { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' }
-                });
+                const atkTargets = getValidAttackTargets(state, playerId, entity);
+                if (atkTargets.length > 0) {
+                    actions.push({
+                        type: 'ATTACK',
+                        name: 'Attack',
+                        abilityId: 'native_attack',
+                        undoable: true,
+                        cost: { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' }
+                    });
+                }
             }
         }
     }
@@ -272,6 +275,11 @@ export function getEntityAvailableActions(state, playerId, entityId) {
                         let currentActs = Number(entity.acts);
                         if (isNaN(currentActs)) currentActs = 0;
                         if (currentActs < 1) canAfford = false;
+                    }
+
+                    if (canAfford && ab.activation?.method === 'PLAYER_CHOICE') {
+                        const targets = getValidAbilityTargets(state, playerId, entityId, ab.abilityId);
+                        if (targets.length === 0) canAfford = false;
                     }
 
                     if (canAfford && ab.effects) {

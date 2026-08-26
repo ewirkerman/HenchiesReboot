@@ -8,6 +8,8 @@ import { updateUI } from './renderer.js';
 import { handleQueueMatch, handleAIMatch, handleSendChallenge, handleAcceptInvite, handleResumeMatch, reconstructStateFromLog } from './multiplayer.js';
 import { handleSacrificeConfirm, handleSacrificeDecision, handleEndTurn, handleUndo, handleRestartMatch } from './interactions.js';
 
+window.ClientState = ClientState;
+
 import './modals.js'; 
 import '../../components/main_nav.js';
 import '../../components/match_lobby.js';

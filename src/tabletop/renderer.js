@@ -1,7 +1,7 @@
 // filepath: src/tabletop/renderer.js
 import { ClientState } from './client_state.js';
 import { renderHistorySlider, renderCardHTML, getLineIconSvg } from '../ui.js';
-import { canPlayCard, cloneGameState, LINES, getEntityAvailableActions, resolveResourceKey } from '../engine/index.js';
+import { canPlayCard, cloneGameState, LINES, getEntityAvailableActions, resolveResourceKey, getValidAbilityTargets } from '../engine/index.js';
 
 window.scrubReplay = (step) => {
     ClientState.replayStepIndex = parseInt(step);
@@ -263,7 +263,11 @@ function getHandActionCount(player, c) {
         const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
         
         if (t === 'PLAY_OPTIONAL') {
-            return canPlay && canAffordAbility(ab.cost);
+            let hasTargets = true;
+            if (requiresTarget) {
+                hasTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, c.instanceId || c.id, ab.abilityId).length > 0;
+            }
+            return canPlay && canAffordAbility(ab.cost) && hasTargets;
         }
 
         if (t === 'MANUAL' && ab.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
@@ -303,6 +307,47 @@ function getHandActionCount(player, c) {
     return totalActs;
 }
 
+function renderAttachmentsRecursive(attachments, prefix, line, isLocalPlayer, depth = 1) {
+    if (!attachments || attachments.length === 0) return '';
+    return attachments.map((att, i) => {
+        const attJson = encodeURIComponent(JSON.stringify(att)).replace(/'/g, "%27");
+        const attIsCasting = (ClientState.pendingAbility && ClientState.pendingAbility.entityId === att.instanceId) || ClientState.activeMenuEntityId === att.instanceId || (window._isDragging && window._dragCardId === att.instanceId);
+        const attIsTargetable = (ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === att.instanceId)) || (window._isDragging && window._dragTargets && window._dragTargets.includes(att.instanceId));
+
+        let attActionState = 'none';
+        if (ClientState.gameState.turnPhase === 'ACTION_PHASE' && ClientState.isMyTurn() && !ClientState.pendingAbility && !window._isDragging) {
+            const acts = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, att.instanceId);
+            if (acts.length === 1) attActionState = 'single';
+            else if (acts.length > 1) attActionState = 'multiple';
+        }
+
+        const attCardHtml = renderCardHTML(att, {
+            readiness: att.readiness,
+            isCasting: attIsCasting,
+            isTargetable: attIsTargetable,
+            actionState: attActionState,
+            isNano: true,
+            onClick: `if(event) event.stopPropagation(); window.handleEntityClick('${prefix}', '${line}', '${att.instanceId}')`,
+            onInspect: `window.inspectCard('${attJson}')`,
+            abilityUses: ClientState.gameState?.abilityUses || {}
+        });
+
+        const nestedHtml = renderAttachmentsRecursive(att.attachments, prefix, line, isLocalPlayer, depth + 1);
+        
+        const yTranslate = depth * -6;
+        const zIndex = 20 - i + (depth * 2);
+
+        return `
+            <div class="flex flex-row items-start relative drop-shadow-md shrink-0 -ml-14 sm:-ml-16 transition-transform duration-200 hover:-translate-y-6 hover:!z-[50]" style="z-index: ${zIndex}; transform: translateY(${yTranslate}px);">
+                <div class="relative z-[30]">
+                    ${attCardHtml}
+                </div>
+                ${nestedHtml}
+            </div>
+        `;
+    }).join('');
+}
+
 function renderEquator(equatorItems) {
     const container = document.getElementById('equator-cards-container');
     if (!equatorItems || equatorItems.length === 0) {
@@ -322,16 +367,27 @@ function renderEquator(equatorItems) {
           else if (acts.length > 1) actionState = 'multiple';
       }
 
-      return renderCardHTML(item, {
+      const hostHtml = renderCardHTML(item, {
         readiness: item.readiness,
         isCasting: isCasting,
         isTargetable: isTargetable,
         actionState: actionState,
-        isMicro: true,
+        isNano: true,
         onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
         onInspect: `window.inspectCard('${json}')`,
         abilityUses: ClientState.gameState?.abilityUses || {}
       });
+
+      let attachmentsHtml = renderAttachmentsRecursive(item.attachments, 'equator', 'equator', false);
+
+      return `
+        <div class="flex flex-row items-start relative group drop-shadow-md shrink-0">
+            <div class="relative z-[30]">
+                ${hostHtml}
+            </div>
+            ${attachmentsHtml}
+        </div>
+      `;
     }).join('');
 }
 
@@ -447,17 +503,27 @@ function renderPlayerBattlelines(player, prefix) {
             else if (acts.length > 1) actionState = 'multiple';
         }
 
-        return renderCardHTML(u, {
+        const hostHtml = renderCardHTML(u, {
           readiness: u.readiness,
           isCasting: isCasting,
           isTargetable: isTargetable,
           actionState: actionState,
-          isMicro: false,
           isNano: true, // Always force nano sizing
           onClick: `window.handleEntityClick('${prefix}', '${line}', '${u.instanceId}')`,
           onInspect: `window.inspectCard('${json}')`,
           abilityUses: ClientState.gameState?.abilityUses || {}
         });
+
+        let attachmentsHtml = renderAttachmentsRecursive(u.attachments, prefix, line, isLocalPlayer);
+
+        return `
+            <div class="flex flex-row items-start relative group drop-shadow-md shrink-0">
+                <div class="relative z-[30]">
+                    ${hostHtml}
+                </div>
+                ${attachmentsHtml}
+            </div>
+        `;
       }).join('');
       
       lineEl.innerHTML = bgIcon + cardsHtml;

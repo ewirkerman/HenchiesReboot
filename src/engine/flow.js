@@ -239,7 +239,7 @@ export function canPlayCard(state, playerId, card) {
 
     if (card.abilities) {
         for (const ab of card.abilities) {
-            if (['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_BE_PLAYED', 'PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE') {
+            if (['PLAY', 'MODIFY_PLAY', 'ON_BE_PLAYED', 'PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE') {
                 const qt = ab.activation.quickTargeting;
                 if (qt && qt.zones && qt.zones.includes('FIELD')) {
                     const oppId = playerId === 'player1' ? 'player2' : 'player1';

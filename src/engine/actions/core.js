@@ -124,9 +124,9 @@ export class Action {
                     
                     t.lifetimeAbilityUses = {}; // Always clear escalating cost uses on leaves play
                     if (t.originalOwnerId && t.ownerId !== t.originalOwnerId) t.ownerId = t.originalOwnerId;
-                    if (t.maxHealth !== undefined) t.health = t.maxHealth;
-                    if (t.originalPower !== undefined) t.power = t.originalPower;
-                    if (t.originalStrength !== undefined) t.strength = t.originalStrength;
+                    if (t.maxHealth !== undefined && t.maxHealth !== null) t.health = t.maxHealth;
+                    if (t.originalPower !== undefined && t.originalPower !== null) t.power = t.originalPower;
+                    if (t.originalStrength !== undefined && t.originalStrength !== null) t.strength = t.originalStrength;
                 }
             }
 
@@ -263,7 +263,7 @@ export function moveEntity(engine, target, destPlayerId, destZone) {
     
     if (['hand', 'deck', 'back', 'front', 'mid', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'equator', 'attachment'].includes(destZone)) {
         target._isDying = false;
-        if (target.health !== undefined && target.health <= 0) {
+        if (target.health !== undefined && target.health !== null && target.health <= 0) {
             target.health = target.maxHealth || 1;
         }
     }
@@ -321,10 +321,10 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
         if (effect.stat === 'maxHealth') {
             if (effect.delta < 0) {
                 target.health = (target.health || 0) + Math.abs(effect.delta);
-            } else if (target.health > target.maxHealth) {
+            } else if (target.maxHealth !== undefined && target.maxHealth !== null && target.health > target.maxHealth) {
                 target.health = Math.max(0, target.maxHealth);
             }
-        } else if (effect.stat === 'health' && target.maxHealth !== undefined) {
+        } else if (effect.stat === 'health' && target.maxHealth !== undefined && target.maxHealth !== null) {
             target.health = Math.min(target.health, target.maxHealth);
         }
     } else if (effect.type === 'MODIFY_RESOURCE') {
@@ -363,7 +363,7 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
             if (effect.stat === 'maxHealth') {
                 if (effect.delta < 0) {
                     target.health = (target.health || 0) + Math.abs(effect.delta);
-                } else if (target.health > target.maxHealth) {
+                } else if (target.maxHealth !== undefined && target.maxHealth !== null && target.health > target.maxHealth) {
                     target.health = Math.max(0, target.maxHealth);
                 }
             }
@@ -380,7 +380,7 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
                 const revertedDelta = target[effect.stat] - oldVal;
                 if (revertedDelta > 0) {
                     target.health = (target.health || 0) + revertedDelta;
-                } else if (target.health > target.maxHealth) {
+                } else if (target.maxHealth !== undefined && target.maxHealth !== null && target.health > target.maxHealth) {
                     target.health = Math.max(0, target.maxHealth);
                 }
             }

@@ -310,7 +310,9 @@ window.handleEntityClick = async (prefix, line, entityId) => {
     if (prefix === 'player' || prefix === 'equator') {
       if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
         const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
-        if (actions.length > 0) {
+        if (actions.length === 1) {
+            window.activateAbility(entityId, actions[0].abilityId);
+        } else if (actions.length > 1) {
           let entityName = "Unknown Entity";
           if (prefix === 'equator') {
               const eq = ClientState.gameState.equator.find(i => i.instanceId === entityId);
@@ -587,13 +589,16 @@ window.handleHandCardClick = async (cardId) => {
             const t = ab.trigger || 'MANUAL';
             const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
             const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
+            const hasTargets = requiresTarget ? getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, ab.abilityId).length > 0 : true;
             
             if (t === 'PLAY_OPTIONAL') {
-                return canPlay && canAffordAbility(ab.cost);
+                return canPlay && canAffordAbility(ab.cost) && hasTargets;
             }
 
             if (t === 'MANUAL' && ab.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
                 // Hand activations don't require the card's base cost! We check base resources directly.
+                if (!hasTargets) return false;
+                
                 let rawCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
                 let rawTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
                 
@@ -635,7 +640,10 @@ window.handleHandCardClick = async (cardId) => {
                 actions.push({ type: 'ABILITY', name: ab.name, abilityId: ab.abilityId, undoable: isUndoable(ClientState.gameState, ab), cost: ab.cost });
             });
             
-            if (actions.length > 0) {
+            if (actions.length === 1) {
+                if (actions[0].type === 'PLAY') window.executeNormalPlay(cardId);
+                else window.activateHandCardAbility(cardId, actions[0].abilityId);
+            } else if (actions.length > 1) {
                 window.openActionModal(cardId, c.name, actions, true);
             } else if (!canPlay) {
                 showToast("Cannot play this card.", "error");
