@@ -79,7 +79,7 @@ export function formatCombinedPayloads(effs, formatCtx) {
         if (first.stat === 'line') {
             let changes = effs.map(eff => {
                  let amtStr = eff.amountIsX ? 'X' : eff.amount;
-                 return `[ZONE:${amtStr}]`;
+                 return `[BATTLELINE:${amtStr}]`;
             });
             if (targetStr === 'this card' || targetStr === 'self' || targetStr === 'itself') {
                 effText = `move to ${joinWithAnd(changes)}{OMIT_TARGET}`;

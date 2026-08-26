@@ -161,6 +161,14 @@ export function processTargetGroups(ability, ctx) {
         if (!allEffectSentences[0].startsWith('Instead')) {
             allEffectSentences[0] = 'Instead, ' + allEffectSentences[0];
         }
+    } else if (trigger === 'PLAY_OPTIONAL') {
+        if (allCostSentences.length > 0) {
+            const first = allCostSentences[0];
+            allCostSentences[0] = 'May ' + first.charAt(0).toLowerCase() + first.slice(1);
+        } else if (allEffectSentences.length > 0) {
+            const first = allEffectSentences[0];
+            allEffectSentences[0] = 'May ' + first.charAt(0).toLowerCase() + first.slice(1);
+        }
     }
 
     return { allCostSentences, allEffectSentences };

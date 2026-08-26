@@ -110,6 +110,10 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 if (val === 'original_deck') val = 'original deck';
                 if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'in' : `where ${contextSubject}is in`} ${val}`);
                 else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'not in' : `where ${contextSubject}is not in`} ${val}`);
+            } else if (checkAttr === 'line') {
+                let val = String(node.value).toLowerCase();
+                if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'in' : `where ${contextSubject}is in`} [BATTLELINE:${val}]`);
+                else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'not in' : `where ${contextSubject}is not in`} [BATTLELINE:${val}]`);
             } else if (checkAttr === 'customScript') {
                 if (node.description) {
                     let desc = node.description;

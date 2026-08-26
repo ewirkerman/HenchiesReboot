@@ -157,8 +157,8 @@
           return `<span class="whitespace-nowrap">${prefixHtml}<span class="font-bold ${tokenColor} uppercase">${p1}</span></span>`;
       });
 
-      // 3. Zone Token Placeholders
-      formatted = formatted.replace(/((?:(?:move|return|shuffle|draw|discard|banish|trash)\s*)?(?:to|from|in|into)?\s*)\[ZONE:([a-zA-Z_]+)\]/gi, (match, prefix, p1) => {
+      // 3. Battleline Token Placeholders
+      formatted = formatted.replace(/((?:(?:move|return|shuffle|draw|discard|banish|trash)\s*)?(?:to|from|in|into)?\s*)\[BATTLELINE:([a-zA-Z_]+)\]/gi, (match, prefix, p1) => {
           const line = p1.toLowerCase();
           const svg = getLineIconSvg(line);
           
@@ -286,7 +286,7 @@
                   // Standard composition: **Ability Name [Cost]:** Effect Text
                   const badgeStr = costBadge ? `${costBadge}` : '';
                   //<span class="font-bold [font-variant:small-caps] text-slate-300 tracking-wide mr-1">${eventName.toLowerCase()}:</span>
-                  desc = `<span class="font-bold [font-variant:small-caps] text-slate-300 tracking-wide">**${event || 'Ability'}</span>:**${badgeStr}${desc}`;
+                  desc = `<span class="font-bold [font-variant:small-caps] text-slate-300 tracking-wide">**${event || 'Ability'}</span>:**${badgeStr} ${desc}`;
               }
               
               const formatted = formatCardText(desc);

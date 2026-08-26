@@ -6,39 +6,40 @@
 import { buildTargetDesc } from './targeting.js';
 
 export function getTriggerWord(t) {
-    if (t === 'MANUAL') return '';
-    if (t === 'UNTRIGGERABLE') return 'PASSIVE';
-    if (t === 'ON_BE_ATTACHED') return 'WHILE ATTACHED';
-    if (t.includes('STARTING') || t.includes('STARTED')) return 'START';
-    if (t.includes('ENDING') || t.includes('ENDED')) return 'END';
-    if (t.includes('PLAY')) return 'PLAY';
+    if (!t || t === 'MANUAL') return '';
+    if (t === 'UNTRIGGERABLE') return 'Passive';
+    if (t === 'ON_BE_ATTACHED') return 'While Attached';
+    if (t.includes('STARTING') || t.includes('STARTED')) return 'Start';
+    if (t.includes('ENDING') || t.includes('ENDED')) return 'End';
+    if (t.includes('PLAY')) return 'Play';
 
     let isPassive = t.includes('_BE_') || t.includes('ATTACKED') || t.includes('DAMAGED') || t.includes('HEALED') || t.includes('KILLED') || t.includes('DRAWN') || t.includes('DISCARDED') || t.includes('SUMMONED');
     
     let base = '';
-    if (t.includes('ATTACK')) base = isPassive ? 'ATTACKED' : 'ATTACK';
-    else if (t.includes('DAMAGE')) base = isPassive ? 'DAMAGED' : 'DAMAGE';
-    else if (t.includes('HEAL')) base = isPassive ? 'HEALED' : 'HEAL';
-    else if (t.includes('KILL')) base = isPassive ? 'KILLED' : 'KILL';
-    else if (t.includes('DRAW')) base = isPassive ? 'DRAWN' : 'DRAW';
-    else if (t.includes('DISCARD')) base = isPassive ? 'DISCARDED' : 'DISCARD';
-    else if (t.includes('SUMMON')) base = isPassive ? 'SUMMONED' : 'SUMMON';
-    else if (t.includes('REBEL')) base = isPassive ? 'CONTROLLED' : 'CONTROL';
-    else if (t.includes('FIELD')) base = isPassive ? 'FIELDED' : 'FIELD';
-    else if (t.includes('RECOVER')) base = isPassive ? 'RECOVERED' : 'RECOVER';
-    else if (t.includes('REVIVE')) base = isPassive ? 'REVIVED' : 'REVIVE';
-    else if (t.includes('HARVEST')) base = isPassive ? 'HARVESTED' : 'HARVEST';
-    else base = t.split('_').pop();
+    if (t.includes('ATTACK')) base = isPassive ? 'Attacked' : 'Attack';
+    else if (t.includes('DAMAGE')) base = isPassive ? 'Damaged' : 'Damage';
+    else if (t.includes('HEAL')) base = isPassive ? 'Healed' : 'Heal';
+    else if (t.includes('KILL')) base = isPassive ? 'Killed' : 'Kill';
+    else if (t.includes('DRAW')) base = isPassive ? 'Drawn' : 'Draw';
+    else if (t.includes('DISCARD')) base = isPassive ? 'Discarded' : 'Discard';
+    else if (t.includes('SUMMON')) base = isPassive ? 'Summoned' : 'Summon';
+    else if (t.includes('REBEL')) base = isPassive ? 'Controlled' : 'Control';
+    else if (t.includes('FIELD')) base = isPassive ? 'Fielded' : 'Field';
+    else if (t.includes('RECOVER')) base = isPassive ? 'Recovered' : 'Recover';
+    else if (t.includes('REVIVE')) base = isPassive ? 'Revived' : 'Revive';
+    else if (t.includes('HARVEST')) base = isPassive ? 'Harvested' : 'Harvest';
+    else {
+        const parts = t.split('_');
+        base = parts[parts.length - 1];
+    }
 
-    if (t.startsWith('MODIFY_')) return `BEFORE ${base}`;
-    return `${base}`;
-};
+    if (t.startsWith('MODIFY_')) return `Before ${base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()}`;
+    return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
+}
 
 export function parseTriggers(ability, allTribes) {
     const allTriggers = [ability.trigger || 'MANUAL', ...(ability.additionalTriggers || [])];
     let globalTargetNoun = null;
-
-
 
     const words = allTriggers.map(t => getTriggerWord(t)).filter(Boolean);
     let triggerText = ''; // Omit prefix so the UI can compose it cleanly
@@ -105,8 +106,8 @@ export function parseTriggers(ability, allTribes) {
                         conditionPhrases.push(`${subj} ${statName} ${opText} ${node.value}`);
                     } else if (checkAttr === 'line') {
                         let subj = ctx === 'EVAL_TARGET' ? "{PRONOUN}" : contextPronoun;
-                        if (node.operator === '==') conditionPhrases.push(`${subj} is in ${node.value}`);
-                        else conditionPhrases.push(`${subj} is not in ${node.value}`);
+                        if (node.operator === '==') conditionPhrases.push(`${subj} is in [BATTLELINE:${node.value}]`);
+                        else conditionPhrases.push(`${subj} is not in [BATTLELINE:${node.value}]`);
                     } else if (checkAttr === 'alignment') {
                         let subj = ctx === 'EVAL_TARGET' ? "{PRONOUN}" : contextPronoun;
                         conditionPhrases.push(`${subj} is ${String(node.value).toLowerCase()}`);

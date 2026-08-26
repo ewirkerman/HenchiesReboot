@@ -108,9 +108,9 @@ export function formatPayload(eff, formatCtx) {
             let setAmtStr = eff.amountIsX ? 'X' : eff.amount;
             if (eff.stat === 'line') {
                 if (targetStr === 'this card' || targetStr === 'self' || targetStr === 'itself') {
-                    effText = `move to [ZONE:${setAmtStr}]{OMIT_TARGET}`;
+                    effText = `move to [BATTLELINE:${setAmtStr}]{OMIT_TARGET}`;
                 } else {
-                    effText = `move {TARGET} to [ZONE:${setAmtStr}]`;
+                    effText = `move {TARGET} to [BATTLELINE:${setAmtStr}]`;
                 }
             } else {
                 let setStat = `[STAT:${eff.stat || 'stat'}]`;
@@ -125,7 +125,7 @@ export function formatPayload(eff, formatCtx) {
         case 'BLOCK_ATTACK': effText = `pacify {TARGET}`; break;
         case 'BLOCK_RETALIATE': effText = `daze {TARGET}`; break;
         case 'BLOCK_TARGETING': effText = `stealth {TARGET}`; break;
-        case 'SHUFFLE': effText = `shuffle {TARGET} into [ZONE:deck]`; break;
+        case 'SHUFFLE': effText = `shuffle {TARGET} into the deck`; break;
         case 'RETURN': effText = `return {TARGET}`; break;
         case 'ATTACH': effText = eff.invertRoles ? `attach to {TARGET}` : `attach {TARGET} to {SELF}`; break;
         case 'UNATTACH': effText = `unattach {TARGET}`; break;
@@ -145,7 +145,7 @@ export function formatPayload(eff, formatCtx) {
             else if (targetDest === 'BANISH') effText = `banish {TARGET} instead`;
             else effText = `move {TARGET} to ${destName} instead`;
             break;
-        case 'REBEL': effText = eff.invertRoles ? `donate this card to {TARGET}` : `steal {TARGET}`; break;
+        case 'REBEL': effText = eff.invertRoles ? `give control of this card to {TARGET}` : `control {TARGET}`; break;
         case 'DONATE': effText = `donate {TARGET}`; break;
         case 'MODIFY_EVENT': 
             if (eff.stat === 'amount') {
@@ -236,7 +236,7 @@ export function formatPayload(eff, formatCtx) {
                 const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
                 
                 let destZone = (eff.zone || 'FIELD').toUpperCase();
-            let zonePh = ZONE_NAMES[destZone] || `[ZONE:${destZone.toLowerCase()}]`;
+            let zonePh = ZONE_NAMES[destZone] || destZone.toLowerCase();
             let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
 
             let readinessAdj = '';
@@ -258,7 +258,7 @@ export function formatPayload(eff, formatCtx) {
                             else if (np.amount >= 2) readinessAdj = 'over-ready ';
                             else remainingNestedPayloads.push(np);
                         } else if (np.type === 'SET_STAT' && np.stat === 'line') {
-                            lineAdj = `[ZONE:${np.amount}] `;
+                            lineAdj = `${np.amount} `;
                         } else {
                         remainingNestedPayloads.push(np);
                     }
@@ -270,8 +270,7 @@ export function formatPayload(eff, formatCtx) {
                 const nextWord = readinessAdj || lineAdj || cardName;
                 let testWord = nextWord;
                 if (nextWord === lineAdj) {
-                    const match = lineAdj.match(/\[ZONE:([a-z_]+)\]/i);
-                    if (match) testWord = match[1];
+                    testWord = lineAdj.trim();
                 }
                 amtText = /^[aeiou]/i.test(testWord) ? 'an' : 'a';
             }
