@@ -109,7 +109,6 @@ export function renderStandard(ctx) {
           </div>
         ` : ''}
       </div>
-      ${ctx.attachmentsBadge}
       ${ctx.inspectButton}
       ${ctx.overlayHTML}
     </div>

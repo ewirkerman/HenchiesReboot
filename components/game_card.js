@@ -296,8 +296,8 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
                 desc = costBadge ? `${costBadge} ${desc}` : desc;
             } else {
                 const badgeStr = costBadge ? `${costBadge} ` : '';
-                const eventStr = event ? `<span class="font-bold [font-variant:small-caps] text-slate-300 tracking-wide mr-1">${event}:</span>` : '';
-                desc = `${eventStr}${badgeStr}${desc}`;
+                const eventStr = event ? `<span class="${CARD_THEME.eventName}">${event}:</span>` : '';
+                desc = `${eventStr}${badgeStr || ' '}${desc}`;
             }
 
             data.bespoke.push({
@@ -516,7 +516,7 @@ export class GameCard extends HTMLElement {
           </div>
         ` : '';
 
-        return { readinessBadge, inspectButton, fastBadge };
+        return { readinessBadge, inspectButton, fastBadge, attachmentsBadge: '' };
     }
 
     _getCardArtStyle(card) {

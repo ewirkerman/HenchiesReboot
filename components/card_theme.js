@@ -53,5 +53,9 @@ export const CARD_THEME = {
     activeUsableName: "text-amber-400",
     activeUnusableName: "text-slate-500",
     activeUsableText: "text-slate-200",
-    activeUnusableText: "text-slate-500 opacity-80"
+    activeUnusableText: "text-slate-500 opacity-80",
+    
+    // Inline/Markdown Text Elements
+    eventName: "font-bold [font-variant:small-caps] text-slate-300 tracking-wide mr-1",
+    boldText: "font-black text-amber-400"
 };

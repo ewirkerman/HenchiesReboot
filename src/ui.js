@@ -7,6 +7,7 @@
   import { generateAbilityDescription } from './language_description.js';
 
   export const CARD_BASE_CLASSES = "w-[128px] h-[179px] sm:w-[144px] sm:h-[201px]";
+  export const TRIBE_STYLES = {}; // Legacy fallback to prevent import crashes
 
   import { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg } from './glossary.js';
   export { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg };
@@ -267,6 +268,11 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
       const container = document.getElementById(containerId);
       if (!container) return;
       
+      const safeJson = JSON.stringify(jsonObject, null, 2)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      
       container.innerHTML = `
         <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 w-full h-full relative flex-1">
           <div class="flex justify-between items-center border-b border-slate-800 pb-1 shrink-0">
@@ -278,7 +284,7 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
             </button>
           </div>
           <div class="flex-1 w-full overflow-y-auto minimal-scrollbar bg-slate-950/80 rounded-lg border border-slate-900 shadow-inner p-3 relative">
-              <pre id="${containerId}-pre" class="text-[10px] text-cyan-400 font-mono m-0 leading-tight w-full break-all whitespace-pre-wrap selection:bg-cyan-900/50">${JSON.stringify(jsonObject, null, 2)}</pre>
+              <pre id="${containerId}-pre" class="text-[10px] text-cyan-400 font-mono m-0 leading-tight w-full break-all whitespace-pre-wrap selection:bg-cyan-900/50">${safeJson}</pre>
           </div>
         </div>
       `;

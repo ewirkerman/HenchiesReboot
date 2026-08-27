@@ -144,7 +144,7 @@
 
   <script type="module">
     import { CARD_CATALOG } from './src/engine/index.js';
-    import { renderCardHTML, openInspectionModal, showToast, TRIBE_STYLES, loadUI } from './src/ui.js';
+    import { renderCardHTML, openInspectionModal, showToast, loadUI } from './src/ui.js';
     import { fetchCustomCards, fetchCustomAbilities, saveDeckToCatalog, fetchUserDecks, fetchCustomTribes, deleteDeckFromCatalog } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { launchSandboxMatch } from './src/testing.js';
@@ -206,6 +206,10 @@
             ...ab,
             displayDescription: generateAbilityDescription(ab, rawAbs, tempCards)
         }));
+        
+        window.StudioState = window.StudioState || {};
+        window.StudioState.allAbilitiesRegistry = allAbilitiesRegistry;
+        window.StudioState.customTribesList = customTribesList;
 
         if (customCards && customCards.length > 0) {
            const hydratedCustomCards = customCards.map(c => {
@@ -433,11 +437,24 @@
 
       badge.innerText = `${currentDeck.length} / 40`;
 
+      const getTribeStyle = (tribeName) => {
+          const fallback = { bg: 'bg-slate-900', border: 'border-black', hexBg: '' };
+          if (!tribeName) return fallback;
+          const match = customTribesList.find(t => t.id === tribeName || t.name === tribeName);
+          if (!match) return fallback;
+          return { 
+              bg: match.colorBgClass || match.bgClass || 'bg-slate-900', 
+              border: match.colorBorderClass || match.borderClass || 'border-black',
+              hexBg: match.colorBgHex || match.hexBg || '' 
+          };
+      };
+
       if (currentAvatar) {
-          const style = TRIBE_STYLES[currentAvatar.tribe] || { bg: 'bg-slate-900', border: 'border-black' };
+          const style = getTribeStyle(currentAvatar.tribe);
           avatarStatus.innerText = "Assigned";
           avatarStatus.className = "text-emerald-400";
           avatarSlot.className = `h-14 rounded-lg flex items-center justify-between p-2 cursor-pointer shadow-lg border-2 border-amber-500/50 ${style.bg}`;
+          avatarSlot.style.backgroundColor = style.hexBg || '';
           avatarSlot.innerHTML = `
               <div class="flex items-center gap-3">
                   <span class="text-2xl drop-shadow-md">👑</span>
@@ -476,11 +493,11 @@
       });
 
       container.innerHTML = Object.values(cardMap).map(entry => {
-        const style = TRIBE_STYLES[entry.card.tribe] || { bg: 'bg-slate-900' };
+        const style = getTribeStyle(entry.card.tribe);
         const costVal = typeof entry.card.cost === 'object' ? (entry.card.cost.tribeAmount || entry.card.cost.carnie || entry.card.cost.tent || 0) : (entry.card.cost ?? 0);
         const json = encodeURIComponent(JSON.stringify(entry.card)).replace(/'/g, "%27");
         return `
-        <div class="flex justify-between items-center p-2 rounded-lg ${style.bg} border border-black/40 text-xs shadow-sm group hover:border-amber-500/50 transition-colors">
+        <div class="flex justify-between items-center p-2 rounded-lg ${style.bg} border border-black/40 text-xs shadow-sm group hover:border-amber-500/50 transition-colors" style="${style.hexBg ? 'background-color:'+style.hexBg+';' : ''}">
           <div class="flex items-center gap-2 flex-1 overflow-hidden cursor-pointer hover:text-amber-300 transition-colors" onclick="window.filterToCard('${entry.card.name.replace(/'/g, "\\'")}')" oncontextmenu="event.preventDefault(); window.inspectCard('${json}')" title="Left-click to filter, Right-click to inspect: ${entry.card.name}">
             <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold text-[10px] flex items-center justify-center shadow-sm border border-amber-700 shrink-0">${costVal}</span>
             <span class="font-bold text-white drop-shadow-md truncate">${entry.card.name}</span>

@@ -352,6 +352,7 @@
             id: currentEditingId || ('tribe_' + Date.now()),
             updatedAt: Date.now(),
             name: document.getElementById('tribe-name').value || 'Unnamed Tribe',
+            validGenuses: document.getElementById('tribe-genuses').value.split(',').map(s => s.trim()).filter(Boolean),
             isDefault: isCurrentDefault,
             colorBgClass: document.getElementById('tw-bg').value || 'bg-slate-900',
             colorLightBgClass: document.getElementById('tw-light').value || 'bg-slate-950/90',
@@ -534,6 +535,7 @@
         const setVal = (id, val) => { document.getElementById(id).value = val || ''; };
         
         setVal('tribe-name', tribe.name);
+        setVal('tribe-genuses', (tribe.validGenuses || []).join(', '));
         setVal('tw-bg', tribe.colorBgClass);
         setVal('tw-light', tribe.colorLightBgClass);
         setVal('tw-border', tribe.colorBorderClass);
@@ -579,6 +581,7 @@
         const setVal = (id, val) => { document.getElementById(id).value = val || ''; };
         
         setVal('tribe-name', '');
+        setVal('tribe-genuses', '');
         setVal('tw-bg', 'bg-slate-900');
         setVal('tw-light', 'bg-slate-950/90');
         setVal('tw-border', 'border-black');

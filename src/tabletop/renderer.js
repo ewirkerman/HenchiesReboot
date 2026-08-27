@@ -338,9 +338,11 @@ function renderAttachmentsRecursive(attachments, prefix, line, isLocalPlayer, de
         const zIndex = 20 - i + (depth * 2);
 
         return `
-            <div class="flex flex-row items-start relative drop-shadow-md shrink-0 -ml-14 sm:-ml-16 transition-transform duration-200 hover:-translate-y-6 hover:!z-[50]" style="z-index: ${zIndex}; transform: translateY(${yTranslate}px);">
-                <div class="relative z-[30]">
-                    ${attCardHtml}
+            <div class="flex flex-row items-start relative drop-shadow-md shrink-0 -ml-14 sm:-ml-16" style="z-index: ${zIndex}; transform: translateY(${yTranslate}px);">
+                <div class="relative z-[30] [&>div]:hover:-translate-y-8 cursor-pointer">
+                    <div class="transition-transform duration-200">
+                        ${attCardHtml}
+                    </div>
                 </div>
                 ${nestedHtml}
             </div>
