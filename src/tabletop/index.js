@@ -93,7 +93,15 @@ async function initializeApp() {
                 }
             }
 
-            updateLobbyData();
+            await updateLobbyData();
+            
+            // Auto-trigger AI match if routed from the Deckbuilder
+            if (window.location.search.includes('auto_ai=true')) {
+                const btn = document.getElementById('ai-match-btn');
+                if (btn) btn.click();
+                // Clean up the URL to prevent reloading loops
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
         }
     } catch(err) {
         console.error("[INIT] Initialization failed:", err);

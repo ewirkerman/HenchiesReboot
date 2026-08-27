@@ -7,7 +7,7 @@ export const CARD_THEME = {
     artSection: "w-full border-b-2 relative overflow-hidden flex items-center justify-center",
     textSection: "w-full flex flex-col relative overflow-hidden",
     bgArtImage: "absolute inset-0 w-full h-full object-cover object-center z-0 opacity-50 pointer-events-none",
-    bgArtMute: "absolute inset-0 bg-slate-950/50 z-0 pointer-events-none",
+    bgArtMute: "absolute inset-0 bg-black/60 mix-blend-multiply z-0 pointer-events-none",
     
     // Floating Name Badge (Standard/Nano/Jumbo)
     nameWrapper: "absolute flex justify-center z-30 pointer-events-none w-[90%] left-1/2 -translate-x-1/2",

@@ -1,22 +1,22 @@
-import { getIconSvg, getLineIconSvg } from '../src/ui.js';
+import { getIconSvg } from '../src/ui.js';
 import { CARD_THEME } from './card_theme.js';
 
 export function renderNano(ctx) {
   const forceHoverClass = ctx.isForceHover ? '-translate-y-4 !z-[100]' : '';
 
+  // Nano cards omit some layout padding/text sizing for extreme density
   return `
     <div 
       onclick="${ctx.onClick}"
       ${ctx.rightClickAttr}
       title="${ctx.safeTooltip}"
-      class="group relative flex-shrink-0 w-[80px] sm:w-[90px] h-[80px] rounded-md ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} ${ctx.hiddenClass} ${forceHoverClass} cursor-pointer transition-all duration-200 select-none overflow-hidden shadow-md"
+      class="${CARD_THEME.standardWrapper} w-[80px] h-[80px] sm:w-[90px] sm:h-[90px] ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} ${ctx.hiddenClass} ${forceHoverClass}"
       style="${ctx.hexBg} ${ctx.dynamicBorderStyle}"
     >
       <!-- Base Texture Layer -->
-      <div class="absolute inset-0 opacity-10 mix-blend-overlay pointer-events-none z-0 ${ctx.fieldDimmingClass}"></div>
-
-      <!-- Token / Dimming Layer -->
-      ${ctx.isToken ? '<div class="absolute inset-0 bg-white/10 pointer-events-none z-0"></div>' : ''}
+      <div class="absolute inset-0 opacity-10 mix-blend-overlay"></div>
+      
+      <!-- Background Art Layer (Static Wallpaper) -->
       
       <!-- Art Layer & Fallback (With Camera Panning) -->
       <div class="absolute inset-0 z-0 flex items-center justify-center overflow-hidden ${ctx.fieldDimmingClass}">
@@ -25,16 +25,13 @@ export function renderNano(ctx) {
             <img src="${ctx.bgArtUrl}" class="${CARD_THEME.bgArtImage}" style="${ctx.bgArtStyle}" draggable="false" />
             <div class="${CARD_THEME.bgArtMute}"></div>
           ` : ''}
-          ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-contain relative z-10" style="${ctx.artStyle}" draggable="false" />` : `
-            <div class="relative z-10 w-full h-full bg-slate-800/60 flex items-center justify-center text-slate-400 text-3xl font-bold">
-              ${ctx.card.type === 'unit' ? '⚔️' : ctx.card.type === 'avatar' ? '👑' : ctx.card.type === 'equipment' ? '🛡️' : ctx.card.type === 'artifact' ? '🏺' : '📜'}
-            </div>
-          `}
+          ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-contain relative z-10" style="${ctx.artStyle}" draggable="false" />` : ``}
         </div>
       </div>
 
-      <!-- Content Overlay (Softened gradient so background color shines through) -->
-      <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none ${ctx.fieldDimmingClass}"></div>
+      <!-- Edge Overlays (Restricted to edges so background color shines through cleanly in the middle) -->
+      <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10 ${ctx.fieldDimmingClass}"></div>
+      <div class="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-10 ${ctx.fieldDimmingClass}"></div>
 
       <!-- Center: Name Badge (Fallback if no art, but cleanly styled) -->
       ${!ctx.cardArtUrl ? `

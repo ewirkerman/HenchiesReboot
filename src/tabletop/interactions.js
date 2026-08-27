@@ -5,6 +5,7 @@ import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getVa
 import { resolveResourceKey } from '../engine/index.js';
 import { showToast } from '../ui.js';
 import { reconstructStateFromLog } from './multiplayer.js';
+import { RandomAI } from '../ai/random.js';
 
 function getEntityRef(entityId) {
     let entity = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
@@ -931,3 +932,85 @@ window.addEventListener('mouseup', e => {
 });
 
 window.handleUndo = handleUndo;
+
+let isAIRunning = false;
+
+export async function triggerAILoop() {
+    if (isAIRunning) return;
+    const state = ClientState.gameState;
+    if (!state || state.status === 'finished') return;
+    
+    const activePlayer = state.players[state.activePlayerId];
+    if (!activePlayer || (!activePlayer.isAI && !activePlayer.isDummy) || ClientState.localPlayerRole !== 'player1') return;
+    
+    isAIRunning = true;
+    try {
+        await new Promise(r => setTimeout(r, 1200)); // Natural AI delay
+        if (ClientState.gameState.status === 'finished' || ClientState.gameState.activePlayerId !== state.activePlayerId) return;
+
+        if (!ClientState.aiInstance || ClientState.aiInstance.playerId !== state.activePlayerId) {
+            ClientState.aiInstance = new RandomAI(state.activePlayerId);
+        }
+        if (ClientState.aiTurnNumber !== state.turnNumber) {
+            ClientState.aiInstance.resetTurn();
+            ClientState.aiTurnNumber = state.turnNumber;
+        }
+
+        state.actionIndex = (state.actionIndex || 0) + 1;
+        state.lastRealActionIndex = state.actionIndex;
+
+        const move = ClientState.aiInstance.executeNextMove(state);
+
+        if (move.type === 'SACRIFICE' || move.type === 'SACRIFICE_SKIP') {
+            const actionPayload = { 
+                type: 'SACRIFICE_DECISION', 
+                option: move.action.action, 
+                cardId: move.action.cardId, 
+                actionIndex: state.actionIndex, 
+                isUnsafe: false 
+            };
+            await pushActionToLog(ClientState.roomCode, actionPayload, null, state.history_log);
+        } else if (move.type === 'PASS' || move.type === 'NO_MOVES') {
+            const actionPayload = { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true };
+            endTurn(state);
+            const snapshot = JSON.stringify(state);
+            await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, state.history_log);
+        } else if (move.executed && move.action) {
+            let actionPayload = null;
+            if (move.action.type === 'PLAY_CARD') {
+                actionPayload = {
+                    type: 'PLAY_CARD',
+                    actionIndex: state.actionIndex,
+                    playerId: state.activePlayerId,
+                    cardId: move.action.cardId,
+                    targetLine: 'back',
+                    chosenAbilityId: move.action.abilityId,
+                    abilityTargetId: move.action.targetId,
+                    isUnsafe: true
+                };
+            } else if (move.action.type === 'ENTITY_ACTION') {
+                actionPayload = {
+                    type: 'ENTITY_ACTION',
+                    actionIndex: state.actionIndex,
+                    playerId: state.activePlayerId,
+                    entityId: move.action.entityId,
+                    actionType: move.action.actionType,
+                    abilityId: move.action.abilityId,
+                    targetId: move.action.targetId,
+                    targetLine: move.action.targetLine,
+                    isUnsafe: true
+                };
+            }
+
+            if (actionPayload) {
+                await pushActionToLog(ClientState.roomCode, actionPayload, null, state.history_log);
+            }
+        }
+        updateUI();
+    } catch(e) {
+        console.error("AI Loop Error:", e);
+    } finally {
+        isAIRunning = false;
+    }
+}
+window.triggerAILoop = triggerAILoop;

@@ -86,11 +86,14 @@ export function startTurn(state, engine) {
             dummy.originalOwnerId = pId;
             dummy.readiness = 0;
             if (dummy.health === undefined) dummy.health = dummy.maxHealth || 1;
-            if (!player.lines['front']) player.lines['front'] = [];
-            player.lines['front'].push(dummy);
+            
+            if (!player.isAI) {
+                if (!player.lines['front']) player.lines['front'] = [];
+                player.lines['front'].push(dummy);
+            }
             
             if (player.isAI) {
-                state.history_log.push({ text: `🤖 AI opponent deployed Avatar and summoned Target Dummy.`, depth: 0 });
+                state.history_log.push({ text: `🤖 AI opponent deployed Avatar.`, depth: 0 });
             } else if (player.isDummy) {
                 state.history_log.push({ text: `🤖 Dummy opponent deployed Avatar and summoned Target Dummy.`, depth: 0 });
             } else {
@@ -172,11 +175,6 @@ export function startTurn(state, engine) {
     if (engine) {
         engine.emit('TURN_STARTING', { playerId: pId });
         engine.emit('TURN_STARTED', { playerId: pId });
-    }
-
-    if (pId === 'player2' && (player.isAI || player.isDummy)) {
-        state.history_log.push({ text: `⏭️ ${player.isAI ? 'AI' : 'Dummy'} auto-skipped turn.`, depth: 0 });
-        endTurn(state);
     }
 }
 

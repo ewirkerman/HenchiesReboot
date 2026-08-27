@@ -9,8 +9,10 @@ export function getTriggerWord(t) {
     if (!t || t === 'MANUAL') return '';
     if (t === 'UNTRIGGERABLE') return 'Passive';
     if (t === 'ON_BE_ATTACHED') return 'While Attached';
-    if (t.includes('STARTING') || t.includes('STARTED')) return 'Start';
-    if (t.includes('ENDING') || t.includes('ENDED')) return 'End';
+    if (t.includes('STARTED')) return 'Started';
+    if (t.includes('ENDED')) return 'Ended';
+    if (t.includes('STARTING')) return 'Starting';
+    if (t.includes('ENDING')) return 'Ending';
     if (t.includes('PLAY')) return 'Play';
 
     let isPassive = t.includes('_BE_') || t.includes('ATTACKED') || t.includes('DAMAGED') || t.includes('HEALED') || t.includes('KILLED') || t.includes('DRAWN') || t.includes('DISCARDED') || t.includes('SUMMONED');

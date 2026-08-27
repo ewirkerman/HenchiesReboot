@@ -2,6 +2,7 @@
 import { ClientState } from './client_state.js';
 import { renderHistorySlider, renderCardHTML, getLineIconSvg } from '../ui.js';
 import { canPlayCard, cloneGameState, LINES, getEntityAvailableActions, resolveResourceKey, getValidAbilityTargets } from '../engine/index.js';
+import { triggerAILoop } from './interactions.js';
 
 window.scrubReplay = (step) => {
     ClientState.replayStepIndex = parseInt(step);
@@ -42,13 +43,15 @@ export function updateUI() {
     const isLocked = !ClientState.isMyTurn();
     if (state.status === 'finished') {
         document.getElementById('active-lock-notice').innerText = state.winner === localPlayerRole ? "🏆 Victory!" : "💀 Defeat!";
-        document.getElementById('active-lock-notice').className = state.winner === localPlayerRole ? "text-[10px] font-bold text-emerald-400" : "text-[10px] font-bold text-red-400";
+        document.getElementById('active-lock-notice').className = "text-[10px] font-bold text-emerald-400";
         document.getElementById('active-lock-notice').classList.remove('hidden');
         
         const forfeitBtn = document.getElementById('forfeit-match-btn');
         if (forfeitBtn) forfeitBtn.classList.add('hidden');
     } else {
-        document.getElementById('active-lock-notice').innerText = "🔒 Opponent's Turn - Locked";
+        const activeP = state.players[state.activePlayerId];
+        const isAITurn = activeP?.isAI || activeP?.isDummy;
+        document.getElementById('active-lock-notice').innerText = isAITurn ? "🤖 AI is thinking..." : "🔒 Opponent's Turn - Locked";
         document.getElementById('active-lock-notice').className = "text-[10px] font-bold text-yellow-400 hidden";
         document.getElementById('active-lock-notice').classList.toggle('hidden', !isLocked);
         
@@ -203,6 +206,11 @@ export function updateUI() {
     if (tickerBox && state.history_log.length > 0) {
       const lastMsg = state.history_log[state.history_log.length - 1];
       tickerBox.innerHTML = typeof lastMsg === 'string' ? lastMsg : lastMsg.text;
+    }
+
+    const activeP = state.players[state.activePlayerId];
+    if ((activeP?.isAI || activeP?.isDummy) && ClientState.localPlayerRole === 'player1') {
+        setTimeout(triggerAILoop, 50);
     }
 }
 window.updateUI = updateUI;

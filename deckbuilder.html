@@ -318,6 +318,40 @@
       topbar.addEventListener('delete', deleteDeck);
       topbar.addEventListener('test', () => { if(window.launchTestMatch) window.launchTestMatch(); });
       
+      topbar.addEventListener('ai-match', async () => {
+          const check = validateDeckRules();
+          if (!check.valid) {
+              showToast(`Cannot play invalid deck: ${check.reason}`, 'error');
+              return;
+          }
+
+          const deckName = document.getElementById('deck-name-input').value.trim();
+          const owner = document.getElementById('deck-owner-input').value.trim();
+
+          if (!deckName || !owner) {
+              showToast('Please provide a Deck Name and Cloud Account (Username).', 'error');
+              return;
+          }
+
+          if (topbar && topbar.setLoading) topbar.setLoading('test-ai', true);
+
+          // Auto-save the deck first so the lobby can pull it natively
+          const payload = [currentAvatar.id, ...currentDeck.map(c => c.id)];
+          const success = await saveDeckToCatalog(owner, deckName, payload);
+
+          if (success) {
+              // Set the active deck for the lobby to pick up
+              localStorage.setItem('henchies_last_username', owner);
+              localStorage.setItem('henchies_last_deck', deckName);
+              
+              // Redirect to the tabletop with an auto-start flag
+              window.location.href = 'game.html?auto_ai=true';
+          } else {
+              showToast('Failed to save deck to cloud for AI match.', 'error');
+              if (topbar && topbar.setLoading) topbar.setLoading('test-ai', false);
+          }
+      });
+
       // Hide irrelevant topbar buttons
       topbar.querySelector('#btn-import').classList.add('hidden');
 
@@ -598,6 +632,7 @@
             currentEditingId = deckName;
             document.getElementById('form-title').innerText = `⚡ Edit: ${deckName}`;
             document.getElementById('studio-topbar').showButtons(true);
+            document.getElementById('btn-play-ai').classList.remove('hidden');
             await refreshLoadDropdown();
         } else {
             showToast(`Failed to save deck to cloud.`, 'error');
@@ -609,6 +644,7 @@
         document.getElementById('form-title').innerText = `⚡ Design New Deck (Cloned)`;
         document.getElementById('deck-name-input').value += ' (Copy)';
         document.getElementById('studio-topbar').showButtons(false);
+        document.getElementById('btn-play-ai').classList.add('hidden');
         showToast('Deck cloned! Save to keep it.', 'info');
     }
 
@@ -727,6 +763,7 @@
       document.getElementById('deck-name-input').value = deckName;
       document.getElementById('form-title').innerText = `⚡ Edit: ${deckName}`;
       document.getElementById('studio-topbar').showButtons(true);
+      document.getElementById('btn-play-ai').classList.remove('hidden');
 
       updateDeckUI();
       showToast(`Loaded deck: ${deckName}`, 'success');
@@ -739,6 +776,7 @@
         currentDeck = [];
         currentAvatar = null;
         document.getElementById('studio-topbar').showButtons(false);
+        document.getElementById('btn-play-ai').classList.add('hidden');
         updateDeckUI();
     }
   </script>

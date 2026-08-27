@@ -5,6 +5,7 @@ export class StudioTopbar extends HTMLElement {
                 <button type="button" id="btn-save" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider whitespace-nowrap">💾 Save</button>
                 <button type="button" id="btn-clone" class="bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-cyan-500/30 whitespace-nowrap">👯 Clone</button>
                 <button type="button" id="btn-test" class="bg-purple-600/80 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-purple-500/30 whitespace-nowrap">🧪 Test</button>
+                <button type="button" id="btn-test-ai" class="bg-indigo-600/80 hover:bg-indigo-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-indigo-500/30 whitespace-nowrap">🤖 Vs AI</button>
                 <button type="button" id="btn-import" class="bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-emerald-500/30 whitespace-nowrap">📥 Import</button>
                 <button type="button" id="btn-delete" class="bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap">🗑️ Delete</button>
             </div>
@@ -23,7 +24,14 @@ export class StudioTopbar extends HTMLElement {
 
         this.querySelector('#btn-save').addEventListener('click', () => this.dispatchEvent(new CustomEvent('save')));
         this.querySelector('#btn-clone').addEventListener('click', () => this.dispatchEvent(new CustomEvent('clone')));
-        this.querySelector('#btn-test').addEventListener('click', () => this.dispatchEvent(new CustomEvent('test')));
+        
+        this.querySelector('#btn-test').addEventListener('click', () => {
+            this.dispatchEvent(new CustomEvent('test'));
+        });
+        
+        this.querySelector('#btn-test-ai').addEventListener('click', () => {
+            this.dispatchEvent(new CustomEvent('ai-match'));
+        });
         
         // Handle Confirmed Delete inline so parents just listen for 'delete'
         this.querySelector('#btn-delete').addEventListener('click', (e) => {

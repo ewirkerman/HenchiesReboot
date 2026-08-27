@@ -173,10 +173,29 @@ export function formatCardText(text, allAbilitiesRegistry = []) {
     return formatted;
 }
 
+if (typeof window !== 'undefined') {
+    // Create a memory cache to store cards instead of dumping them into the DOM
+    window.__GAME_CARD_CACHE = window.__GAME_CARD_CACHE || new Map();
+    window.inspectFromCache = (cacheId) => {
+        const cachedCard = window.__GAME_CARD_CACHE.get(cacheId);
+        if (cachedCard && typeof window.inspectCard === 'function') {
+            // Generate the inspection string only when clicked
+            const json = encodeURIComponent(JSON.stringify(cachedCard)).replace(/'/g, "%27");
+            window.inspectCard(json);
+        }
+    };
+}
+
 export function renderCardHTML(card, options = {}) {
-    const json = encodeURIComponent(JSON.stringify(card)).replace(/'/g, "%27");
+    // Save the card in memory
+    const cacheId = card.instanceId || card.id || ('temp_' + Math.random().toString(36).substring(2, 9));
+    if (typeof window !== 'undefined' && window.__GAME_CARD_CACHE) {
+        window.__GAME_CARD_CACHE.set(cacheId, card);
+    }
+
     const instanceId = card.instanceId || card.id;
-    let attrs = `card-data="${json}" data-instance-id="${instanceId}"`;
+    let attrs = `cache-id="${cacheId}" data-instance-id="${instanceId}"`;
+    
     if (options.size === 'jumbo') attrs += ` size="jumbo"`;
     else if (options.isMicro) attrs += ` size="micro"`;
     else if (options.isNano) attrs += ` size="nano"`;
@@ -190,7 +209,14 @@ export function renderCardHTML(card, options = {}) {
     if (options.actionState) attrs += ` action-state="${options.actionState}"`;
     if (options.readiness !== undefined && options.readiness !== null) attrs += ` readiness="${options.readiness}"`;
     if (options.onClick) attrs += ` on-click="${options.onClick.replace(/"/g, '&quot;')}"`;
-    if (options.onInspect) attrs += ` on-inspect="${options.onInspect.replace(/"/g, '&quot;')}"`;
+    
+    // Intercept inspect events to hide the JSON blob from the DOM
+    let cleanInspect = options.onInspect;
+    if (cleanInspect && cleanInspect.includes('window.inspectCard(')) {
+        cleanInspect = `window.inspectFromCache('${cacheId}')`;
+    }
+    if (cleanInspect) attrs += ` on-inspect="${cleanInspect.replace(/"/g, '&quot;')}"`;
+    
     if (options.abilityUses) attrs += ` ability-uses="${encodeURIComponent(JSON.stringify(options.abilityUses))}"`;
     
     return `<game-card ${attrs}></game-card>`;
@@ -297,7 +323,7 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
             } else {
                 const badgeStr = costBadge ? `${costBadge} ` : '';
                 const eventStr = event ? `<span class="${CARD_THEME.eventName}">${event}:</span>` : '';
-                desc = `${eventStr}${badgeStr || ' '}${desc}`;
+                desc = `${eventStr}${badgeStr}${desc}`;
             }
 
             data.bespoke.push({
@@ -321,7 +347,7 @@ export class GameCard extends HTMLElement {
     }
 
     static get observedAttributes() { 
-        return ['card-data', 'size', 'is-hand', 'is-selected', 'is-targetable', 'is-casting', 'action-state', 'readiness', 'ability-uses', 'is-targeting-mode', 'is-force-hover']; 
+        return ['cache-id', 'card-data', 'size', 'is-hand', 'is-selected', 'is-targetable', 'is-casting', 'action-state', 'readiness', 'ability-uses', 'is-targeting-mode', 'is-force-hover']; 
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
@@ -331,6 +357,15 @@ export class GameCard extends HTMLElement {
     }
 
     _parseCardData() {
+        // First try to load cleanly from RAM via the cache ID
+        const cacheId = this.getAttribute('cache-id');
+        if (cacheId && typeof window !== 'undefined' && window.__GAME_CARD_CACHE && window.__GAME_CARD_CACHE.has(cacheId)) {
+            const cachedCard = window.__GAME_CARD_CACHE.get(cacheId);
+            this.setAttribute('data-instance-id', cachedCard.instanceId || cachedCard.id);
+            return cachedCard;
+        }
+
+        // Fallback to the old DOM-embedded JSON logic if cache-id isn't present
         const dataStr = this.getAttribute('card-data');
         if (!dataStr) return null;
         const card = JSON.parse(decodeURIComponent(dataStr));
@@ -390,11 +425,12 @@ export class GameCard extends HTMLElement {
     }
 
     _computeStatsContext(card, isAvatar, isUnit) {
-        const hasStrength = card.strength !== undefined && card.strength !== null;
-        const defaultHealth = isAvatar ? 20 : (isUnit ? 1 : null);
-        const displayHealth = card.currentHealth ?? card.health ?? defaultHealth;
-        const showHealth = displayHealth !== null && displayHealth !== undefined;
-        const hasArmor = card.armor > 0;
+        const strVal = card.strength;
+        const hasStrength = strVal !== undefined && strVal !== null && strVal !== '' && strVal !== 'null' && !isNaN(Number(strVal));
+        
+        let displayHealth = card.currentHealth;
+        const showHealth = displayHealth !== null && displayHealth !== undefined && displayHealth !== '' && displayHealth !== 'null' && !isNaN(Number(displayHealth));
+        const hasArmor = Number(card.armor) > 0;
         
         return {
             hasStrength, showHealth, displayHealth, hasArmor,
@@ -533,6 +569,8 @@ export class GameCard extends HTMLElement {
     }
 
     _getCameraStyle(card, options) {
+        if (!card.artUrl) return ''; // Ignore custom panning if there's no character art to center on
+        
         let transX = 0, transY = 0, scale = 100;
         if (options.isNano || options.isMicro) {
             transX = card.nanoArtX ?? 0;

@@ -59,7 +59,7 @@ export function renderStandard(ctx) {
           <div class="${CARD_THEME.bgArtMute}"></div>
         ` : ''}
         ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-contain relative z-10" style="${ctx.artStyle}" draggable="false" />` : `
-          <div class="relative z-10 w-full h-full bg-slate-800/60 flex items-center justify-center text-slate-400 text-3xl sm:text-4xl font-bold">
+          <div class="relative z-10 w-full h-full flex items-center justify-center text-white/50 drop-shadow-md text-3xl sm:text-4xl font-bold">
             ${ctx.card.type === 'unit' ? '⚔️' : ctx.card.type === 'avatar' ? '👑' : ctx.card.type === 'equipment' ? '🛡️' : ctx.card.type === 'artifact' ? '🏺' : '📜'}
           </div>
         `}
@@ -109,7 +109,6 @@ export function renderStandard(ctx) {
           </div>
         ` : ''}
       </div>
-      ${ctx.inspectButton}
       ${ctx.overlayHTML}
     </div>
   `;
