@@ -319,37 +319,7 @@
       topbar.addEventListener('test', () => { if(window.launchTestMatch) window.launchTestMatch(); });
       
       topbar.addEventListener('ai-match', async () => {
-          const check = validateDeckRules();
-          if (!check.valid) {
-              showToast(`Cannot play invalid deck: ${check.reason}`, 'error');
-              return;
-          }
-
-          const deckName = document.getElementById('deck-name-input').value.trim();
-          const owner = document.getElementById('deck-owner-input').value.trim();
-
-          if (!deckName || !owner) {
-              showToast('Please provide a Deck Name and Cloud Account (Username).', 'error');
-              return;
-          }
-
-          if (topbar && topbar.setLoading) topbar.setLoading('test-ai', true);
-
-          // Auto-save the deck first so the lobby can pull it natively
-          const payload = [currentAvatar.id, ...currentDeck.map(c => c.id)];
-          const success = await saveDeckToCatalog(owner, deckName, payload);
-
-          if (success) {
-              // Set the active deck for the lobby to pick up
-              localStorage.setItem('henchies_last_username', owner);
-              localStorage.setItem('henchies_last_deck', deckName);
-              
-              // Redirect to the tabletop with an auto-start flag
-              window.location.href = 'game.html?auto_ai=true';
-          } else {
-              showToast('Failed to save deck to cloud for AI match.', 'error');
-              if (topbar && topbar.setLoading) topbar.setLoading('test-ai', false);
-          }
+          if (window.launchTestMatch) window.launchTestMatch('clean_ai');
       });
 
       // Hide irrelevant topbar buttons
@@ -568,7 +538,7 @@
       };
     }
 
-    window.launchTestMatch = async () => {
+    window.launchTestMatch = async (mode = 'sandbox') => {
         const check = validateDeckRules();
         if (!check.valid) {
             showToast(`Cannot test invalid deck: ${check.reason}`, 'error');
@@ -576,7 +546,8 @@
         }
 
         const topbar = document.getElementById('studio-topbar');
-        if (topbar && topbar.setLoading) topbar.setLoading('test', true);
+        const loadingAction = mode === 'clean_ai' ? 'test-ai' : 'test';
+        if (topbar && topbar.setLoading) topbar.setLoading(loadingAction, true);
 
         try {
             const rawAbs = await fetchCustomAbilities();
@@ -593,13 +564,13 @@
                 return clone;
             }).filter(Boolean);
 
-            await launchSandboxMatch(hydratedDeck, 'deck');
+            await launchSandboxMatch(hydratedDeck, 'deck', mode);
         } catch(e) {
             console.error("Test match error:", e);
             showToast('Failed to launch test match.', 'error');
         }
 
-        if (topbar && topbar.setLoading) topbar.setLoading('test', false);
+        if (topbar && topbar.setLoading) topbar.setLoading(loadingAction, false);
     };
 
     async function saveDeck() {

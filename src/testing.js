@@ -165,7 +165,7 @@ function autoHealCard(card, targetLiveAbility) {
 /**
  * Generates the clean, baseline game state structure.
  */
-function createInitialState(username, tribes) {
+function createInitialState(username, tribes, mode = 'sandbox') {
     const p1Res = { 'Carnie': {current: 10, max: 10} };
     tribes.forEach(t => {
         if (t.name !== 'Carnie' && t.name !== 'Generic') {
@@ -195,7 +195,7 @@ function createInitialState(username, tribes) {
                 setupComplete: true
             },
             player2: {
-                id: 'player2', name: 'Target Dummies', isDummy: true,
+                id: 'player2', name: mode === 'clean_ai' ? 'AI Opponent' : 'Target Dummies', isDummy: mode !== 'clean_ai', isAI: mode === 'clean_ai',
                 lines: { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] },
                 hand: [], deck: [], discard: [], banish: [],
                 resources: { Carnie: { current: 10, max: 10 } },
@@ -400,7 +400,9 @@ async function configurePlayers(state, itemData, type, sandboxData) {
 /**
  * Populates the board with specific dummy configurations for robust testing scenarios.
  */
-function setupSandboxBoard(state, sandboxData) {
+function setupSandboxBoard(state, sandboxData, mode = 'sandbox') {
+    if (mode === 'clean_ai') return; // Skip dummy injection for clean AI matches
+
     const { cards, abilities } = sandboxData;
     
     const dummyCard = getCatalogItem(cards, 'Target Dummy', FALLBACK_DUMMY);
@@ -447,7 +449,9 @@ function setupSandboxBoard(state, sandboxData) {
  * Modifies enemy units globally. Specifically ensures all enemies have Relentless
  * so they ignore block statuses (like Pacify) for specific testing constraints.
  */
-function applyRelentlessModifier(state, abilitiesCatalog) {
+function applyRelentlessModifier(state, abilitiesCatalog, mode = 'sandbox') {
+    if (mode === 'clean_ai') return; // Skip modifier injection for clean AI matches
+
     const relentlessAbility = getCatalogItem(abilitiesCatalog, 'Relentless', {
         abilityId: 'ability_relentless_native',
         name: 'Relentless',
@@ -480,7 +484,7 @@ function applyRelentlessModifier(state, abilitiesCatalog) {
  * @param {Object} itemData - The Card, Avatar, Deck, or Ability being tested.
  * @param {string} type - Identifies the payload type ('card', 'deck', 'avatar', 'ability').
  */
-export async function launchSandboxMatch(itemData, type = 'card') {
+export async function launchSandboxMatch(itemData, type = 'card', mode = 'sandbox') {
     console.log(`[SANDBOX] Initiating launch for ${type}...`);
     const popup = openLoadingPopup();
     
@@ -492,15 +496,15 @@ export async function launchSandboxMatch(itemData, type = 'card') {
         
         // 2. Setup Player Context
         const username = localStorage.getItem('henchies_last_username') || 'Tester';
-        const state = createInitialState(username, sandboxData.customTribes);
+        const state = createInitialState(username, sandboxData.customTribes, mode);
         
         console.log("[SANDBOX] Configuring players...");
         await configurePlayers(state, itemData, type, sandboxData);
         
         // 3. Setup Opponent Board & Global Rules
         console.log("[SANDBOX] Setting up opponent board...");
-        setupSandboxBoard(state, sandboxData);
-        applyRelentlessModifier(state, sandboxData.abilities);
+        setupSandboxBoard(state, sandboxData, mode);
+        applyRelentlessModifier(state, sandboxData.abilities, mode);
 
         // 4. Finalize
         const roomId = 'TEST_' + Date.now();
