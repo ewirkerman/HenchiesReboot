@@ -1,13 +1,127 @@
 /**
  * src/language/format_payload.js
- * The core switch statement that converts raw JSON payloads into natural language strings.
+ * Converts raw JSON payloads (single or grouped) into natural language strings.
+ * Consolidates lookups, pronoun resolution, and modifier suffixes.
  */
 
 import { resolveTokens } from './tokens.js';
-import { joinWithAnd, ZONE_NAMES } from './utils.js';
+import { joinWithAnd } from './utils.js';
+
+// --- Helpers for Entity Resolution ---
+
+function resolveAbility(abilityId, allAbilities) {
+    let name = abilityId;
+    let isManual = false;
+    if (allAbilities && Array.isArray(allAbilities)) {
+        const match = allAbilities.find(a => a.abilityId === abilityId || a.id === abilityId);
+        if (match) {
+            name = match.name;
+            isManual = match.trigger === 'MANUAL';
+        }
+    } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
+        const match = getAbility(abilityId);
+        if (match) {
+            name = match.name;
+            isManual = match.trigger === 'MANUAL';
+        }
+    }
+    return { name, isManual };
+}
+
+function resolveCard(cardId, allCards) {
+    let name = cardId;
+    if (allCards && Array.isArray(allCards)) {
+        const match = allCards.find(c => c.id === cardId);
+        if (match) name = match.name;
+    } else if (typeof window !== 'undefined' && typeof getCard === 'function') {
+        const match = getCard(cardId);
+        if (match) name = match.name;
+    }
+    return name;
+}
+
+function resolveResource(resourceId, allTribes) {
+    let resName = resourceId || 'resource';
+    if (resName === 'maxCarnie') return 'Max Carnie';
+    if (allTribes && Array.isArray(allTribes)) {
+        const match = allTribes.find(t => t.id === resName || t.name.toLowerCase() === resName.toLowerCase());
+        if (match) return match.name;
+    } else if (resName.toLowerCase().startsWith('tribe_')) {
+        resName = resName.substring(6).replace(/_/g, ' ');
+        resName = resName.replace(/\b\w/g, l => l.toUpperCase());
+        return resName;
+    }
+    return resName;
+}
+
+// --- Helper for Modifiers & Suffixes ---
+
+function applyPayloadModifiers(effText, eff, formatCtx) {
+    const { targetStr, trigger, group } = formatCtx;
+    
+    if (eff.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL', 'DONATE'].includes(eff.type)) {
+        if (!['this card', 'it', 'the triggering card', 'the targeted card', 'the target'].includes(targetStr)) {
+            let isPl = targetStr === 'them' || targetStr.startsWith('all ') || targetStr.includes(' random ') || targetStr.includes(' first ') || targetStr.includes(' last ') || targetStr.endsWith('s');
+            let reflexive = isPl ? 'themselves' : 'itself';
+            let reflexivePoss = isPl ? 'their own' : 'its own';
+            effText = `force {TARGET} to ${effText.replace(/\{TARGET\}/g, reflexive).replace(/\{POSS\}/g, reflexivePoss)}`;
+        }
+    }
+
+    let adverb = '';
+    let suffix = '';
+    let isCustomMovement = (eff.type === 'SET_STAT' && eff.stat === 'line');
+    
+    if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
+        if (eff.duration === 'WHILE_ATTACHED') {
+            let hasAttach = group && group.payloads && group.payloads.some(p => p.type === 'ATTACH');
+            if (trigger !== 'ON_BE_ATTACHED' && !hasAttach) suffix = ' while attached';
+        } else if (eff.duration === 'ACTION') {
+            if (isCustomMovement) suffix = ' this action'; else suffix = ' for the current action';
+        } else if (eff.duration === 'TEMPORARY') {
+            suffix = ' this round';
+        } else if (eff.duration === 'BRIEF') {
+            suffix = ' this turn';
+        } else if (eff.duration === 'PERMANENT') {
+            adverb = 'permanently ';
+        }
+    }
+
+    if (adverb) {
+        if (effText.endsWith(' instead')) {
+            effText = effText.replace(' instead', '');
+            effText = adverb + effText + ' instead';
+        } else if (effText.endsWith(' instead{OMIT_TARGET}')) {
+            effText = effText.replace(' instead{OMIT_TARGET}', '');
+            effText = adverb + effText + ' instead{OMIT_TARGET}';
+        } else if (effText.startsWith('force {TARGET} to ')) {
+            effText = effText.replace('force {TARGET} to ', `force {TARGET} to ${adverb}`);
+        } else {
+            effText = adverb + effText;
+        }
+    }
+
+    if (suffix) {
+        if (effText.endsWith(' instead')) {
+            effText = effText.replace(' instead', suffix + ' instead');
+        } else if (effText.endsWith(' instead{OMIT_TARGET}')) {
+            effText = effText.replace(' instead{OMIT_TARGET}', suffix + ' instead{OMIT_TARGET}');
+        } else {
+            effText += suffix;
+        }
+    }
+
+    let resolved = resolveTokens(effText, formatCtx);
+    if (resolved) {
+        resolved = resolved.charAt(0).toUpperCase() + resolved.slice(1);
+    }
+    return resolved;
+}
+
+// --- Main Formatting Exports ---
 
 export function formatPayload(eff, formatCtx) {
-    const { group, trigger, allTribes, allAbilities, allCards, targetStr, isPlural, groupId } = formatCtx;
+    const { group, allTribes, allAbilities, allCards, targetStr, isPlural } = formatCtx;
     let effText = '';
     
     switch(eff.type) {
@@ -89,18 +203,7 @@ export function formatPayload(eff, formatCtx) {
             }
             break;
         case 'MODIFY_RESOURCE': 
-            let resName = eff.resource || 'resource';
-            if (resName === 'maxCarnie') resName = 'Max Carnie';
-            else {
-                if (allTribes && Array.isArray(allTribes)) {
-                    const match = allTribes.find(t => t.id === resName || t.name.toLowerCase() === resName.toLowerCase());
-                    if (match) resName = match.name;
-                } else if (resName.toLowerCase().startsWith('tribe_')) {
-                    resName = resName.substring(6);
-                    resName = resName.replace(/_/g, ' ');
-                    resName = resName.replace(/\b\w/g, l => l.toUpperCase());
-                }
-            }
+            let resName = resolveResource(eff.resource, allTribes);
             if (eff.amountIsX) effText = `gain X ${resName}{PER_TARGET}`;
             else if (eff.amount < 0) effText = `lose ${Math.abs(eff.amount)} ${resName}{PER_TARGET}`;
             else effText = `gain ${eff.amount !== undefined ? eff.amount : 1} ${resName}{PER_TARGET}`;
@@ -159,26 +262,11 @@ export function formatPayload(eff, formatCtx) {
             break;
         case 'CUSTOM_SCRIPT': effText = eff.description ? eff.description + '{OMIT_TARGET}' : `execute script on {TARGET}`; break;
         case 'GRANT_ABILITY':
-            let abilityName = eff.grantedAbilityId;
-            let grantVerb = 'grant';
-            if (allAbilities && Array.isArray(allAbilities)) {
-                const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId);
-                if (match) {
-                    abilityName = match.name;
-                    if (match.trigger !== 'MANUAL') grantVerb = 'apply';
-                }
-            } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
-                 const grantedAb = getAbility(eff.grantedAbilityId);
-                 if(grantedAb) {
-                     abilityName = grantedAb.name;
-                     if (grantedAb.trigger !== 'MANUAL') grantVerb = 'apply';
-                 }
-            }
-            let paramSuffix = '';
-            if (eff.grantedAbilityParamXIsX) paramSuffix = ' (X)';
-            else if (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null) paramSuffix = ` (${eff.grantedAbilityParamX})`;
+            let { name: abilityName, isManual } = resolveAbility(eff.grantedAbilityId, allAbilities);
+            let grantVerb = isManual ? 'grant' : 'apply';
+            let paramSuffix = eff.grantedAbilityParamXIsX ? ' (X)' : (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null ? ` (${eff.grantedAbilityParamX})` : '');
             
-            if (eff.duration === 'WHILE_ATTACHED' || trigger === 'ON_BE_ATTACHED') {
+            if (eff.duration === 'WHILE_ATTACHED') {
                 effText = `{TARGET} gains @[${abilityName}]${paramSuffix}`;
             } else {
                 effText = `${grantVerb} @[${abilityName}]${paramSuffix} to {TARGET}`;
@@ -186,15 +274,7 @@ export function formatPayload(eff, formatCtx) {
             if (eff.blockDuplicates) effText += ` (unique)`;
             break;
         case 'TRANSFORM':
-            let transCardName = eff.cardId;
-            if (allCards && Array.isArray(allCards)) {
-                const match = allCards.find(c => c.id === eff.cardId);
-                if (match) transCardName = match.name;
-            } else if (typeof window !== 'undefined' && typeof getCard === 'function') {
-                const foundCard = getCard(eff.cardId);
-                if (foundCard) transCardName = foundCard.name;
-            }
-            
+            let transCardName = resolveCard(eff.cardId, allCards);
             let isSelfTarget = ['this card', 'it', 'the triggering card', 'self', 'itself'].includes(targetStr);
             
             if (isPlural) {
@@ -214,29 +294,15 @@ export function formatPayload(eff, formatCtx) {
             }
             break;
         case 'REMOVE_ABILITY':
-            let rmAbilityName = eff.grantedAbilityId;
-            if (allAbilities && Array.isArray(allAbilities)) {
-                const match = allAbilities.find(a => a.abilityId === eff.grantedAbilityId || a.id === eff.grantedAbilityId);
-                if (match) rmAbilityName = match.name;
-            } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
-                 const grantedAb = getAbility(eff.grantedAbilityId);
-                 if(grantedAb) rmAbilityName = grantedAb.name;
-            }
+            let rmAbilityName = resolveAbility(eff.grantedAbilityId, allAbilities).name;
             effText = `remove **${rmAbilityName}** from {TARGET}`;
             break;
         case 'SUMMON':
-            let cardName = eff.cardId;
-            if (allCards && Array.isArray(allCards)) {
-                    const match = allCards.find(c => c.id === eff.cardId);
-                    if (match) cardName = match.name;
-                } else if (typeof window !== 'undefined' && typeof getCard === 'function') {
-                    const foundCard = getCard(eff.cardId);
-                    if (foundCard) cardName = foundCard.name;
-                }
-                const summonAmt = Math.max(1, Math.abs(eff.amount || 1));
-                const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
-                
-                let destZone = (eff.zone || 'FIELD').toLowerCase();
+            let cardName = resolveCard(eff.cardId, allCards);
+            const summonAmt = Math.max(1, Math.abs(eff.amount || 1));
+            const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
+            
+            let destZone = (eff.zone || 'FIELD').toLowerCase();
             let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
 
             let readinessAdj = '';
@@ -244,22 +310,22 @@ export function formatPayload(eff, formatCtx) {
             let remainingNestedPayloads = [];
 
             if (eff.nestedGroup && eff.nestedGroup.payloads && eff.nestedGroup.payloads.length > 0) {
-                    eff.nestedGroup.payloads.forEach(np => {
-                        if (np.type === 'MODIFY_STAT' && np.stat === 'readiness') {
-                            if (np.amount <= -2) readinessAdj = 'exhausted ';
-                            else if (np.amount === -1) readinessAdj = 'unready ';
-                            else if (np.amount === 1) readinessAdj = 'ready ';
-                            else if (np.amount >= 2) readinessAdj = 'over-ready ';
-                            else remainingNestedPayloads.push(np);
-                        } else if (np.type === 'SET_STAT' && np.stat === 'readiness') {
-                            if (np.amount <= -1) readinessAdj = 'exhausted ';
-                            else if (np.amount === 0) readinessAdj = 'unready ';
-                            else if (np.amount === 1) readinessAdj = 'ready ';
-                            else if (np.amount >= 2) readinessAdj = 'over-ready ';
-                            else remainingNestedPayloads.push(np);
-                        } else if (np.type === 'SET_STAT' && np.stat === 'line') {
-                            lineAdj = `${np.amount} `;
-                        } else {
+                eff.nestedGroup.payloads.forEach(np => {
+                    if (np.type === 'MODIFY_STAT' && np.stat === 'readiness') {
+                        if (np.amount <= -2) readinessAdj = 'exhausted ';
+                        else if (np.amount === -1) readinessAdj = 'unready ';
+                        else if (np.amount === 1) readinessAdj = 'ready ';
+                        else if (np.amount >= 2) readinessAdj = 'over-ready ';
+                        else remainingNestedPayloads.push(np);
+                    } else if (np.type === 'SET_STAT' && np.stat === 'readiness') {
+                        if (np.amount <= -1) readinessAdj = 'exhausted ';
+                        else if (np.amount === 0) readinessAdj = 'unready ';
+                        else if (np.amount === 1) readinessAdj = 'ready ';
+                        else if (np.amount >= 2) readinessAdj = 'over-ready ';
+                        else remainingNestedPayloads.push(np);
+                    } else if (np.type === 'SET_STAT' && np.stat === 'line') {
+                        lineAdj = `${np.amount} `;
+                    } else {
                         remainingNestedPayloads.push(np);
                     }
                 });
@@ -278,105 +344,171 @@ export function formatPayload(eff, formatCtx) {
             effText = `summon ${amtText} ${readinessAdj}${lineAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
             
             if (isCasterZone) {
-                    if (destZone !== 'field') effText += ` to ${destZone}`;
-                } else {
-                    effText += ` to {POSS} ${destZone}`;
-                }
+                if (destZone !== 'field') effText += ` to ${destZone}`;
+            } else {
+                effText += ` to {POSS} ${destZone}`;
+            }
+            
+            if (remainingNestedPayloads.length > 0) {
+                let tempTargetStr = formatCtx.targetStr;
+                let tempGroupId = formatCtx.groupId;
                 
-                if (remainingNestedPayloads.length > 0) {
-                    let tempTargetStr = formatCtx.targetStr;
-                    let tempGroupId = formatCtx.groupId;
-                    
-                    formatCtx.targetStr = 'them';
-                    formatCtx.groupId = 'summon_nested';
-                    
-                    let nestedPayloadsText = remainingNestedPayloads.map(np => {
-                        let npText = formatPayload(np, formatCtx);
-                        if (npText) npText = npText.charAt(0).toLowerCase() + npText.slice(1);
-                        npText = npText.replace(/\{TARGET\}/g, 'them').replace(/\{POSS\}/g, 'their').replace(/\{OMIT_TARGET\}/g, '');
-                        if (np.type === 'ATTACH' && tempTargetStr === 'self') {
-                            npText = npText.replace('attach them to self', 'attach them to it');
-                            npText = npText.replace('attach it to self', 'attach it to it');
-                        }
-                        return npText;
-                    });
-                    
-                    formatCtx.targetStr = tempTargetStr;
-                    formatCtx.groupId = tempGroupId;
-                    
-                    let combinedNested = joinWithAnd(nestedPayloadsText);
-                    
-                    let targetMethod = eff.nestedGroup.targetMethod || 'AUTO_ALL';
-                    let targetCount = eff.nestedGroup.targetCount || 1;
-                    let subTargetText = '';
-                    
-                    if (targetMethod === 'AUTO_RANDOM') subTargetText = ` for ${targetCount} of them at random`;
-                    else if (targetMethod === 'AUTO_FIRST') subTargetText = ` for the first ${targetCount} of them`;
-                    else if (targetMethod === 'AUTO_LAST') subTargetText = ` for the last ${targetCount} of them`;
-                    else if (targetMethod === 'AUTO_ALL' && !combinedNested.includes('them') && !combinedNested.includes('their') && !combinedNested.includes('it')) subTargetText = ` for all of them`;
-                    
-                    effText += ` and ${combinedNested}${subTargetText}`;
-                }
-                break;
+                formatCtx.targetStr = 'them';
+                formatCtx.groupId = 'summon_nested';
+                
+                let nestedPayloadsText = remainingNestedPayloads.map(np => {
+                    let npText = formatPayload(np, formatCtx);
+                    if (npText) npText = npText.charAt(0).toLowerCase() + npText.slice(1);
+                    npText = npText.replace(/\{TARGET\}/g, 'them').replace(/\{POSS\}/g, 'their').replace(/\{OMIT_TARGET\}/g, '');
+                    if (np.type === 'ATTACH' && tempTargetStr === 'self') {
+                        npText = npText.replace('attach them to self', 'attach them to it');
+                        npText = npText.replace('attach it to self', 'attach it to it');
+                    }
+                    return npText;
+                });
+                
+                formatCtx.targetStr = tempTargetStr;
+                formatCtx.groupId = tempGroupId;
+                
+                let combinedNested = joinWithAnd(nestedPayloadsText);
+                
+                let targetMethod = eff.nestedGroup.targetMethod || 'AUTO_ALL';
+                let targetCount = eff.nestedGroup.targetCount || 1;
+                let subTargetText = '';
+                
+                if (targetMethod === 'AUTO_RANDOM') subTargetText = ` for ${targetCount} of them at random`;
+                else if (targetMethod === 'AUTO_FIRST') subTargetText = ` for the first ${targetCount} of them`;
+                else if (targetMethod === 'AUTO_LAST') subTargetText = ` for the last ${targetCount} of them`;
+                else if (targetMethod === 'AUTO_ALL' && !combinedNested.includes('them') && !combinedNested.includes('their') && !combinedNested.includes('it')) subTargetText = ` for all of them`;
+                
+                effText += ` and ${combinedNested}${subTargetText}`;
+            }
+            break;
         default:
             let readableType = eff.type.replace(/_/g, ' ').toLowerCase();
             effText = `${readableType} {TARGET}`;
     }
 
-    if (eff.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL', 'DONATE'].includes(eff.type)) {
-        if (!['this card', 'it', 'the triggering card', 'the targeted card', 'the target'].includes(targetStr)) {
-            let isPl = targetStr === 'them' || targetStr.startsWith('all ') || targetStr.includes(' random ') || targetStr.includes(' first ') || targetStr.includes(' last ') || targetStr.endsWith('s');
-            let reflexive = isPl ? 'themselves' : 'itself';
-            let reflexivePoss = isPl ? 'their own' : 'its own';
-            effText = `force {TARGET} to ${effText.replace(/\{TARGET\}/g, reflexive).replace(/\{POSS\}/g, reflexivePoss)}`;
-        }
-    }
+    return applyPayloadModifiers(effText, eff, formatCtx);
+}
 
-    let adverb = '';
-    let suffix = '';
-    let isCustomMovement = (eff.type === 'SET_STAT' && eff.stat === 'line');
+export function formatCombinedPayloads(effs, formatCtx) {
+    if (effs.length === 1) return formatPayload(effs[0], formatCtx);
     
-    if (eff.duration && eff.duration !== 'INSTANT' && eff.duration !== 'INDEFINITE') {
-        if (eff.duration === 'WHILE_ATTACHED') {
-            if (trigger !== 'ON_BE_ATTACHED') suffix = ' while attached';
-        } else if (eff.duration === 'ACTION') {
-            if (isCustomMovement) suffix = ' this action'; else suffix = ' for the current action';
-        } else if (eff.duration === 'TEMPORARY') {
-            suffix = ' this round';
-        } else if (eff.duration === 'BRIEF') {
-            suffix = ' this turn';
-        } else if (eff.duration === 'PERMANENT') {
-            adverb = 'permanently ';
-        }
-    }
-
-    if (adverb) {
-        if (effText.endsWith(' instead')) {
-            effText = effText.replace(' instead', '');
-            effText = adverb + effText + ' instead';
-        } else if (effText.endsWith(' instead{OMIT_TARGET}')) {
-            effText = effText.replace(' instead{OMIT_TARGET}', '');
-            effText = adverb + effText + ' instead{OMIT_TARGET}';
-        } else if (effText.startsWith('force {TARGET} to ')) {
-            effText = effText.replace('force {TARGET} to ', `force {TARGET} to ${adverb}`);
+    const first = effs[0];
+    const { allAbilities, allTribes, targetStr } = formatCtx;
+    let effText = '';
+    
+    if (first.type === 'GRANT_ABILITY') {
+        let hasManual = false;
+        let abNames = effs.map(eff => {
+            let { name, isManual } = resolveAbility(eff.grantedAbilityId, allAbilities);
+            if (isManual) hasManual = true;
+            let paramSuffix = eff.grantedAbilityParamXIsX ? ' (X)' : (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null ? ` (${eff.grantedAbilityParamX})` : '');
+            return `@[${name}]${paramSuffix}`;
+        });
+        
+        let grantVerb = hasManual ? 'grant' : 'apply';
+        if (first.duration === 'WHILE_ATTACHED') {
+            effText = `{TARGET} gains ${joinWithAnd(abNames)}`;
         } else {
-            effText = adverb + effText;
+            effText = `${grantVerb} ${joinWithAnd(abNames)} to {TARGET}`;
         }
-    }
-
-    if (suffix) {
-        if (effText.endsWith(' instead')) {
-            effText = effText.replace(' instead', suffix + ' instead');
-        } else if (effText.endsWith(' instead{OMIT_TARGET}')) {
-            effText = effText.replace(' instead{OMIT_TARGET}', suffix + ' instead{OMIT_TARGET}');
+        if (first.blockDuplicates) effText += ` (unique)`;
+        
+    } else if (first.type === 'REMOVE_ABILITY') {
+        let abNames = effs.map(eff => `**${resolveAbility(eff.grantedAbilityId, allAbilities).name}**`);
+        effText = `remove ${joinWithAnd(abNames)} from {TARGET}`;
+        
+    } else if (first.type === 'MODIFY_STAT') {
+        let changes = effs.map(eff => {
+             let modStat = `[STAT:${eff.stat || 'stat'}]`;
+             let sign = eff.amount > 0 && !eff.amountIsX ? '+' : '';
+             let amtStr = eff.amountIsX ? 'X' : eff.amount;
+             if (targetStr === 'this card' || targetStr === 'self') {
+                 return `${modStat}${sign}${amtStr}`;
+             }
+             return `${sign}${amtStr} ${modStat}`;
+        });
+        
+        if (targetStr === 'this card' || targetStr === 'self') {
+            effText = `${joinWithAnd(changes)}{OMIT_TARGET}`;
+        } else if (first.duration === 'WHILE_ATTACHED') {
+            effText = `{TARGET} gains ${joinWithAnd(changes)}`;
         } else {
-            effText += suffix;
+            effText = `give {TARGET} ${joinWithAnd(changes)}`;
         }
-    }
+        
+    } else if (first.type === 'MODIFY_RESOURCE') {
+        let changes = effs.map(eff => {
+             let resName = resolveResource(eff.resource, allTribes);
+             let amtStr = eff.amountIsX ? 'X' : Math.abs(eff.amount);
+             return `${amtStr} ${resName}`;
+        });
+        let isSpend = first.amount < 0;
+        effText = `${isSpend ? 'lose' : 'gain'} ${joinWithAnd(changes)}{PER_TARGET}`;
+        
+    } else if (first.type === 'SET_STAT') {
+        if (first.stat === 'line') {
+            let changes = effs.map(eff => {
+                 let amtStr = eff.amountIsX ? 'X' : eff.amount;
+                 return `[BATTLELINE:${amtStr}]`;
+            });
+            if (targetStr === 'this card' || targetStr === 'self' || targetStr === 'itself') {
+                effText = `move to ${joinWithAnd(changes)}{OMIT_TARGET}`;
+            } else {
+                effText = `move {TARGET} to ${joinWithAnd(changes)}`;
+            }
+        } else {
+            let changes = effs.map(eff => {
+                 let setStat = `[STAT:${eff.stat || 'stat'}]`;
+                 let amtStr = eff.amountIsX ? 'X' : eff.amount;
+                 if (targetStr === 'this card' || targetStr === 'self') {
+                     return `${setStat}=${amtStr}`;
+                 }
+                 return `${setStat} to ${amtStr}`;
+            });
+            if (targetStr === 'this card' || targetStr === 'self') {
+                effText = `${joinWithAnd(changes)}{OMIT_TARGET}`;
+            } else {
+                effText = `set {POSS} ${joinWithAnd(changes)}`;
+            }
+        }
+        
+    } else if (['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(first.type)) {
+        let blockedActions = effs.map(eff => {
+            if (eff.type === 'BLOCK_ACT') return 'act';
+            if (eff.type === 'BLOCK_ATTACK') return 'attack';
+            if (eff.type === 'BLOCK_RETALIATE') return 'retaliate';
+            return '';
+        }).filter(Boolean);
+        effText = `prevent {TARGET} from ${blockedActions.map(a => a + 'ing').join(' and ')}`;
+        
+    } else {
+        // If it's a grouped list of unmatched verbs, process them individually and join them
+        let formatted = effs.map(e => formatPayload(e, formatCtx));
+        formatted = [...new Set(formatted)];
+        let joined = '';
+        
+        let parts = formatted.map((f, i) => i > 0 && f !== 'Instead' ? f.charAt(0).toLowerCase() + f.slice(1) : f);
 
-    let resolved = resolveTokens(effText, formatCtx);
-    if (resolved) {
-        resolved = resolved.charAt(0).toUpperCase() + resolved.slice(1);
+        if (parts[0] === 'Instead') {
+            if (parts.length === 1) joined = parts[0];
+            else if (parts.length === 2) joined = parts[0] + ', ' + parts[1];
+            else {
+                const last = parts.pop();
+                joined = parts[0] + ', ' + parts.slice(1).join(', ') + ', then ' + last;
+            }
+        } else {
+            if (parts.length === 1) joined = parts[0];
+            else if (parts.length === 2) joined = parts[0] + ', then ' + parts[1];
+            else {
+                const last = parts.pop();
+                joined = parts.join(', ') + ', then ' + last;
+            }
+        }
+        return joined; // Returns early because formatPayload recursively handled modifiers
     }
-    return resolved;
+    
+    return applyPayloadModifiers(effText, first, formatCtx);
 }
