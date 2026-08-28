@@ -937,7 +937,8 @@ let isAIRunning = false;
 
 export async function triggerAILoop() {
     if (isAIRunning) return;
-    const state = ClientState.gameState;
+    
+    let state = ClientState.gameState;
     if (!state || state.status === 'finished') return;
     
     const activePlayer = state.players[state.activePlayerId];
@@ -945,8 +946,11 @@ export async function triggerAILoop() {
     
     isAIRunning = true;
     try {
-        await new Promise(r => setTimeout(r, 1200)); // Natural AI delay
-        if (ClientState.gameState.status === 'finished' || ClientState.gameState.activePlayerId !== state.activePlayerId) return;
+        await new Promise(r => setTimeout(r, 1500)); // Natural AI delay
+        
+        // RE-GRAB STATE AFTER DELAY TO AVOID STALE DATA OVERWRITES
+        state = ClientState.gameState;
+        if (!state || state.status === 'finished' || state.activePlayerId !== activePlayer.id) return;
 
         if (!ClientState.aiInstance || ClientState.aiInstance.playerId !== state.activePlayerId) {
             ClientState.aiInstance = new RandomAI(state.activePlayerId);
@@ -964,8 +968,8 @@ export async function triggerAILoop() {
         if (move.type === 'SACRIFICE' || move.type === 'SACRIFICE_SKIP') {
             const actionPayload = { 
                 type: 'SACRIFICE_DECISION', 
-                option: move.action.action, 
-                cardId: move.action.cardId, 
+                option: move.action?.action || (move.type === 'SACRIFICE_SKIP' ? 'SKIP' : 'OPTION_A'), 
+                cardId: move.action?.cardId || null, 
                 actionIndex: state.actionIndex, 
                 isUnsafe: false 
             };
@@ -975,37 +979,53 @@ export async function triggerAILoop() {
             endTurn(state);
             const snapshot = JSON.stringify(state);
             await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, state.history_log);
-        } else if (move.executed && move.action) {
+        } else if (move.executed) {
+            // Robustly handle the action payload whether it's nested in move.action or flattened on move
+            const actionData = move.action || move;
             let actionPayload = null;
-            if (move.action.type === 'PLAY_CARD') {
+
+            // PLAY_CARD actions from BaseAIEngine return type: 'PLAY_CARD'
+            if (move.type === 'PLAY_CARD' || actionData.type === 'PLAY_CARD') {
                 actionPayload = {
                     type: 'PLAY_CARD',
                     actionIndex: state.actionIndex,
                     playerId: state.activePlayerId,
-                    cardId: move.action.cardId,
+                    cardId: actionData.cardId || actionData.entityId,
                     targetLine: 'back',
-                    chosenAbilityId: move.action.abilityId,
-                    abilityTargetId: move.action.targetId,
+                    chosenAbilityId: actionData.abilityId,
+                    abilityTargetId: actionData.targetId || actionData.abilityTargetId,
                     isUnsafe: true
                 };
-            } else if (move.action.type === 'ENTITY_ACTION') {
+            } 
+            // ENTITY_ACTIONs from BaseAIEngine return type: 'ABILITY' or 'ATTACK' (the actionType)
+            else if (move.type === 'ABILITY' || move.type === 'ATTACK' || actionData.type === 'ENTITY_ACTION') {
                 actionPayload = {
                     type: 'ENTITY_ACTION',
                     actionIndex: state.actionIndex,
                     playerId: state.activePlayerId,
-                    entityId: move.action.entityId,
-                    actionType: move.action.actionType,
-                    abilityId: move.action.abilityId,
-                    targetId: move.action.targetId,
-                    targetLine: move.action.targetLine,
+                    entityId: actionData.entityId || actionData.cardId,
+                    actionType: move.type === 'ABILITY' || move.type === 'ATTACK' ? move.type : actionData.actionType,
+                    abilityId: actionData.abilityId,
+                    targetId: actionData.targetId,
+                    targetLine: actionData.targetLine,
                     isUnsafe: true
                 };
             }
 
             if (actionPayload) {
                 await pushActionToLog(ClientState.roomCode, actionPayload, null, state.history_log);
+            } else {
+                 console.warn("[AI] Move executed, but could not construct action payload for UI sync.", move);
             }
+        } else {
+            console.warn("[AI] Move failed to execute or was invalid. Forcing PASS to prevent infinite loop.", move);
+            const actionPayload = { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true };
+            endTurn(state);
+            const snapshot = JSON.stringify(state);
+            await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, state.history_log);
         }
+        
+        // This will naturally recall triggerAILoop via the renderer if the turn didn't end
         updateUI();
     } catch(e) {
         console.error("AI Loop Error:", e);
