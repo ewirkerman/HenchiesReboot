@@ -1,6 +1,7 @@
 import { getIconSvg, getLineIconSvg, SVG_STUNNED, SVG_DAZED, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, getSystemLineAbility } from '../src/ui.js';
 import { generateAbilityDescription } from '../src/language_description.js';
 import { getTriggerWord } from '../src/language/triggers.js';
+import { HoverManager } from '../src/ui/hover_manager.js';
 import { renderNano } from './nano_card.js';
 import { renderStandard, renderStandardAbilities } from './standard_card.js';
 import { renderJumbo } from './jumbo_card.js';
@@ -341,9 +342,52 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
 }
 
 export class GameCard extends HTMLElement {
+    constructor() {
+        super();
+        this._onMouseEnter = this._onMouseEnter.bind(this);
+        this._onMouseLeave = this._onMouseLeave.bind(this);
+    }
+
     connectedCallback() {
         this.style.display = 'contents';
         this.render();
+        
+        // Ensure Jumbo cards themselves never spawn infinite tooltips
+        if (this.getAttribute('size') !== 'jumbo') {
+            this.addEventListener('mouseenter', this._onMouseEnter);
+            this.addEventListener('mouseleave', this._onMouseLeave);
+        }
+    }
+
+    disconnectedCallback() {
+        this.removeEventListener('mouseenter', this._onMouseEnter);
+        this.removeEventListener('mouseleave', this._onMouseLeave);
+        
+        // Failsafe: If the card the user is currently hovering gets deleted, force the tooltip to hide.
+        // BUT prevent Jumbo cards from destroying the tooltip when they are naturally replaced!
+        if (this.getAttribute('size') !== 'jumbo') {
+            const cacheId = this.getAttribute('cache-id');
+            if (HoverManager.currentCardId === cacheId) {
+                HoverManager.forceHide();
+            }
+        }
+    }
+
+    _onMouseEnter(e) {
+        const cacheId = this.getAttribute('cache-id');
+        console.log(`%c[GAME CARD] Mouse Entered: ${cacheId}`, 'color: #0ea5e9');
+        // Because the custom element is display: contents, we pass the first actual element for bounds checking
+        const innerElement = this.firstElementChild;
+        if (cacheId && innerElement) {
+            HoverManager.onMouseEnter(innerElement, cacheId);
+        }
+    }
+
+    _onMouseLeave(e) {
+        // Phase 1: Pass the ID so the manager can verify who is trying to clear the timer
+        const cacheId = this.getAttribute('cache-id');
+        console.log(`%c[GAME CARD] Mouse Left: ${cacheId}`, 'color: #eab308');
+        HoverManager.onMouseLeave(cacheId);
     }
 
     static get observedAttributes() { 
@@ -428,8 +472,19 @@ export class GameCard extends HTMLElement {
         const strVal = card.strength;
         const hasStrength = strVal !== undefined && strVal !== null && strVal !== '' && strVal !== 'null' && !isNaN(Number(strVal));
         
-        let displayHealth = card.health;
-        const showHealth = (isUnit || isAvatar) && displayHealth !== null && displayHealth !== undefined && displayHealth !== '' && displayHealth !== 'null' && !isNaN(Number(displayHealth));
+        const defaultHealth = isAvatar ? 20 : (isUnit ? 1 : null);
+        
+        let displayHealth = card.currentHealth;
+        if (displayHealth === undefined || displayHealth === null || displayHealth === '' || displayHealth === 'null') {
+            displayHealth = card.health;
+        }
+        
+        // Explicitly respect primitive null as "No Health". Only fallback if undefined.
+        if (displayHealth === undefined || displayHealth === '' || displayHealth === 'null') {
+            displayHealth = defaultHealth;
+        }
+        
+        const showHealth = displayHealth !== null && displayHealth !== undefined && displayHealth !== '' && displayHealth !== 'null' && !isNaN(Number(displayHealth));
         const hasArmor = Number(card.armor) > 0;
         
         return {
@@ -596,10 +651,15 @@ export class GameCard extends HTMLElement {
         const badges = this._buildBadges(card, options, cardState);
 
         const rightClickAttr = options.onInspect ? `oncontextmenu="event.preventDefault(); event.stopPropagation(); ${options.onInspect}"` : '';
-        let hoverTooltip = card.name || 'Unknown Card';
-        if (card.description) hoverTooltip += `\n"${card.description}"`;
-        hoverTooltip += `\n\n(Right-click or tap 🔍 to inspect fully)`;
-        const safeTooltip = hoverTooltip.replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+        
+        // Standard browser tooltips are now disabled unless there's no hover manager
+        let safeTooltip = '';
+        if (typeof window === 'undefined' || !window.__GAME_CARD_CACHE) {
+            let hoverTooltip = card.name || 'Unknown Card';
+            if (card.description) hoverTooltip += `\n"${card.description}"`;
+            hoverTooltip += `\n\n(Right-click or tap 🔍 to inspect fully)`;
+            safeTooltip = hoverTooltip.replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+        }
 
         const globalRegistry = (typeof window !== 'undefined') ? ((window.ClientState && window.ClientState.allAbilitiesRegistry) || (window.StudioState && window.StudioState.allAbilitiesRegistry) || (window.CardState && window.CardState.allAbilitiesRegistry) || []) : [];
         

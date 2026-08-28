@@ -37,7 +37,13 @@ export function formatCombinedPayloads(effs, formatCtx) {
             return `@[${abilityName}]${paramSuffix}`;
         });
         let grantVerb = hasManual ? 'grant' : 'apply';
-        effText = `${grantVerb} ${joinWithAnd(abNames)} to {TARGET}`;
+        
+        if (first.duration === 'WHILE_ATTACHED' || trigger === 'ON_BE_ATTACHED') {
+            effText = `{TARGET} gains ${joinWithAnd(abNames)}`;
+        } else {
+            effText = `${grantVerb} ${joinWithAnd(abNames)} to {TARGET}`;
+        }
+        
         if (first.blockDuplicates) effText += ` (unique)`;
     } else if (first.type === 'REMOVE_ABILITY') {
         let abNames = effs.map(eff => {
@@ -64,6 +70,8 @@ export function formatCombinedPayloads(effs, formatCtx) {
         });
         if (targetStr === 'this card' || targetStr === 'self') {
             effText = `${joinWithAnd(changes)}{OMIT_TARGET}`;
+        } else if (first.duration === 'WHILE_ATTACHED') {
+            effText = `{TARGET} gains ${joinWithAnd(changes)}`;
         } else {
             effText = `give {TARGET} ${joinWithAnd(changes)}`;
         }
@@ -149,7 +157,8 @@ export function formatCombinedPayloads(effs, formatCtx) {
     
     if (first.duration && first.duration !== 'INSTANT' && first.duration !== 'INDEFINITE') {
         if (first.duration === 'WHILE_ATTACHED') {
-            if (trigger !== 'ON_BE_ATTACHED') suffix = ' while attached';
+            let hasAttach = formatCtx.group && formatCtx.group.payloads && formatCtx.group.payloads.some(p => p.type === 'ATTACH');
+            if (trigger !== 'ON_BE_ATTACHED' && !hasAttach) suffix = ' while attached';
         } else if (first.duration === 'ACTION') {
             if (isCustomMovement) suffix = ' this action'; else suffix = ' for the current action';
         } else if (first.duration === 'TEMPORARY') {

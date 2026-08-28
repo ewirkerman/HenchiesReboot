@@ -82,11 +82,12 @@ export function formatPayload(eff, formatCtx) {
             
             if (targetStr === 'this card' || targetStr === 'self') {
                 effText = `${modStat}${sign}${amtStr}{OMIT_TARGET}`;
+            } else if (eff.duration === 'WHILE_ATTACHED') {
+                effText = `{TARGET} gains ${sign}${amtStr} ${modStat}`;
             } else {
                 effText = `give {TARGET} ${sign}${amtStr} ${modStat}`;
             }
             break;
-        case 'MODIFY_RESOURCE': 
         case 'MODIFY_RESOURCE': 
             let resName = eff.resource || 'resource';
             if (resName === 'maxCarnie') resName = 'Max Carnie';
@@ -137,13 +138,12 @@ export function formatPayload(eff, formatCtx) {
         case 'CLEANSE': effText = `cleanse temporary effects from {TARGET}`; break;
         case 'CHANGE_DESTINATION': 
             let targetDest = (eff.zone || 'DECK').toUpperCase();
-            let destName = ZONE_NAMES[targetDest] || targetDest.toLowerCase();
             if (targetDest === 'FIELD') effText = `field {TARGET} instead`;
             else if (targetDest === 'HAND') effText = `return {TARGET} to hand instead`;
             else if (targetDest === 'DISCARD') effText = `discard {TARGET} instead`;
-            else if (targetDest === 'DECK' || targetDest === 'ORIGINAL_DECK') effText = `shuffle {TARGET} into ${destName} instead`;
+            else if (targetDest === 'DECK' || targetDest === 'ORIGINAL_DECK') effText = `shuffle {TARGET} instead`;
             else if (targetDest === 'BANISH') effText = `banish {TARGET} instead`;
-            else effText = `move {TARGET} to ${destName} instead`;
+            else effText = `move {TARGET} to ${targetDest} instead`;
             break;
         case 'REBEL': effText = eff.invertRoles ? `give control of this card to {TARGET}` : `control {TARGET}`; break;
         case 'DONATE': effText = `donate {TARGET}`; break;
@@ -178,9 +178,10 @@ export function formatPayload(eff, formatCtx) {
             if (eff.grantedAbilityParamXIsX) paramSuffix = ' (X)';
             else if (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null) paramSuffix = ` (${eff.grantedAbilityParamX})`;
             
-            effText = `${grantVerb} @[${abilityName}]${paramSuffix} to {TARGET}`;
             if (eff.duration === 'WHILE_ATTACHED' || trigger === 'ON_BE_ATTACHED') {
-                effText = `${grantVerb} @[${abilityName}]${paramSuffix}{OMIT_TARGET}`;
+                effText = `{TARGET} gains @[${abilityName}]${paramSuffix}`;
+            } else {
+                effText = `${grantVerb} @[${abilityName}]${paramSuffix} to {TARGET}`;
             }
             if (eff.blockDuplicates) effText += ` (unique)`;
             break;
@@ -235,8 +236,7 @@ export function formatPayload(eff, formatCtx) {
                 const summonAmt = Math.max(1, Math.abs(eff.amount || 1));
                 const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
                 
-                let destZone = (eff.zone || 'FIELD').toUpperCase();
-            let zonePh = ZONE_NAMES[destZone] || destZone.toLowerCase();
+                let destZone = (eff.zone || 'FIELD').toLowerCase();
             let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
 
             let readinessAdj = '';
@@ -278,9 +278,9 @@ export function formatPayload(eff, formatCtx) {
             effText = `summon ${amtText} ${readinessAdj}${lineAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;
             
             if (isCasterZone) {
-                    if (destZone !== 'FIELD') effText += ` to ${zonePh}`;
+                    if (destZone !== 'field') effText += ` to ${destZone}`;
                 } else {
-                    effText += ` to {POSS} ${zonePh}`;
+                    effText += ` to {POSS} ${destZone}`;
                 }
                 
                 if (remainingNestedPayloads.length > 0) {

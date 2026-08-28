@@ -10,6 +10,41 @@ import { groupPayloads, finalizeString } from './grouping.js';
 
 export function processTargetGroups(ability, ctx) {
     const { allAbilities, allCards, allTribes, globalTargetNoun, tracker, trigger } = ctx;
+    
+    // Pre-register conditions in tracker so they dynamically resolve to pronouns in the effects
+    if (ability.activation?.logicTree) {
+        const preScan = (node) => {
+            if (!node) return;
+            if (node.type === 'group') {
+                if (node.children) node.children.forEach(preScan);
+            } else if (node.type === 'condition') {
+                let ctxType = node.context || 'EVAL_TARGET';
+                if (ctxType === 'EVENT_TARGET') {
+                    let noun = "receiver";
+                    if (trigger.includes('ATTACK')) noun = trigger.includes('BE_ATTACKED') ? "attacker" : "defender";
+                    else if (trigger.includes('DAMAGE')) noun = trigger.includes('BE_DAMAGED') ? "damage source" : "damaged character";
+                    else if (trigger.includes('HEAL')) noun = trigger.includes('BE_HEALED') ? "healer" : "healed character";
+                    else if (trigger.includes('KILL')) noun = trigger.includes('BE_KILLED') ? "killer" : "killed unit";
+                    tracker.mention(noun.replace(/ /g, '_'), `the ${noun}`, false);
+                } else if (ctxType === 'EVENT_SOURCE') {
+                    let noun = "doer";
+                    if (trigger.includes('ATTACK')) noun = trigger.includes('BE_ATTACKED') ? "defender" : "attacker";
+                    else if (trigger.includes('DAMAGE')) noun = trigger.includes('BE_DAMAGED') ? "damaged character" : "damage source";
+                    else if (trigger.includes('HEAL')) noun = trigger.includes('BE_HEALED') ? "healed character" : "healer";
+                    else if (trigger.includes('KILL')) noun = trigger.includes('BE_KILLED') ? "killed unit" : "killer";
+                    else if (trigger.includes('PLAY')) noun = "played card";
+                    else if (trigger.includes('SUMMON')) noun = "summoned unit";
+                    tracker.mention(noun.replace(/ /g, '_'), `the ${noun}`, false);
+                } else if (ctxType === 'HOST') {
+                    tracker.mention('host', 'host', false);
+                } else if (ctxType === 'ABILITY_SOURCE') {
+                    tracker.mention('self', 'this card', false);
+                }
+            }
+        };
+        preScan(ability.activation.logicTree);
+    }
+
     let allCostSentences = [];
     let allEffectSentences = [];
     
@@ -25,7 +60,7 @@ export function processTargetGroups(ability, ctx) {
         if (['REVIVE', 'RECOVER'].includes(primaryType)) impliedZone = 'DISCARD';
         else if (['DRAW_CARD', 'MILL'].includes(primaryType)) impliedZone = 'DECK';
         else if (['DISCARD', 'DISCARD_CARD'].includes(primaryType)) impliedZone = 'HAND';
-        else if (['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK', 'TRASH', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE'].includes(primaryType)) impliedZone = 'FIELD';
+        else if (['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK', 'TRASH', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'RETURN'].includes(primaryType)) impliedZone = 'FIELD';
 
         let allHaveSameImpliedZone = impliedZone !== null;
 
@@ -83,6 +118,7 @@ export function processTargetGroups(ability, ctx) {
                 else if (trigger.includes('DRAW')) targetStr = 'the drawn card';
                 else if (trigger.includes('DISCARD')) targetStr = 'the discarded card';
                 else if (trigger.includes('HARVEST')) targetStr = 'the harvested card';
+                else if (trigger === 'ON_BE_ATTACHED') targetStr = 'host';
                 else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) targetStr = 'this card';
                 else targetStr = `the targeted card`;
                 possessiveStr = `its`;
@@ -111,6 +147,7 @@ export function processTargetGroups(ability, ctx) {
                 else if (trigger.includes('DRAW')) targetStr = 'the drawn card';
                 else if (trigger.includes('DISCARD')) targetStr = 'the discarded card';
                 else if (trigger.includes('HARVEST')) targetStr = 'the harvested card';
+                else if (trigger === 'ON_BE_ATTACHED') targetStr = 'host';
                 else targetStr = `the triggered entity`;
                 possessiveStr = `its`;
             }
@@ -141,6 +178,15 @@ export function processTargetGroups(ability, ctx) {
         else if (targetStr === 'the damage source') groupId = 'damage_source';
         else if (targetStr === 'the healed character') groupId = 'healed_character';
         else if (targetStr === 'the targeted card') groupId = 'targeted_card';
+        else if (targetStr === 'the played card') groupId = 'played_card';
+        else if (targetStr === 'the summoned unit') groupId = 'summoned_unit';
+        else if (targetStr === 'the drawn card') groupId = 'drawn_card';
+        else if (targetStr === 'the discarded card') groupId = 'discarded_card';
+        else if (targetStr === 'the harvested card') groupId = 'harvested_card';
+        else if (targetStr === 'the killer') groupId = 'killer';
+        else if (targetStr === 'the killed unit') groupId = 'killed_unit';
+        else if (targetStr === 'the healer') groupId = 'healer';
+        else if (targetStr === 'host') groupId = 'host';
 
         const formatCtx = {
             group, trigger, allTribes, allAbilities, allCards, 

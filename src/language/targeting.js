@@ -124,7 +124,7 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                     suffixes.push(`matching a custom condition`);
                 }
             } else {
-                let statName = checkAttr.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+                let statName = `[STAT:${checkAttr}]`;
                 if (ctx === 'EVAL_TARGET') suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
                 else suffixes.push(`where ${contextSubject}${statName} is ${opText} ${node.value}`.trim());
             }
