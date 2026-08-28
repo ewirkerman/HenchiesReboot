@@ -428,8 +428,8 @@ export class GameCard extends HTMLElement {
         const strVal = card.strength;
         const hasStrength = strVal !== undefined && strVal !== null && strVal !== '' && strVal !== 'null' && !isNaN(Number(strVal));
         
-        let displayHealth = card.currentHealth;
-        const showHealth = displayHealth !== null && displayHealth !== undefined && displayHealth !== '' && displayHealth !== 'null' && !isNaN(Number(displayHealth));
+        let displayHealth = card.health;
+        const showHealth = (isUnit || isAvatar) && displayHealth !== null && displayHealth !== undefined && displayHealth !== '' && displayHealth !== 'null' && !isNaN(Number(displayHealth));
         const hasArmor = Number(card.armor) > 0;
         
         return {
