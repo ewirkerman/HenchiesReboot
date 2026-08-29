@@ -1,4 +1,3 @@
-// filepath: src/tabletop/renderer.js
 import { ClientState } from './client_state.js';
 import { renderHistorySlider, renderCardHTML, getLineIconSvg } from '../ui.js';
 import { canPlayCard, cloneGameState, LINES, getEntityAvailableActions, resolveResourceKey, getValidAbilityTargets } from '../engine/index.js';
@@ -405,6 +404,12 @@ function renderDeckAndDiscard(player, prefix) {
     const deckEl = document.getElementById(`${prefix}-deck-container`);
     const discardEl = document.getElementById(`${prefix}-discard-container`);
     
+    const deckBadge = document.getElementById(`${prefix}-deck-count-badge`);
+    if (deckBadge) deckBadge.innerText = player.deck.length;
+
+    const discardBadge = document.getElementById(`${prefix}-discard-count-badge`);
+    if (discardBadge) discardBadge.innerText = player.discard ? player.discard.length : 0;
+
     if (deckEl) {
       deckEl.innerHTML = `
         <div onclick="if(event) event.stopPropagation(); window.openZoneModal('${player.id}', 'deck')" class="group relative flex-shrink-0 w-[128px] h-[179px] sm:w-[144px] sm:h-[201px] rounded-md bg-slate-800 border-2 border-slate-950 shadow-xl flex flex-col items-center justify-center overflow-hidden select-none cursor-pointer hover:border-amber-500 transition-colors">
@@ -466,7 +471,21 @@ function renderPlayerBattlelines(player, prefix) {
     toggleLine('taunt', checkOccupied('taunt'));
     toggleLine('avatar', true); 
     toggleLine('bodyguard', checkOccupied('bodyguard'));
-    toggleLine('sideline', true);
+    
+    // Evaluate if the sideline should exist at all this frame
+    const isSidelineOccupied = checkOccupied('sideline');
+    toggleLine('sideline', isSidelineOccupied);
+    
+    const sidelineCol = document.getElementById(`${prefix}-col-sideline`);
+    if (sidelineCol) {
+        if (isSidelineOccupied) {
+            sidelineCol.classList.remove('hidden');
+            sidelineCol.classList.add('flex');
+        } else {
+            sidelineCol.classList.remove('flex');
+            sidelineCol.classList.add('hidden');
+        }
+    }
 
     const centerLines = ['front', 'mid', 'back', 'sheltered'];
     let centerOccupiedCount = 0;
