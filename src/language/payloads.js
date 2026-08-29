@@ -38,7 +38,7 @@ export function processTargetGroups(ability, ctx) {
                 } else if (ctxType === 'HOST') {
                     tracker.mention('host', 'host', false);
                 } else if (ctxType === 'ABILITY_SOURCE') {
-                    tracker.mention('self', 'this card', false);
+                    tracker.mention('self', 'this', false);
                 }
             }
         };
@@ -60,7 +60,7 @@ export function processTargetGroups(ability, ctx) {
         if (['REVIVE', 'RECOVER'].includes(primaryType)) impliedZone = 'DISCARD';
         else if (['DRAW_CARD', 'MILL'].includes(primaryType)) impliedZone = 'DECK';
         else if (['DISCARD', 'DISCARD_CARD'].includes(primaryType)) impliedZone = 'HAND';
-        else if (['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK', 'TRASH', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'RETURN'].includes(primaryType)) impliedZone = 'FIELD';
+        else if (['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK', 'TRASH', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'RETURN', 'SET_STAT', 'MODIFY_STAT', 'GRANT_ABILITY', 'REMOVE_ABILITY'].includes(primaryType)) impliedZone = 'FIELD';
 
         let allHaveSameImpliedZone = impliedZone !== null;
 
@@ -71,8 +71,8 @@ export function processTargetGroups(ability, ctx) {
         let isPlural = false;
 
         if (group.targetMethod === 'SELF') {
-            targetStr = 'this card';
-            possessiveStr = "this card's";
+            targetStr = 'this';
+            possessiveStr = "its";
             isPlural = false;
         } else if (group.targetMethod === 'AVATAR') {
             targetStr = 'your avatar';
@@ -84,8 +84,8 @@ export function processTargetGroups(ability, ctx) {
             isPlural = false;
         } else if (group.targetMethod === 'EVENT_SOURCE') {
             if (trigger === 'MANUAL' || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
-                targetStr = 'this card';
-                possessiveStr = "this card's";
+                targetStr = 'this';
+                possessiveStr = "its";
             } else {
                 targetStr = 'the triggering card';
                 possessiveStr = "the triggering card's";
@@ -119,7 +119,7 @@ export function processTargetGroups(ability, ctx) {
                 else if (trigger.includes('DISCARD')) targetStr = 'the discarded card';
                 else if (trigger.includes('HARVEST')) targetStr = 'the harvested card';
                 else if (trigger === 'ON_BE_ATTACHED') targetStr = 'host';
-                else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) targetStr = 'this card';
+                else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) targetStr = 'this';
                 else targetStr = `the targeted card`;
                 possessiveStr = `its`;
             }
@@ -135,7 +135,7 @@ export function processTargetGroups(ability, ctx) {
                 targetStr = `${article} ${actDesc}`;
                 possessiveStr = `${targetStr}'s`;
             } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
-                targetStr = 'this card';
+                targetStr = 'this';
                 possessiveStr = "its";
             } else {
                 if (trigger.includes('ATTACK')) targetStr = trigger.includes('BE_ATTACKED') ? 'the attacker' : 'the defender';
@@ -169,7 +169,7 @@ export function processTargetGroups(ability, ctx) {
 
         let groupId = `group_${gIdx}`;
         if (ability.triggerScope === 'GLOBAL' && globalTargetNoun && targetStr === `that ${globalTargetNoun}`) groupId = 'global_target';
-        else if (targetStr === 'this card') groupId = 'self';
+        else if (targetStr === 'this') groupId = 'self';
         else if (targetStr === 'your avatar') groupId = 'your_avatar';
         else if (targetStr === 'the enemy avatar') groupId = 'enemy_avatar';
         else if (targetStr === 'the attacker') groupId = 'attacker';
@@ -205,7 +205,8 @@ export function processTargetGroups(ability, ctx) {
 
     if (trigger.startsWith('WOULD_') && allEffectSentences.length > 0) {
         if (!allEffectSentences[0].startsWith('Instead')) {
-            allEffectSentences[0] = 'Instead, ' + allEffectSentences[0];
+            const first = allEffectSentences[0];
+            allEffectSentences[0] = 'Instead, ' + first.charAt(0).toLowerCase() + first.slice(1);
         }
     } else if (trigger === 'PLAY_OPTIONAL') {
         if (allCostSentences.length > 0) {

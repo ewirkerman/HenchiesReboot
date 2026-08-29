@@ -74,6 +74,25 @@ export function formatResource(amount, resourceName) {
     return `${amount} ${resourceName}`;
 }
 
+export function formatResourceIcons(amount, resourceName, isX = false) {
+    let lowerName = resourceName.toLowerCase();
+    let baseIconName = lowerName;
+    
+    // Normalize known specific resource names for icons
+    if (lowerName === 'max carnie') baseIconName = 'maxCarnie';
+    
+    if (isX) {
+        return `X [RESOURCE:${baseIconName}]`;
+    }
+    
+    let iconStr = `[RESOURCE:${baseIconName}]`;
+    let result = '';
+    for(let i=0; i < amount; i++) {
+        result += iconStr;
+    }
+    return result;
+}
+
 export function joinWithAnd(arr) {
     if (!arr || arr.length === 0) return '';
     if (arr.length === 1) return arr[0];

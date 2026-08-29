@@ -5,7 +5,7 @@
  */
 
 import { resolveTokens } from './tokens.js';
-import { joinWithAnd } from './utils.js';
+import { joinWithAnd, formatResourceIcons } from './utils.js';
 
 // --- Helpers for Entity Resolution ---
 
@@ -60,7 +60,7 @@ function applyPayloadModifiers(effText, eff, formatCtx) {
     const { targetStr, trigger, group } = formatCtx;
     
     if (eff.invertRoles && !['ATTACH', 'ATTACH_TO', 'REBEL', 'DONATE'].includes(eff.type)) {
-        if (!['this card', 'it', 'the triggering card', 'the targeted card', 'the target'].includes(targetStr)) {
+        if (!['this', 'it', 'the triggering card', 'the targeted card', 'the target'].includes(targetStr)) {
             let isPl = targetStr === 'them' || targetStr.startsWith('all ') || targetStr.includes(' random ') || targetStr.includes(' first ') || targetStr.includes(' last ') || targetStr.endsWith('s');
             let reflexive = isPl ? 'themselves' : 'itself';
             let reflexivePoss = isPl ? 'their own' : 'its own';
@@ -182,7 +182,8 @@ export function formatPayload(eff, formatCtx) {
         case 'HARVEST':
             if (eff.amount !== undefined && eff.amount !== 2) {
                 let resName = (eff.resource && eff.resource !== 'maxCarnie') ? eff.resource : 'Carnie';
-                effText = `harvest {TARGET} for ${eff.amount} ${resName}`;
+                let iconString = formatResourceIcons(Math.abs(eff.amount), resName, eff.amountIsX);
+                effText = `harvest {TARGET} for ${iconString}`;
             } else {
                 effText = `harvest {TARGET}`;
             }
@@ -194,7 +195,7 @@ export function formatPayload(eff, formatCtx) {
             let sign = eff.amount > 0 && !eff.amountIsX ? '+' : '';
             let amtStr = eff.amountIsX ? 'X' : eff.amount;
             
-            if (targetStr === 'this card' || targetStr === 'self') {
+            if (targetStr === 'this' || targetStr === 'self') {
                 effText = `${modStat}${sign}${amtStr}{OMIT_TARGET}`;
             } else if (eff.duration === 'WHILE_ATTACHED') {
                 effText = `{TARGET} gains ${sign}${amtStr} ${modStat}`;
@@ -204,24 +205,28 @@ export function formatPayload(eff, formatCtx) {
             break;
         case 'MODIFY_RESOURCE': 
             let resName = resolveResource(eff.resource, allTribes);
-            if (eff.amountIsX) effText = `gain X ${resName}{PER_TARGET}`;
-            else if (eff.amount < 0) effText = `lose ${Math.abs(eff.amount)} ${resName}{PER_TARGET}`;
-            else effText = `gain ${eff.amount !== undefined ? eff.amount : 1} ${resName}{PER_TARGET}`;
+            let iconString = formatResourceIcons(Math.abs(eff.amount !== undefined ? eff.amount : 1), resName, eff.amountIsX);
+            
+            if (eff.amount < 0) {
+                effText = `lose ${iconString}{PER_TARGET}`;
+            } else {
+                effText = `gain ${iconString}{PER_TARGET}`;
+            }
             break;
         case 'SET_STAT': 
             let setAmtStr = eff.amountIsX ? 'X' : eff.amount;
             if (eff.stat === 'line') {
-                if (targetStr === 'this card' || targetStr === 'self' || targetStr === 'itself') {
-                    effText = `move to [BATTLELINE:${setAmtStr}]{OMIT_TARGET}`;
+                if (targetStr === 'this' || targetStr === 'self' || targetStr === 'itself') {
+                    effText = `[BATTLELINE:${setAmtStr}]{OMIT_TARGET}`;
                 } else {
-                    effText = `move {TARGET} to [BATTLELINE:${setAmtStr}]`;
+                    effText = `[BATTLELINE:${setAmtStr}] {TARGET}`;
                 }
             } else {
                 let setStat = `[STAT:${eff.stat || 'stat'}]`;
-                if (targetStr === 'this card' || targetStr === 'self') {
+                if (targetStr === 'this' || targetStr === 'self') {
                     effText = `${setStat}=${setAmtStr}{OMIT_TARGET}`;
                 } else {
-                    effText = `set {POSS} ${setStat} to ${setAmtStr}`;
+                    effText = `set {POSS} ${setStat}=${setAmtStr}`;
                 }
             }
             break;
@@ -237,16 +242,16 @@ export function formatPayload(eff, formatCtx) {
         case 'BANISH': effText = `banish {TARGET}`; break;
         case 'KILL': effText = `kill {TARGET}`; break;
         case 'ATTACK': effText = `attack {TARGET}`; break;
-        case 'CANCEL_EVENT': effText = `cancel that effect instead{OMIT_TARGET}`; break;
+        case 'CANCEL_EVENT': effText = `cancel that effect{OMIT_TARGET}`; break;
         case 'CLEANSE': effText = `cleanse temporary effects from {TARGET}`; break;
         case 'CHANGE_DESTINATION': 
             let targetDest = (eff.zone || 'DECK').toUpperCase();
-            if (targetDest === 'FIELD') effText = `field {TARGET} instead`;
-            else if (targetDest === 'HAND') effText = `return {TARGET} to hand instead`;
-            else if (targetDest === 'DISCARD') effText = `discard {TARGET} instead`;
-            else if (targetDest === 'DECK' || targetDest === 'ORIGINAL_DECK') effText = `shuffle {TARGET} instead`;
-            else if (targetDest === 'BANISH') effText = `banish {TARGET} instead`;
-            else effText = `move {TARGET} to ${targetDest} instead`;
+            if (targetDest === 'FIELD') effText = `field {TARGET}`;
+            else if (targetDest === 'HAND') effText = `return {TARGET} to hand`;
+            else if (targetDest === 'DISCARD') effText = `discard {TARGET}`;
+            else if (targetDest === 'DECK' || targetDest === 'ORIGINAL_DECK') effText = `shuffle {TARGET}`;
+            else if (targetDest === 'BANISH') effText = `banish {TARGET}`;
+            else effText = `move {TARGET} to ${targetDest}`;
             break;
         case 'REBEL': effText = eff.invertRoles ? `give control of this card to {TARGET}` : `control {TARGET}`; break;
         case 'DONATE': effText = `donate {TARGET}`; break;
@@ -275,7 +280,7 @@ export function formatPayload(eff, formatCtx) {
             break;
         case 'TRANSFORM':
             let transCardName = resolveCard(eff.cardId, allCards);
-            let isSelfTarget = ['this card', 'it', 'the triggering card', 'self', 'itself'].includes(targetStr);
+            let isSelfTarget = ['this', 'it', 'the triggering card', 'self', 'itself'].includes(targetStr);
             
             if (isPlural) {
                 let pluralSuffix = transCardName.endsWith('s') ? '' : 's';
@@ -425,13 +430,13 @@ export function formatCombinedPayloads(effs, formatCtx) {
              let modStat = `[STAT:${eff.stat || 'stat'}]`;
              let sign = eff.amount > 0 && !eff.amountIsX ? '+' : '';
              let amtStr = eff.amountIsX ? 'X' : eff.amount;
-             if (targetStr === 'this card' || targetStr === 'self') {
+             if (targetStr === 'this' || targetStr === 'self') {
                  return `${modStat}${sign}${amtStr}`;
              }
              return `${sign}${amtStr} ${modStat}`;
         });
         
-        if (targetStr === 'this card' || targetStr === 'self') {
+        if (targetStr === 'this' || targetStr === 'self') {
             effText = `${joinWithAnd(changes)}{OMIT_TARGET}`;
         } else if (first.duration === 'WHILE_ATTACHED') {
             effText = `{TARGET} gains ${joinWithAnd(changes)}`;
@@ -442,8 +447,8 @@ export function formatCombinedPayloads(effs, formatCtx) {
     } else if (first.type === 'MODIFY_RESOURCE') {
         let changes = effs.map(eff => {
              let resName = resolveResource(eff.resource, allTribes);
-             let amtStr = eff.amountIsX ? 'X' : Math.abs(eff.amount);
-             return `${amtStr} ${resName}`;
+             let amount = eff.amount !== undefined ? Math.abs(eff.amount) : 1;
+             return formatResourceIcons(amount, resName, eff.amountIsX);
         });
         let isSpend = first.amount < 0;
         effText = `${isSpend ? 'lose' : 'gain'} ${joinWithAnd(changes)}{PER_TARGET}`;
@@ -454,21 +459,21 @@ export function formatCombinedPayloads(effs, formatCtx) {
                  let amtStr = eff.amountIsX ? 'X' : eff.amount;
                  return `[BATTLELINE:${amtStr}]`;
             });
-            if (targetStr === 'this card' || targetStr === 'self' || targetStr === 'itself') {
-                effText = `move to ${joinWithAnd(changes)}{OMIT_TARGET}`;
+            if (targetStr === 'this' || targetStr === 'self' || targetStr === 'itself') {
+                effText = `${joinWithAnd(changes)}{OMIT_TARGET}`;
             } else {
-                effText = `move {TARGET} to ${joinWithAnd(changes)}`;
+                effText = `${joinWithAnd(changes)} {TARGET}`;
             }
         } else {
             let changes = effs.map(eff => {
                  let setStat = `[STAT:${eff.stat || 'stat'}]`;
                  let amtStr = eff.amountIsX ? 'X' : eff.amount;
-                 if (targetStr === 'this card' || targetStr === 'self') {
+                 if (targetStr === 'this' || targetStr === 'self') {
                      return `${setStat}=${amtStr}`;
                  }
-                 return `${setStat} to ${amtStr}`;
+                 return `${setStat}=${amtStr}`;
             });
-            if (targetStr === 'this card' || targetStr === 'self') {
+            if (targetStr === 'this' || targetStr === 'self') {
                 effText = `${joinWithAnd(changes)}{OMIT_TARGET}`;
             } else {
                 effText = `set {POSS} ${joinWithAnd(changes)}`;
