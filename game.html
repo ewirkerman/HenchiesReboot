@@ -33,7 +33,7 @@
   <match-lobby></match-lobby>
 
   <!-- SCREEN 2: TABLETOP MATCH BOARD (HIDDEN INITIALLY) -->
-  <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 flex flex-col gap-1 hidden">
+  <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 flex flex-col gap-1 hidden overflow-visible">
 
     <!-- Active Player Turn Indicator & Phase Bar -->
     <div class="glass-panel rounded-lg p-1.5 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30 w-full shrink-0 sticky top-0 z-50 shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
@@ -76,7 +76,7 @@
     <div id="replay-bar-container" class="w-full hidden"></div>
 
     <!-- TABLETOP VERTICAL MIRROR BOARD -->
-    <div class="glass-panel rounded-xl p-1.5 flex flex-col gap-1.5 shadow-2xl relative border border-slate-800 w-full overflow-x-auto">
+    <div class="glass-panel rounded-xl p-1.5 flex flex-col gap-1.5 shadow-2xl relative border border-slate-800 w-full overflow-x-auto overflow-y-visible">
       
       <!-- OPPONENT BOARD (TOP) -->
       <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-red-950/40 w-full min-w-0" id="opponent-board">
@@ -85,7 +85,7 @@
             <div class="font-extrabold text-xs text-red-400 leading-none" id="opp-name">Opponent (P2)</div>
             <div class="text-[9px] text-slate-400 leading-none" id="opp-resources">Loading Resources...</div>
             
-            <!-- NEW: Mobile HUD Badges (Targetable) -->
+            <!-- Mobile HUD Badges (Targetable) -->
             <div class="flex md:hidden gap-1 items-center ml-1">
                 <div id="opp-deck-badge" data-instance-id="opp-deck" is-targetable="true" onclick="window.handleZoneBadgeClick('opp', 'deck')" class="bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-colors shadow-sm select-none">🎴 <span id="opp-deck-count-badge">0</span></div>
                 <div id="opp-discard-badge" data-instance-id="opp-discard" is-targetable="true" onclick="window.handleZoneBadgeClick('opp', 'discard')" class="bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-colors shadow-sm select-none">💀 <span id="opp-discard-count-badge">0</span></div>
@@ -140,7 +140,7 @@
             <div class="font-extrabold text-xs text-emerald-400 leading-none" id="player-name">Local Player (P1)</div>
             <div class="text-[9px] text-slate-400 leading-none" id="player-resources">Loading Resources...</div>
             
-            <!-- NEW: Mobile HUD Badges (Targetable) -->
+            <!-- Mobile HUD Badges (Targetable) -->
             <div class="flex md:hidden gap-1 items-center ml-1">
                 <div id="player-deck-badge" data-instance-id="player-deck" is-targetable="true" onclick="window.handleZoneBadgeClick('player', 'deck')" class="bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-colors shadow-sm select-none">🎴 <span id="player-deck-count-badge">0</span></div>
                 <div id="player-discard-badge" data-instance-id="player-discard" is-targetable="true" onclick="window.handleZoneBadgeClick('player', 'discard')" class="bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-colors shadow-sm select-none">💀 <span id="player-discard-count-badge">0</span></div>
@@ -178,7 +178,8 @@
       </div>
 
       <!-- THE HAND -->
-      <div class="flex flex-col gap-1 pt-1 mt-0.5 border-t border-slate-800/60 transition-all duration-300 w-full min-w-0" id="player-hand-wrapper">
+      <!-- ADDED: overflow-visible to the wrapper to ensure cards don't clip when they pop up! -->
+      <div class="flex flex-col gap-1 pt-1 mt-0.5 border-t border-slate-800/60 transition-all duration-300 w-full min-w-0 overflow-visible" id="player-hand-wrapper">
         <div class="flex justify-between items-center px-1">
           <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
             🎴 Hand (<span id="hand-card-count">0</span>)

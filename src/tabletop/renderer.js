@@ -564,19 +564,18 @@ function renderHand(handCards) {
     document.getElementById('hand-card-count').innerText = handCards.length;
     
     const isTargetingMode = !!ClientState.pendingAbility || window._isDragging;
+    const total = handCards.length;
 
-    if (handCards.length === 0) {
-      container.className = 'flex flex-wrap justify-center gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[64px] items-start transition-all duration-300';
-      container.innerHTML = `<span class="text-xs text-slate-500 italic mx-auto self-center">Your hand is empty.</span>`;
+    if (total === 0) {
+      container.className = 'flex flex-row justify-center items-center p-4 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[80px] transition-all duration-300 w-full';
+      container.innerHTML = `<span class="text-xs text-slate-500 italic mx-auto">Your hand is empty.</span>`;
       return;
     }
 
-    const isCrowded = handCards.length > 5;
-    if (isCrowded) {
-        container.className = 'flex flex-nowrap overflow-x-auto overflow-y-visible items-end pb-4 pt-8 px-4 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[64px] transition-all duration-300 minimal-scrollbar justify-start sm:justify-center';
-    } else {
-        container.className = 'flex flex-wrap justify-center gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[64px] items-start transition-all duration-300';
-    }
+    // Apply Fan Container Styles
+    container.className = 'flex flex-row justify-center items-end pb-2 pt-10 sm:pt-14 px-2 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[120px] transition-all duration-300 w-full overflow-visible';
+
+    const mid = (total - 1) / 2;
 
     container.innerHTML = handCards.map((c, idx) => {
       const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
@@ -609,25 +608,37 @@ function renderHand(handCards) {
         abilityUses: ClientState.gameState?.abilityUses || {}
       });
 
-      let overlapClass = '';
-      let wrapperZ = 10 + idx;
-      
-      if (isCrowded) {
-          overlapClass = `relative ${idx > 0 ? '-ml-12 sm:-ml-16' : ''}`;
-          
-          if (isCasting || isSelected) {
-              overlapClass += ' mr-12 sm:mr-16 !z-[110]';
-              wrapperZ = 110;
-          } else if (isForceHover) {
-              overlapClass += ' mr-12 sm:mr-16 hover:!z-[100]';
-              wrapperZ = 100;
-          } else {
-              if (!isTargetingMode || isTargetable) {
-                  overlapClass += ' hover:mr-12 sm:hover:mr-16 hover:!z-[100]';
-              }
-          }
+      // Fan Math
+      const dist = idx - mid;
+      const rotate = dist * 4; // 4 degrees per step away from center
+      const translateY = Math.abs(dist) * Math.abs(dist) * 1.5; // Parabolic curve
+
+      // Overlap Math
+      let marginClass = '';
+      if (idx > 0) {
+          if (total <= 3) marginClass = '-ml-2 sm:-ml-4';
+          else if (total <= 6) marginClass = '-ml-8 sm:-ml-10';
+          else marginClass = '-ml-14 sm:-ml-16'; // Heavy overlap for large hands
       }
 
-      return isCrowded ? `<div class="${overlapClass}" style="z-index: ${wrapperZ}">${cardHtml}</div>` : cardHtml;
+      const isFocused = isCasting || isSelected || isForceHover;
+      let wrapperZ = isFocused ? 110 : (10 + idx);
+      
+      let transformStyle = '';
+      if (isFocused) {
+          // Break out of the fan: stand straight up, elevate, scale
+          transformStyle = `transform: translateY(-30px) rotate(0deg) scale(1.15); z-index: ${wrapperZ};`;
+      } else {
+          // Rest in the fan
+          transformStyle = `transform: translateY(${translateY}px) rotate(${rotate}deg); z-index: ${wrapperZ};`;
+      }
+
+      let wrapperClass = `relative transition-all duration-300 ease-out origin-bottom cursor-pointer ${marginClass}`;
+      // Add hover z-index boost natively just in case JS lags
+      if (!isTargetingMode || isTargetable) {
+          wrapperClass += ' hover:z-[100]';
+      }
+
+      return `<div class="${wrapperClass}" style="${transformStyle}">${cardHtml}</div>`;
     }).join('');
 }
