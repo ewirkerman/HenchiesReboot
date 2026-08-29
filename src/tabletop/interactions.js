@@ -72,7 +72,7 @@ export async function executeAndLogAbility(entityId, abilityId, targetId, target
     if (result && result.success) {
         showToast('Ability Activated!', 'success');
         await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
-        window._isDragging = false; // Add this line
+        window._isDragging = false;
         updateUI();
     } else {
         showToast(result?.reason || 'Failed to activate ability', 'error');
@@ -146,7 +146,7 @@ export async function handleUndo() {
         actionIndex: ClientState.gameState.actionIndex 
     };
     
-    window._isDragging = false; // Add this line
+    window._isDragging = false;
     console.log(`[UNDO] Processing undo for action index ${targetIdx}. New sequence index: ${actionPayload.actionIndex}`);
     showToast('Rewinding action...', 'info');
     
@@ -162,7 +162,6 @@ export async function handleRestartMatch() {
     }
 
     try {
-        // We have the pristine turn 1 state already saved in RAM!
         if (!ClientState.localReplayStates || ClientState.localReplayStates.length === 0) {
             showToast('Cannot restart: No initial state found.', 'error');
             return;
@@ -170,7 +169,6 @@ export async function handleRestartMatch() {
 
         const pristineState = ClientState.localReplayStates[0];
         
-        // Construct the exact payload Firebase/LocalStorage expects
         const resetPayload = {
             gameId: ClientState.roomCode,
             status: pristineState.status || 'active',
@@ -187,16 +185,13 @@ export async function handleRestartMatch() {
             updatedAt: Date.now()
         };
         
-        // Push to localStorage so the polling listener stays in sync
         localStorage.setItem(`henchies_game_${ClientState.roomCode}`, JSON.stringify(resetPayload));
         
-        // Clear UI State
         ClientState.selectedCardId = null;
         ClientState.pendingAbility = null;
         ClientState.validTargets = [];
         ClientState.replayStepIndex = 0;
         
-        // Force the engine to instantly rebuild the board from the reset payload
         reconstructStateFromLog(resetPayload);
         
         showToast('Match restarted!', 'success');
@@ -223,6 +218,13 @@ export async function handleForfeitInGame() {
     showToast("You have forfeited the match.", "info");
 }
 window.handleForfeitInGame = handleForfeitInGame;
+
+// Mobile Helper: Click to Open Zone Viewer (from HUD Badges)
+window.handleZoneBadgeClick = (prefix, zone) => {
+    if (window._isDragging || window._blockClick) return;
+    const role = prefix === 'player' ? ClientState.localPlayerRole : (ClientState.localPlayerRole === 'player1' ? 'player2' : 'player1');
+    window.openZoneModal(role, zone);
+};
 
 window.handleLineClick = async (clickedPrefix, line) => {
     if (window._isDragging || window._blockClick) return;
@@ -457,7 +459,7 @@ window.executeNormalPlay = async (cardId, chosenAbilityId = null, abilityTargetI
     if (result.success) {
       ClientState.selectedCardId = null;
       await pushActionToLog(ClientState.roomCode, actionPayload, null, ClientState.gameState.history_log);
-      window._isDragging = false; // Add this line
+      window._isDragging = false;
       updateUI();
     } else {
       showToast(result.reason, 'error');
@@ -597,7 +599,6 @@ window.handleHandCardClick = async (cardId) => {
             }
 
             if (t === 'MANUAL' && ab.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
-                // Hand activations don't require the card's base cost! We check base resources directly.
                 if (!hasTargets) return false;
                 
                 let rawCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
@@ -705,7 +706,6 @@ window.addEventListener('mousedown', e => {
             
             if (hasOptional) {
                 dState.type = 'OPTIONAL';
-                // Trigger modal instantly on clickdown to bypass drag logic
                 window.handleHandCardClick(cardId);
                 dState.down = false; 
                 return;
@@ -739,7 +739,6 @@ window.addEventListener('mousedown', e => {
             }
         }
     } else {
-        // Board Drag = Attack ONLY
         if (gc.closest('#equator-cards-container')) {
             dState.type = 'INVALID'; 
         } else {
@@ -781,8 +780,9 @@ window.addEventListener('mousemove', e => {
             head.setAttribute('cy', e.clientY);
             
             ClientState.validTargets.forEach(t => {
-               const el = document.querySelector(`game-card[data-instance-id="${t.id}"]`);
-               const inner = el?.firstElementChild;
+               // CHANGED: Query by instance ID to support non-card HUD badges
+               const el = document.querySelector(`[data-instance-id="${t.id}"]`);
+               const inner = el?.tagName.toLowerCase() === 'game-card' ? el.firstElementChild : el;
                if (inner) {
                    const tr = inner.getBoundingClientRect();
                    if (e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom) {
@@ -819,9 +819,8 @@ window.addEventListener('mousemove', e => {
                 ClientState.pendingAbility = null; ClientState.validTargets = []; 
             }
 
-            updateUI(); // Renders the casting/target states dynamically
+            updateUI();
 
-            // Refresh the source card reference and RECT so the tether perfectly tracks the raised card
             dState.gc = document.querySelector(`game-card[data-instance-id="${dState.cardId}"]`);
             if (dState.gc && dState.gc.firstElementChild) {
                 dState.rect = dState.gc.firstElementChild.getBoundingClientRect();
@@ -856,9 +855,11 @@ window.addEventListener('mousemove', e => {
             }
         } else {
             dState.targets.forEach(tid => {
-                const el = document.querySelector(`game-card[data-instance-id="${tid}"]`);
-                const tr = el?.firstElementChild?.getBoundingClientRect();
-                const inner = el?.firstElementChild;
+                // CHANGED: Query by instance ID to support non-card HUD badges
+                const el = document.querySelector(`[data-instance-id="${tid}"]`);
+                const inner = el?.tagName.toLowerCase() === 'game-card' ? el.firstElementChild : el;
+                const tr = inner?.getBoundingClientRect();
+                
                 if (tr && e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom) {
                     inner?.classList.replace('ring-cyan-400', 'ring-amber-400');
                     dState.hoveredTarget = tid;
@@ -883,8 +884,11 @@ window.addEventListener('mouseup', e => {
         } else if (dState.type === 'ATTACK' || dState.type === 'PLAY_TARGET') {
             let hitTarget = null;
             dState.targets.forEach(tid => {
-                const el = document.querySelector(`game-card[data-instance-id="${tid}"]`);
-                const tr = el?.firstElementChild?.getBoundingClientRect();
+                // CHANGED: Query by instance ID to support non-card HUD badges
+                const el = document.querySelector(`[data-instance-id="${tid}"]`);
+                const inner = el?.tagName.toLowerCase() === 'game-card' ? el.firstElementChild : el;
+                const tr = inner?.getBoundingClientRect();
+                
                 if (tr && e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom) {
                     hitTarget = tid;
                 }
@@ -893,7 +897,7 @@ window.addEventListener('mouseup', e => {
             if (hitTarget) {
                 if (dState.type === 'ATTACK') {
                     const tgc = document.querySelector(`game-card[data-instance-id="${hitTarget}"]`);
-                    const lineDiv = tgc.closest('[id^="opp-line-"], [id^="player-line-"]');
+                    const lineDiv = tgc ? tgc.closest('[id^="opp-line-"], [id^="player-line-"]') : null;
                     const line = lineDiv ? lineDiv.id.split('-').pop() : 'mid';
                     executeAndLogAbility(dState.cardId, dState.abilityId, hitTarget, line);
                     executed = true;
@@ -946,9 +950,8 @@ export async function triggerAILoop() {
     
     isAIRunning = true;
     try {
-        await new Promise(r => setTimeout(r, 1500)); // Natural AI delay
+        await new Promise(r => setTimeout(r, 1500));
         
-        // RE-GRAB STATE AFTER DELAY TO AVOID STALE DATA OVERWRITES
         state = ClientState.gameState;
         if (!state || state.status === 'finished' || state.activePlayerId !== activePlayer.id) return;
 
@@ -980,11 +983,9 @@ export async function triggerAILoop() {
             const snapshot = JSON.stringify(state);
             await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, state.history_log);
         } else if (move.executed) {
-            // Robustly handle the action payload whether it's nested in move.action or flattened on move
             const actionData = move.action || move;
             let actionPayload = null;
 
-            // PLAY_CARD actions from BaseAIEngine return type: 'PLAY_CARD'
             if (move.type === 'PLAY_CARD' || actionData.type === 'PLAY_CARD') {
                 actionPayload = {
                     type: 'PLAY_CARD',
@@ -997,7 +998,6 @@ export async function triggerAILoop() {
                     isUnsafe: true
                 };
             } 
-            // ENTITY_ACTIONs from BaseAIEngine return type: 'ABILITY' or 'ATTACK' (the actionType)
             else if (move.type === 'ABILITY' || move.type === 'ATTACK' || actionData.type === 'ENTITY_ACTION') {
                 actionPayload = {
                     type: 'ENTITY_ACTION',
@@ -1026,7 +1026,6 @@ export async function triggerAILoop() {
             await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, state.history_log);
         }
         
-        // This will naturally recall triggerAILoop via the renderer if the turn didn't end
         updateUI();
     } catch(e) {
         console.error("AI Loop Error:", e);
@@ -1035,9 +1034,3 @@ export async function triggerAILoop() {
     }
 }
 window.triggerAILoop = triggerAILoop;
-
-
-
-
-
-

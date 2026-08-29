@@ -1,4 +1,3 @@
-<!-- filepath: game.html -->
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -80,20 +79,27 @@
     <div class="glass-panel rounded-xl p-1.5 flex flex-col gap-1.5 shadow-2xl relative border border-slate-800 w-full overflow-x-auto">
       
       <!-- OPPONENT BOARD (TOP) -->
-      <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-red-950/40 min-w-[800px]" id="opponent-board">
+      <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-red-950/40 w-full min-w-0" id="opponent-board">
         <div class="flex justify-between items-end border-b border-slate-800/60 pb-1 px-1">
           <div class="flex items-baseline gap-2">
             <div class="font-extrabold text-xs text-red-400 leading-none" id="opp-name">Opponent (P2)</div>
             <div class="text-[9px] text-slate-400 leading-none" id="opp-resources">Loading Resources...</div>
+            
+            <!-- NEW: Mobile HUD Badges (Targetable) -->
+            <div class="flex md:hidden gap-1 items-center ml-1">
+                <div id="opp-deck-badge" data-instance-id="opp-deck" is-targetable="true" onclick="window.handleZoneBadgeClick('opp', 'deck')" class="bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-colors shadow-sm select-none">🎴 <span id="opp-deck-count-badge">0</span></div>
+                <div id="opp-discard-badge" data-instance-id="opp-discard" is-targetable="true" onclick="window.handleZoneBadgeClick('opp', 'discard')" class="bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-colors shadow-sm select-none">💀 <span id="opp-discard-count-badge">0</span></div>
+            </div>
           </div>
-          <div class="text-[9px] leading-none">
+          <div class="text-[9px] leading-none shrink-0">
             <span class="text-slate-400">Power: <strong id="opp-power" class="text-amber-400 text-xs">0</strong></span>
             <span class="ml-2 text-slate-400">Hand: <strong id="opp-hand-count" class="text-white text-xs">0</strong></span>
           </div>
         </div>
 
         <div class="flex flex-row gap-2 w-full mt-0.5">
-            <div class="shrink-0 flex flex-col justify-end" id="opp-deck-container"></div>
+            <!-- Hidden on mobile, Flex on desktop -->
+            <div class="shrink-0 hidden md:flex flex-col justify-end" id="opp-deck-container"></div>
             
             <div class="flex-1 flex flex-col gap-1">
                 <div id="opp-lines-container" class="grid grid-cols-4 gap-1 w-full items-stretch">
@@ -114,12 +120,13 @@
                 <div id="opp-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
             </div>
             
-            <div class="shrink-0 flex flex-col justify-end" id="opp-discard-container"></div>
+            <!-- Hidden on mobile, Flex on desktop -->
+            <div class="shrink-0 hidden md:flex flex-col justify-end" id="opp-discard-container"></div>
         </div>
       </div>
 
       <!-- THE EQUATOR (CENTER NEUTRAL ZONE) -->
-      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border border-dashed border-amber-500/40 rounded-lg p-1 min-h-[40px] flex items-center gap-2 min-w-[800px]">
+      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border border-dashed border-amber-500/40 rounded-lg p-1 min-h-[40px] flex items-center gap-2 w-full min-w-0">
         <span class="text-[9px] uppercase tracking-widest font-black text-amber-400 whitespace-nowrap shrink-0 pl-1">⚡ Equator</span>
         <div id="equator-cards-container" class="flex flex-wrap justify-center gap-1 items-center w-full">
           <span class="text-[10px] text-slate-500 italic" id="equator-empty-msg">No unattached items.</span>
@@ -127,16 +134,23 @@
       </div>
 
       <!-- LOCAL PLAYER BOARD (BOTTOM) -->
-      <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-emerald-950/40 min-w-[800px] transition-all duration-300" id="player-board">
+      <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-emerald-950/40 w-full min-w-0 transition-all duration-300" id="player-board">
         <div class="flex justify-between items-end border-b border-slate-800/60 pb-1 px-1 mb-1">
           <div class="flex items-baseline gap-2">
             <div class="font-extrabold text-xs text-emerald-400 leading-none" id="player-name">Local Player (P1)</div>
             <div class="text-[9px] text-slate-400 leading-none" id="player-resources">Loading Resources...</div>
+            
+            <!-- NEW: Mobile HUD Badges (Targetable) -->
+            <div class="flex md:hidden gap-1 items-center ml-1">
+                <div id="player-deck-badge" data-instance-id="player-deck" is-targetable="true" onclick="window.handleZoneBadgeClick('player', 'deck')" class="bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-colors shadow-sm select-none">🎴 <span id="player-deck-count-badge">0</span></div>
+                <div id="player-discard-badge" data-instance-id="player-discard" is-targetable="true" onclick="window.handleZoneBadgeClick('player', 'discard')" class="bg-slate-800 border border-slate-600 text-slate-300 text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-colors shadow-sm select-none">💀 <span id="player-discard-count-badge">0</span></div>
+            </div>
           </div>
         </div>
 
         <div id="player-lines-container" class="flex flex-row gap-2 w-full">
-            <div class="shrink-0 flex flex-col justify-start" id="player-deck-container"></div>
+            <!-- Hidden on mobile, Flex on desktop -->
+            <div class="shrink-0 hidden md:flex flex-col justify-start" id="player-deck-container"></div>
             
             <div class="flex-1 flex flex-col gap-1">
                 <div id="player-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
@@ -157,12 +171,13 @@
                 </div>
             </div>
             
-            <div class="shrink-0 flex flex-col justify-start" id="player-discard-container"></div>
+            <!-- Hidden on mobile, Flex on desktop -->
+            <div class="shrink-0 hidden md:flex flex-col justify-start" id="player-discard-container"></div>
         </div>
       </div>
 
       <!-- THE HAND -->
-      <div class="flex flex-col gap-1 pt-1 mt-0.5 border-t border-slate-800/60 transition-all duration-300 min-w-[800px]" id="player-hand-wrapper">
+      <div class="flex flex-col gap-1 pt-1 mt-0.5 border-t border-slate-800/60 transition-all duration-300 w-full min-w-0" id="player-hand-wrapper">
         <div class="flex justify-between items-center px-1">
           <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
             🎴 Hand (<span id="hand-card-count">0</span>)
