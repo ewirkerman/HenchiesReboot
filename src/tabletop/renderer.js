@@ -3,6 +3,15 @@ import { renderHistorySlider, renderCardHTML, getLineIconSvg } from '../ui.js';
 import { canPlayCard, cloneGameState, LINES, getEntityAvailableActions, resolveResourceKey, getValidAbilityTargets } from '../engine/index.js';
 import { triggerAILoop } from './interactions.js';
 
+// Responsive trigger: Force a re-render if the user crosses the mobile breakpoint (768px)
+let _lastInnerWidth = window.innerWidth;
+window.addEventListener('resize', () => {
+    if (Math.abs(_lastInnerWidth - window.innerWidth) > 50) {
+        _lastInnerWidth = window.innerWidth;
+        if (ClientState.gameState) window.updateUI();
+    }
+});
+
 window.scrubReplay = (step) => {
     ClientState.replayStepIndex = parseInt(step);
     if (ClientState.localReplayStates[ClientState.replayStepIndex]) {
@@ -138,8 +147,20 @@ export function updateUI() {
     document.getElementById('opp-resources').innerText = oppResStr.replace(/ \| $/, '') || 'No Resources';
 
     const isHarvestPhase = state.turnPhase === 'SACRIFICE_DECISION' && ClientState.isMyTurn();
-    document.getElementById('harvest-overlay').classList.toggle('hidden', !isHarvestPhase);
-    document.getElementById('harvest-overlay').classList.toggle('flex', isHarvestPhase);
+    
+    const harvestModal = document.getElementById('harvest-modal');
+    if (harvestModal) {
+        harvestModal.setAttribute('is-active', isHarvestPhase);
+        harvestModal.setAttribute('selected-card', !!ClientState.selectedCardId);
+        
+        if (isHarvestPhase && myP.tribe) {
+            const t = ClientState.customTribesList.find(t => t.id === myP.tribe);
+            if (t) harvestModal.setAttribute('tribe-name', t.name);
+            else harvestModal.setAttribute('tribe-name', myP.tribe);
+        } else {
+             harvestModal.removeAttribute('tribe-name');
+        }
+    }
     
     const handContainer = document.getElementById('player-hand-container');
     if (handContainer) {
@@ -316,6 +337,8 @@ function getHandActionCount(player, c) {
 
 function renderAttachmentsRecursive(attachments, prefix, line, isLocalPlayer, depth = 1) {
     if (!attachments || attachments.length === 0) return '';
+    const isMobile = window.innerWidth < 768; // Stage 4: Detect Mobile Viewport
+    
     return attachments.map((att, i) => {
         const attJson = encodeURIComponent(JSON.stringify(att)).replace(/'/g, "%27");
         const attIsCasting = (ClientState.pendingAbility && ClientState.pendingAbility.entityId === att.instanceId) || ClientState.activeMenuEntityId === att.instanceId || (window._isDragging && window._dragCardId === att.instanceId);
@@ -333,7 +356,8 @@ function renderAttachmentsRecursive(attachments, prefix, line, isLocalPlayer, de
             isCasting: attIsCasting,
             isTargetable: attIsTargetable,
             actionState: attActionState,
-            isNano: true,
+            isNano: !isMobile,
+            isMicro: isMobile,
             onClick: `if(event) event.stopPropagation(); window.handleEntityClick('${prefix}', '${line}', '${att.instanceId}')`,
             onInspect: `window.inspectCard('${attJson}')`,
             abilityUses: ClientState.gameState?.abilityUses || {}
@@ -343,9 +367,10 @@ function renderAttachmentsRecursive(attachments, prefix, line, isLocalPlayer, de
         
         const yTranslate = depth * -6;
         const zIndex = 20 - i + (depth * 2);
+        const overlapClass = isMobile ? '-ml-12 sm:-ml-14' : '-ml-14 sm:-ml-16'; // Adjust overlap for micro chips
 
         return `
-            <div class="flex flex-row items-start relative drop-shadow-md shrink-0 -ml-14 sm:-ml-16" style="z-index: ${zIndex}; transform: translateY(${yTranslate}px);">
+            <div class="flex flex-row items-start relative drop-shadow-md shrink-0 ${overlapClass}" style="z-index: ${zIndex}; transform: translateY(${yTranslate}px);">
                 <div class="relative z-[30] [&>div]:hover:-translate-y-8 cursor-pointer">
                     <div class="transition-transform duration-200">
                         ${attCardHtml}
@@ -364,6 +389,8 @@ function renderEquator(equatorItems) {
       return;
     }
 
+    const isMobile = window.innerWidth < 768; // Stage 4: Detect Mobile Viewport
+
     container.innerHTML = equatorItems.map((item, idx) => {
       const json = encodeURIComponent(JSON.stringify(item)).replace(/'/g, "%27");
       const isCasting = (ClientState.pendingAbility && ClientState.pendingAbility.entityId === item.instanceId) || ClientState.activeMenuEntityId === item.instanceId || (window._isDragging && window._dragCardId === item.instanceId);
@@ -381,7 +408,8 @@ function renderEquator(equatorItems) {
         isCasting: isCasting,
         isTargetable: isTargetable,
         actionState: actionState,
-        isNano: true,
+        isNano: !isMobile,
+        isMicro: isMobile,
         onClick: `window.handleEntityClick('equator', 'equator', '${item.instanceId}')`,
         onInspect: `window.inspectCard('${json}')`,
         abilityUses: ClientState.gameState?.abilityUses || {}
@@ -502,8 +530,7 @@ function renderPlayerBattlelines(player, prefix) {
         centerOccupiedCount = 1;
     }
 
-    const forceMicro = centerOccupiedCount >= 2;
-    const forceNano = centerOccupiedCount >= 3;
+    const isMobile = window.innerWidth < 768; // Stage 4: Detect Mobile Viewport
 
     for (const line of LINES) {
       const lineEl = document.getElementById(`${prefix}-line-${line}`);
@@ -514,11 +541,11 @@ function renderPlayerBattlelines(player, prefix) {
       const units = player.lines[line] || [];
       const isLocalPlayer = prefix === 'player';
       
-      // Force wrap and even spacing for nano cards
+      // Force wrap and even spacing for nano/micro cards
       lineEl.classList.remove('justify-center', 'content-center', 'items-center');
       lineEl.classList.add('justify-evenly', 'content-start', 'items-start', 'flex-wrap', 'gap-2');
 
-      const bgIcon = `<div class="absolute top-2 left-2 w-8 h-8 sm:w-12 sm:h-12 text-slate-500/50 pointer-events-none z-0 drop-shadow-md">${getLineIconSvg(line)}</div>`;
+      const bgIcon = `<div class="absolute top-1 left-2 w-8 h-8 sm:w-12 sm:h-12 text-slate-500/50 pointer-events-none z-0 drop-shadow-md">${getLineIconSvg(line)}</div>`;
 
       const cardsHtml = units.map(u => {
         const json = encodeURIComponent(JSON.stringify(u)).replace(/'/g, "%27");
@@ -537,7 +564,8 @@ function renderPlayerBattlelines(player, prefix) {
           isCasting: isCasting,
           isTargetable: isTargetable,
           actionState: actionState,
-          isNano: true, // Always force nano sizing
+          isNano: !isMobile,
+          isMicro: isMobile,
           onClick: `window.handleEntityClick('${prefix}', '${line}', '${u.instanceId}')`,
           onInspect: `window.inspectCard('${json}')`,
           abilityUses: ClientState.gameState?.abilityUses || {}
@@ -561,21 +589,35 @@ function renderPlayerBattlelines(player, prefix) {
 
 function renderHand(handCards) {
     const container = document.getElementById('player-hand-container');
-    document.getElementById('hand-card-count').innerText = handCards.length;
     
     const isTargetingMode = !!ClientState.pendingAbility || window._isDragging;
     const total = handCards.length;
 
     if (total === 0) {
-      container.className = 'flex flex-row justify-center items-center p-4 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[80px] transition-all duration-300 w-full';
-      container.innerHTML = `<span class="text-xs text-slate-500 italic mx-auto">Your hand is empty.</span>`;
+      container.className = 'pointer-events-none flex flex-row justify-center items-start w-full h-[30px]';
+      container.innerHTML = ``;
       return;
     }
 
-    // Apply Fan Container Styles
-    container.className = 'flex flex-row justify-center items-end pb-2 pt-10 sm:pt-14 px-2 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[120px] transition-all duration-300 w-full overflow-visible';
+    // Ghost Hand Container - Added 'touch-none' to prevent browser swipe navigation
+    container.className = 'pointer-events-none touch-none flex flex-row justify-center items-end transition-all duration-300 w-full overflow-visible relative h-[1px] mb-2';
 
     const mid = (total - 1) / 2;
+    
+    // DYNAMIC OVERLAP MATH: Guarantees the hand ALWAYS fits in the viewport
+    const isMobile = window.innerWidth < 768;
+    const cardWidth = isMobile ? 128 : 144; 
+    const containerWidth = window.innerWidth - 16; 
+    let overlap = isMobile ? 25 : 35; // Default gentle overlap for small hands
+
+    if (total > 1) {
+        const rawWidth = total * cardWidth;
+        if (rawWidth > containerWidth) {
+            overlap = (rawWidth - containerWidth) / (total - 1);
+            // Crush limit: Ensure at least a sliver of the card edge is always visible
+            if (overlap > cardWidth - 28) overlap = cardWidth - 28; 
+        }
+    }
 
     container.innerHTML = handCards.map((c, idx) => {
       const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
@@ -608,33 +650,23 @@ function renderHand(handCards) {
         abilityUses: ClientState.gameState?.abilityUses || {}
       });
 
-      // Fan Math
-      const dist = idx - mid;
-      const rotate = dist * 4; // 4 degrees per step away from center
-      const translateY = Math.abs(dist) * Math.abs(dist) * 1.5; // Parabolic curve
+      // Flat Overlap Math (Arcing removed to prevent muddy text rendering)
+      const baseDrop = 85; 
+      const translateY = baseDrop;
 
-      // Overlap Math
-      let marginClass = '';
-      if (idx > 0) {
-          if (total <= 3) marginClass = '-ml-2 sm:-ml-4';
-          else if (total <= 6) marginClass = '-ml-8 sm:-ml-10';
-          else marginClass = '-ml-14 sm:-ml-16'; // Heavy overlap for large hands
-      }
+      let dynamicMarginStyle = idx > 0 ? `margin-left: -${overlap}px;` : '';
 
       const isFocused = isCasting || isSelected || isForceHover;
       let wrapperZ = isFocused ? 110 : (10 + idx);
       
       let transformStyle = '';
       if (isFocused) {
-          // Break out of the fan: stand straight up, elevate, scale
-          transformStyle = `transform: translateY(-30px) rotate(0deg) scale(1.15); z-index: ${wrapperZ};`;
+          transformStyle = `transform: translateY(-40px) scale(1.15); z-index: ${wrapperZ}; ${dynamicMarginStyle}`;
       } else {
-          // Rest in the fan
-          transformStyle = `transform: translateY(${translateY}px) rotate(${rotate}deg); z-index: ${wrapperZ};`;
+          transformStyle = `transform: translateY(${translateY}px) scale(0.95); z-index: ${wrapperZ}; ${dynamicMarginStyle}`;
       }
 
-      let wrapperClass = `relative transition-all duration-300 ease-out origin-bottom cursor-pointer ${marginClass}`;
-      // Add hover z-index boost natively just in case JS lags
+      let wrapperClass = `relative pointer-events-auto transition-all duration-300 ease-out origin-bottom cursor-pointer`;
       if (!isTargetingMode || isTargetable) {
           wrapperClass += ' hover:z-[100]';
       }

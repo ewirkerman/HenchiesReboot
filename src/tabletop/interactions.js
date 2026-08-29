@@ -671,12 +671,429 @@ window.closeUnitActionModal = () => {
 };
 
 // ==========================================
-// DRAG-TO-ACT ENGINE
+// UNIFIED DRAG & SCRUB ENGINE (Mobile & Desktop)
 // ==========================================
 let dState = {
     down: false, dragging: false, cardId: null, card: null, type: null, rect: null, targets: [], abilityId: null, gc: null, clone: null, hoveredTarget: null
 };
 
+let touchScrubState = { active: false, startX: 0, startY: 0, hasMoved: false };
+
+// HELPER: Instantly animate cards without tearing down the DOM (prevents touch-cancel bugs)
+function applyHandHoverState(hoveredId) {
+    const handWrapper = document.getElementById('player-hand-container');
+    if (!handWrapper) return;
+    
+    const cards = handWrapper.querySelectorAll('game-card[is-hand="true"]');
+    
+    cards.forEach((gc, idx) => {
+        const cardId = gc.getAttribute('data-instance-id');
+        const wrapper = gc.parentElement;
+        if (!wrapper) return;
+        
+        // If this card is currently being actively dragged to the board, hide it in the hand!
+        if (dState.dragging && dState.cardId === cardId) {
+            wrapper.style.opacity = '0';
+            wrapper.style.pointerEvents = 'none';
+            return;
+        }
+        
+        wrapper.style.opacity = '1';
+        wrapper.style.pointerEvents = 'auto';
+
+        const isFocused = (cardId === hoveredId);
+        let wrapperZ = isFocused ? 110 : (10 + idx);
+        
+        if (isFocused) {
+            wrapper.style.transform = `translateY(-40px) scale(1.15)`;
+            wrapper.style.zIndex = wrapperZ;
+        } else {
+            wrapper.style.transform = `translateY(85px) scale(0.95)`;
+            wrapper.style.zIndex = wrapperZ;
+        }
+    });
+}
+
+// Mobile Touch Start
+window.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1 || window._isDragging) return;
+    const touch = e.touches[0];
+    
+    // Ignore touches on modals or buttons
+    if (touch.target.closest('unit-action-modal') || touch.target.closest('zone-viewer-modal') || touch.target.closest('button')) return;
+
+    const gc = touch.target.closest('game-card[is-hand="true"]');
+    
+    // If they touched a hand card, initiate scrub mode
+    if (gc) {
+        touchScrubState.active = true;
+        touchScrubState.startX = touch.clientX;
+        touchScrubState.startY = touch.clientY;
+        touchScrubState.hasMoved = false;
+        
+        window._blockClick = true; 
+        
+        const cardId = gc.getAttribute('data-instance-id');
+        if (window._forceHoverCardId !== cardId) {
+            window._forceHoverCardId = cardId;
+            applyHandHoverState(cardId);
+        }
+        return;
+    }
+    
+    // Tap outside hand clears focus
+    if (window._forceHoverCardId) {
+        window._forceHoverCardId = null;
+        applyHandHoverState(null);
+    }
+    
+    // If they touched a board card, we need to pass it to the Drag Engine (Attack Logic)
+    const boardGc = touch.target.closest('game-card:not([is-hand])');
+    if (boardGc && ClientState.isMyTurn() && ClientState.gameState.turnPhase === 'ACTION_PHASE') {
+        const cardId = boardGc.getAttribute('data-instance-id');
+        if (!cardId) return;
+        
+        const liveCard = getEntityRef(cardId);
+        if (!liveCard || boardGc.closest('#equator-cards-container')) return;
+
+        const available = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId);
+        const canAtk = available.find(a => a.type === 'ATTACK');
+        
+        if (canAtk) {
+            const targets = getValidAttackTargets(ClientState.gameState, ClientState.localPlayerRole, liveCard);
+            if (targets.length > 0) {
+                dState.down = true;
+                dState.dragging = false; 
+                dState.cardId = cardId; 
+                dState.card = liveCard;
+                dState.rect = boardGc.firstElementChild.getBoundingClientRect(); 
+                dState.gc = boardGc; 
+                dState.type = 'ATTACK';
+                dState.abilityId = canAtk.abilityId;
+                dState.targets = targets.map(t => t.id);
+            }
+        }
+    }
+}, { passive: false });
+
+
+// Helper function to prep a card for the Drag Engine
+function initDragFromHand(cardId, initialRect) {
+    if (!ClientState.isMyTurn() || ClientState.gameState.turnPhase !== 'ACTION_PHASE') return false;
+    
+    const liveCard = getEntityRef(cardId);
+    if (!liveCard) return false;
+    
+    const playCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, liveCard);
+    if (!playCheck.success) return false;
+    
+    dState.cardId = cardId; 
+    dState.card = liveCard;
+    dState.rect = initialRect;
+    dState.targets = []; 
+    dState.type = 'INVALID'; 
+    dState.abilityId = null;
+
+    const playAbs = liveCard.abilities?.filter(a => ['PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED'].includes(a.trigger)) || [];
+    const hasOptional = playAbs.some(a => a.trigger === 'PLAY_OPTIONAL');
+    
+    if (hasOptional) {
+        // Optional cards must use the modal, cannot be blind dragged
+        return false;
+    } 
+
+    const hasMandatoryTarget = playAbs.find(a => a.activation?.method === 'PLAYER_CHOICE');
+    if (hasMandatoryTarget) {
+        dState.abilityId = hasMandatoryTarget.abilityId;
+        const targets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, dState.abilityId);
+        if (targets.length > 0) {
+            dState.type = 'PLAY_TARGET';
+            dState.targets = targets.map(t => t.id);
+        }
+    } else if (liveCard.type === 'spell') {
+         const spellTarget = playAbs.find(a => a.activation?.method === 'PLAYER_CHOICE');
+         if (spellTarget) {
+             dState.abilityId = spellTarget.abilityId;
+             const targets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, dState.abilityId);
+             if (targets.length > 0) {
+                 dState.type = 'PLAY_TARGET'; 
+                 dState.targets = targets.map(t => t.id);
+             }
+         } else {
+             dState.type = 'PLAY_BOARD';
+         }
+    } else {
+        dState.type = 'PLAY_BOARD';
+    }
+    
+    if (dState.type !== 'INVALID') {
+        dState.down = true;
+        dState.dragging = true;
+        window._isDragging = true;
+        window._dragCardId = dState.cardId;
+        window._dragTargets = dState.targets;
+        
+        if (ClientState.pendingAbility) {
+            ClientState.pendingAbility = null; ClientState.validTargets = []; 
+        }
+
+        // NO updateUI() CALL HERE! It destroys the DOM and kills the touch event.
+        // Instead, manually apply target highlights to the board directly.
+        dState.targets.forEach(tid => {
+            const el = document.querySelector(`[data-instance-id="${tid}"]`);
+            const inner = el?.tagName.toLowerCase() === 'game-card' ? el.firstElementChild : el;
+            if (inner) {
+                inner.classList.add('ring-4', 'ring-cyan-400', 'z-20', 'cursor-pointer', 'shadow-[0_0_20px_rgba(34,211,238,0.6)]');
+            }
+        });
+
+        dState.gc = document.querySelector(`game-card[data-instance-id="${dState.cardId}"]`);
+        if (dState.gc && dState.gc.firstElementChild) {
+            dState.rect = dState.gc.firstElementChild.getBoundingClientRect();
+        }
+
+        document.getElementById('drag-tether-overlay').classList.remove('hidden');
+
+        if (dState.type === 'PLAY_BOARD') {
+            document.getElementById('player-board').classList.add('ring-4', 'ring-cyan-400', 'shadow-[0_0_30px_rgba(34,211,238,0.5)]');
+        }
+        return true;
+    }
+    return false;
+}
+
+
+window.addEventListener('touchmove', e => {
+    // If we are actively dragging a tether (either from hand breakout or board attack), process the tether
+    if (dState.dragging) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        
+        const handWrapper = document.getElementById('player-hand-wrapper')?.getBoundingClientRect();
+        
+        // REVERT TO SCRUB: If user drags back down into the hand area
+        if (handWrapper && touch.clientY >= handWrapper.top - 20) {
+            dState.dragging = false;
+            dState.down = false;
+            window._isDragging = false;
+            
+            document.getElementById('drag-tether-overlay').classList.add('hidden');
+            document.getElementById('player-board').classList.remove('ring-4', 'ring-cyan-400', 'ring-amber-400', 'shadow-[0_0_30px_rgba(34,211,238,0.5)]');
+            
+            // Cleanup manual target highlights
+            dState.targets.forEach(tid => {
+                const el = document.querySelector(`[data-instance-id="${tid}"]`);
+                const inner = el?.tagName.toLowerCase() === 'game-card' ? el.firstElementChild : el;
+                if (inner) {
+                    inner.classList.remove('ring-4', 'ring-cyan-400', 'ring-amber-400', 'z-20', 'cursor-pointer', 'shadow-[0_0_20px_rgba(34,211,238,0.6)]');
+                }
+            });
+            dState.targets = [];
+            dState.hoveredTarget = null;
+            
+            // Resume scrubbing state
+            touchScrubState.active = true;
+            touchScrubState.startX = touch.clientX;
+            touchScrubState.startY = touch.clientY;
+            touchScrubState.hasMoved = true;
+            
+            // Visually restore the card to the hand
+            applyHandHoverState(dState.cardId);
+            window._forceHoverCardId = dState.cardId;
+            return;
+        }
+
+        const line = document.getElementById('drag-tether-line');
+        const head = document.getElementById('drag-tether-head');
+        
+        const startX = dState.rect.left + dState.rect.width / 2;
+        const startY = dState.rect.top + dState.rect.height / 2;
+        const ctrlY = startY + (touch.clientY - startY) / 2;
+        
+        line.setAttribute('d', `M ${startX},${startY} Q ${startX},${ctrlY} ${touch.clientX},${touch.clientY}`);
+        head.setAttribute('cx', touch.clientX);
+        head.setAttribute('cy', touch.clientY);
+
+        if (dState.type === 'PLAY_BOARD') {
+            if (handWrapper && touch.clientY < handWrapper.top) {
+                document.getElementById('player-board').classList.replace('ring-cyan-400', 'ring-amber-400');
+            } else {
+                document.getElementById('player-board').classList.replace('ring-amber-400', 'ring-cyan-400');
+            }
+        } else {
+            dState.targets.forEach(tid => {
+                const el = document.querySelector(`[data-instance-id="${tid}"]`);
+                const inner = el?.tagName.toLowerCase() === 'game-card' ? el.firstElementChild : el;
+                const tr = inner?.getBoundingClientRect();
+                
+                if (tr && touch.clientX >= tr.left && touch.clientX <= tr.right && touch.clientY >= tr.top && touch.clientY <= tr.bottom) {
+                    inner?.classList.replace('ring-cyan-400', 'ring-amber-400');
+                    dState.hoveredTarget = tid;
+                } else if (inner) {
+                    inner.classList.replace('ring-amber-400', 'ring-cyan-400');
+                    if (dState.hoveredTarget === tid) dState.hoveredTarget = null;
+                }
+            });
+        }
+        return;
+    }
+
+    // Normal hand scrubbing logic
+    if (!touchScrubState.active) return;
+    
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchScrubState.startX;
+    const dy = touch.clientY - touchScrubState.startY;
+    
+    if (!touchScrubState.hasMoved && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+        touchScrubState.hasMoved = true;
+    }
+
+    if (!touchScrubState.hasMoved) return; 
+    
+    e.preventDefault(); 
+    
+    const handWrapper = document.getElementById('player-hand-container');
+    if (!handWrapper) return;
+    
+    const containerRect = handWrapper.getBoundingClientRect();
+    
+    // BREAKOUT DETECTOR: If the user pushes their finger significantly higher than the hand, transition to Drag-To-Act!
+    if (touch.clientY < containerRect.top - 60) {
+        if (window._forceHoverCardId) {
+            // Find the physical location of the card right before we convert it
+            const activeGc = document.querySelector(`game-card[data-instance-id="${window._forceHoverCardId}"]`);
+            const rect = activeGc ? activeGc.firstElementChild.getBoundingClientRect() : containerRect;
+            
+            // Attempt to initialize the drag engine. If the card isn't playable, this returns false.
+            if (initDragFromHand(window._forceHoverCardId, rect)) {
+                touchScrubState.active = false; // Turn off scrubbing
+                applyHandHoverState(null); // Hide the card in the hand visually
+                return;
+            } else {
+                // Flash error if they dragged an unplayable card up
+                const innerCard = activeGc?.firstElementChild;
+                if (innerCard) {
+                    innerCard.classList.add('animate-error-flash');
+                    setTimeout(() => innerCard.classList.remove('animate-error-flash'), 500);
+                }
+                touchScrubState.active = false;
+                window._forceHoverCardId = null;
+                applyHandHoverState(null);
+                return;
+            }
+        }
+        return;
+    }
+
+    // Normal scrubbing
+    const cards = handWrapper.querySelectorAll('game-card[is-hand="true"]');
+    let foundId = null;
+
+    for (let i = cards.length - 1; i >= 0; i--) {
+        const gc = cards[i];
+        const wrapper = gc.parentElement;
+        if (!wrapper) continue;
+        
+        const slotLeft = containerRect.left + wrapper.offsetLeft;
+        const slotRight = slotLeft + wrapper.offsetWidth;
+        
+        if (touch.clientX >= slotLeft && touch.clientX <= slotRight) {
+            foundId = gc.getAttribute('data-instance-id');
+            break;
+        }
+    }
+
+    if (foundId && foundId !== window._forceHoverCardId) {
+        window._forceHoverCardId = foundId;
+        applyHandHoverState(foundId);
+    }
+}, { passive: false });
+
+window.addEventListener('touchend', e => {
+    // Process Drag-To-Act Drops (from Hand Breakout or Board Attack)
+    if (dState.dragging) {
+        let executed = false;
+        
+        // Use the last known touch coordinates (changed touch to changedTouches[0] for touchend event)
+        const touch = e.changedTouches ? e.changedTouches[0] : null;
+        const clientX = touch ? touch.clientX : (dState.rect ? dState.rect.left : 0);
+        const clientY = touch ? touch.clientY : (dState.rect ? dState.rect.top : 0);
+
+        if (dState.type === 'PLAY_BOARD') {
+            const handWrapper = document.getElementById('player-hand-wrapper')?.getBoundingClientRect();
+            if (handWrapper && clientY < handWrapper.top) {
+                window.executeNormalPlay(dState.cardId);
+                executed = true;
+            }
+        } else if (dState.type === 'ATTACK' || dState.type === 'PLAY_TARGET') {
+            let hitTarget = null;
+            dState.targets.forEach(tid => {
+                const el = document.querySelector(`[data-instance-id="${tid}"]`);
+                const inner = el?.tagName.toLowerCase() === 'game-card' ? el.firstElementChild : el;
+                const tr = inner?.getBoundingClientRect();
+                
+                if (tr && clientX >= tr.left && clientX <= tr.right && clientY >= tr.top && clientY <= tr.bottom) {
+                    hitTarget = tid;
+                }
+            });
+
+            if (hitTarget) {
+                if (dState.type === 'ATTACK') {
+                    const tgc = document.querySelector(`game-card[data-instance-id="${hitTarget}"]`);
+                    const lineDiv = tgc ? tgc.closest('[id^="opp-line-"], [id^="player-line-"]') : null;
+                    const line = lineDiv ? lineDiv.id.split('-').pop() : 'mid';
+                    executeAndLogAbility(dState.cardId, dState.abilityId, hitTarget, line);
+                    executed = true;
+                } else if (dState.type === 'PLAY_TARGET') {
+                    window.executeNormalPlay(dState.cardId, dState.abilityId, hitTarget);
+                    executed = true;
+                }
+            }
+        }
+
+        document.getElementById('drag-tether-overlay').classList.add('hidden');
+        document.getElementById('player-board').classList.remove('ring-4', 'ring-cyan-400', 'ring-amber-400', 'shadow-[0_0_30px_rgba(34,211,238,0.5)]');
+        
+        window._isDragging = false;
+        window._dragCardId = null;
+        window._dragTargets = [];
+        window._blockClick = true;
+        
+        dState.down = false; dState.dragging = false; dState.type = null; dState.targets = []; dState.hoveredTarget = null;
+        
+        updateUI(); // Resets the hand visibility
+        
+        setTimeout(() => { window._blockClick = false; }, 50);
+        return;
+    }
+
+    // Process Tap/Click if they didn't break out into Drag mode
+    if (touchScrubState.active) {
+        const tappedCardId = window._forceHoverCardId;
+        const wasDrag = touchScrubState.hasMoved;
+        
+        touchScrubState.active = false;
+        
+        if (window._forceHoverCardId) {
+            window._forceHoverCardId = null;
+            applyHandHoverState(null);
+        }
+        
+        setTimeout(() => { window._blockClick = false; }, 300);
+        
+        // If it was a clean tap (not a scrub), manually trigger the card's action modal logic!
+        if (!wasDrag && tappedCardId) {
+            window._blockClick = false; 
+            if (typeof window.handleHandCardClick === 'function') {
+                window.handleHandCardClick(tappedCardId);
+            }
+            window._blockClick = true; 
+        }
+    }
+}, { passive: true });
+
+// Desktop Mouse Drag Engine
 window.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (!ClientState.isMyTurn() || ClientState.gameState.turnPhase !== 'ACTION_PHASE') return;

@@ -10,11 +10,15 @@ import { handleSacrificeConfirm, handleSacrificeDecision, handleEndTurn, handleU
 
 window.ClientState = ClientState;
 
+// Bind UI actions to window object for web components
+window.handleSacrificeConfirm = handleSacrificeConfirm;
+window.handleSacrificeDecision = handleSacrificeDecision;
+
 import './modals.js'; 
 import '../../components/main_nav.js';
 import '../../components/match_lobby.js';
 import '../../components/action_log.js';
-import '../../components/harvest_overlay.js';
+import '../../components/harvest_modal.js';
 import '../../components/unit_action_modal.js';
 import '../../components/zone_viewer_modal.js';
 
@@ -224,8 +228,6 @@ window.handleResumeMatch = handleResumeMatch;
 document.getElementById('queue-match-btn').addEventListener('click', (e) => handleQueueMatch(e.target));
 document.getElementById('ai-match-btn').addEventListener('click', (e) => handleAIMatch(e.target));
 document.getElementById('send-challenge-btn').addEventListener('click', (e) => handleSendChallenge(e.target));
-document.getElementById('overlay-sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
-document.getElementById('overlay-sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
 document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
 
 document.addEventListener('keydown', (e) => {

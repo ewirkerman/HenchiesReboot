@@ -33,40 +33,40 @@
   <match-lobby></match-lobby>
 
   <!-- SCREEN 2: TABLETOP MATCH BOARD (HIDDEN INITIALLY) -->
-  <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 flex flex-col gap-1 hidden overflow-visible">
+  <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 pb-0 flex flex-col gap-1 hidden overflow-visible min-h-screen relative">
 
     <!-- Active Player Turn Indicator & Phase Bar -->
-    <div id="match-status-bar" class="glass-panel rounded-lg p-1 sm:p-1.5 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30 w-full shrink-0 sticky top-0 md:top-[64px] z-50 shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-in-out">
-      <div class="flex items-center gap-2">
-        <div id="turn-badge" class="px-2 py-0.5 rounded bg-amber-500 text-black font-extrabold text-[10px] uppercase shadow-sm">
-          Turn 1: Player 1
+    <div id="match-status-bar" class="glass-panel rounded-lg p-1 flex flex-wrap justify-between items-center gap-1 sm:gap-2 border border-amber-500/30 w-full shrink-0 sticky top-0 z-[90] shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+      <div class="flex items-center gap-1 sm:gap-2">
+        <div id="turn-badge" class="px-1.5 sm:px-2 py-0.5 rounded bg-amber-500 text-black font-extrabold text-[9px] sm:text-[10px] uppercase shadow-sm whitespace-nowrap">
+          Turn 1: P1
         </div>
-        <div id="phase-badge" class="px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold text-[10px] border border-slate-700">
+        <div id="phase-badge" class="px-1.5 sm:px-2 py-0.5 rounded bg-slate-800 text-amber-300 font-semibold text-[9px] sm:text-[10px] border border-slate-700 whitespace-nowrap">
           DRAW DECISION
         </div>
         <span class="text-[10px] text-slate-300 font-semibold transition-colors ml-2 hidden md:block" id="action-phase-instruction">
           Phase 2: Play cards, attack targets, or equip items.
         </span>
       </div>
-      <div class="flex items-center gap-2">
-        <div id="active-lock-notice" class="text-[10px] font-bold text-yellow-400 hidden">
-          🔒 Opponent's Turn - Locked
+      <div class="flex items-center justify-end gap-1 sm:gap-2 flex-1">
+        <div id="active-lock-notice" class="text-[9px] sm:text-[10px] font-bold text-yellow-400 hidden whitespace-nowrap">
+          🔒 Locked
         </div>
-        <button id="forfeit-match-btn" onclick="window.handleForfeitInGame()" class="hidden bg-slate-800 hover:bg-red-900 text-slate-400 hover:text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-slate-700 hover:border-red-500 transition" title="Forfeit Match">
+        <button id="forfeit-match-btn" onclick="window.handleForfeitInGame()" class="hidden bg-slate-800 hover:bg-red-900 text-slate-400 hover:text-white text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded shadow border border-slate-700 hover:border-red-500 transition" title="Forfeit Match">
           Forfeit 🏳️
         </button>
-        <div id="phase3-action-controls" class="flex items-center gap-1.5 hidden">
-            <button id="cancel-action-btn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow border border-slate-500 transition">
-              Cancel Target
+        <div id="phase3-action-controls" class="flex items-center gap-1 sm:gap-1.5 hidden">
+            <button id="cancel-action-btn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded shadow border border-slate-500 transition">
+              Cancel
             </button>
-            <button id="restart-match-btn" onclick="window.handleRestartMatch()" class="hidden bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-extrabold px-3 py-1 rounded shadow border border-sky-500 transition" title="Restart Match">
+            <button id="restart-match-btn" onclick="window.handleRestartMatch()" class="hidden bg-sky-600 hover:bg-sky-500 text-white text-[9px] sm:text-[10px] font-extrabold px-2 sm:px-3 py-1 rounded shadow border border-sky-500 transition" title="Restart Match">
               Restart 🔄
             </button>
-            <button id="undo-action-btn" onclick="window.handleUndo()" class="hidden bg-yellow-600 hover:bg-yellow-500 text-black text-[10px] font-extrabold px-3 py-1 rounded shadow border border-yellow-500 transition" title="Hotkey: U">
-              Undo [U] ↩️
+            <button id="undo-action-btn" onclick="window.handleUndo()" class="hidden bg-yellow-600 hover:bg-yellow-500 text-black text-[9px] sm:text-[10px] font-extrabold px-2 sm:px-3 py-1 rounded shadow border border-yellow-500 transition" title="Hotkey: U">
+              Undo ↩️
             </button>
-            <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold px-3 py-1 rounded shadow border border-emerald-400 transition" title="Hotkey: E">
-              End Turn [E] 🏁
+            <button id="end-turn-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] sm:text-[10px] font-extrabold px-2 sm:px-3 py-1 rounded shadow border border-emerald-400 transition" title="Hotkey: E">
+              End Turn 🏁
             </button>
         </div>
       </div>
@@ -76,7 +76,7 @@
     <div id="replay-bar-container" class="w-full hidden"></div>
 
     <!-- TABLETOP VERTICAL MIRROR BOARD -->
-    <div class="glass-panel rounded-xl p-1.5 flex flex-col gap-1.5 shadow-2xl relative border border-slate-800 w-full overflow-x-auto overflow-y-visible">
+    <div class="glass-panel rounded-xl p-1.5 flex flex-col gap-1.5 shadow-2xl relative border border-slate-800 w-full overflow-x-auto overflow-y-visible flex-1">
       
       <!-- OPPONENT BOARD (TOP) -->
       <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-red-950/40 w-full min-w-0" id="opponent-board">
@@ -102,22 +102,22 @@
             <div class="shrink-0 hidden md:flex flex-col justify-end" id="opp-deck-container"></div>
             
             <div class="flex-1 flex flex-col gap-1">
-                <div id="opp-lines-container" class="flex flex-col md:flex-row gap-1 w-full items-stretch transition-all duration-300">
-                    <div id="opp-col-avatar" class="flex flex-col gap-1 w-full md:w-1/4 shrink-0 transition-all duration-300">
-                        <div id="opp-line-avatar" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
-                        <div id="opp-line-bodyguard" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[64px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
+                <div id="opp-lines-container" class="flex flex-row gap-1 w-full items-stretch transition-all duration-300">
+                    <div id="opp-col-avatar" class="flex flex-col gap-1 w-[25%] shrink-0 transition-all duration-300">
+                        <div id="opp-line-avatar" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                        <div id="opp-line-bodyguard" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden"></div>
                     </div>
-                    <div id="opp-col-center" class="flex flex-col gap-1 w-full md:flex-1 transition-all duration-300">
-                        <div id="opp-line-sheltered" class="grow flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-back" class="grow flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-mid" class="grow flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
-                        <div id="opp-line-front" class="grow flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
+                    <div id="opp-col-center" class="flex flex-col gap-1 flex-1 transition-all duration-300">
+                        <div id="opp-line-sheltered" class="grow flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-back" class="grow flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-mid" class="grow flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden"></div>
+                        <div id="opp-line-front" class="grow flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80"></div>
                     </div>
-                    <div id="opp-col-sideline" class="flex flex-col gap-1 w-full md:w-1/4 shrink-0 transition-all duration-300">
-                        <div id="opp-line-sideline" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[64px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
+                    <div id="opp-col-sideline" class="flex flex-col gap-1 w-[25%] shrink-0 transition-all duration-300">
+                        <div id="opp-line-sideline" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40"></div>
                     </div>
                 </div>
-                <div id="opp-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
+                <div id="opp-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full"></div>
             </div>
             
             <!-- Hidden on mobile, Flex on desktop -->
@@ -126,7 +126,7 @@
       </div>
 
       <!-- THE EQUATOR (CENTER NEUTRAL ZONE) -->
-      <div class="bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border border-dashed border-amber-500/40 rounded-lg p-1 min-h-[40px] flex items-center gap-2 w-full min-w-0">
+      <div class="my-auto bg-gradient-to-r from-amber-950/40 via-yellow-900/20 to-amber-950/40 border border-dashed border-amber-500/40 rounded-lg p-1 min-h-[40px] flex items-center gap-2 w-full min-w-0 shadow-lg">
         <span class="text-[9px] uppercase tracking-widest font-black text-amber-400 whitespace-nowrap shrink-0 pl-1">⚡ Equator</span>
         <div id="equator-cards-container" class="flex flex-wrap justify-center gap-1 items-center w-full">
           <span class="text-[10px] text-slate-500 italic" id="equator-empty-msg">No unattached items.</span>
@@ -134,7 +134,7 @@
       </div>
 
       <!-- LOCAL PLAYER BOARD (BOTTOM) -->
-      <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-emerald-950/40 w-full min-w-0 transition-all duration-300" id="player-board">
+      <div class="flex flex-col gap-1 p-1 bg-slate-950/60 rounded-lg border border-emerald-950/40 w-full min-w-0 transition-all duration-300 mb-[120px] sm:mb-[140px]" id="player-board">
         <div class="flex justify-between items-end border-b border-slate-800/60 pb-1 px-1 mb-1">
           <div class="flex items-baseline gap-2">
             <div class="font-extrabold text-xs text-emerald-400 leading-none" id="player-name">Local Player (P1)</div>
@@ -153,21 +153,21 @@
             <div class="shrink-0 hidden md:flex flex-col justify-start" id="player-deck-container"></div>
             
             <div class="flex-1 flex flex-col gap-1">
-                <div id="player-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
+                <div id="player-line-taunt" class="flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-amber-950/20 border border-amber-900/40 hidden w-full transition-colors" onclick="window.handleLineClick('player', 'taunt')"></div>
                 
-                <div id="player-main-grid" class="flex flex-col md:flex-row gap-1 w-full items-stretch transition-all duration-300">
-                    <div id="player-col-avatar" class="flex flex-col gap-1 w-full md:w-1/4 shrink-0 transition-all duration-300">
-                        <div id="player-line-bodyguard" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[64px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
-                        <div id="player-line-avatar" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
+                <div id="player-main-grid" class="flex flex-row gap-1 w-full items-stretch transition-all duration-300">
+                    <div id="player-col-avatar" class="flex flex-col justify-end gap-1 w-[25%] shrink-0 transition-all duration-300">
+                        <div id="player-line-bodyguard" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-purple-950/20 border border-purple-900/40 hidden transition-colors" onclick="window.handleLineClick('player', 'bodyguard')"></div>
+                        <div id="player-line-avatar" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'avatar')"></div>
                     </div>
-                    <div id="player-col-center" class="flex flex-col gap-1 w-full md:flex-1 transition-all duration-300">
-                        <div id="player-line-front" class="grow flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
-                        <div id="player-line-mid" class="grow flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
-                        <div id="player-line-back" class="grow flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
-                        <div id="player-line-sheltered" class="grow flex flex-wrap justify-center gap-1 min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
+                    <div id="player-col-center" class="flex flex-col justify-end gap-1 flex-1 transition-all duration-300">
+                        <div id="player-line-front" class="grow flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 transition-colors" onclick="window.handleLineClick('player', 'front')"></div>
+                        <div id="player-line-mid" class="grow flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'mid')"></div>
+                        <div id="player-line-back" class="grow flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'back')"></div>
+                        <div id="player-line-sheltered" class="grow flex flex-wrap justify-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-slate-900/40 border border-slate-800/80 hidden transition-colors" onclick="window.handleLineClick('player', 'sheltered')"></div>
                     </div>
-                    <div id="player-col-sideline" class="flex flex-col gap-1 w-full md:w-1/4 shrink-0 transition-all duration-300">
-                        <div id="player-line-sideline" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[64px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
+                    <div id="player-col-sideline" class="flex flex-col justify-end gap-1 w-[25%] shrink-0 transition-all duration-300">
+                        <div id="player-line-sideline" class="grow flex flex-wrap justify-center items-center content-center gap-1 min-h-[42px] md:min-h-[64px] p-1 rounded-lg bg-blue-950/20 border border-blue-900/40 transition-colors" onclick="window.handleLineClick('player', 'sideline')"></div>
                     </div>
                 </div>
             </div>
@@ -176,27 +176,19 @@
             <div class="shrink-0 hidden md:flex flex-col justify-start" id="player-discard-container"></div>
         </div>
       </div>
+    </div>
 
-      <!-- THE HAND -->
-      <!-- ADDED: overflow-visible to the wrapper to ensure cards don't clip when they pop up! -->
-      <div class="flex flex-col gap-1 pt-1 mt-0.5 border-t border-slate-800/60 transition-all duration-300 w-full min-w-0 overflow-visible" id="player-hand-wrapper">
-        <div class="flex justify-between items-center px-1">
-          <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
-            🎴 Hand (<span id="hand-card-count">0</span>)
-          </span>
-          <span class="text-[9px] text-slate-400 hidden sm:block">Click a card to play or sacrifice</span>
-        </div>
-
-        <div id="player-hand-container" class="flex flex-wrap justify-center gap-2 p-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80 min-h-[64px] items-start transition-all duration-300">
-          <span class="text-[10px] text-slate-500 italic mx-auto self-center">Your hand is empty.</span>
-        </div>
+    <!-- THE HAND (Fixed to viewport bottom, no longer sticky) -->
+    <div class="fixed bottom-0 left-0 right-0 z-[80] flex flex-col items-center w-full min-w-0 overflow-visible pointer-events-none" id="player-hand-wrapper">
+      <div id="player-hand-container" class="flex flex-wrap justify-center items-start transition-all duration-300 w-full">
       </div>
-
     </div>
 
     <!-- EXTRACTED MODALS & OVERLAYS -->
-    <action-log></action-log>
-    <harvest-overlay></harvest-overlay>
+    <action-log class="hidden md:block"></action-log>
+    
+    <harvest-modal id="harvest-modal"></harvest-modal>
+    
     <unit-action-modal></unit-action-modal>
     <zone-viewer-modal></zone-viewer-modal>
 
@@ -218,38 +210,5 @@
   </svg>
 
   <script type="module" src="./src/tabletop/index.js"></script>
-  
-  <!-- SCROLL AWARE UI (MOBILE ONLY) -->
-  <script>
-    let lastScrollTop = 0;
-    const scrollDelta = 10;
-    let isHeaderHidden = false;
-
-    window.addEventListener('scroll', () => {
-        const matchScreen = document.getElementById('match-tabletop-screen');
-        // Only engage if match is active and we are on a mobile width
-        if (!matchScreen || matchScreen.classList.contains('hidden') || window.innerWidth >= 768) return;
-
-        const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
-        if (Math.abs(lastScrollTop - currentScroll) <= scrollDelta) return;
-
-        const mainNavHeader = document.querySelector('main-nav')?.querySelector('header');
-        
-        if (currentScroll > lastScrollTop && currentScroll > 50) {
-            // Scrolling Down
-            if (!isHeaderHidden && mainNavHeader) {
-                mainNavHeader.classList.add('-translate-y-full');
-                isHeaderHidden = true;
-            }
-        } else {
-            // Scrolling Up
-            if (isHeaderHidden && mainNavHeader) {
-                mainNavHeader.classList.remove('-translate-y-full');
-                isHeaderHidden = false;
-            }
-        }
-        lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
-    }, { passive: true });
-  </script>
 </body>
 </html>
