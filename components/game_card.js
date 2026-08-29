@@ -2,6 +2,7 @@ import { getIconSvg, getLineIconSvg, SVG_STUNNED, SVG_DAZED, SVG_EXHAUST, SVG_UN
 import { generateAbilityDescription } from '../src/language_description.js';
 import { getTriggerWord } from '../src/language/triggers.js';
 import { HoverManager } from '../src/ui/hover_manager.js';
+import { renderMicro } from './micro_card.js';
 import { renderNano } from './nano_card.js';
 import { renderStandard, renderStandardAbilities } from './standard_card.js';
 import { renderJumbo } from './jumbo_card.js';
@@ -79,7 +80,7 @@ export function formatAbilityCostBadge(cost, cardTribe) {
                 badgeStr += `${cost.tribeAmount}${tribeName.charAt(0).toUpperCase()}`;
             }
         } else {
-            badgeStr += `${cost.tribeAmount}💎`;
+            badgeStr += `${cost.tribeAmount}🔮`;
         }
     }
     
@@ -375,7 +376,6 @@ export class GameCard extends HTMLElement {
 
     _onMouseEnter(e) {
         const cacheId = this.getAttribute('cache-id');
-        console.log(`%c[GAME CARD] Mouse Entered: ${cacheId}`, 'color: #0ea5e9');
         // Because the custom element is display: contents, we pass the first actual element for bounds checking
         const innerElement = this.firstElementChild;
         if (cacheId && innerElement) {
@@ -386,7 +386,6 @@ export class GameCard extends HTMLElement {
     _onMouseLeave(e) {
         // Phase 1: Pass the ID so the manager can verify who is trying to clear the timer
         const cacheId = this.getAttribute('cache-id');
-        console.log(`%c[GAME CARD] Mouse Left: ${cacheId}`, 'color: #eab308');
         HoverManager.onMouseLeave(cacheId);
     }
 
@@ -508,9 +507,9 @@ export class GameCard extends HTMLElement {
         if (options.isCasting) {
             stateClasses = 'ring-4 ring-fuchsia-500 shadow-[0_0_25px_rgba(217,70,239,0.8)] scale-105 z-30';
         } else if (options.isTargetable) {
-            stateClasses = options.isNano ? 'ring-2 ring-cyan-400 z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : 'ring-4 ring-cyan-400 z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]';
+            stateClasses = (options.isNano || options.isMicro) ? 'ring-2 ring-cyan-400 z-20 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.6)]' : 'ring-4 ring-cyan-400 z-20 cursor-pointer shadow-[0_0_20px_rgba(34,211,238,0.6)]';
         } else if (options.isSelected) {
-            stateClasses = options.isNano ? 'ring-2 ring-yellow-400 scale-105 z-20' : 'ring-4 ring-yellow-400 scale-105 z-20';
+            stateClasses = (options.isNano || options.isMicro) ? 'ring-2 ring-yellow-400 scale-105 z-20' : 'ring-4 ring-yellow-400 scale-105 z-20';
         } else if (options.isForceHover && options.actionState === 'single') {
             stateClasses = 'ring-2 ring-blue-300 shadow-[0_0_15px_rgba(96,165,250,0.6)] z-10 cursor-pointer scale-105';
         } else if (options.isForceHover && options.actionState === 'multiple') {
@@ -675,7 +674,9 @@ export class GameCard extends HTMLElement {
 
         if (options.isJumbo) {
           this.innerHTML = renderJumbo(ctx);
-        } else if (options.isNano || options.isMicro) {
+        } else if (options.isMicro) {
+          this.innerHTML = renderMicro(ctx);
+        } else if (options.isNano) {
           this.innerHTML = renderNano(ctx);
         } else {
           this.innerHTML = renderStandard(ctx);

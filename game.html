@@ -36,7 +36,7 @@
   <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 flex flex-col gap-1 hidden overflow-visible">
 
     <!-- Active Player Turn Indicator & Phase Bar -->
-    <div class="glass-panel rounded-lg p-1.5 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30 w-full shrink-0 sticky top-0 z-50 shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+    <div id="match-status-bar" class="glass-panel rounded-lg p-1 sm:p-1.5 flex flex-wrap justify-between items-center gap-2 border border-amber-500/30 w-full shrink-0 sticky top-0 md:top-[64px] z-50 shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-in-out">
       <div class="flex items-center gap-2">
         <div id="turn-badge" class="px-2 py-0.5 rounded bg-amber-500 text-black font-extrabold text-[10px] uppercase shadow-sm">
           Turn 1: Player 1
@@ -218,5 +218,38 @@
   </svg>
 
   <script type="module" src="./src/tabletop/index.js"></script>
+  
+  <!-- SCROLL AWARE UI (MOBILE ONLY) -->
+  <script>
+    let lastScrollTop = 0;
+    const scrollDelta = 10;
+    let isHeaderHidden = false;
+
+    window.addEventListener('scroll', () => {
+        const matchScreen = document.getElementById('match-tabletop-screen');
+        // Only engage if match is active and we are on a mobile width
+        if (!matchScreen || matchScreen.classList.contains('hidden') || window.innerWidth >= 768) return;
+
+        const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+        if (Math.abs(lastScrollTop - currentScroll) <= scrollDelta) return;
+
+        const mainNavHeader = document.querySelector('main-nav')?.querySelector('header');
+        
+        if (currentScroll > lastScrollTop && currentScroll > 50) {
+            // Scrolling Down
+            if (!isHeaderHidden && mainNavHeader) {
+                mainNavHeader.classList.add('-translate-y-full');
+                isHeaderHidden = true;
+            }
+        } else {
+            // Scrolling Up
+            if (isHeaderHidden && mainNavHeader) {
+                mainNavHeader.classList.remove('-translate-y-full');
+                isHeaderHidden = false;
+            }
+        }
+        lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
+    }, { passive: true });
+  </script>
 </body>
 </html>

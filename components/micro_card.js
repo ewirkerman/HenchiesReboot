@@ -1,43 +1,91 @@
-import { getIconSvg } from '../src/ui.js';
+import { CARD_THEME } from './card_theme.js';
 
 export function renderMicro(ctx) {
+  const forceHoverClass = ctx.isForceHover ? '-translate-y-4 scale-125 !z-[100]' : '';
+
+  // Minimalist readiness indicator (tiny colored dot instead of text)
+  let readinessDot = '';
+  if (ctx.hasReadiness && ctx.readiness !== null) {
+      const color = ctx.readiness > 0 ? 'bg-emerald-500' : ctx.readiness === 0 ? 'bg-yellow-500' : 'bg-red-500';
+      readinessDot = `<div class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${color} border border-black shadow-sm z-20 pointer-events-none"></div>`;
+  }
+
   return `
     <div 
       onclick="${ctx.onClick}"
       ${ctx.rightClickAttr}
       title="${ctx.safeTooltip}"
-      class="group relative flex-shrink-0 w-[128px] sm:w-[144px] h-[64px] rounded-md ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} cursor-pointer transition-all duration-200 flex flex-col justify-between select-none overflow-hidden shadow-md ${ctx.hiddenClass}"
+      class="group relative flex-shrink-0 cursor-pointer transition-all duration-200 select-none overflow-hidden w-[60px] h-[40px] rounded-md ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} ${ctx.hiddenClass} ${forceHoverClass}"
       style="${ctx.hexBg} ${ctx.dynamicBorderStyle}"
     >
-      <div class="absolute inset-0 z-0 flex items-center justify-center ${ctx.fieldDimmingClass}">
-        ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-contain opacity-90" style="${ctx.artStyle}" draggable="false" />` : ''}
-      </div>
-      <div class="relative z-10 w-full h-full p-1.5 flex flex-col justify-between bg-gradient-to-t from-black/80 via-transparent to-black/60 ${ctx.fieldDimmingClass}">
-        <div class="flex items-center gap-1.5 w-full pr-6">
-          ${!ctx.isAvatar ? `<div class="w-4 h-4 rounded-full bg-amber-500 text-black font-black text-[9px] flex items-center justify-center border border-black shadow pointer-events-auto shrink-0">${ctx.card.cost ?? 0}</div>` : ''}
-          <div class="text-white text-[11px] font-black truncate drop-shadow-md leading-tight w-full">${ctx.card.name}</div>
+      <!-- Background Art Layer -->
+      <div class="absolute inset-0 z-0 flex items-center justify-center overflow-hidden ${ctx.fieldDimmingClass}">
+        <div class="absolute inset-0 flex items-center justify-center transition-transform duration-200" style="${ctx.cameraStyle || ''}">
+          ${ctx.bgArtUrl ? `
+            <img src="${ctx.bgArtUrl}" class="${CARD_THEME.bgArtImage}" style="${ctx.bgArtStyle}" draggable="false" />
+            <div class="${CARD_THEME.bgArtMute}"></div>
+          ` : ''}
+          ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-cover relative z-10 opacity-90" style="${ctx.artStyle}" draggable="false" />` : ``}
         </div>
-        ${ctx.showBottomStats ? `
-          <div class="flex justify-between items-end w-full px-0.5 mt-auto">
-            ${ctx.hasStrength ? `<div class="w-5 h-5 rounded-full bg-yellow-500 border border-black text-black font-black text-[10px] flex items-center justify-center shadow">${Math.max(0, ctx.card.strength)}</div>` : '<div class="w-5 h-5 shrink-0"></div>'}
-            ${ctx.hasArmor ? `<div class="w-5 h-5 rounded bg-cyan-600 border border-black text-white font-black text-[9px] flex items-center justify-center shadow"><div class="w-2.5 h-2.5 mr-0.5">${getIconSvg('armor')}</div>${ctx.card.armor}</div>` : '<div class="w-5 h-5 shrink-0"></div>'}
-            ${ctx.showHealth ? `<div class="w-5 h-5 rounded-full bg-red-600 border border-black text-white font-black text-[10px] flex items-center justify-center shadow">${ctx.displayHealth}</div>` : '<div class="w-5 h-5 shrink-0"></div>'}
+      </div>
+
+      <!-- Dimming overlay -->
+      <div class="absolute inset-0 bg-black/30 pointer-events-none ${ctx.fieldDimmingClass}"></div>
+
+      <!-- Fallback Name if no art -->
+      ${!ctx.cardArtUrl ? `
+      <div class="absolute inset-0 flex items-center justify-center p-0.5 pointer-events-none z-10">
+        <div class="bg-black/60 text-white font-bold text-[6px] px-1 rounded-sm text-center max-w-full truncate">
+          ${ctx.card.name}
+        </div>
+      </div>
+      ` : ''}
+
+      <!-- Top-Left: Cost & Power -->
+      <div class="absolute top-0 left-0 z-10 flex flex-col pointer-events-none">
+        ${!ctx.isAvatar ? `
+          <div class="w-[12px] h-[14px] pt-[1px] pl-[1px] text-[8px] bg-amber-500 text-black font-black rounded-br flex items-start justify-start border-r border-b border-black shadow-sm pointer-events-auto leading-none">
+            ${ctx.card.cost ?? 0}
+          </div>
+        ` : ''}
+        ${ctx.card.power > 0 ? `
+          <div class="w-[10px] h-[12px] pt-[1px] pl-[1px] text-[7px] bg-purple-600 text-white font-black rounded-br flex items-start justify-start border-r border-b border-black shadow-sm pointer-events-auto leading-none -mt-px">
+            ${ctx.card.power}
           </div>
         ` : ''}
       </div>
-      ${(ctx.hasReadiness && ctx.readiness !== null) ? `
-        <div class="absolute top-1 right-1 text-[7px] px-1 py-0.5 rounded font-black uppercase z-20 ${
-          ctx.readiness >= 1 ? 'bg-emerald-500 text-black' : 
-          ctx.readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border border-red-700'
-        }">
-          ${ctx.readiness > 1 ? 'OVR-RDY' : ctx.readiness === 1 ? 'RDY' : ctx.readiness === 0 ? 'UNRDY' : 'EXH'}
+
+      <!-- Bottom-Left: Strength -->
+      ${ctx.hasStrength ? `
+        <div class="absolute bottom-0 left-0 z-10 w-[12px] h-[14px] pb-[1px] pl-[1px] text-[8px] bg-yellow-500 text-black font-black rounded-tr flex items-end justify-start border-r border-t border-black shadow-sm pointer-events-auto leading-none">
+          ${Math.max(0, ctx.card.strength)}
         </div>
       ` : ''}
-      ${(ctx.card.attachments && ctx.card.attachments.length > 0) ? `
-        <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 rounded bg-fuchsia-600 border border-black text-white font-black text-[8px] flex items-center justify-center z-30 shadow"><div class="w-2.5 h-2.5 mr-px">${getIconSvg('attach')}</div>${ctx.card.attachments.length}</div>
-      ` : ''}
-      ${ctx.overlayHTML}
-      ${ctx.inspectButton}
+
+      <!-- Bottom-Right: Health & Armor -->
+      <div class="absolute bottom-0 right-0 z-10 flex pointer-events-none">
+         ${ctx.hasArmor ? `
+            <div class="h-[14px] px-0.5 pb-[1px] text-[7px] bg-cyan-600 text-white font-black rounded-tl flex items-end justify-center border-l border-t border-black shadow-sm pointer-events-auto leading-none">
+              ${ctx.card.armor}
+            </div>
+          ` : ''}
+          ${ctx.showHealth ? `
+            <div class="w-[12px] h-[14px] pb-[1px] pr-[1px] text-[8px] bg-red-600 text-white font-black rounded-tl flex items-end justify-end border-l border-t border-black shadow-sm pointer-events-auto leading-none">
+              ${ctx.displayHealth}
+            </div>
+          ` : ''}
+      </div>
+
+      ${readinessDot}
+
+      <!-- Hover Name Banner (Tiny) -->
+      <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none">
+         <div class="bg-black/80 backdrop-blur-sm text-white font-black text-[6px] px-1 py-0.5 rounded-sm max-w-[90%] truncate shadow-md border border-white/20">
+            ${ctx.card.name}
+         </div>
+      </div>
+
+      ${ctx.overlayHTML || ''}
     </div>
   `;
 }
