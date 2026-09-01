@@ -405,8 +405,9 @@
           if (t) targetTribeName = t.name.toLowerCase();
       }
 
-      // IMPORTANT: Hide Avatars from main catalog
+      // IMPORTANT: Hide Avatars and hidden cards from main catalog
       const filtered = fullCatalog.filter(c => {
+        if (c.hideFromDeckBuilder) return false;
         if (c.type === 'avatar') return false; 
         
         let matchTribe = (tribeVal === 'ALL');

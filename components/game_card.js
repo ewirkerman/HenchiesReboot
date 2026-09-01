@@ -2,6 +2,7 @@ import { getIconSvg, getLineIconSvg, SVG_STUNNED, SVG_DAZED, SVG_EXHAUST, SVG_UN
 import { generateAbilityDescription } from '../src/language_description.js';
 import { getTriggerWord } from '../src/language/triggers.js';
 import { HoverManager } from '../src/ui/hover_manager.js';
+import { renderResourceTextTokens, normalizeResourceTokenName } from '../src/language/utils.js';
 import { renderMicro } from './micro_card.js';
 import { renderNano } from './nano_card.js';
 import { renderStandard, renderStandardAbilities } from './standard_card.js';
@@ -63,32 +64,47 @@ function getLiveTribeStyle(tribeName) {
 
 export function formatAbilityCostBadge(cost, cardTribe) {
     if (!cost) return '';
-    let badgeStr = '';
+
+    let badgeParts = [];
     const carnieCost = cost.carnie || cost.tent || 0;
     for (let i = 0; i < carnieCost; i++) {
-      badgeStr += `<span class="inline-block w-[1.2em] h-[1.2em] align-middle -translate-y-[0.225em] text-purple-400 drop-shadow-sm">${getIconSvg('tent')}</span>`
+      badgeParts.push('[RESOURCE:tent]');
     }
-    if (cost.power > 0) badgeStr += `${cost.power}⚡`;
+    if (cost.power > 0) {
+      badgeParts.push(`${cost.power}[STAT:power]`);
+    }
     if (cost.tribeAmount > 0) {
         const tType = cost.tribeType || cardTribe || 'Generic';
         if (tType && tType !== 'NONE' && tType !== 'Generic') {
+            const tribeTokenName = normalizeResourceTokenName(`tribe_${String(tType).replace(/^tribe_/, '').toLowerCase()}`);
             const style = getLiveTribeStyle(tType);
-            if (style && style.iconSvg) {
-                badgeStr += `${cost.tribeAmount}<span class="inline-block w-[1.2em] h-[1.2em] overflow-hidden align-middle -translate-y-[0.225em] mr-0.5"><div class="raw-user-svg-container w-full h-full">${style.iconSvg}</div></span>`;
-            } else {
+            for (let i = 0; i < cost.tribeAmount; i++) {
+                badgeParts.push(`[RESOURCE:${tribeTokenName}]`);
+            }
+            if (!style || !style.iconSvg) {
                 const tribeName = style && style.name ? style.name : tType;
-                badgeStr += `${cost.tribeAmount}${tribeName.charAt(0).toUpperCase()}`;
+                badgeParts.push(`${tribeName.charAt(0).toUpperCase()}`);
             }
         } else {
-            badgeStr += `${cost.tribeAmount}🔮`;
+            for (let i = 0; i < cost.tribeAmount; i++) {
+                badgeParts.push('[RESOURCE:tribe_generic]');
+            }
         }
     }
-    
-    if (cost.readinessCost === 'EXHAUSTS') badgeStr += SVG_EXHAUST;
-    if (cost.readinessCost === 'UNREADIES') badgeStr += SVG_UNREADY;
-    if (cost.freeAction) badgeStr += SVG_FREE;
-    
-    return badgeStr.trim() ? `<span class="text-[9px] text-amber-300 font-bold ml-0.5 mr-0.5 tracking-tighter whitespace-nowrap opacity-90">${badgeStr}</span>` : '';
+
+    if (cost.readinessCost === 'EXHAUSTS') badgeParts.push(SVG_EXHAUST);
+    if (cost.readinessCost === 'UNREADIES') badgeParts.push(SVG_UNREADY);
+    if (cost.freeAction) badgeParts.push(SVG_FREE);
+
+    const badgeText = badgeParts.join(' ').trim();
+    if (!badgeText) return '';
+
+    const badgeHtml = renderResourceTextTokens(badgeText, {
+        colorClass: 'text-purple-400',
+        tribeStyle: getLiveTribeStyle(cost.tribeType || cardTribe || 'Generic'),
+        iconSizeClass: 'w-[1.35em] h-[1.35em]'
+    });
+    return `<span class="inline-flex items-center gap-0.5 text-[14px] leading-none text-amber-300 font-bold ml-0.5 mr-0.5 tracking-tighter whitespace-nowrap opacity-90">${badgeHtml}</span>`;
 }
 
 export const hasEngineFlag = (card, flag) => {
@@ -116,6 +132,8 @@ export function formatCardText(text, allAbilitiesRegistry = []) {
         'tent': getIconSvg('tent'),
         'readiness': getIconSvg('hourglass-full')
     };
+
+    formatted = renderResourceTextTokens(formatted, { colorClass: 'text-purple-400' });
 
     formatted = formatted.replace(/((?:(?:gain|lose|heal|deal|take|pay|recover|harvest)\s*)?[+-]?\s*\d*\s*)\[\[?(?:STAT|RESOURCE|RESOURCES):([a-zA-Z]+)\]\]?/gi, (match, prefix, p1) => {
         const key = p1.toLowerCase();
@@ -543,7 +561,7 @@ export class GameCard extends HTMLElement {
         };
     }
 
-    _buildOverlayHTML(visuals) {
+    _buildOverlayHTML(visuals, options) {
         let overlayContent = '';
         let isOverReadyOverlay = false;
 
@@ -558,19 +576,25 @@ export class GameCard extends HTMLElement {
 
         if (!overlayContent) return '';
 
-        let overlayScaleClass = visuals.isDazed ? 'scale-75' : '';
+                const isMicroOverlay = options.isMicro;
+                const overlaySizeClass = isMicroOverlay ? 'w-8 h-8' : 'w-16 h-16';
+                const overlayOpacityClass = isMicroOverlay ? 'opacity-50' : 'opacity-80';
+                const overlayShadowClass = isMicroOverlay
+                        ? 'drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]'
+                        : 'drop-shadow-[0_2px_8px_rgba(0,0,0,1)]';
+                let overlayScaleClass = visuals.isDazed ? 'scale-75' : '';
         if (isOverReadyOverlay) {
             return `
               <div class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none rounded-md">
-                <div class="w-16 h-16 ${overlayScaleClass} opacity-60 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)] [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0 [&>svg]:!text-green-400 [&>svg]:!drop-shadow-none">
+                                <div class="${overlaySizeClass} ${overlayScaleClass} ${isMicroOverlay ? 'opacity-40' : 'opacity-60'} ${isMicroOverlay ? 'drop-shadow-[0_0_4px_rgba(134,239,172,0.7)]' : 'drop-shadow-[0_0_8px_rgba(134,239,172,0.9)]'} [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0 [&>svg]:!text-green-400 [&>svg]:!drop-shadow-none">
                   ${overlayContent}
                 </div>
               </div>
             `;
         }
         return `
-          <div class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none bg-black/30 rounded-md">
-            <div class="w-16 h-16 ${overlayScaleClass} text-white opacity-80 drop-shadow-[0_2px_8px_rgba(0,0,0,1)] [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0">
+                    <div class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none ${isMicroOverlay ? 'bg-black/20' : 'bg-black/30'} rounded-md">
+                        <div class="${overlaySizeClass} ${overlayScaleClass} text-white ${overlayOpacityClass} ${overlayShadowClass} [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0">
               ${overlayContent}
             </div>
           </div>
@@ -646,7 +670,7 @@ export class GameCard extends HTMLElement {
         const cardState = this._computeCardState(card, options);
         const statsContext = this._computeStatsContext(card, cardState.isAvatar, cardState.isUnit);
         const visuals = this._computeVisualClasses(card, options, styleContext, cardState);
-        const overlayHTML = this._buildOverlayHTML(visuals);
+        const overlayHTML = this._buildOverlayHTML(visuals, options);
         const badges = this._buildBadges(card, options, cardState);
 
         const rightClickAttr = options.onInspect ? `oncontextmenu="event.preventDefault(); event.stopPropagation(); ${options.onInspect}"` : '';

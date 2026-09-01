@@ -1,33 +1,33 @@
 /**
-   * Henchies 2 Shared UI Rendering Components, Modals & Toast System
-   * 5:7 Ratio Physical Card Layout, Lighter Bottom Area, Double-Click Inspection, Armor Badge.
-   */
+ * Henchies 2 Shared UI Rendering Components, Modals & Toast System
+ * 5:7 Ratio Physical Card Layout, Lighter Bottom Area, Double-Click Inspection, Armor Badge.
+ */
 
-  import { fetchCustomTribes } from './firebase.js';
-  import { generateAbilityDescription } from './language_description.js';
+import { fetchCustomTribes } from './firebase.js';
+import { generateAbilityDescription } from './language_description.js';
 
-  export const CARD_BASE_CLASSES = "w-[128px] h-[179px] sm:w-[144px] sm:h-[201px]";
-  export const TRIBE_STYLES = {}; // Legacy fallback to prevent import crashes
+export const CARD_BASE_CLASSES = "w-[128px] h-[179px] sm:w-[144px] sm:h-[201px]";
+export const TRIBE_STYLES = {}; // Legacy fallback to prevent import crashes
 
-  import { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg } from './glossary.js';
-  export { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg };
+import { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg } from './glossary.js';
+export { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg };
 
-  import '../components/game_card.js';
-  import '../components/card_preview.js';
+import '../components/game_card.js';
+import '../components/card_preview.js';
 
-  export async function loadUI() {
-      if (typeof document !== 'undefined' && !document.getElementById('raw-svg-styles')) {
-          const style = document.createElement('style');
-          style.id = 'raw-svg-styles';
-          style.innerHTML = `
-              @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700;900&display=swap');
-              .font-roboto-condensed {
-                  font-family: 'Roboto Condensed', sans-serif !important;
-              }
-          `;
-          document.head.appendChild(style);
-      }
-  }
+export async function loadUI() {
+    if (typeof document !== 'undefined' && !document.getElementById('raw-svg-styles')) {
+        const style = document.createElement('style');
+        style.id = 'raw-svg-styles';
+        style.innerHTML = `
+            @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700;900&display=swap');
+            .font-roboto-condensed {
+                font-family: 'Roboto Condensed', sans-serif !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
 
 import { formatAbilityCostBadge, hasEngineFlag, formatCardText, renderCardHTML, computeAbilitiesData } from '../components/game_card.js';
 export { formatAbilityCostBadge, hasEngineFlag, formatCardText, renderCardHTML, computeAbilitiesData };
@@ -111,9 +111,9 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
       }
 
       return [...Array.from(glossaryMap.values()), ...Array.from(systemMap.values())];
-  }
+}
 
-  export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false, abilityUses = {}, isHand = false) {
+export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false, abilityUses = {}, isHand = false) {
     if (!window._inspectHistory) window._inspectHistory = [];
     if (!isNested) window._inspectHistory = [];
     
@@ -129,7 +129,7 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'inspection-modal';
-      modal.className = 'fixed inset-0 z-[100] bg-black/20 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none';
+      modal.className = 'fixed inset-0 z-[100] bg-black/20 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none overflow-x-hidden';
       
       const handleBack = () => {
         if (window._inspectHistory && window._inspectHistory.length > 1) {
@@ -139,6 +139,7 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
         } else {
           modal.classList.add('hidden');
           window._inspectHistory = [];
+          document.body.style.overflow = ''; // Restore horizontal scroll rule
         }
       };
 
@@ -159,6 +160,7 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
       window._inspectHistory = [];
       const m = document.getElementById('inspection-modal');
       if (m) m.classList.add('hidden');
+      document.body.style.overflow = ''; // Restore horizontal scroll rule
     };
 
     window._toggleGlossaryMode = () => {
@@ -180,6 +182,9 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
       openInspectionModal(card, currentRegistry, true);
     };
 
+    // Prevent body horizontal/vertical scrolling entirely while modal is open
+    document.body.style.overflow = 'hidden';
+
     // Extract Glossary
     const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry, cardOrUnit.description);
     
@@ -192,21 +197,23 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
         class="fixed top-4 right-4 sm:top-6 sm:right-6 text-slate-400 hover:text-white text-xl font-bold w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur flex items-center justify-center border border-slate-700 z-[60] shadow-2xl transition-transform hover:scale-110 pointer-events-auto"
       >✕</button>
 
-      <div class="w-full h-full max-w-[1400px] text-slate-100 flex flex-col md:flex-row items-center justify-center gap-8 pointer-events-none mx-auto" onclick="if(event.target === this) window._handleModalBack()">
+      <!-- Main Layout Container: Top-aligned on mobile, Centered on desktop, No overflow -->
+      <div class="w-full h-full max-w-[1400px] text-slate-100 flex flex-col md:flex-row items-center md:justify-center justify-start pt-12 sm:pt-4 pb-4 gap-4 md:gap-8 pointer-events-none mx-auto overflow-hidden" onclick="if(event.target === this) window._handleModalBack()">
         
-        <!-- LEFT SPACER (Forces card to perfect center) -->
+        <!-- LEFT SPACER (Forces card to perfect center on desktop) -->
         <div class="hidden md:block md:w-[350px] shrink-0 pointer-events-none" onclick="if(event.target === this) window._handleModalBack()"></div>
 
-        <!-- CENTER: The Giant 5x7 Card Layout -->
-        <div class="flex items-center justify-center pointer-events-auto shrink-0">
+        <!-- CENTER: The Giant 5x7 Card Layout (Pinned to top on mobile) -->
+        <div class="flex items-center justify-center pointer-events-auto shrink-0 z-10 relative mt-2 md:mt-0 max-w-[100vw]">
           ${cardHtml}
         </div>
 
         <!-- RIGHT COLUMN: Recursive Glossary Bubbles -->
-        <div class="w-full md:w-[350px] flex flex-col h-[75vh] min-h-[450px] max-h-[750px] pointer-events-auto shrink-0" onclick="if(event.target === this) window._handleModalBack()">
+        <!-- On mobile: min-h-0 allows flex-1 to shrink and scroll internally instead of expanding the screen -->
+        <div class="w-full max-w-full md:w-[350px] flex flex-col flex-1 min-h-0 pointer-events-auto shrink-0 z-0 px-2 sm:px-0" onclick="if(event.target === this) window._handleModalBack()">
           
           <!-- Fixed Sticky Header -->
-          <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-700/50 shrink-0">
+          <div class="flex justify-between items-center mb-2 md:mb-3 pb-2 border-b border-slate-700/50 shrink-0 bg-transparent px-2 md:px-0">
              <span class="text-xs font-black text-slate-400 uppercase tracking-widest">Glossary</span>
              <label class="relative inline-flex items-center cursor-pointer" title="Toggle System Definitions">
                <input type="checkbox" id="glossary-toggle-chk" onchange="window._toggleGlossaryMode()" class="sr-only peer" ${localStorage.getItem('henchies_glossary_mode') !== 'essentials' ? 'checked' : ''}>
@@ -215,10 +222,10 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
              </label>
           </div>
           
-          <!-- Scrollable Items List -->
-          <div class="flex-1 overflow-y-auto minimal-scrollbar pr-2 pb-8" onclick="if(event.target === this) window._handleModalBack()">
+          <!-- Scrollable Items List (Takes remaining height) -->
+          <div class="flex-1 overflow-y-auto minimal-scrollbar md:pr-2 pb-4 w-full" onclick="if(event.target === this) window._handleModalBack()">
             ${glossaryAbilities.length > 0 ? `
-              <div class="flex flex-col gap-3">
+              <div class="flex flex-col gap-2.5 md:gap-3 w-full">
                 ${glossaryAbilities.map(a => {
                   const isSystem = a.id && a.id.startsWith('sys_');
                   const displayStyle = localStorage.getItem('henchies_glossary_mode') === 'essentials' && isSystem ? 'none' : 'flex';
@@ -227,12 +234,12 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
                       try { rawDesc = generateAbilityDescription(a, allAbilitiesRegistry); } catch (e) {}
                   }
                   return `
-                  <div class="glossary-item bg-slate-900/90 backdrop-blur-md p-4 rounded-xl border border-slate-700 shadow-2xl flex-col gap-1.5 transform transition-transform hover:scale-[1.02]" data-is-system="${isSystem}" style="display: ${displayStyle};">
-                    <div class="flex justify-between items-center border-b border-slate-700/50 pb-1.5">
-                        <div class="font-black text-fuchsia-300 text-sm drop-shadow-md">${a.name || a.abilityId || a.id}</div>
-                        <span class="text-[9px] bg-slate-950 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-bold uppercase tracking-wider">${a.trigger || 'MANUAL'}</span>
+                  <div class="glossary-item bg-slate-900/90 backdrop-blur-md p-3 md:p-4 rounded-xl border border-slate-700 shadow-xl flex-col gap-1.5 transform transition-transform hover:scale-[1.02] w-full" data-is-system="${isSystem}" style="display: ${displayStyle};">
+                    <div class="flex justify-between items-center border-b border-slate-700/50 pb-1 md:pb-1.5">
+                        <div class="font-black text-fuchsia-300 text-xs md:text-sm drop-shadow-md truncate pr-2">${a.name || a.abilityId || a.id}</div>
+                        <span class="text-[8px] md:text-[9px] bg-slate-950 text-slate-300 px-1.5 md:px-2 py-0.5 rounded border border-slate-700 font-bold uppercase tracking-wider shrink-0">${a.trigger || 'MANUAL'}</span>
                     </div>
-                    <div class="text-slate-200 text-xs leading-snug">${rawDesc || 'No details.'}</div>
+                    <div class="text-slate-200 text-[11px] md:text-xs leading-snug break-words">${rawDesc || 'No details.'}</div>
                   </div>
                 `}).join('')}
               </div>
@@ -243,122 +250,122 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
       </div>
     `;
     modal.classList.remove('hidden');
-  }
+}
 
-  export function renderHistorySlider(container, historyLog, currentStep, onStepChange, label = "Replay Scrub:") {
-    if (!container) return;
+export function renderHistorySlider(container, historyLog, currentStep, onStepChange, label = "Replay Scrub:") {
+  if (!container) return;
 
-    container.innerHTML = `
-      <div class="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2 shadow-xl backdrop-blur-md">
-        <span class="text-xs font-black text-amber-400 uppercase tracking-wider">${label}</span>
-        <input 
-          type="range" 
-          min="0" 
-          max="${Math.max(0, historyLog.length - 1)}" 
-          value="${currentStep}" 
-          onchange="${onStepChange}(this.value)"
-          class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
-        />
-        <span class="text-xs text-slate-300 font-mono font-bold whitespace-nowrap">${currentStep} / ${Math.max(0, historyLog.length - 1)}</span>
-      </div>
-    `;
-  }
-
-  export function renderJSONPreview(containerId, jsonObject, copyCallbackName, title = "Data Structure Preview") {
-      const container = document.getElementById(containerId);
-      if (!container) return;
-      
-      const safeJson = JSON.stringify(jsonObject, null, 2)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-      
-      container.innerHTML = `
-        <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 w-full h-full relative flex-1">
-          <div class="flex justify-between items-center border-b border-slate-800 pb-1 shrink-0">
-            <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-              ${title}
-            </h2>
-            <button type="button" onclick="window.${copyCallbackName}()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition shadow font-bold border border-slate-600">
-              📋 Copy JSON
-            </button>
-          </div>
-          <div class="flex-1 w-full overflow-y-auto minimal-scrollbar bg-slate-950/80 rounded-lg border border-slate-900 shadow-inner p-3 relative">
-              <pre id="${containerId}-pre" class="text-[10px] text-cyan-400 font-mono m-0 leading-tight w-full break-all whitespace-pre-wrap selection:bg-cyan-900/50">${safeJson}</pre>
-          </div>
-        </div>
-      `;
-  }
-
-  export function openJSONImportModal(onImport) {
-  let modal = document.getElementById('json-import-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'json-import-modal';
-    modal.className = 'fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4';
-    document.body.appendChild(modal);
-  }
-  
-  modal.innerHTML = `
-    <div class="glass-panel rounded-2xl p-6 shadow-2xl border border-slate-700 max-w-lg w-full flex flex-col gap-4 relative">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-        <h3 class="text-lg font-black text-emerald-400 uppercase tracking-wider">📥 Import JSON</h3>
-        <button onclick="document.getElementById('json-import-modal').classList.add('hidden')" class="text-slate-400 hover:text-white font-bold text-xl leading-none">&times;</button>
-      </div>
-      <p class="text-xs text-slate-400">Paste your JSON data below to import it into the editor. It will be loaded as an unsaved draft.</p>
-      <textarea id="import-json-textarea" rows="10" class="bg-slate-900 border border-slate-700 p-2 rounded text-emerald-300 font-mono text-[10px] w-full focus:outline-none focus:border-emerald-500 custom-scrollbar" placeholder="{...}"></textarea>
-      <div class="flex justify-end gap-3 mt-2">
-        <button onclick="document.getElementById('json-import-modal').classList.add('hidden')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2 rounded transition">Cancel</button>
-        <button id="confirm-import-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded shadow transition">Import Data</button>
-      </div>
+  container.innerHTML = `
+    <div class="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2 shadow-xl backdrop-blur-md">
+      <span class="text-xs font-black text-amber-400 uppercase tracking-wider">${label}</span>
+      <input 
+        type="range" 
+        min="0" 
+        max="${Math.max(0, historyLog.length - 1)}" 
+        value="${currentStep}" 
+        onchange="${onStepChange}(this.value)"
+        class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+      />
+      <span class="text-xs text-slate-300 font-mono font-bold whitespace-nowrap">${currentStep} / ${Math.max(0, historyLog.length - 1)}</span>
     </div>
   `;
-  modal.classList.remove('hidden');
+}
 
-  document.getElementById('confirm-import-btn').onclick = () => {
-    const val = document.getElementById('import-json-textarea').value;
-    try {
-      const parsed = JSON.parse(val);
-      onImport(parsed);
-      modal.classList.add('hidden');
-    } catch (e) {
-        console.error("Failed to parse JSON for import", e);
-        showToast("Invalid JSON data.", "error");
-    }
-  };
+export function renderJSONPreview(containerId, jsonObject, copyCallbackName, title = "Data Structure Preview") {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const safeJson = JSON.stringify(jsonObject, null, 2)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    
+    container.innerHTML = `
+      <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 w-full h-full relative flex-1">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-1 shrink-0">
+          <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+            ${title}
+          </h2>
+          <button type="button" onclick="window.${copyCallbackName}()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition shadow font-bold border border-slate-600">
+            📋 Copy JSON
+          </button>
+        </div>
+        <div class="flex-1 w-full overflow-y-auto minimal-scrollbar bg-slate-950/80 rounded-lg border border-slate-900 shadow-inner p-3 relative">
+            <pre id="${containerId}-pre" class="text-[10px] text-cyan-400 font-mono m-0 leading-tight w-full break-all whitespace-pre-wrap selection:bg-cyan-900/50">${safeJson}</pre>
+        </div>
+      </div>
+    `;
+}
+
+export function openJSONImportModal(onImport) {
+let modal = document.getElementById('json-import-modal');
+if (!modal) {
+  modal = document.createElement('div');
+  modal.id = 'json-import-modal';
+  modal.className = 'fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4';
+  document.body.appendChild(modal);
+}
+
+modal.innerHTML = `
+  <div class="glass-panel rounded-2xl p-6 shadow-2xl border border-slate-700 max-w-lg w-full flex flex-col gap-4 relative">
+    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+      <h3 class="text-lg font-black text-emerald-400 uppercase tracking-wider">📥 Import JSON</h3>
+      <button onclick="document.getElementById('json-import-modal').classList.add('hidden')" class="text-slate-400 hover:text-white font-bold text-xl leading-none">&times;</button>
+    </div>
+    <p class="text-xs text-slate-400">Paste your JSON data below to import it into the editor. It will be loaded as an unsaved draft.</p>
+    <textarea id="import-json-textarea" rows="10" class="bg-slate-900 border border-slate-700 p-2 rounded text-emerald-300 font-mono text-[10px] w-full focus:outline-none focus:border-emerald-500 custom-scrollbar" placeholder="{...}"></textarea>
+    <div class="flex justify-end gap-3 mt-2">
+      <button onclick="document.getElementById('json-import-modal').classList.add('hidden')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-4 py-2 rounded transition">Cancel</button>
+      <button id="confirm-import-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded shadow transition">Import Data</button>
+    </div>
+  </div>
+`;
+modal.classList.remove('hidden');
+
+document.getElementById('confirm-import-btn').onclick = () => {
+  const val = document.getElementById('import-json-textarea').value;
+  try {
+    const parsed = JSON.parse(val);
+    onImport(parsed);
+    modal.classList.add('hidden');
+  } catch (e) {
+      console.error("Failed to parse JSON for import", e);
+      showToast("Invalid JSON data.", "error");
+  }
+};
 }
 
 export function showToast(message, type = 'info') {
-  let container = document.getElementById('toast-container');
-  if (!container) {
-      container = document.createElement('div');
-      container.id = 'toast-container';
-      container.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[150] flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center';
-      document.body.appendChild(container);
-  }
-  
-  const toast = document.createElement('div');
-  const bgColors = {
-    success: 'bg-emerald-600 text-white',
-    error: 'bg-red-600 text-white',
-    info: 'bg-cyan-600 text-white',
-    warning: 'bg-amber-600 text-black'
-  };
-  const colorClass = bgColors[type] || bgColors.info;
-  toast.className = `${colorClass} px-4 py-2 rounded-xl shadow-2xl text-xs font-bold pointer-events-auto transition-all duration-300 z-[150] opacity-0 translate-y-[-1rem]`;
-  toast.innerText = message;
-  container.appendChild(toast);
-  
-  // Animate in
-  setTimeout(() => {
-    toast.style.opacity = '1';
-    toast.style.transform = 'translateY(0)';
-  }, 10);
+let container = document.getElementById('toast-container');
+if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[150] flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center';
+    document.body.appendChild(container);
+}
 
-  // Animate out and remove
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(-1rem)';
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
+const toast = document.createElement('div');
+const bgColors = {
+  success: 'bg-emerald-600 text-white',
+  error: 'bg-red-600 text-white',
+  info: 'bg-cyan-600 text-white',
+  warning: 'bg-amber-600 text-black'
+};
+const colorClass = bgColors[type] || bgColors.info;
+toast.className = `${colorClass} px-4 py-2 rounded-xl shadow-2xl text-xs font-bold pointer-events-auto transition-all duration-300 z-[150] opacity-0 translate-y-[-1rem]`;
+toast.innerText = message;
+container.appendChild(toast);
+
+// Animate in
+setTimeout(() => {
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateY(0)';
+}, 10);
+
+// Animate out and remove
+setTimeout(() => {
+  toast.style.opacity = '0';
+  toast.style.transform = 'translateY(-1rem)';
+  setTimeout(() => toast.remove(), 300);
+}, 3000);
 }

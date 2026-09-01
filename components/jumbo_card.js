@@ -1,6 +1,34 @@
 import { getIconSvg, getLineIconSvg } from '../src/ui.js';
 import { CARD_THEME } from './card_theme.js';
 
+// Minimal set of base dimensions and anchor positions
+const LAYOUT = {
+    // Dimensions
+    mainBox: "w-6 h-7",
+    mainText: "text-xl",
+    subBox: "w-5 h-6",
+    subText: "text-base",
+    iconBox: "w-7 h-7",
+    
+    // Positioning
+    padTopLeft: "pt-1 pl-1.5",
+    padBottomLeft: "pb-1 pl-1.5",
+    padBottomRight: "pb-1 pr-1.5",
+    marginTopLeft: "mt-1 ml-1.5"
+};
+
+// Derived element classes ensuring symmetric balance
+const JUMBO_CORNER_SIZES = {
+    cost: `${LAYOUT.mainBox} ${LAYOUT.mainText} ${LAYOUT.padTopLeft}`,
+    power: `${LAYOUT.subBox} ${LAYOUT.subText} ${LAYOUT.padTopLeft} -mt-0.5`,
+    line: `${LAYOUT.iconBox} ${LAYOUT.marginTopLeft}`,
+    fast: `${LAYOUT.iconBox} ${LAYOUT.marginTopLeft} text-xs border-[1.5px]`,
+    strength: `${LAYOUT.mainBox} ${LAYOUT.mainText} ${LAYOUT.padBottomLeft}`,
+    armor: `h-7 px-1.5 pb-1 text-xs`, // Center element uses distinct layout
+    health: `${LAYOUT.mainBox} ${LAYOUT.mainText} ${LAYOUT.padBottomRight}`,
+    placeholder: `${LAYOUT.mainBox} shrink-0` // Mirrors strength to keep armor perfectly centered
+};
+
 export function renderJumboAbilities(abilitiesData) {
     if (!abilitiesData) return '';
     let html = '<div class="flex flex-col gap-1 mt-1">';
@@ -65,25 +93,26 @@ export function renderJumbo(ctx) {
             </div>
           </div>
 
-          <div class="absolute top-3 left-3 flex flex-col items-center gap-2 z-10">
+          <!-- Pushed to Corners -->
+          <div class="absolute top-0 left-0 flex flex-col items-start z-10 pointer-events-none">
             ${!isAvatar ? `
-              <div class="w-12 h-12 text-2xl ${CARD_THEME.floatingCost}" title="Cost">
+              <div class="${JUMBO_CORNER_SIZES.cost} ${CARD_THEME.cornerCost}" title="Cost">
                 ${card.cost ?? 0}
               </div>
             ` : ''}
             ${card.power > 0 ? `
-              <div class="w-12 h-12 text-2xl ${CARD_THEME.floatingPower}" title="Power">
+              <div class="${JUMBO_CORNER_SIZES.power} ${CARD_THEME.cornerPower}" title="Power">
                 ${card.power}
               </div>
             ` : ''}
             ${isUnit ? `
-              <div class="w-8 h-8 flex items-center justify-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)]' : 'text-white'}" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
+              <div class="${JUMBO_CORNER_SIZES.line} flex items-center justify-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
                 ${getLineIconSvg(activeLine)}
               </div>
             ` : ''}
             ${(card.fast > 0) ? `
-              <div class="w-8 h-8 rounded-full bg-yellow-400 text-black font-black text-sm flex items-center justify-center border-2 border-black shadow-lg mt-1" title="Fast Charges">
-                <div class="w-4 h-4 mr-0.5">${getIconSvg('fast')}</div>${card.fast}
+              <div class="${JUMBO_CORNER_SIZES.fast} rounded-full bg-yellow-400 text-black font-black flex items-center justify-center border-black shadow-lg pointer-events-auto" title="Fast Charges">
+                <div class="w-3.5 h-3.5 mr-0.5">${getIconSvg('fast')}</div>${card.fast}
               </div>
             ` : ''}
           </div>
@@ -99,7 +128,7 @@ export function renderJumbo(ctx) {
         </div>
 
         <!-- Bottom Section: Details & Abilities (40%) -->
-        <div class="w-full h-[40%] ${style.lightBg} p-2 sm:p-3 flex flex-col relative overflow-hidden" style="${hexLightBg}">
+        <div class="w-full h-[40%] ${style.lightBg} p-2 flex flex-col relative overflow-hidden" style="${hexLightBg}">
           ${isToken ? '<div class="absolute inset-0 bg-white/5 pointer-events-none"></div>' : ''}
           
           <!-- Type Band -->
@@ -110,28 +139,25 @@ export function renderJumbo(ctx) {
           </div>
 
           <!-- Scrollable Traits & Abilities Box -->
-          <div class="flex-1 flex flex-col gap-1.5 overflow-y-auto pb-16 minimal-scrollbar pr-1 pointer-events-auto relative z-10">
-
-            <!-- Full Abilities with Registry Lookup -->
+          <div class="flex-1 flex flex-col gap-1.5 overflow-y-auto pb-14 minimal-scrollbar pr-1 pointer-events-auto relative z-10">
             ${renderJumboAbilities(ctx.abilitiesData)}
-
           </div>
 
-          <!-- Combined Footer (Stats & Flavor Text) Anchored to Extreme Bottom -->
-          <div class="absolute bottom-3 left-3 right-3 flex justify-between items-end pointer-events-none z-20">
+          <!-- Pushed to Corners -->
+          <div class="absolute bottom-0 left-0 right-0 flex justify-between items-end pointer-events-none z-20">
             
             <!-- Left: Strength -->
             ${hasStrength ? `
-              <div class="w-12 h-12 text-xl ${CARD_THEME.floatingStrength}" title="Strength">${Math.max(0, card.strength)}</div>
-            ` : '<div class="w-12 h-12 shrink-0"></div>'}
+              <div class="${JUMBO_CORNER_SIZES.strength} ${CARD_THEME.cornerStrength}" title="Strength">${Math.max(0, card.strength)}</div>
+            ` : `<div class="${JUMBO_CORNER_SIZES.placeholder}"></div>`}
             
             <!-- Center: Armor & Flavor Text -->
-            <div class="flex-1 flex flex-col items-center justify-end pb-1 px-1 gap-1 pointer-events-none">
+            <div class="flex-1 flex flex-col items-center justify-end pb-1 px-1 gap-1 pointer-events-none mb-1">
               ${hasArmor ? `
-                <div class="w-10 h-10 text-base ${CARD_THEME.floatingArmor}" title="Armor: ${card.armor}"><div class="w-4 h-4 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
+                <div class="${JUMBO_CORNER_SIZES.armor} ${CARD_THEME.cornerArmor}" title="Armor: ${card.armor}"><div class="w-3.5 h-3.5 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
               ` : ''}
               ${card.description ? `
-                <div class="text-xs sm:text-sm italic text-slate-300 text-center leading-snug w-full opacity-90 drop-shadow-md">
+                <div class="text-[11px] italic text-slate-300 text-center leading-snug w-full opacity-90 drop-shadow-md pb-0.5">
                   "${card.description}"
                 </div>
               ` : ''}
@@ -139,8 +165,8 @@ export function renderJumbo(ctx) {
             
             <!-- Right: Health -->
             ${showHealth ? `
-              <div class="w-12 h-12 text-xl ${CARD_THEME.floatingHealth}" title="Health">${displayHealth}</div>
-            ` : '<div class="w-12 h-12 shrink-0"></div>'}
+              <div class="${JUMBO_CORNER_SIZES.health} ${CARD_THEME.cornerHealth}" title="Health">${displayHealth}</div>
+            ` : `<div class="${JUMBO_CORNER_SIZES.placeholder}"></div>`}
           </div>
 
         </div>

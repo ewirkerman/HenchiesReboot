@@ -195,7 +195,7 @@ function createInitialState(username, tribes, mode = 'sandbox') {
                 setupComplete: true
             },
             player2: {
-                id: 'player2', name: mode === 'clean_ai' ? 'AI Opponent' : 'Target Dummies', isDummy: mode !== 'clean_ai', isAI: mode === 'clean_ai',
+                id: 'player2', name: mode === 'clean_ai' ? 'AI Opponent' : 'Target Dummies', isDummy: mode !== 'clean_ai', isAI: mode === 'clean_ai', isPassOnlyAI: mode === 'sandbox',
                 lines: { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] },
                 hand: [], deck: [], discard: [], banish: [],
                 resources: { Carnie: { current: 10, max: 10 } },

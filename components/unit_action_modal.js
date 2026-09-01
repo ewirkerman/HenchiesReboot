@@ -1,5 +1,6 @@
 import { formatAbilityCostBadge } from '../src/ui.js';
 import { ClientState } from '../src/tabletop/client_state.js';
+import { getActionButtonTheme } from './action_button_theme.js';
 
 export class UnitActionModal extends HTMLElement {
     connectedCallback() {
@@ -46,9 +47,8 @@ export class UnitActionModal extends HTMLElement {
                 desc = ab ? (ab.displayDescription || ab.description) : 'Activate this ability.';
             }
 
-            let baseClass = "border-indigo-900 bg-indigo-950/80 hover:bg-indigo-900 hover:border-indigo-400 text-indigo-100";
-            if (act.type === 'ATTACK') baseClass = "border-red-900 bg-red-950/80 hover:bg-red-900 hover:border-red-400 text-red-100";
-            if (act.type === 'PLAY') baseClass = "border-emerald-900 bg-emerald-950/80 hover:bg-emerald-900 hover:border-emerald-400 text-emerald-100";
+            const theme = getActionButtonTheme(act.type);
+            const baseClass = theme.baseClass;
 
             let undoWarn = !act.undoable ? `<span class="text-red-400 drop-shadow-md ml-1" title="Cannot be undone">⚠️</span>` : "";
             let costHtml = formatAbilityCostBadge(act.cost, 'Generic');

@@ -13,6 +13,152 @@ class CardHoverManager {
         this.SHOW_DELAY = 400;       // Initial hover requirement
         this.FAST_FOLLOW_DELAY = 50; // Delay when moving between cards quickly
         this.HIDE_DELAY = 100;       // Grace period for mouse slipping
+
+        this.scrubActive = false;
+        this.scrubStartX = 0;
+        this.scrubStartY = 0;
+        this.scrubHasMoved = false;
+        this.handHoverId = null;
+        this.handHoverFrame = null;
+        
+        // Mobile touch tracking to suppress Jumbo cards
+        this.lastTouchTime = 0;
+        if (typeof window !== 'undefined') {
+            window.addEventListener('touchstart', () => { this.lastTouchTime = Date.now(); }, { passive: true, capture: true });
+        }
+    }
+
+    startScrub(x, y) {
+        this.scrubActive = true;
+        this.scrubStartX = x;
+        this.scrubStartY = y;
+        this.scrubHasMoved = false;
+    }
+
+    stopScrub() {
+        this.scrubActive = false;
+    }
+
+    isScrubActive() {
+        return this.scrubActive;
+    }
+
+    markScrubMoved() {
+        this.scrubHasMoved = true;
+    }
+
+    getScrubHasMoved() {
+        return this.scrubHasMoved;
+    }
+
+    evaluateScrubThreshold(x, y, threshold) {
+        const dx = Math.abs(x - this.scrubStartX);
+        const dy = Math.abs(y - this.scrubStartY);
+        return dx > threshold || dy > threshold;
+    }
+
+    evaluateRevert(currentY, originalTop) {
+        // We use the exact starting top coordinate of the card's bounds.
+        // If the mouse/finger returns below this line, they are back in the hand area.
+        if (originalTop === undefined || originalTop === null) return false;
+        return currentY >= originalTop;
+    }
+
+    evaluateDragStart(clientY) {
+        const threshold = this.calculateDragStartThreshold();
+        return clientY < threshold;
+    }
+
+    calculateDragStartThreshold() {
+        const handWrapper = document.getElementById('player-hand-container');
+        if (!handWrapper) return 0;
+        const containerRect = handWrapper.getBoundingClientRect();
+        return containerRect.top - 60;
+    }
+
+    findHoveredHandCardId(clientX) {
+        const handWrapper = document.getElementById('player-hand-container');
+        if (!handWrapper) return null;
+        const containerRect = handWrapper.getBoundingClientRect();
+        const cards = handWrapper.querySelectorAll('game-card[is-hand="true"]');
+        
+        for (let i = cards.length - 1; i >= 0; i--) {
+            const gc = cards[i];
+            if (gc.parentElement) {
+                const left = containerRect.left + gc.parentElement.offsetLeft;
+                const right = left + gc.parentElement.offsetWidth;
+                if (clientX >= left && clientX <= right) {
+                    return gc.getAttribute('data-instance-id');
+                }
+            }
+        }
+        return null;
+    }
+
+    focusHandCard(cardId) {
+        this.handHoverId = cardId;
+        this.scheduleHandHoverUpdate();
+    }
+
+    unfocusHandCard() {
+        this.handHoverId = null;
+        this.scheduleHandHoverUpdate();
+    }
+
+    scheduleHandHoverUpdate() {
+        if (this.handHoverFrame) return;
+        this.handHoverFrame = requestAnimationFrame(() => {
+            this.handHoverFrame = null;
+            this.refreshAllHandCards();
+        });
+    }
+
+    refreshAllHandCards() {
+        const handWrapper = document.getElementById('player-hand-container');
+        if (!handWrapper) return;
+        
+        const cards = handWrapper.querySelectorAll('game-card[is-hand="true"]');
+        cards.forEach((gc, idx) => {
+            this.styleSingleCard(gc, idx);
+        });
+    }
+
+    styleSingleCard(gc, idx) {
+        const cardId = gc.getAttribute('data-instance-id');
+        const wrapper = gc.parentElement;
+        if (!wrapper) return;
+        
+        const isFocused = (cardId === this.handHoverId);
+        const isRaised = window._isDragging && window._dragCardId === cardId;
+        
+        this.setBaseStyles(wrapper);
+        this.setTransformStyles(wrapper, isFocused, isRaised, gc);
+        this.setZIndex(wrapper, isFocused, idx);
+    }
+
+    setBaseStyles(wrapper) {
+        wrapper.style.opacity = '1';
+        wrapper.style.pointerEvents = 'auto';
+    }
+
+    setTransformStyles(wrapper, isFocused, isRaised, gc) {
+        if (isFocused || isRaised) {
+            const lift = this.measureLift(gc, isRaised);
+            wrapper.style.transform = `translateY(-${lift}px) scale(1.15)`;
+        } else {
+            wrapper.style.transform = `translateY(85px) scale(0.95)`;
+        }
+    }
+
+    setZIndex(wrapper, isFocused, idx) {
+        wrapper.style.zIndex = isFocused ? 110 : (10 + idx);
+    }
+
+    measureLift(gc, isRaised) {
+        if (isRaised) return 30;
+        if (!gc.firstElementChild) return 30;
+        const bottom = gc.firstElementChild.getBoundingClientRect().bottom;
+        return Math.min(30, Math.max(0, window.innerHeight - bottom));
     }
 
     init() {
@@ -21,18 +167,39 @@ class CardHoverManager {
         this.tooltipEl = document.createElement('div');
         this.tooltipEl.id = 'global-card-tooltip';
         
-        // Phase 3: Changed 'transition-all' to 'transition' (which animates opacity/transform but snaps left/top instantly)
-        this.tooltipEl.className = 'fixed z-[10000] pointer-events-none opacity-0 transition duration-150 ease-out transform scale-95 flex';
+        // Ensure the tooltip is actually in the DOM so custom web components 
+        // are forced to fire their connectedCallback and render immediately.
+        this.tooltipEl.style.position = 'fixed';
+        this.tooltipEl.style.pointerEvents = 'none';
+        this.tooltipEl.style.zIndex = '9999';
         document.body.appendChild(this.tooltipEl);
-
-        // Instantly kill tooltips on ANY click down to prevent them covering the UI during dragging/interactions
-        window.addEventListener('mousedown', () => this.forceHide(), { capture: true });
+        
+        this.tooltipEl.classList.remove('opacity-0', 'scale-95');
+        
+        // Give it 150ms to fade out before destroying the HTML
+        setTimeout(() => {
+            if (!this.isVisible) this.tooltipEl.innerHTML = '';
+        }, 150);
     }
 
     shouldSuppress() {
+        // Mobile Suppression: If the user is actively scrubbing a hand card, kill the tooltip
+        if (this.scrubActive || window._forceHoverCardId) return true;
+        
         // Based on interactions.js, suppress if dragging or targeting
         if (window._isDragging === true) return true;
         if (window.ClientState && window.ClientState.pendingAbility != null) return true;
+        
+        // Final sanity check: If the device doesn't support hover, suppress it globally
+        if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
+            return true;
+        }
+        
+        // Suppress if a touch event happened recently (mobile guard)
+        if (Date.now() - this.lastTouchTime < 1000) {
+            return true;
+        }
+        
         return false;
     }
 
@@ -120,21 +287,30 @@ class CardHoverManager {
         this.tooltipEl.innerHTML = `<game-card cache-id="${cacheId}" size="jumbo"></game-card>`;
         this.isVisible = true;
 
-        // Double rAF ensures the browser mounts the inner HTML, calculates its layout geometry, 
-        // allows us to measure it while invisible, and THEN applies the fade-in.
-        requestAnimationFrame(() => {
-            console.log(`%c[HOVER MGR] _showTooltip rAF 1 executed`, 'color: #10b981');
+        let attempts = 0;
+        const maxAttempts = 60; // Increased to 1 full second of polling to guarantee it catches slow renders
+
+        const attemptPositioning = () => {
             if (!this.isVisible || this.currentCardId !== cacheId) {
-                console.log(`%c[HOVER MGR] Aborted in rAF 1 (No longer visible or ID mismatch)`, 'color: #ef4444');
+                console.log(`%c[HOVER MGR] Aborted positioning (No longer visible or ID mismatch)`, 'color: #ef4444');
                 return;
             }
             
             // Because <game-card> is display:contents, we must measure its first real wrapper child
             const jumboWrapper = this.tooltipEl.firstElementChild?.firstElementChild;
+            
+            // If the Web Component hasn't stamped its template yet, wait until the next frame.
             if (!jumboWrapper) {
-                console.log(`%c[HOVER MGR] ERROR: jumboWrapper not found in DOM!`, 'color: #ef4444', this.tooltipEl.innerHTML);
+                attempts++;
+                if (attempts < maxAttempts) {
+                    requestAnimationFrame(attemptPositioning);
+                } else {
+                    console.log(`%c[HOVER MGR] ERROR: jumboWrapper not found in DOM after ${maxAttempts} attempts!`, 'color: #ef4444', this.tooltipEl.innerHTML);
+                }
                 return;
             }
+
+            console.log(`%c[HOVER MGR] jumboWrapper successfully mounted on frame ${attempts + 1}`, 'color: #10b981');
 
             const tooltipRect = jumboWrapper.getBoundingClientRect();
             const rect = targetEl.getBoundingClientRect();
@@ -167,18 +343,23 @@ class CardHoverManager {
 
             // Final frame: Trigger CSS transitions
             requestAnimationFrame(() => {
-                console.log(`%c[HOVER MGR] _showTooltip rAF 2 executed (FADING IN)`, 'color: #10b981');
+                console.log(`%c[HOVER MGR] _showTooltip fading in`, 'color: #10b981');
                 if (!this.isVisible || this.currentCardId !== cacheId) return;
                 this.tooltipEl.classList.remove('opacity-0', 'scale-95', '-translate-x-3', 'translate-x-3');
                 this.tooltipEl.classList.add('opacity-100', 'scale-100', 'translate-x-0');
             });
-        });
+        };
+
+        // Start the polling loop
+        requestAnimationFrame(attemptPositioning);
     }
 }
 
 export const HoverManager = new CardHoverManager();
 
 if (typeof window !== 'undefined') {
+    window.HoverManager = HoverManager;
+
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         HoverManager.init();
     } else {

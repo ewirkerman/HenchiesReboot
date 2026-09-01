@@ -117,6 +117,8 @@ export function resetForm() {
     setVal('card-nano-art-x', 0); setVal('card-nano-art-y', 0); setVal('card-nano-art-scale', 110);
     
     document.getElementById('card-description').value = '';
+    const hideDeckbuilderFlag = document.getElementById('card-hide-from-deckbuilder');
+    if (hideDeckbuilderFlag) hideDeckbuilderFlag.checked = false;
     
     CardState.currentAbilities = [];
     
@@ -155,6 +157,7 @@ export function buildCardState(forceId = null) {
     
     const searchId = forceId || CardState.currentEditingId;
     const existingCard = CardState.allCards.find(c => c.id === searchId);
+    const hideDeckbuilderCheckbox = document.getElementById('card-hide-from-deckbuilder');
     
     const state = {
         id: searchId || ('card_' + Date.now()),
@@ -171,6 +174,7 @@ export function buildCardState(forceId = null) {
         strength: isAllowed('strength') && strVal !== '' ? parseInt(strVal) : null,
         description: document.getElementById('card-description').value || '',
         artUrl: document.getElementById('card-art').value || '',
+        hideFromDeckBuilder: !!(hideDeckbuilderCheckbox && hideDeckbuilderCheckbox.checked),
         artX: valX,
         artY: valY,
         artScale: !isNaN(valScale) ? valScale : 100,

@@ -8,15 +8,16 @@ export class SummonAction extends Action {
         if (!card) return;
         
         const destZone = String(this.payload.zone || 'back').toLowerCase();
-        let fallbackOwner = engine.state.activePlayerId;
-        if (this.payload.source) {
-            const loc = findEntityLocation(engine, this.payload.source);
-            if (loc && loc.playerId) fallbackOwner = loc.playerId;
-            else if (this.payload.source.ownerId) fallbackOwner = this.payload.source.ownerId;
+        const actingPlayerId = this.payload.actingPlayerId || this.payload.ownerId || engine.state.activePlayerId;
+
+        let fallbackOwner = actingPlayerId;
+        if (this.payload.zoneOwner === 'TARGET' && this.payload.target) {
+            const targetLoc = findEntityLocation(engine, this.payload.target);
+            if (targetLoc && targetLoc.playerId) fallbackOwner = targetLoc.playerId;
+            else if (this.payload.target.ownerId) fallbackOwner = this.payload.target.ownerId;
         }
 
-        const ownerId = this.payload.zoneOwner === 'TARGET' && this.payload.target ? 
-            findEntityLocation(engine, this.payload.target)?.playerId || fallbackOwner : fallbackOwner;
+        const ownerId = fallbackOwner;
             
         const summonedInstances = [];
         

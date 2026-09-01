@@ -233,36 +233,11 @@ document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn)
 document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-    const radialMenu = document.querySelector('radial-action-menu');
-    const overlay = radialMenu?.querySelector('#radial-menu-overlay');
-    const isMenuOpen = overlay && !overlay.classList.contains('hidden');
-    
     const zoneModal = document.getElementById('zone-viewer-modal');
     const isZoneOpen = zoneModal && !zoneModal.classList.contains('hidden');
 
     if (isZoneOpen) {
         if (e.key === 'Escape') window.closeZoneModal();
-        return;
-    }
-
-    if (isMenuOpen) {
-        const num = parseInt(e.key);
-        if (!isNaN(num) && num >= 1 && num <= 9) {
-            const bg = overlay.querySelector('.bg-black\\/40');
-            const isTargeting = bg && bg.classList.contains('opacity-0');
-            if (!isTargeting && radialMenu.actions[num - 1]) {
-                radialMenu.selectAction(num - 1);
-            }
-        }
-        if (e.key === 'Escape') {
-            const bg = overlay.querySelector('.bg-black\\/40');
-            const isTargeting = bg && bg.classList.contains('opacity-0');
-            if (isTargeting) {
-                document.getElementById('cancel-action-btn')?.click();
-            } else {
-                radialMenu.close();
-            }
-        }
         return;
     }
 
