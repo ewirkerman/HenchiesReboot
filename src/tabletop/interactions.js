@@ -199,38 +199,33 @@ export function buildCardActions(cardId, card) {
     
     console.log(`\n[DEBUG-TARGETS] === Checking Card: ${card.name} (${cardId}) ===`);
 
-    const playCheck = canPlayCard(state, playerId, card);
-    console.log(`[DEBUG-TARGETS] Base Engine Affordability (canPlayCard): ${playCheck.success}`);
-
     const engineActions = getEntityAvailableActions(state, playerId, cardId);
     console.log(`[DEBUG-TARGETS] Engine Available Actions:`, engineActions);
 
-    const playTriggers = ['PLAY', 'ON_PLAY', 'PLAY_OPTIONAL', 'ON_PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'];
-    const mandatoryTargetAbilities = (card.abilities || []).filter(ab => 
-        playTriggers.includes(ab.trigger) && 
-        ab.activation?.method === 'PLAYER_CHOICE'
-    );
-    const requiresMandatoryTarget = mandatoryTargetAbilities.length > 0;
-    
-    console.log(`[DEBUG-TARGETS] Requires Mandatory Target: ${requiresMandatoryTarget}`);
-    
-    if (playCheck.success && !requiresMandatoryTarget) {
-        console.log(`[DEBUG-TARGETS] -> Pushing fallback PLAY_BOARD action (No targets needed).`);
-        legalActions.push({
-            type: 'PLAY_BOARD', name: 'Play Normally', abilityId: null, actionType: 'PLAY_BOARD',
-            validTargets: [], undoable: checkDefaultPlaySafety(card), cost: card.cost
-        });
-    }
-
     engineActions.forEach(action => {
-        const ab = card.abilities.find(a => a.abilityId === action.abilityId);
+        // Handle the Engine's native play action
+        if (action.abilityId === 'native_play') {
+            console.log(`[DEBUG-TARGETS] -> Pushing Engine PLAY_BOARD action (Play Normally).`);
+            legalActions.push({
+                type: 'PLAY_BOARD', name: 'Play Normally', abilityId: 'native_play', actionType: 'PLAY_BOARD',
+                validTargets: [], undoable: !checkDefaultPlaySafety(card), cost: action.cost
+            });
+            return; // Skip standard ability processing
+        }
+
+        const ab = card.abilities?.find(a => a.abilityId === action.abilityId);
         const requiresTarget = ab?.activation?.method === 'PLAYER_CHOICE';
         const validTargets = requiresTarget ? getValidAbilityTargets(state, playerId, cardId, action.abilityId).map(t => t.id) : [];
 
         console.log(`[DEBUG-TARGETS] -> Pushing Engine Action [${action.name}]. Needs target: ${requiresTarget}, Valid count: ${validTargets.length}`);
 
+        const isPlay = ['PLAY', 'PLAY_OPTIONAL', 'ON_PLAY', 'ON_PLAY_OPTIONAL', 'MODIFY_PLAY', 'WOULD_PLAY'].includes(ab?.trigger);
+        const resolvedType = isPlay 
+            ? (requiresTarget ? 'PLAY_TARGET' : 'PLAY_BOARD') 
+            : (requiresTarget ? 'ABILITY_TARGET' : 'ABILITY');
+
         legalActions.push({
-            type: requiresTarget ? 'PLAY_TARGET' : 'PLAY_BOARD', actionType: requiresTarget ? 'PLAY_TARGET' : 'PLAY_BOARD',
+            type: resolvedType, actionType: resolvedType,
             name: action.name, abilityId: action.abilityId, validTargets, undoable: action.undoable, cost: action.cost
         });
     });
@@ -372,8 +367,7 @@ window.handleHandCardClick = async (cardId) => {
         }
 
         if (actions.length === 1) {
-            if (actions[0].type === 'PLAY_BOARD' && !actions[0].abilityId) window.executeNormalPlay(cardId);
-            else window.activateHandCardAbility(cardId, actions[0].abilityId);
+            window.activateHandCardAbility(cardId, actions[0].abilityId);
         } else {
             window.openActionModal(cardId, card.name, actions, true);
         }
@@ -400,22 +394,42 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
     const card = findClientEntity(cardId);
     if (!card) return;
 
-    const ability = card.abilities.find(a => a.abilityId === abilityId);
-    const isHandActivate = ability.trigger === 'MANUAL' && ability.passiveFlags?.includes('ACTIVATE_FROM_HAND');
+    // 1. Data-Driven Lookup: Re-evaluate to get structured Action Objects
+    const actions = buildCardActions(cardId, card);
     
-    if (ability?.activation?.method === 'PLAYER_CHOICE') {
+    // Safely default null ability IDs (from cached UI) to native_play
+    const targetAbilityId = abilityId || 'native_play';
+    const action = actions.find(a => a.abilityId === targetAbilityId);
+
+    if (!action) {
+        console.warn(`[UI] Action '${targetAbilityId}' not found on ${card.name}.`);
         closeUnitActionModal();
-        ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, abilityId);
-        ClientState.pendingAbility = { entityId: cardId, abilityId, isHandCard: true, isHandActivate };
-        showToast(`Select a target for ${ability.name}`, 'info');
+        return;
+    }
+
+    const ability = card.abilities?.find(a => a.abilityId === action.abilityId);
+
+    // 2. Principled Dispatch: Route entirely based on the derived action type
+    if (action.actionType === 'PLAY_TARGET' || action.actionType === 'ABILITY_TARGET') {
+        closeUnitActionModal();
+        ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, action.abilityId);
+        
+        const isHandActivate = action.actionType === 'ABILITY_TARGET';
+        ClientState.pendingAbility = { entityId: cardId, abilityId: action.abilityId, isHandCard: true, isHandActivate };
+        
+        showToast(`Select a target for ${ability?.name || action.name}`, 'info');
         updateUI();
         maybeOpenZoneModal();
         return;
     }
 
     closeUnitActionModal();
-    if (isHandActivate) dispatchAbility(cardId, abilityId, null, null);
-    else await window.executeNormalPlay(cardId, abilityId);
+    
+    if (action.actionType === 'PLAY_BOARD') {
+        await window.executeNormalPlay(cardId, action.abilityId === 'native_play' ? null : action.abilityId);
+    } else {
+        dispatchAbility(cardId, action.abilityId, null, null);
+    }
 };
 
 window.activateAbility = async (entityId, abilityId) => {

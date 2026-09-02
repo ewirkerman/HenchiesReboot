@@ -25,8 +25,14 @@ function getStat(entity, statKey) {
 }
 
 function extractQuickTargeting(ability) {
+    // ALWAYS prioritize the explicit activation filter for what the player clicks
+    if (ability?.activation?.quickTargeting) {
+        return ability.activation.quickTargeting;
+    }
+    
+    // Legacy fallback: Check the effects array if no activation block exists
     const explicitEffectQt = (ability?.effects || []).find(group => group?.quickTargeting)?.quickTargeting;
-    return explicitEffectQt || ability?.activation?.quickTargeting;
+    return explicitEffectQt || null;
 }
 
 function deduplicateTargets(targets) {
@@ -277,6 +283,11 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     return deduplicateTargets(targets);
 }
 
+function isEntityInHand(state, playerId, entity) {
+    const p = state.players[playerId];
+    return ['hand', 'discard', 'deck'].some(z => p[z]?.some(c => c.instanceId === entity.instanceId));
+}
+
 function checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct) {
     if (isHandAct) return true;
     if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0) return true;
@@ -330,17 +341,12 @@ function checkActionAffordability(entity, costObj, isHandAct) {
     return getStat(entity, 'acts') >= 1;
 }
 
-function checkIsHandActivation(state, playerId, entity, ability) {
-    if (!ability.passiveFlags?.includes('ACTIVATE_FROM_HAND')) return false;
-    const p = state.players[playerId];
-    return ['hand', 'discard', 'deck'].some(z => p[z]?.some(c => c.instanceId === entity.instanceId));
-}
-
 function checkAbilityAffordability(state, playerId, entity, ability, abilityKey) {
     const cost = ability.cost || {};
     const player = state.players[playerId];
     
-    const isHandAct = checkIsHandActivation(state, playerId, entity, ability);
+    const isHandAct = isEntityInHand(state, playerId, entity);
+    
     if (!checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct)) return false;
 
     const lifetimeUses = entity.lifetimeAbilityUses?.[ability.abilityId] || 0;
@@ -358,6 +364,18 @@ function checkTargetRequirementValidity(state, playerId, entity, ability) {
     
     const targets = getValidAbilityTargets(state, playerId, entity.instanceId, ability.abilityId);
     return targets.length > 0;
+}
+
+function buildPlayAction(state, playerId, entity) {
+    if (!isEntityInHand(state, playerId, entity)) return null;
+
+    return {
+        type: 'PLAY_BOARD',
+        name: 'Play Normally',
+        abilityId: 'native_play',
+        undoable: true,
+        cost: 0
+    };
 }
 
 function buildAttackAction(state, playerId, entity) {
@@ -387,6 +405,11 @@ function buildAbilityAction(state, playerId, entity, ability) {
 
     if (hasEngineFlag(state, entity, 'BLOCK_ACT')) return null;
 
+    const inHand = isEntityInHand(state, playerId, entity);
+    if (ability.trigger === 'MANUAL' && inHand && !ability.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
+        return null; // Explicitly block manual abilities from being cast from the hand without permission
+    }
+
     const abilityKey = `${entity.instanceId}_${ability.abilityId}`;
     
     if (!checkAbilityAffordability(state, playerId, entity, ability, abilityKey)) return null;
@@ -406,6 +429,10 @@ export function getEntityAvailableActions(state, playerId, entityId) {
     if (!entity) return [];
 
     const actions = [];
+    
+    const nativePlay = buildPlayAction(state, playerId, entity);
+    if (nativePlay) actions.push(nativePlay);
+    
     const nativeAttack = buildAttackAction(state, playerId, entity);
     if (nativeAttack) actions.push(nativeAttack);
 
@@ -414,6 +441,16 @@ export function getEntityAvailableActions(state, playerId, entityId) {
             const abilityAction = buildAbilityAction(state, playerId, entity, ab);
             if (abilityAction) actions.push(abilityAction);
         });
+    }
+    
+    // If a valid MANDATORY play ability exists, force the user to use it instead of playing normally.
+    const hasValidMandatoryPlay = actions.some(a => 
+        a.type === 'ABILITY' && 
+        entity.abilities?.find(ab => ab.abilityId === a.abilityId)?.trigger === 'PLAY'
+    );
+    
+    if (hasValidMandatoryPlay) {
+        return actions.filter(a => a.abilityId !== 'native_play');
     }
     
     return actions;
