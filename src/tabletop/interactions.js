@@ -5,6 +5,7 @@ import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getVa
 import { resolveResourceKey } from '../engine/index.js';
 import { showToast } from '../ui.js';
 import { reconstructStateFromLog } from './multiplayer.js';
+import { RandomAI } from '../ai/random.js';
 
 function getEntityRef(entityId) {
     let entity = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
@@ -310,7 +311,9 @@ window.handleEntityClick = async (prefix, line, entityId) => {
     if (prefix === 'player' || prefix === 'equator') {
       if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
         const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
-        if (actions.length > 0) {
+        if (actions.length === 1) {
+            window.activateAbility(entityId, actions[0].abilityId);
+        } else if (actions.length > 1) {
           let entityName = "Unknown Entity";
           if (prefix === 'equator') {
               const eq = ClientState.gameState.equator.find(i => i.instanceId === entityId);
@@ -587,13 +590,16 @@ window.handleHandCardClick = async (cardId) => {
             const t = ab.trigger || 'MANUAL';
             const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
             const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
+            const hasTargets = requiresTarget ? getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, ab.abilityId).length > 0 : true;
             
             if (t === 'PLAY_OPTIONAL') {
-                return canPlay && canAffordAbility(ab.cost);
+                return canPlay && canAffordAbility(ab.cost) && hasTargets;
             }
 
             if (t === 'MANUAL' && ab.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
                 // Hand activations don't require the card's base cost! We check base resources directly.
+                if (!hasTargets) return false;
+                
                 let rawCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
                 let rawTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
                 
@@ -635,7 +641,10 @@ window.handleHandCardClick = async (cardId) => {
                 actions.push({ type: 'ABILITY', name: ab.name, abilityId: ab.abilityId, undoable: isUndoable(ClientState.gameState, ab), cost: ab.cost });
             });
             
-            if (actions.length > 0) {
+            if (actions.length === 1) {
+                if (actions[0].type === 'PLAY') window.executeNormalPlay(cardId);
+                else window.activateHandCardAbility(cardId, actions[0].abilityId);
+            } else if (actions.length > 1) {
                 window.openActionModal(cardId, c.name, actions, true);
             } else if (!canPlay) {
                 showToast("Cannot play this card.", "error");
@@ -923,3 +932,97 @@ window.addEventListener('mouseup', e => {
 });
 
 window.handleUndo = handleUndo;
+
+let isAIRunning = false;
+
+export async function triggerAILoop() {
+    if (isAIRunning) return;
+    
+    let state = ClientState.gameState;
+    if (!state || state.status === 'finished') return;
+    
+    const activePlayer = state.players[state.activePlayerId];
+    if (!activePlayer || (!activePlayer.isAI && !activePlayer.isDummy) || ClientState.localPlayerRole !== 'player1') return;
+    
+    isAIRunning = true;
+    try {
+        await new Promise(r => setTimeout(r, 1500)); // Natural AI delay
+        
+        // RE-GRAB STATE AFTER DELAY TO AVOID STALE DATA OVERWRITES
+        state = ClientState.gameState;
+        if (!state || state.status === 'finished' || state.activePlayerId !== activePlayer.id) return;
+
+        if (!ClientState.aiInstance || ClientState.aiInstance.playerId !== state.activePlayerId) {
+            ClientState.aiInstance = new RandomAI(state.activePlayerId);
+        }
+        if (ClientState.aiTurnNumber !== state.turnNumber) {
+            ClientState.aiInstance.resetTurn();
+            ClientState.aiTurnNumber = state.turnNumber;
+        }
+
+        state.actionIndex = (state.actionIndex || 0) + 1;
+        state.lastRealActionIndex = state.actionIndex;
+
+        const move = ClientState.aiInstance.executeNextMove(state);
+
+        if (move.type === 'SACRIFICE' || move.type === 'SACRIFICE_SKIP') {
+            const actionPayload = { 
+                type: 'SACRIFICE_DECISION', 
+                option: move.action.action, 
+                cardId: move.action.cardId, 
+                actionIndex: state.actionIndex, 
+                isUnsafe: false 
+            };
+            await pushActionToLog(ClientState.roomCode, actionPayload, null, state.history_log);
+        } else if (move.type === 'PASS' || move.type === 'NO_MOVES') {
+            const actionPayload = { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true };
+            endTurn(state);
+            const snapshot = JSON.stringify(state);
+            await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, state.history_log);
+        } else if (move.executed && move.action) {
+            let actionPayload = null;
+            if (move.action.type === 'PLAY_CARD') {
+                actionPayload = {
+                    type: 'PLAY_CARD',
+                    actionIndex: state.actionIndex,
+                    playerId: state.activePlayerId,
+                    cardId: move.action.cardId,
+                    targetLine: 'back',
+                    chosenAbilityId: move.action.abilityId,
+                    abilityTargetId: move.action.targetId,
+                    isUnsafe: true
+                };
+            } else if (move.action.type === 'ENTITY_ACTION') {
+                actionPayload = {
+                    type: 'ENTITY_ACTION',
+                    actionIndex: state.actionIndex,
+                    playerId: state.activePlayerId,
+                    entityId: move.action.entityId,
+                    actionType: move.action.actionType,
+                    abilityId: move.action.abilityId,
+                    targetId: move.action.targetId,
+                    targetLine: move.action.targetLine,
+                    isUnsafe: true
+                };
+            }
+
+            if (actionPayload) {
+                await pushActionToLog(ClientState.roomCode, actionPayload, null, state.history_log);
+            }
+        } else {
+            console.warn("[AI] Move failed to execute or was invalid. Forcing PASS to prevent infinite loop.", move);
+            const actionPayload = { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true };
+            endTurn(state);
+            const snapshot = JSON.stringify(state);
+            await pushActionToLog(ClientState.roomCode, actionPayload, snapshot, state.history_log);
+        }
+        
+        // This will naturally recall triggerAILoop via the renderer if the turn didn't end
+        updateUI();
+    } catch(e) {
+        console.error("AI Loop Error:", e);
+    } finally {
+        isAIRunning = false;
+    }
+}
+window.triggerAILoop = triggerAILoop;
