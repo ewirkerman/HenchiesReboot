@@ -1,5 +1,5 @@
-import { formatAbilityCostBadge } from '../src/ui.js';
-import { ClientState } from '../src/tabletop/client_state.js';
+import { formatAbilityCostBadge } from '../src/ui.js'; // Adjusted based on expected project structure
+import { ClientState } from '../src/tabletop/client_state.js'; // Adjusted based on expected project structure
 import { getActionButtonTheme } from './action_button_theme.js';
 
 export class UnitActionModal extends HTMLElement {
@@ -40,10 +40,11 @@ export class UnitActionModal extends HTMLElement {
 
         this.actions.forEach((act, i) => {
             let desc = '';
+            
             if (act.type === 'PLAY') desc = 'Play this card normally.';
             else if (act.type === 'ATTACK') desc = 'Attack a valid target on the board.';
             else {
-                const ab = ClientState.allAbilitiesRegistry.find(a => a.abilityId === act.abilityId);
+                const ab = ClientState.allAbilitiesRegistry?.find(a => a.abilityId === act.abilityId);
                 desc = ab ? (ab.displayDescription || ab.description) : 'Activate this ability.';
             }
 
@@ -53,7 +54,6 @@ export class UnitActionModal extends HTMLElement {
             let undoWarn = !act.undoable ? `<span class="text-red-400 drop-shadow-md ml-1" title="Cannot be undone">⚠️</span>` : "";
             let costHtml = formatAbilityCostBadge(act.cost, 'Generic');
 
-            // Determine tooltip placement (if near bottom, pop up instead of down, etc. Here we just use left/right)
             btnsHtml += `
                 <div class="relative group">
                     <button id="action-btn-${i}" onclick="document.querySelector('unit-action-modal').selectAction(${i})" 
@@ -77,6 +77,7 @@ export class UnitActionModal extends HTMLElement {
 
     selectAction(index) {
         const act = this.actions[index];
+        
         if (act.type === 'PLAY') {
             window.executeNormalPlay(this.entityId);
         } else if (this.isHand) {

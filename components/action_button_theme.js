@@ -21,19 +21,8 @@ export const ACTION_BUTTON_THEME = {
   }
 };
 
-export function normalizeActionType(actionType, abilityId = null) {
-  if (actionType === 'ATTACK') return 'ATTACK';
-  if (actionType === 'PLAY') return 'PLAY';
-  if (actionType === 'PLAY_BOARD') return abilityId ? 'ABILITY' : 'PLAY';
-  if (actionType === 'PLAY_TARGET') return 'ABILITY';
-  if (actionType === 'ABILITY') return 'ABILITY';
-  if (['PLAY_OPTIONAL', 'MANUAL', 'CHANNELED'].includes(actionType)) return 'ABILITY';
-  return 'ABILITY';
-}
-
-export function getActionButtonTheme(actionType, abilityId = null) {
-  const normalizedType = normalizeActionType(actionType, abilityId);
-  if (normalizedType === 'PLAY') return ACTION_BUTTON_THEME.play;
-  if (normalizedType === 'ATTACK') return ACTION_BUTTON_THEME.attack;
+export function getActionButtonTheme(actionType) {
+  if (actionType === 'PLAY') return ACTION_BUTTON_THEME.play;
+  if (actionType === 'ATTACK') return ACTION_BUTTON_THEME.attack;
   return ACTION_BUTTON_THEME.secondary;
 }

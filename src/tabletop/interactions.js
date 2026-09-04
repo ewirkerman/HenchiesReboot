@@ -6,7 +6,6 @@ import { showToast } from '../ui.js';
 import { reconstructStateFromLog } from './multiplayer.js';
 import { RandomAI } from '../ai/random.js';
 import { PassAI } from '../ai/pass.js';
-import { normalizeActionType } from '../../components/action_button_theme.js';
 
 function findClientEntity(entityId) {
     let entity = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
@@ -85,22 +84,16 @@ export async function dispatchSacrificeDecision(option, cardId = null) {
 export async function handleEndTurn() {
     if (!ClientState.isMyTurn()) return;
     
-    console.warn(`[DIAGNOSTIC-END-TURN] 1. Pre-EndTurn: Active Player = ${ClientState.gameState.activePlayerId}, Phase = ${ClientState.gameState.turnPhase}`);
-    
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     
     endTurn(ClientState.gameState);
-    console.warn(`[DIAGNOSTIC-END-TURN] 2. Post-endTurn() call: Active Player = ${ClientState.gameState.activePlayerId}, Phase = ${ClientState.gameState.turnPhase}`);
     
     const engine = new GameEngine(ClientState.gameState);
     startTurn(ClientState.gameState, engine);
-    console.warn(`[DIAGNOSTIC-END-TURN] 3. Post-startTurn() call: Active Player = ${ClientState.gameState.activePlayerId}, Phase = ${ClientState.gameState.turnPhase}`);
 
     const payload = { type: 'END_TURN', actionIndex: ClientState.gameState.actionIndex, isUnsafe: true };
     const snapshot = JSON.stringify(ClientState.gameState);
-    
-    console.warn(`[DIAGNOSTIC-END-TURN] 4. Snapshot Check: includes "activePlayerId":"player2"? ${snapshot.includes('"activePlayerId":"player2"')}`);
     
     await pushActionToLog(ClientState.roomCode, payload, snapshot, ClientState.gameState.history_log);
     updateUI();
@@ -202,61 +195,39 @@ export const handleSacrificeConfirm = async () => {
     dispatchSacrificeDecision('OPTION_A', ClientState.selectedCardId);
 };
 
-export function buildCardActions(cardId, card) {
-    if (!card) return [];
-    const state = ClientState.gameState;
-    const playerId = ClientState.localPlayerRole;
-    const legalActions = [];
-    
-    console.log(`\n[DEBUG-TARGETS] === Checking Card: ${card.name} (${cardId}) ===`);
-
-    const engineActions = getEntityAvailableActions(state, playerId, cardId);
-    console.log(`[DEBUG-TARGETS] Engine Available Actions:`, engineActions);
-
-    engineActions.forEach(action => {
-        // Handle the Engine's native play action
-        if (action.abilityId === 'native_play') {
-            console.log(`[DEBUG-TARGETS] -> Pushing Engine PLAY_BOARD action (Play Normally).`);
-            legalActions.push({
-                type: 'PLAY_BOARD', name: 'Play Normally', abilityId: 'native_play', actionType: 'PLAY_BOARD',
-                validTargets: [], undoable: !checkDefaultPlaySafety(card), cost: action.cost
-            });
-            return; // Skip standard ability processing
-        }
-
-        const ab = card.abilities?.find(a => a.abilityId === action.abilityId);
-        const requiresTarget = ab?.activation?.method === 'PLAYER_CHOICE';
-        const validTargets = requiresTarget ? getValidAbilityTargets(state, playerId, cardId, action.abilityId).map(t => t.id) : [];
-
-        console.log(`[DEBUG-TARGETS] -> Pushing Engine Action [${action.name}]. Needs target: ${requiresTarget}, Valid count: ${validTargets.length}`);
-
-        const isPlay = ['PLAY', 'PLAY_OPTIONAL', 'ON_PLAY', 'ON_PLAY_OPTIONAL', 'MODIFY_PLAY', 'WOULD_PLAY'].includes(ab?.trigger);
-        const resolvedType = isPlay 
-            ? (requiresTarget ? 'PLAY_TARGET' : 'PLAY_BOARD') 
-            : (requiresTarget ? 'ABILITY_TARGET' : 'ABILITY');
-
-        legalActions.push({
-            type: resolvedType, actionType: resolvedType,
-            name: action.name, abilityId: action.abilityId, validTargets, undoable: action.undoable, cost: action.cost
-        });
-    });
-
-    console.log(`[DEBUG-TARGETS] === Final Legal Actions Count: ${legalActions.length} ===\n`);
-    return legalActions;
-}
-
-export function getCurrentPlayIntent(cardId, card) {
-    const legalActions = buildCardActions(cardId, card);
-    if (legalActions.length === 0) return { mode: 'none' };
-    if (legalActions.length === 1) {
-        return { mode: 'single', actionType: legalActions[0].actionType, abilityId: legalActions[0].abilityId, validTargets: legalActions[0].validTargets, action: legalActions[0] };
+export function getCardPlayState(cardId, card) {
+    const baseCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, card);
+    if (!baseCheck || !baseCheck.success) {
+        return { playable: false, reason: baseCheck ? baseCheck.reason : "Cannot play", mode: 'none', actions: [] };
     }
-    return { mode: 'multi', actions: legalActions, validTargets: [...new Set(legalActions.flatMap(a => a.validTargets || []))] };
-}
 
-function getDragPlayIntent(cardId, card) {
-    return getCurrentPlayIntent(cardId, card);
+    const legalActions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId);
+    if (legalActions.length === 0) {
+        return { playable: false, reason: "No valid targets available.", mode: 'none', actions: [] };
+    }
+    
+    if (legalActions.length === 1) {
+        return { 
+            playable: true,
+            mode: 'single', 
+            actionType: legalActions[0].type,
+            requiresTarget: legalActions[0].requiresTarget,
+            isPlayAbility: legalActions[0].isPlayAbility,
+            abilityId: legalActions[0].abilityId, 
+            validTargets: legalActions[0].validTargets, 
+            action: legalActions[0],
+            actions: legalActions
+        };
+    }
+    
+    return { 
+        playable: true,
+        mode: 'multi', 
+        actions: legalActions, 
+        validTargets: [...new Set(legalActions.flatMap(a => a.validTargets || []))] 
+    };
 }
+window.getCardPlayState = getCardPlayState;
 
 function clearPendingAbility() {
     ClientState.pendingAbility = null;
@@ -289,44 +260,7 @@ function processPendingTarget(targetId) {
     } else {
         cancelTargeting(targetId);
     }
-
-    if (prefix === 'player' || prefix === 'equator') {
-      if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
-        const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
-        if (actions.length === 1) {
-            window.activateAbility(entityId, actions[0].abilityId);
-        } else if (actions.length > 1) {
-          let entityName = "Unknown Entity";
-          if (prefix === 'equator') {
-              const eq = ClientState.gameState.equator.find(i => i.instanceId === entityId);
-              if (eq) entityName = eq.name;
-          } else {
-            for (const l of LINES) {
-              const u = ClientState.gameState.players[ClientState.localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
-              if (u) { entityName = u.name; break; }
-            }
-          }
-          
-          window.openActionModal(entityId, entityName, actions, false);
-        } else {
-          let entity = null;
-          if (prefix === 'equator') entity = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
-          else entity = ClientState.gameState.players[ClientState.localPlayerRole].lines[line]?.find(u => u.instanceId === entityId);
-          if (entity) {
-              const json = encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27");
-              window.inspectCard(json);
-          }
-        }
-      }
-    } else if (prefix === 'opp') {
-      const oppRole = ClientState.localPlayerRole === 'player1' ? 'player2' : 'player1';
-      const entity = ClientState.gameState.players[oppRole].lines[line]?.find(u => u.instanceId === entityId);
-      if (entity) {
-          const json = encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27");
-          window.inspectCard(json);
-      }
-    }
-};
+}
 
 function maybeOpenZoneModal() {
     const uniqueZones = [...new Set(ClientState.validTargets.map(t => t.line))];
@@ -407,104 +341,23 @@ window.handleHandCardClick = async (cardId) => {
         const card = findClientEntity(cardId);
         if (!card) return;
 
-        const actions = buildCardActions(cardId, card);
+        // UNIFIED GATEKEEPER: Handles base cost, actions, and targeting in one clean pass
+        const playState = getCardPlayState(cardId, card);
         
-        if (actions.length === 0) {
-            showToast("Cannot play this card.", "error");
+        if (!playState.playable) {
+            showToast(playState.reason, "error");
             return;
         }
 
-        const canAffordAbility = (abCost) => {
-            if (!abCost) return true;
-            let reqCarnie = abCost.carnie || abCost.tent || 0;
-            let reqTribe = abCost.tribeAmount || 0;
-            
-            if (reqCarnie === 0 && reqTribe === 0) return true;
-            
-            let availCarnie = simCarnie;
-            let availTribe = simTribe;
-
-            if (reqCarnie > 0) {
-                if (availCarnie < reqCarnie) return false;
-                availCarnie -= reqCarnie;
-            }
-
-            if (reqTribe > 0) {
-                if (cTribe === 'Carnie') {
-                    if (availCarnie < reqTribe) return false;
-                } else {
-                    let maxConversion = Math.floor(availCarnie / 3);
-                    if ((availTribe + maxConversion) < reqTribe) return false;
-                }
-            }
-            return true;
-        };
-
-        const playAbilities = c.abilities ? c.abilities.filter(ab => {
-            const t = ab.trigger || 'MANUAL';
-            const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
-            const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
-            const hasTargets = requiresTarget ? getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, ab.abilityId).length > 0 : true;
-            
-            if (t === 'PLAY_OPTIONAL') {
-                return canPlay && canAffordAbility(ab.cost) && hasTargets;
-            }
-
-            if (t === 'MANUAL' && ab.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
-                // Hand activations don't require the card's base cost! We check base resources directly.
-                if (!hasTargets) return false;
-                
-                let rawCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
-                let rawTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
-                
-                let reqCarnie = ab.cost?.carnie || ab.cost?.tent || 0;
-                let reqTribe = ab.cost?.tribeAmount || 0;
-                
-                if (reqCarnie === 0 && reqTribe === 0) return true;
-                
-                if (reqCarnie > 0) {
-                    if (rawCarnie < reqCarnie) return false;
-                    rawCarnie -= reqCarnie;
-                }
-                
-                if (reqTribe > 0) {
-                    if (cTribe === 'Carnie') {
-                        if (rawCarnie < reqTribe) return false;
-                    } else {
-                        let maxConversion = Math.floor(rawCarnie / 3);
-                        if ((rawTribe + maxConversion) < reqTribe) return false;
-                    }
-                }
-                return true;
-            }
-            
-            return canPlay && isPlayTrigger && requiresTarget;
-        }) : [];
-
-        const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
-        const showPlayNormally = canPlay && !hasMandatoryTarget;
-
-        if (playAbilities.length > 0 || canPlay) {
-            const actions = [];
-            
-            if (showPlayNormally) {
-                actions.push({ type: 'PLAY', name: 'Play Normally', undoable: !isPlayUnsafe(c, null), cost: c.cost });
-            }
-
-            playAbilities.forEach(ab => {
-                actions.push({ type: 'ABILITY', name: ab.name, abilityId: ab.abilityId, undoable: isUndoable(ClientState.gameState, ab), cost: ab.cost });
-            });
-            
-            if (actions.length === 1) {
-                if (actions[0].type === 'PLAY') window.executeNormalPlay(cardId);
-                else window.activateHandCardAbility(cardId, actions[0].abilityId);
-            } else if (actions.length > 1) {
-                window.openActionModal(cardId, c.name, actions, true);
-            } else if (!canPlay) {
-                showToast("Cannot play this card.", "error");
+        if (playState.mode === 'single') {
+            const act = playState.action;
+            if (act.type === 'PLAY') {
+                window.executeNormalPlay(cardId, act.abilityId === 'native_play' ? null : act.abilityId);
+            } else {
+                window.activateHandCardAbility(cardId, act.abilityId);
             }
         } else {
-            window.openActionModal(cardId, card.name, actions, true);
+            window.openActionModal(cardId, card.name, playState.actions, true);
         }
     }
 };
@@ -529,10 +382,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
     const card = findClientEntity(cardId);
     if (!card) return;
 
-    // 1. Data-Driven Lookup: Re-evaluate to get structured Action Objects
-    const actions = buildCardActions(cardId, card);
-    
-    // Safely default null ability IDs (from cached UI) to native_play
+    const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId);
     const targetAbilityId = abilityId || 'native_play';
     const action = actions.find(a => a.abilityId === targetAbilityId);
 
@@ -544,13 +394,16 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
 
     const ability = card.abilities?.find(a => a.abilityId === action.abilityId);
 
-    // 2. Principled Dispatch: Route entirely based on the derived action type
-    if (action.actionType === 'PLAY_TARGET' || action.actionType === 'ABILITY_TARGET') {
+    if (action.requiresTarget) {
         closeUnitActionModal();
-        ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, action.abilityId);
+        ClientState.validTargets = action.validTargets;
         
-        const isHandActivate = action.actionType === 'ABILITY_TARGET';
-        ClientState.pendingAbility = { entityId: cardId, abilityId: action.abilityId, isHandCard: true, isHandActivate };
+        ClientState.pendingAbility = { 
+            entityId: cardId, 
+            abilityId: action.abilityId, 
+            isHandCard: true, 
+            isHandActivate: !action.isPlayAbility 
+        };
         
         showToast(`Select a target for ${ability?.name || action.name}`, 'info');
         updateUI();
@@ -560,7 +413,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
 
     closeUnitActionModal();
     
-    if (action.actionType === 'PLAY_BOARD') {
+    if (action.isPlayAbility) {
         await window.executeNormalPlay(cardId, action.abilityId === 'native_play' ? null : action.abilityId);
     } else {
         dispatchAbility(cardId, action.abilityId, null, null);
@@ -598,13 +451,8 @@ window.activateAbility = async (entityId, abilityId) => {
     dispatchAbility(entityId, abilityId, null, null);
 };
 
-
-// ==========================================
-// 🕹️ POINTER-AGNOSTIC STATE MACHINE
-// ==========================================
-
 let gestureState = {
-    phase: 'IDLE', // 'IDLE', 'DOWN', 'SCRUBBING', 'DRAGGING'
+    phase: 'IDLE', 
     source: null,
     actionType: null,
     cardId: null,
@@ -619,15 +467,16 @@ let gestureState = {
     pointerType: null,
     startX: 0,
     startY: 0,
-    pointerId: null
+    pointerId: null,
+    requiresTarget: false,
+    isPlayAbility: false
 };
 const DRAG_START_THRESHOLD = 8;
 
-// Custom Long Press Tracking
 let longPressTimer = null;
 let longPressFired = false;
-const LONG_PRESS_DURATION = 400; // 400ms hold triggers the inspector
-const LONG_PRESS_TOLERANCE = 10; // Allow slight finger wiggles
+const LONG_PRESS_DURATION = 400; 
+const LONG_PRESS_TOLERANCE = 10; 
 
 function hardResetGestureState(e) {
     if (e && e.target && e.target.releasePointerCapture && gestureState.pointerId) {
@@ -638,7 +487,8 @@ function hardResetGestureState(e) {
     gestureState = {
         phase: 'IDLE', source: null, actionType: null, cardId: null, card: null,
         rect: null, targets: [], abilityId: null, gc: null, hoveredTarget: null,
-        actions: [], modalShown: false, pointerType: null, startX: 0, startY: 0, pointerId: null
+        actions: [], modalShown: false, pointerType: null, startX: 0, startY: 0, pointerId: null,
+        requiresTarget: false, isPlayAbility: false
     };
     window._isDragging = false;
     window._dragCardId = null;
@@ -646,7 +496,6 @@ function hardResetGestureState(e) {
 }
 
 function executeLongPress(cardId, e) {
-    // 1. Force instantaneous cleanup of the Hover Manager to prevent stuck CSS transforms
     if (window.HoverManager) {
         window.HoverManager.stopScrub();
         window.HoverManager.handHoverId = null; 
@@ -654,20 +503,18 @@ function executeLongPress(cardId, e) {
             cancelAnimationFrame(window.HoverManager.handHoverFrame);
             window.HoverManager.handHoverFrame = null;
         }
-        window.HoverManager.refreshAllHandCards(); // Force immediate visual drop
+        window.HoverManager.refreshAllHandCards(); 
     }
     
     window._forceHoverCardId = null;
     hideDragTether();
     clearTargetHighlights(gestureState?.targets);
     
-    // 2. Open the Glossary/Inspector Modal
     const entity = findClientEntity(cardId);
     if (entity && window.inspectCard) {
         window.inspectCard(encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27"));
     }
     
-    // 3. Reset the gesture state machine so no drops or clicks fire on release
     hardResetGestureState(e);
     if (typeof updateUI === 'function') updateUI();
 }
@@ -711,8 +558,6 @@ function setDragTether(clientX, clientY) {
     const head = document.getElementById('drag-tether-head');
     if (!overlay || !line || !head) return;
 
-    // Dynamically track the live card element to ensure the tether anchors to it,
-    // even if it has moved far upwards due to CSS drag transforms.
     let rect = gestureState.rect;
     if (gestureState.cardId) {
         const liveEl = document.querySelector(`game-card[data-instance-id="${gestureState.cardId}"]`);
@@ -722,7 +567,6 @@ function setDragTether(clientX, clientY) {
         }
     }
 
-    // Gracefully handle any missing rects visually without drawing to top-left corner
     rect = rect || { left: clientX, top: clientY + 50, width: 0, height: 0 };
     
     const startX = rect.left + rect.width / 2;
@@ -734,7 +578,7 @@ function setDragTether(clientX, clientY) {
     head.setAttribute('cy', clientY);
     overlay.classList.remove('hidden');
 
-    if (gestureState.actionType === 'PLAY_BOARD') updateBoardPlayGlow(clientX, clientY, true);
+    if (gestureState.actionType === 'PLAY' && !gestureState.requiresTarget) updateBoardPlayGlow(clientX, clientY, true);
 }
 
 function hideDragTether() {
@@ -774,7 +618,8 @@ function updateBoardPlayGlow(clientX, clientY, isDragging = false) {
 
     const isValidHover = isValidBoardPlayDrop(clientX, clientY);
     const isMultiActionDrag = gestureState.actionType === 'MULTI_ACTION';
-    const active = gestureState.actionType === 'PLAY_BOARD' || isDragging || isMultiActionDrag;
+    const isBoardDropActive = gestureState.actionType === 'PLAY' && !gestureState.requiresTarget;
+    const active = isBoardDropActive || isDragging || isMultiActionDrag;
 
     board.classList.remove('ring-2', 'ring-4', 'ring-cyan-400', 'ring-cyan-500', 'ring-amber-400', 'border-cyan-400', 'border-cyan-500', 'border-emerald-950/40', 'border-amber-400', 'shadow-[0_0_10px_rgba(34,211,238,0.35)]', 'shadow-[0_0_16px_rgba(34,211,238,0.45)]', 'shadow-[0_0_20px_rgba(34,211,238,0.6)]', 'shadow-[0_0_10px_rgba(251,191,36,0.35)]', 'animate-pulse');
 
@@ -790,8 +635,8 @@ function updateBoardPlayGlow(clientX, clientY, isDragging = false) {
 
 function boardPlayHasSingleDefaultAction(card) {
     if (!card) return false;
-    const intent = getCurrentPlayIntent(card.instanceId || card.id, card);
-    return intent.mode === 'single' && intent.actionType === 'PLAY_BOARD';
+    const intent = getCardPlayState(card.instanceId || card.id, card);
+    return intent.mode === 'single' && intent.actionType === 'PLAY' && !intent.requiresTarget;
 }
 
 function initiateDrag(pt, rectOverride = null) {
@@ -805,15 +650,13 @@ function initiateDrag(pt, rectOverride = null) {
     if (gestureState.actionType === 'MULTI_ACTION' && !gestureState.modalShown) {
         const card = gestureState.card || findClientEntity(gestureState.cardId);
         if (card) {
-            window.openActionModal(gestureState.cardId, card.name, gestureState.actions || buildCardActions(gestureState.cardId, card), true);
+            window.openActionModal(gestureState.cardId, card.name, gestureState.actions || getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, gestureState.cardId), true);
             gestureState.modalShown = true;
         }
     }
 
     gestureState.phase = 'DRAGGING';
     
-    // Crucial Fix: Only use the previously captured rect if no override exists. 
-    // DO NOT re-query getBoundingClientRect() here, as updateUI() detaches the node.
     if (rectOverride) {
         gestureState.rect = rectOverride;
     } else if (!gestureState.rect && gestureState.gc) {
@@ -829,7 +672,8 @@ function initiateDrag(pt, rectOverride = null) {
 
     document.getElementById('drag-tether-overlay')?.classList.remove('hidden');
 
-    if (gestureState.actionType === 'PLAY_BOARD' || gestureState.actionType === 'MULTI_ACTION') {
+    const isBoardPlay = gestureState.actionType === 'PLAY' && !gestureState.requiresTarget;
+    if (isBoardPlay || gestureState.actionType === 'MULTI_ACTION') {
         updateBoardPlayGlow(pt.x, pt.y, true);
         const board = document.getElementById('player-board');
         if (board) {
@@ -845,15 +689,13 @@ function cancelDragToScrub(clientX, clientY) {
     const prevCardId = gestureState.cardId;
     const ptType = gestureState.pointerType;
     
-    // 1. Clear overlays and highlights
     hideDragTether();
     clearTargetHighlights(gestureState.targets);
     
-    // 2. Soft reset gesture state, gracefully returning to idle or scrub phase
     gestureState = { 
         ...gestureState, 
         phase: ptType === 'touch' ? 'SCRUBBING' : 'IDLE', 
-        actionType: null, targets: [], abilityId: null, hoveredTarget: null, 
+        actionType: null, targets: [], abilityId: null, hoveredTarget: null, requiresTarget: false, isPlayAbility: false,
         actions: [], modalShown: false 
     };
     
@@ -861,32 +703,23 @@ function cancelDragToScrub(clientX, clientY) {
     window._dragCardId = null;
     window._dragTargets = [];
     
-    // Forcefully clear the hovered state so the card physically drops back to its hand origin.
-    // This allows it to reset successfully before native mouse hovers or touch logic takes back over.
     window._forceHoverCardId = null;
     if (window.HoverManager) window.HoverManager.unfocusHandCard();
-    
-    // 3. Force UI re-render to strip external dragging styles
     if (typeof updateUI === 'function') updateUI();
     
-    // 4. Restart scrubbing/hovering gracefully AFTER the DOM has reconciled
     setTimeout(() => {
-        if (window.HoverManager) {
-            // Touch inputs need manual scrub tracking restarted.
-            // Mouse inputs will naturally rely on DOM hover events now that the drag state is fully cleared.
-            if (ptType === 'touch') {
-                window.HoverManager.startScrub(clientX, clientY);
-                window.HoverManager.markScrubMoved();
-                window._forceHoverCardId = prevCardId;
-                window.HoverManager.focusHandCard(prevCardId);
-            }
+        if (window.HoverManager && ptType === 'touch') {
+            window.HoverManager.startScrub(clientX, clientY);
+            window.HoverManager.markScrubMoved();
+            window._forceHoverCardId = prevCardId;
+            window.HoverManager.focusHandCard(prevCardId);
         }
     }, 10);
 }
 
 function updateDragTether(clientX, clientY) {
     setDragTether(clientX, clientY);
-    if (gestureState.actionType === 'PLAY_BOARD') {
+    if (gestureState.actionType === 'PLAY' && !gestureState.requiresTarget) {
         updateBoardPlayGlow(clientX, clientY, true);
     } else {
         gestureState.hoveredTarget = findHoveredTarget(clientX, clientY, gestureState.targets);
@@ -896,7 +729,10 @@ function updateDragTether(clientX, clientY) {
 
 function resolveDragDrop(clientX, clientY) {
     let executed = false;
-    if (gestureState.actionType === 'PLAY_BOARD') {
+    
+    const isBoardPlay = gestureState.actionType === 'PLAY' && !gestureState.requiresTarget;
+    
+    if (isBoardPlay) {
         const card = gestureState.card || findClientEntity(gestureState.cardId);
         if (card && !boardPlayHasSingleDefaultAction(card)) {
             showToast('Choose a play option before releasing.', 'info');
@@ -907,27 +743,28 @@ function resolveDragDrop(clientX, clientY) {
     } else if (gestureState.actionType === 'MULTI_ACTION') {
         const card = gestureState.card || findClientEntity(gestureState.cardId);
         if (card) {
-            const actions = gestureState.actions.length ? gestureState.actions : buildCardActions(gestureState.cardId, card);
+            const actions = gestureState.actions.length ? gestureState.actions : getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, gestureState.cardId);
             if (actions.length > 0) {
                 window._forceHoverCardId = (clientX >= gestureState.rect?.left && clientX <= gestureState.rect?.right && clientY >= gestureState.rect?.top && clientY <= gestureState.rect?.bottom) ? gestureState.cardId : null;
                 window.openActionModal(gestureState.cardId, card.name, actions, true);
                 executed = true;
             }
         }
-    } else if (gestureState.actionType === 'ATTACK' || gestureState.actionType === 'PLAY_TARGET') {
+    } else if (gestureState.actionType === 'ATTACK' || gestureState.requiresTarget) {
         const hitTarget = findHoveredTarget(clientX, clientY, gestureState.targets);
         if (hitTarget) {
-            if (gestureState.actionType === 'ATTACK') dispatchAbility(gestureState.cardId, gestureState.abilityId, hitTarget, resolveTargetLine(hitTarget));
-            else if (gestureState.actionType === 'PLAY_TARGET') window.executeNormalPlay(gestureState.cardId, gestureState.abilityId, hitTarget);
+            if (gestureState.actionType === 'ATTACK') {
+                dispatchAbility(gestureState.cardId, gestureState.abilityId, hitTarget, resolveTargetLine(hitTarget));
+            } else if (gestureState.isPlayAbility) {
+                window.executeNormalPlay(gestureState.cardId, gestureState.abilityId, hitTarget);
+            } else {
+                dispatchAbility(gestureState.cardId, gestureState.abilityId, hitTarget, 'hand');
+            }
             executed = true;
         }
     }
     return executed;
 }
-
-// ------------------------------------------
-// Core Input Handlers
-// ------------------------------------------
 
 function handlePointerDown(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -961,10 +798,9 @@ function handlePointerDown(e) {
         cardId: cardId, card: liveCard, gc: gc,
         rect: gc.firstElementChild?.getBoundingClientRect() || gc.getBoundingClientRect(),
         source: isHand ? 'hand' : 'board', actionType: null, abilityId: null,
-        targets: [], actions: [], modalShown: false
+        targets: [], actions: [], modalShown: false, requiresTarget: false, isPlayAbility: false
     };
     
-    // Reset and start custom Long Press timer
     longPressFired = false;
     clearTimeout(longPressTimer);
     if (pt.type === 'touch') {
@@ -976,16 +812,18 @@ function handlePointerDown(e) {
 
     if (isHand) {
         if (ClientState.isMyTurn() && ClientState.gameState.turnPhase === 'ACTION_PHASE') {
-            const intent = getDragPlayIntent(cardId, liveCard);
-            if (!intent || intent.mode === 'none') {
+            const intent = getCardPlayState(cardId, liveCard);
+            if (!intent.playable) {
                 gestureState.actionType = 'INVALID';
             } else if (intent.mode === 'single') {
                 gestureState.actionType = intent.actionType;
                 gestureState.abilityId = intent.abilityId;
-                gestureState.targets = intent.validTargets || [];
+                gestureState.requiresTarget = intent.requiresTarget;
+                gestureState.isPlayAbility = intent.isPlayAbility;
+                gestureState.targets = (intent.validTargets || []).map(t => t.id);
             } else {
                 gestureState.actionType = 'MULTI_ACTION';
-                gestureState.targets = intent.validTargets || [];
+                gestureState.targets = (intent.validTargets || []).map(t => t.id);
                 gestureState.actions = intent.actions || [];
             }
         } else {
@@ -1005,12 +843,10 @@ function handlePointerDown(e) {
         const available = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId);
         const canAtk = available.find(a => a.type === 'ATTACK');
         if (canAtk) {
-            const targets = getValidAttackTargets(ClientState.gameState, ClientState.localPlayerRole, liveCard);
-            if (targets.length > 0) {
-                gestureState.actionType = 'ATTACK';
-                gestureState.abilityId = canAtk.abilityId;
-                gestureState.targets = targets.map(t => t.id);
-            } else gestureState.actionType = 'INVALID';
+            gestureState.actionType = 'ATTACK';
+            gestureState.abilityId = canAtk.abilityId;
+            gestureState.requiresTarget = true;
+            gestureState.targets = (canAtk.validTargets || []).map(t => t.id);
         } else gestureState.actionType = 'INVALID';
     } else {
         gestureState.actionType = 'INVALID';
@@ -1020,13 +856,11 @@ function handlePointerDown(e) {
 function handlePointerMove(e) {
     const pt = getEventPoint(e);
     
-    // If a long press already fired, completely block movement processing
     if (longPressFired) {
         e.preventDefault();
         return;
     }
 
-    // Monitor movement to cancel the long press if the user is actively swiping
     if (longPressTimer) {
         const dx = Math.abs(pt.x - gestureState.startX);
         const dy = Math.abs(pt.y - gestureState.startY);
@@ -1067,7 +901,6 @@ function handlePointerMove(e) {
          e.preventDefault(); 
     }
 
-    // 2. Pre-Drag Movement Resolution (Convert to scrub or real drag)
     if (gestureState.phase === 'DOWN') {
         if (gestureState.source === 'hand') {
             const handContainer = document.getElementById('player-hand-container');
@@ -1079,51 +912,51 @@ function handlePointerMove(e) {
             if (isBoardDragStart) initiateDrag(pt);
         }
     }
-    // 3. Scrubbing Hand Evaluation (Mostly Mobile, handles conversion to Drag)
     else if (gestureState.phase === 'SCRUBBING') {
         if (!window.HoverManager.getScrubHasMoved() && window.HoverManager.evaluateScrubThreshold(pt.x, pt.y, DRAG_START_THRESHOLD)) {
             window.HoverManager.markScrubMoved();
         }
         if (!window.HoverManager.getScrubHasMoved()) return;
-
-        if (window.HoverManager.evaluateDragStart(pt.y)) {
-            if (window._forceHoverCardId) {
-                const activeGc = document.querySelector(`game-card[data-instance-id="${window._forceHoverCardId}"]`);
-                const handWrapper = document.getElementById('player-hand-container');
-                const rectToUse = activeGc ? activeGc.firstElementChild.getBoundingClientRect() : (handWrapper ? handWrapper.getBoundingClientRect() : null);
-                
-                const scrubCard = findClientEntity(window._forceHoverCardId);
-                
-                if (scrubCard && rectToUse) {
-                    gestureState.cardId = window._forceHoverCardId;
-                    gestureState.card = scrubCard;
-                    gestureState.rect = rectToUse;
+            if (window.HoverManager.evaluateDragStart(pt.y)) {
+                if (window._forceHoverCardId) {
+                    const activeGc = document.querySelector(`game-card[data-instance-id="${window._forceHoverCardId}"]`);
+                    const handWrapper = document.getElementById('player-hand-container');
+                    const rectToUse = activeGc ? activeGc.firstElementChild.getBoundingClientRect() : (handWrapper ? handWrapper.getBoundingClientRect() : null);
                     
-                    const intent = getDragPlayIntent(gestureState.cardId, scrubCard);
-                    if (intent && intent.mode !== 'none') {
-                         gestureState.actionType = intent.mode === 'single' ? intent.actionType : 'MULTI_ACTION';
-                         gestureState.abilityId = intent.mode === 'single' ? intent.abilityId : null;
-                         gestureState.targets = intent.validTargets || [];
-                         gestureState.actions = intent.actions || [];
-                         
-                         initiateDrag(pt, rectToUse);
-                         window.HoverManager.stopScrub();
-                         window.HoverManager.unfocusHandCard();
-                         return;
+                    const scrubCard = findClientEntity(window._forceHoverCardId);
+                    
+                    if (scrubCard && rectToUse) {
+                        gestureState.cardId = window._forceHoverCardId;
+                        gestureState.card = scrubCard;
+                        gestureState.rect = rectToUse;
+                        
+                        const intent = getCardPlayState(gestureState.cardId, scrubCard);
+                        if (intent.playable) {
+                             gestureState.actionType = intent.mode === 'single' ? intent.actionType : 'MULTI_ACTION';
+                             gestureState.abilityId = intent.mode === 'single' ? intent.abilityId : null;
+                             gestureState.requiresTarget = intent.mode === 'single' ? intent.requiresTarget : false;
+                             gestureState.isPlayAbility = intent.mode === 'single' ? intent.isPlayAbility : false;
+                             gestureState.targets = (intent.validTargets || []).map(t => t.id);
+                             gestureState.actions = intent.actions || [];
+                             
+                             initiateDrag(pt, rectToUse);
+                             window.HoverManager.stopScrub();
+                             window.HoverManager.unfocusHandCard();
+                             return;
+                        }
                     }
                 }
-            }
 
-            if (gestureState.gc?.firstElementChild) {
-                gestureState.gc.firstElementChild.classList.add('animate-error-flash');
-                setTimeout(() => gestureState.gc.firstElementChild.classList.remove('animate-error-flash'), 500);
+                if (gestureState.gc?.firstElementChild) {
+                    gestureState.gc.firstElementChild.classList.add('animate-error-flash');
+                    setTimeout(() => gestureState.gc.firstElementChild.classList.remove('animate-error-flash'), 500);
+                }
+                window.HoverManager.stopScrub();
+                window._forceHoverCardId = null;
+                window.HoverManager.unfocusHandCard();
+                gestureState.phase = 'IDLE';
+                return;
             }
-            window.HoverManager.stopScrub();
-            window._forceHoverCardId = null;
-            window.HoverManager.unfocusHandCard();
-            gestureState.phase = 'IDLE';
-            return;
-        }
 
         const foundId = window.HoverManager.findHoveredHandCardId(pt.x);
         if (foundId && foundId !== window._forceHoverCardId) {
@@ -1131,7 +964,6 @@ function handlePointerMove(e) {
             window.HoverManager.focusHandCard(foundId);
         }
     }
-    // 4. Active Target Dragging Evaluation
     else if (gestureState.phase === 'DRAGGING') {
         if (gestureState.source === 'hand') {
             const handContainer = document.getElementById('player-hand-container');
@@ -1149,7 +981,6 @@ function handlePointerMove(e) {
 function handlePointerUp(e) {
     const pt = getEventPoint(e);
     
-    // Cleanup timers and check if we should ignore this release
     clearTimeout(longPressTimer);
     longPressTimer = null;
     
@@ -1208,7 +1039,7 @@ function handlePointerUp(e) {
     hardResetGestureState(e);
 }
 window.handleUndo = handleUndo;
-// Global Kill-Switch for Long-Press (Context Menu) - Kept as Desktop Right-Click Fallback
+
 function handleContextMenu(e) {
     if (window.HoverManager) {
         window.HoverManager.stopScrub();
@@ -1223,13 +1054,10 @@ function handleContextMenu(e) {
     if (typeof updateUI === 'function') updateUI();
 }
 
-// Bind unified handlers to native DOM events
 window.addEventListener('pointerdown', handlePointerDown, { passive: false });
 window.addEventListener('pointermove', handlePointerMove, { passive: false });
 window.addEventListener('pointerup', handlePointerUp, { passive: true });
 window.addEventListener('pointercancel', handlePointerUp, { passive: true });
-
-// CRITICAL: Use capture: true so this fires BEFORE the card's stopPropagation() hides it!
 window.addEventListener('contextmenu', handleContextMenu, { capture: true, passive: true });
 
 let isAIRunning = false;
@@ -1311,7 +1139,6 @@ export async function triggerAILoop() {
                 await pushActionToLog(ClientState.roomCode, payload, JSON.stringify(state), state.history_log);
             }
         } else {
-            // Include the helpful console warning from HEAD alongside the fallback from the target branch
             console.warn("[AI] Move failed to execute or was invalid. Forcing PASS to prevent infinite loop.", move);
             endTurn(state);
             const engine = new GameEngine(state);
@@ -1319,7 +1146,6 @@ export async function triggerAILoop() {
             await pushActionToLog(ClientState.roomCode, { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true }, JSON.stringify(state), state.history_log);
         }
         
-        // This will naturally recall triggerAILoop via the renderer if the turn didn't end
         updateUI();
     } catch(e) { 
         console.error("AI Loop Error:", e); 
@@ -1329,23 +1155,8 @@ export async function triggerAILoop() {
 }
 window.triggerAILoop = triggerAILoop;
 
-// Bridge the gap between the internal dispatcher names and the index.js imports
 export { dispatchSacrificeDecision as handleSacrificeDecision };
-
-// Proactively catching other potential ability/action naming mismatches:
 export { dispatchAbility as handleAbility };
 export { executeNormalPlay as handlePlayCard };
 
-// INTERCEPTOR: Wrapped canPlayCard check
-// If your renderer is importing 'canPlayCard' directly, it skips target validation. 
-// Use this function instead for UI highlights!
-export function canPlayCardWithTargets(state, playerId, card) {
-    const baseCheck = canPlayCard(state, playerId, card);
-    if (!baseCheck || !baseCheck.success) return baseCheck;
-    
-    const actions = buildCardActions(card.instanceId || card.id, card);
-    if (actions.length === 0) return { success: false, reason: "No valid targets available." };
-    
-    return baseCheck;
-}
-window.canPlayCardWithTargets = canPlayCardWithTargets;
+// Cleaned up the bottom exports by entirely replacing the old canPlayCardWithTargets

@@ -10,7 +10,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getMessaging } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js';
+// NEW: Imported getToken and onMessage for profile.js notification refactor
+import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js';
 
 // Default Firebase Configuration
 const firebaseConfig = {
@@ -455,7 +456,6 @@ export async function deleteAbilityFromCatalog(abilityId) {
   localStorage.setItem('henchies_custom_abilities', JSON.stringify(filtered));
 }
 
-
 export async function saveTribeToCatalog(tribeData) {
   tribeData.updatedAt = Date.now(); // Force fresh timestamp for delta sync
   if (await isReadyForDB()) {
@@ -661,6 +661,70 @@ export async function subscribeToActiveMatches(username, callback) {
         }, (err) => console.error("Active matches subscription error:", err));
     }
     return () => {};
+}
+
+// =====================================
+// PROFILE & PUSH NOTIFICATIONS API
+// (Migrated from profile.js to centralize Firebase dependencies)
+// =====================================
+
+export async function fetchUserProfile(username) {
+    if (!await isReadyForDB()) return null;
+    try {
+        const profileRef = doc(db, 'profiles', username);
+        const snap = await getDoc(profileRef);
+        if (snap.exists()) {
+            updateDoc(profileRef, { lastActive: Date.now() }).catch(() => {});
+            return snap.data();
+        }
+    } catch(e) {
+        console.warn("⚠️ [FIREBASE] Profile read failed.", e);
+        throw e;
+    }
+    return null;
+}
+
+export async function createUserProfile(username, defaultData) {
+    if (!await isReadyForDB()) return false;
+    try {
+        await setDoc(doc(db, 'profiles', username), defaultData);
+        return true;
+    } catch(e) {
+        console.error("[FIREBASE] Failed to create profile document", e);
+        return false;
+    }
+}
+
+export async function addFCMTokenToProfile(username, token) {
+    if (!await isReadyForDB()) return false;
+    try {
+        await updateDoc(doc(db, 'profiles', username), {
+            fcmTokens: arrayUnion(token),
+            lastActive: Date.now()
+        });
+        return true;
+    } catch(e) {
+        console.error("[FIREBASE] Failed to add FCM token to profile", e);
+        return false;
+    }
+}
+
+export async function requestFCMToken(vapidKey, serviceWorkerRegistration) {
+    if (!messaging) return null;
+    try {
+        return await getToken(messaging, { 
+            vapidKey: vapidKey, 
+            serviceWorkerRegistration: serviceWorkerRegistration 
+        });
+    } catch (e) {
+        console.warn("[FIREBASE] Failed to fetch FCM Token", e);
+        return null;
+    }
+}
+
+export function subscribeToFCMForeground(callback) {
+    if (!messaging) return;
+    onMessage(messaging, callback);
 }
 
 export { db, messaging };

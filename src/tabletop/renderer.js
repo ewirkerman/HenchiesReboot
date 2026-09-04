@@ -1,7 +1,7 @@
 import { ClientState } from './client_state.js';
 import { renderHistorySlider, renderCardHTML, getLineIconSvg } from '../ui.js';
 import { cloneGameState, LINES, getEntityAvailableActions } from '../engine/index.js';
-import { triggerAILoop, buildCardActions } from './interactions.js';
+import { triggerAILoop, getCardPlayState } from './interactions.js';
 
 let _lastInnerWidth = window.innerWidth;
 window.addEventListener('resize', () => {
@@ -445,12 +445,13 @@ function renderHand(handCards) {
       let actionState = 'none';
       let playable = false;
 
-      // PERFECTED ENGINE INTEGRATION: Exactly 1 call per card!
       if (ClientState.isMyTurn() && ClientState.gameState.turnPhase === 'ACTION_PHASE' && !ClientState.pendingAbility && !window._isDragging) {
-          const actions = buildCardActions(cardRefId, c);
-          playable = actions.length > 0;
-          if (actions.length === 1) actionState = 'single';
-          else if (actions.length > 1) actionState = 'multiple';
+          const playState = window.getCardPlayState(cardRefId, c);
+          playable = playState.playable;
+          
+          if (playable) {
+              actionState = playState.mode === 'single' ? 'single' : 'multiple';
+          }
       }
 
       const cardHtml = renderCardHTML(c, {

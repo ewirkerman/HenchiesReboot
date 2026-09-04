@@ -25,12 +25,9 @@ function getStat(entity, statKey) {
 }
 
 function extractQuickTargeting(ability) {
-    // ALWAYS prioritize the explicit activation filter for what the player clicks
     if (ability?.activation?.quickTargeting) {
         return ability.activation.quickTargeting;
     }
-    
-    // Legacy fallback: Check the effects array if no activation block exists
     const explicitEffectQt = (ability?.effects || []).find(group => group?.quickTargeting)?.quickTargeting;
     return explicitEffectQt || null;
 }
@@ -101,12 +98,9 @@ function getFieldTargets(state, targetPlayerId, isValidTarget, enforceBattleline
 }
 
 function getBattlelineTargets(logicalLines) {
-    // 1. Taunt protects ALL. If a taunt exists, it is the ONLY valid target.
     if (logicalLines['taunt'].length > 0) return logicalLines['taunt'];
 
     const validTargets = [];
-
-    // 2. Field Chain: front protects mid protects back protects sheltered
     for (const line of ['front', 'mid', 'back', 'sheltered']) {
         if (logicalLines[line].length > 0) {
             validTargets.push(...logicalLines[line]);
@@ -114,14 +108,12 @@ function getBattlelineTargets(logicalLines) {
         }
     }
 
-    // 3. Avatar Chain: bodyguard protects avatar
     if (logicalLines['bodyguard'].length > 0) {
         validTargets.push(...logicalLines['bodyguard']);
     } else if (logicalLines['avatar'].length > 0) {
         validTargets.push(...logicalLines['avatar']);
     }
 
-    // 4. Sideline protects nothing (and is protected by nothing)
     if (logicalLines['sideline'].length > 0) {
         validTargets.push(...logicalLines['sideline']);
     }
@@ -136,7 +128,6 @@ function resolvePerspectiveTargets(state, defenderId, attacker, usePerception) {
 
 export function getValidAttackTargets(state, attackerOwnerId, attackerEntity = null) {
     const defenderId = attackerOwnerId === 'player1' ? 'player2' : 'player1';
-    
     const normalTargets = resolvePerspectiveTargets(state, defenderId, attackerEntity, false);
 
     if (hasPerception(state, attackerEntity)) {
@@ -155,7 +146,6 @@ function checkQuickTargetingValidity(state, target, targetOwnerId, source, sourc
     if (!isFriendly(targetOwnerId, sourceOwnerId)) {
         if (isHidden(state, target) && !hasPerception(state, source) && !isPlay) return false;
     }
-    
     return true;
 }
 
@@ -174,19 +164,15 @@ function collectFieldTargets(state, pId, source, sourceId, qt, isPlay) {
         p.lines[line].forEach(u => {
             if (u.type === 'boon') return; 
             addIfValid(u, u.line || line);
-            if (u.attachments) {
-                u.attachments.forEach(att => addIfValid(att, 'attachment'));
-            }
+            if (u.attachments) u.attachments.forEach(att => addIfValid(att, 'attachment'));
         });
     }
 
     if (state.equator) {
         state.equator.forEach(item => {
-            const itemOwner = item.ownerId || sourceId;
-            if (itemOwner === pId) addIfValid(item, 'equator');
+            if ((item.ownerId || sourceId) === pId) addIfValid(item, 'equator');
         });
     }
-    
     return targets;
 }
 
@@ -213,10 +199,8 @@ function enforceBattlelinesOnTargets(state, targets, playerId, entity) {
     const atkTargets = getValidAttackTargets(state, playerId, entity);
     return targets.filter(t => {
         if (isFriendly(t.playerId, playerId)) return true; 
-        
         const isFieldLine = ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(t.line);
         if (!isFieldLine) return true; 
-        
         return atkTargets.some(at => at.id === t.id);
     });
 }
@@ -224,20 +208,6 @@ function enforceBattlelinesOnTargets(state, targets, playerId, entity) {
 function checkLogicTreeValidity(engine, ability, targetEntity, sourceEntity) {
     if (!ability.activation?.logicTree) return true;
     return engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, sourceEntity);
-}
-
-function checkStatCostValidity(entity, ability, targetMethod) {
-    if (!ability.effects) return true;
-    for (const group of ability.effects) {
-        if (group.targetMethod === targetMethod && group.payloads) {
-            for (const p of group.payloads) {
-                if (p.isCost && p.type === 'MODIFY_STAT' && p.amount < 0 && p.stat === 'readiness') {
-                    if (getStat(entity, p.stat) - Math.abs(p.amount) < -1) return false;
-                }
-            }
-        }
-    }
-    return true;
 }
 
 function checkSpecificLogicValidity(engine, state, ability, targetObj, sourceEntity) {
@@ -262,7 +232,6 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
 
     const oppId = playerId === 'player1' ? 'player2' : 'player1';
     const isPlay = isPlayTrigger(ability.trigger);
-
     let targets = [];
 
     if (qt.zones.includes('FIELD')) {
@@ -329,10 +298,8 @@ function checkTribeResourceAffordability(state, player, entity, cCost, tCost) {
 
 function checkResourceAffordability(state, player, entity, costObj, escalateAmt) {
     const { cCost, pCost, tCost } = calculateEscalatedCostValues(costObj, escalateAmt);
-    
     if (!checkBasicResourceAffordability(player, entity, cCost, pCost)) return false;
     if (!checkTribeResourceAffordability(state, player, entity, cCost, tCost)) return false;
-    
     return true;
 }
 
@@ -342,39 +309,69 @@ function checkActionAffordability(entity, costObj, isHandAct) {
 }
 
 function checkAbilityAffordability(state, playerId, entity, ability, abilityKey) {
-    const cost = ability.cost || {};
+    let cost = ability.cost || {};
     const player = state.players[playerId];
     
     const isHandAct = isEntityInHand(state, playerId, entity);
+    const isPlayAct = isPlayTrigger(ability.trigger);
+    
+    if (isHandAct && isPlayAct) {
+        const baseCostObj = typeof entity.cost === 'object' && entity.cost !== null 
+            ? entity.cost 
+            : { carnie: (typeof entity.cost === 'number' ? entity.cost : 0) };
+            
+        cost = { 
+            ...cost, 
+            carnie: (cost.carnie || cost.tent || 0) + (baseCostObj.carnie || baseCostObj.tent || 0),
+            power: (cost.power || 0) + (baseCostObj.power || 0),
+            tribeAmount: (cost.tribeAmount || 0) + (baseCostObj.tribeAmount || 0)
+        };
+    }
     
     if (!checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct)) return false;
 
     const lifetimeUses = entity.lifetimeAbilityUses?.[ability.abilityId] || 0;
-    const escalateAmt = cost.escalates ? lifetimeUses : 0;
+    const escalateAmt = cost.escalates ? lifetimeUses * cost.escalates : 0;
     
     if (!checkResourceAffordability(state, player, entity, cost, escalateAmt)) return false;
     if (!checkActionAffordability(entity, cost, isHandAct)) return false;
-    if (!checkStatCostValidity(entity, ability, 'SELF')) return false;
-
+    
     return true;
 }
 
-function checkTargetRequirementValidity(state, playerId, entity, ability) {
-    if (ability.activation?.method !== 'PLAYER_CHOICE') return true;
-    
-    const targets = getValidAbilityTargets(state, playerId, entity.instanceId, ability.abilityId);
-    return targets.length > 0;
+function checkStatCostValidity(entity, ability, targetMethod) {
+    if (!ability.effects) return true;
+    for (const group of ability.effects) {
+        if (group.targetMethod === targetMethod && group.payloads) {
+            for (const p of group.payloads) {
+                if (p.isCost && p.type === 'MODIFY_STAT' && p.amount < 0 && p.stat === 'readiness') {
+                    if (getStat(entity, p.stat) - Math.abs(p.amount) < -1) return false;
+                }
+            }
+        }
+    }
+    return true;
 }
 
 function buildPlayAction(state, playerId, entity) {
     if (!isEntityInHand(state, playerId, entity)) return null;
 
+    const player = state.players[playerId];
+    const baseCostObj = typeof entity.cost === 'object' && entity.cost !== null 
+        ? entity.cost 
+        : { carnie: (typeof entity.cost === 'number' ? entity.cost : 0) };
+        
+    if (!checkResourceAffordability(state, player, entity, baseCostObj, 0)) return null;
+
     return {
-        type: 'PLAY_BOARD',
+        type: 'PLAY',
         name: 'Play Normally',
         abilityId: 'native_play',
         undoable: true,
-        cost: 0
+        cost: 0,
+        requiresTarget: false,
+        validTargets: [],
+        isPlayAbility: true
     };
 }
 
@@ -391,36 +388,43 @@ function buildAttackAction(state, playerId, entity) {
         name: 'Attack',
         abilityId: 'native_attack',
         undoable: true,
-        cost: { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' }
+        cost: { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' },
+        requiresTarget: true,
+        validTargets: atkTargets,
+        isPlayAbility: false
     };
 }
 
 function buildAbilityAction(state, playerId, entity, ability) {
-    const validTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL', 'ON_PLAY', 'ON_PLAY_OPTIONAL', 'MODIFY_PLAY', 'WOULD_PLAY', 'WOULD_PLAY_OPTIONAL'];
+    const validTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL', 'ON_PLAY', 'ON_BE_PLAYED', 'ON_PLAY_OPTIONAL', 'MODIFY_PLAY', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'WOULD_PLAY_OPTIONAL'];
     if (!validTriggers.includes(ability.trigger)) return null;
     
-    // Prevent the default native attack from duplicating, but DO NOT block custom 
-    // abilities (like Shoot First) just because they contain an ATTACK payload.
-    if (ability.abilityId === 'native_attack') return null;
-
     if (hasEngineFlag(state, entity, 'BLOCK_ACT')) return null;
 
     const inHand = isEntityInHand(state, playerId, entity);
     if (ability.trigger === 'MANUAL' && inHand && !ability.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
-        return null; // Explicitly block manual abilities from being cast from the hand without permission
+        return null; 
     }
 
     const abilityKey = `${entity.instanceId}_${ability.abilityId}`;
-    
     if (!checkAbilityAffordability(state, playerId, entity, ability, abilityKey)) return null;
-    if (!checkTargetRequirementValidity(state, playerId, entity, ability)) return null;
+
+    const requiresTarget = ability.activation?.method === 'PLAYER_CHOICE';
+    let validTargets = [];
+    if (requiresTarget) {
+        validTargets = getValidAbilityTargets(state, playerId, entity.instanceId, ability.abilityId);
+        if (validTargets.length === 0) return null; 
+    }
 
     return { 
         type: 'ABILITY', 
         name: ability.name, 
         abilityId: ability.abilityId, 
         undoable: isUndoable(state, ability), 
-        cost: ability.cost 
+        cost: ability.cost, // Action exposes just the ability cost for UI
+        requiresTarget,
+        validTargets,
+        isPlayAbility: isPlayTrigger(ability.trigger)
     };
 }
 
@@ -443,13 +447,11 @@ export function getEntityAvailableActions(state, playerId, entityId) {
         });
     }
     
-    // If a valid MANDATORY play ability exists, force the user to use it instead of playing normally.
-    const hasValidMandatoryPlay = actions.some(a => 
-        a.type === 'ABILITY' && 
-        entity.abilities?.find(ab => ab.abilityId === a.abilityId)?.trigger === 'PLAY'
-    );
+    // Ensure Spells/Interceptors never render as 'Play Normally' if their ability requirements fail
+    const mandatoryPlayTriggers = ['PLAY', 'ON_PLAY', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'MODIFY_PLAY'];
+    const cardHasMandatoryPlay = entity.abilities?.some(ab => mandatoryPlayTriggers.includes(ab.trigger));
     
-    if (hasValidMandatoryPlay) {
+    if (cardHasMandatoryPlay) {
         return actions.filter(a => a.abilityId !== 'native_play');
     }
     
