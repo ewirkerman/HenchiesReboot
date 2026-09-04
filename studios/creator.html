@@ -94,6 +94,17 @@
                     <option value="unit">Unit</option><option value="avatar">Avatar</option><option value="equipment">Equipment</option><option value="artifact">Artifact</option><option value="spell">Spell</option><option value="boon">Boon</option>
                   </select>
                 </div>
+                <div class="transition-all duration-300">
+                  <label class="font-bold text-slate-300 block mb-1">Deckbuilder</label>
+                  <div class="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 flex items-center justify-between gap-2">
+                    <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Hide</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" id="card-hide-from-deckbuilder" class="creator-input sr-only peer" />
+                      <span class="w-9 h-5 rounded-full bg-slate-700 peer-checked:bg-amber-500 transition-colors duration-200"></span>
+                      <span class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-slate-200 shadow-sm transition-transform duration-200 peer-checked:translate-x-4"></span>
+                    </label>
+                  </div>
+                </div>
                 <div id="stat-line-container" class="col-span-2 transition-all duration-300">
                   <label class="font-bold text-slate-300 block mb-1">Default Line</label>
                   <select id="card-default-line" class="creator-input bg-slate-900 border border-slate-700 px-2 py-1.5 rounded text-white w-full focus:border-amber-500 outline-none">
@@ -142,9 +153,8 @@
                   <label class="font-bold text-slate-300 block mb-1">Art URL</label>
                   <input type="text" id="card-art" class="creator-input bg-slate-900 border border-slate-700 px-2 py-1.5 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="https://..." />
                 </div>
-                <div class="sm:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+                <div class="sm:col-span-4 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                   <art-panner title="Standard Frame" prefix="card-art" default-scale="100"></art-panner>
-                  <art-panner title="Micro Frame" prefix="card-micro-art" default-scale="185"></art-panner>
                   <art-panner title="Nano Frame" prefix="card-nano-art" default-scale="110"></art-panner>
                 </div>
                 <div class="sm:col-span-4 mt-2">

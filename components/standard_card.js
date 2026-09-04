@@ -1,4 +1,42 @@
 import { getIconSvg, getLineIconSvg, CARD_BASE_CLASSES } from '../src/ui.js';
+import { CARD_THEME } from './card_theme.js';
+
+export function renderStandardAbilities(abilitiesData) {
+    if (!abilitiesData) return '';
+    let html = '';
+    
+    if (abilitiesData.evergreen.length > 0) {
+        const namesHtml = abilitiesData.evergreen.map(a => a.name + (a.costBadge ? ' ' + a.costBadge : '')).join(', ');
+        const tooltips = abilitiesData.evergreen.map(a => `${a.name}: ${a.rawDesc}`).join('\n\n');
+        html += `<div class="${CARD_THEME.stdEvergreen}" title="${tooltips.replace(/"/g, '&quot;')}">${namesHtml}</div>`;
+    }
+
+    abilitiesData.bespoke.forEach(ab => {
+        html += `<div class="${CARD_THEME.stdBespoke}">${ab.formattedDesc}</div>`;
+    });
+
+    abilitiesData.active.forEach(ab => {
+        const iconContent = ab.isAttack ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5">${getIconSvg('attack')}</span>` : '';
+        const hourglassIcon = (!ab.isUsable && ab.showHourglass) ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+        
+        const textColorClass = ab.isUsable ? CARD_THEME.activeUsableText : CARD_THEME.activeUnusableText;
+        const safeTooltip = ab.rawDesc.replace(/"/g, '&quot;');
+        
+        html += `
+          <div class="${CARD_THEME.stdActiveWrap} ${textColorClass}" title="${safeTooltip}">
+            <div class="flex items-center gap-0.5 truncate pr-1">
+                ${hourglassIcon}${iconContent}
+                <span class="truncate">${ab.name}</span>
+            </div>
+            <div class="shrink-0 flex items-center">
+                ${ab.costBadge}
+            </div>
+          </div>
+        `;
+    });
+    
+    return html;
+}
 
 export function renderStandard(ctx) {
   const handHoverClass = (ctx.isHand && (!ctx.isTargetingMode || ctx.isTargetable) && !ctx.isCasting && !ctx.isSelected) ? 'hover:-translate-y-6 hover:!z-[100]' : '';
@@ -10,38 +48,45 @@ export function renderStandard(ctx) {
       onclick="${ctx.onClick}"
       ${ctx.rightClickAttr}
       title="${ctx.safeTooltip}"
-      class="group relative flex-shrink-0 ${CARD_BASE_CLASSES} rounded-xl ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} cursor-pointer transition-all duration-200 flex flex-col select-none overflow-hidden ${ctx.hiddenClass} ${handHoverClass} ${handCastingClass} ${forceHoverClass}"
+      class="${CARD_THEME.standardWrapper} ${CARD_BASE_CLASSES} ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} ${ctx.hiddenClass} ${handHoverClass} ${handCastingClass} ${forceHoverClass}"
       style="${ctx.hexBg} ${ctx.dynamicBorderStyle}"
     >
       <div class="absolute inset-0 opacity-10 mix-blend-overlay ${ctx.fieldDimmingClass}"></div>
       
-      <div class="w-full h-[60%] bg-slate-900 border-b-2 ${ctx.separatorClass} shrink-0 relative overflow-hidden flex items-center justify-center ${ctx.fieldDimmingClass}">
-        ${ctx.bgArtUrl ? `<img src="${ctx.bgArtUrl}" class="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-60 mix-blend-overlay" style="${ctx.bgArtStyle}" draggable="false" />` : ''}
-        ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-contain relative z-10" style="${ctx.artStyle}" draggable="false" />` : ''}
-        <div class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[90%] flex justify-center z-30 pointer-events-none">
-          <div class="bg-black/20 backdrop-blur-sm text-white text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full truncate text-center max-w-full shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight uppercase tracking-wide">
+      <div class="h-[60%] ${CARD_THEME.artSection} ${ctx.separatorClass} ${ctx.fieldDimmingClass}">
+        ${ctx.bgArtUrl ? `
+          <img src="${ctx.bgArtUrl}" class="${CARD_THEME.bgArtImage}" style="${ctx.bgArtStyle}" draggable="false" />
+          <div class="${CARD_THEME.bgArtMute}"></div>
+        ` : ''}
+        ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-contain relative z-10" style="${ctx.artStyle}" draggable="false" />` : `
+          <div class="relative z-10 w-full h-full flex items-center justify-center drop-shadow-md text-3xl sm:text-4xl font-bold">
+            ${ctx.card.type === 'unit' ? '⚔️' : ctx.card.type === 'avatar' ? '👑' : ctx.card.type === 'equipment' ? '🛡️' : ctx.card.type === 'artifact' ? '🏺' : '📜'}
+          </div>
+        `}
+        <div class="bottom-1.5 ${CARD_THEME.nameWrapper}">
+          <div class="${CARD_THEME.nameBadge} text-[9px] sm:text-[10px] px-2 py-0.5">
             ${ctx.card.name}
           </div>
         </div>
       </div>
 
-      <div class="w-full h-[40%] ${ctx.style.lightBg} p-1.5 sm:p-2 flex flex-col relative overflow-hidden ${ctx.fieldDimmingClass}" style="${ctx.hexLightBg}">
+      <div class="h-[40%] p-1.5 sm:p-2 ${CARD_THEME.textSection} ${ctx.style.lightBg} ${ctx.fieldDimmingClass}" style="${ctx.hexLightBg}">
         ${ctx.isToken ? '<div class="absolute inset-0 bg-white/5 pointer-events-none"></div>' : ''}
         
         <div class="flex-1 flex flex-col gap-0.5 overflow-hidden w-full relative z-10 pointer-events-none pt-0.5">
-          ${ctx.abilitiesHTML}
+          ${renderStandardAbilities(ctx.abilitiesData)}
         </div>
 
         ${ctx.showBottomStats ? `
           <div class="absolute bottom-0 left-0 right-0 flex justify-between items-end pointer-events-none z-20">
             ${ctx.hasStrength ? `
-              <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] rounded-tr-lg bg-yellow-500 border-r-2 border-t-2 border-black text-black font-black text-sm sm:text-base flex items-end justify-start pb-[1px] pl-[2px] sm:pb-[2px] sm:pl-[3px] shadow-lg pointer-events-auto leading-none" title="Strength">${Math.max(0, ctx.card.strength)}</div>
+              <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] pb-[1px] pl-[2px] sm:pb-[2px] sm:pl-[3px] text-sm sm:text-base ${CARD_THEME.cornerStrength}" title="Strength">${Math.max(0, ctx.card.strength)}</div>
             ` : '<div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] shrink-0"></div>'}
             ${ctx.hasArmor ? `
-              <div class="h-[20px] sm:h-[24px] px-1 rounded-t-lg bg-cyan-600 border-x-2 border-t-2 border-black text-white font-black text-[9px] sm:text-[10px] flex items-end justify-center pb-[1px] sm:pb-[2px] shadow-lg pointer-events-auto leading-none" title="Armor: ${ctx.card.armor}"><div class="w-2.5 h-2.5 mr-0.5">${getIconSvg('armor')}</div>${ctx.card.armor}</div>
+              <div class="h-[20px] sm:h-[24px] px-1 pb-[1px] sm:pb-[2px] text-[9px] sm:text-[10px] ${CARD_THEME.cornerArmor}" title="Armor: ${ctx.card.armor}"><div class="w-2.5 h-2.5 mr-0.5">${getIconSvg('armor')}</div>${ctx.card.armor}</div>
             ` : ''}
             ${ctx.showHealth ? `
-              <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] rounded-tl-lg bg-red-600 border-l-2 border-t-2 border-black text-white font-black text-sm sm:text-base flex items-end justify-end pb-[1px] pr-[2px] sm:pb-[2px] sm:pr-[3px] shadow-lg pointer-events-auto leading-none" title="Health">${ctx.displayHealth}</div>
+              <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] pb-[1px] pr-[2px] sm:pb-[2px] sm:pr-[3px] text-sm sm:text-base ${CARD_THEME.cornerHealth}" title="Health">${ctx.displayHealth}</div>
             ` : '<div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] shrink-0"></div>'}
           </div>
         ` : ''}
@@ -49,12 +94,12 @@ export function renderStandard(ctx) {
 
       <div class="absolute top-0 left-0 flex flex-col items-start z-10 pointer-events-none">
         ${!ctx.isAvatar ? `
-          <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] rounded-br-lg bg-amber-500 text-black font-black text-sm sm:text-base flex items-start justify-start pt-[1px] pl-[2px] sm:pt-[2px] sm:pl-[3px] border-r-2 border-b-2 border-black shadow-lg pointer-events-auto leading-none" title="Cost">
+          <div class="w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] pt-[1px] pl-[2px] sm:pt-[2px] sm:pl-[3px] text-sm sm:text-base ${CARD_THEME.cornerCost}" title="Cost">
             ${ctx.card.cost ?? 0}
           </div>
         ` : ''}
         ${ctx.card.power > 0 ? `
-          <div class="w-[16px] h-[18px] sm:w-[20px] sm:h-[22px] rounded-br-lg bg-purple-600 text-white font-black text-[10px] sm:text-xs flex items-start justify-start pt-[1px] pl-[2px] sm:pt-[2px] sm:pl-[3px] border-r-2 border-b-2 border-black shadow-lg pointer-events-auto leading-none -mt-0.5" title="Power">
+          <div class="w-[16px] h-[18px] sm:w-[20px] sm:h-[22px] pt-[1px] pl-[2px] sm:pt-[2px] sm:pl-[3px] text-[10px] sm:text-xs -mt-0.5 ${CARD_THEME.cornerPower}" title="Power">
             ${ctx.card.power}
           </div>
         ` : ''}
@@ -64,10 +109,6 @@ export function renderStandard(ctx) {
           </div>
         ` : ''}
       </div>
-      ${ctx.readinessBadge}
-      ${ctx.attachmentsBadge}
-      ${ctx.fastBadge}
-      ${ctx.inspectButton}
       ${ctx.overlayHTML}
     </div>
   `;

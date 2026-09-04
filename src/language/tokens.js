@@ -6,8 +6,8 @@
 export function resolveTokens(text, formatCtx) {
     const { tracker, groupId, targetStr, possessiveStr, isPlural, singularDesc, group } = formatCtx;
 
-    text = text.replace(/\{SELF_POSS\}/g, () => tracker.mentionPoss('self', "this card's", false));
-    text = text.replace(/\{SELF\}/g, () => tracker.mention('self', "this card", false));
+    text = text.replace(/\{SELF_POSS\}/g, () => tracker.mentionPoss('self', "its", false));
+    text = text.replace(/\{SELF\}/g, () => tracker.mention('self', "this", false));
 
     text = text.replace(/\{REFLEXIVE_POSS\}/g, isPlural ? 'their own' : 'its own');
     text = text.replace(/\{REFLEXIVE\}/g, isPlural ? 'themselves' : 'itself');
@@ -19,7 +19,7 @@ export function resolveTokens(text, formatCtx) {
 
     if (text.includes('{PER_TARGET}')) {
         tracker.mention(groupId, targetStr, isPlural);
-        if (['this card', 'it', 'the triggering card', 'the targeted card', 'the attacker', 'the defender', 'the damaged character', 'the damage source', 'the healed character', 'the target', 'your avatar', 'the enemy avatar'].includes(targetStr) || targetStr.startsWith('a ') || targetStr.startsWith('an ')) {
+        if (['this', 'it', 'the triggering card', 'the targeted card', 'the attacker', 'the defender', 'the damaged character', 'the damage source', 'the healed character', 'the target', 'your avatar', 'the enemy avatar'].includes(targetStr) || targetStr.startsWith('a ') || targetStr.startsWith('an ')) {
             text = text.replace(/\{PER_TARGET\}/g, '');
         } else if (group.targetMethod === 'AUTO_ALL') {
             text = text.replace(/\{PER_TARGET\}/g, ` for each ${singularDesc}`);

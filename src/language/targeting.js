@@ -42,7 +42,7 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             if (ctx === 'HOST') { contextSubject = isPlural ? "their hosts " : "its host "; }
             else if (ctx === 'EVENT_SOURCE') { contextSubject = "the event doer "; }
             else if (ctx === 'EVENT_TARGET') { contextSubject = "the event receiver "; }
-            else if (ctx === 'ABILITY_SOURCE') { contextSubject = "this card "; }
+            else if (ctx === 'ABILITY_SOURCE') { contextSubject = "this "; }
 
             const opMap = { '==': '', '!=': 'not', '>': 'more than', '<': 'less than', '>=': 'at least', '<=': 'at most' };
             let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
@@ -88,14 +88,14 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'without' : `where ${contextSubject}does not have`} '${abilityName}'`);
             } else if (checkAttr === 'entity') {
                 let val = String(node.value).toLowerCase();
-                if (val === 'self') val = 'this card';
+                if (val === 'self') val = 'this';
                 
                 if (node.operator === '==') {
                     if (ctx === 'EVAL_TARGET' && val !== 'unit' && val !== 'avatar') adjectives.push(val);
                     else if (ctx !== 'EVAL_TARGET') suffixes.push(`where ${contextSubject}is a ${val}`);
                 } else {
                     let nounStr = val;
-                    if (val !== 'this card') {
+                    if (val !== 'this') {
                         if (isPlural) {
                             nounStr = (val === 'equipment' || val.endsWith('s')) ? val : val + 's';
                         } else {
@@ -117,14 +117,14 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             } else if (checkAttr === 'customScript') {
                 if (node.description) {
                     let desc = node.description;
-                    desc = desc.replace(/\{SELF\}/g, 'this card');
-                    desc = desc.replace(/\{SELF_POSS\}/g, "this card's");
+                    desc = desc.replace(/\{SELF\}/g, 'this');
+                    desc = desc.replace(/\{SELF_POSS\}/g, "its");
                     suffixes.push(desc);
                 } else {
                     suffixes.push(`matching a custom condition`);
                 }
             } else {
-                let statName = checkAttr.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+                let statName = `[STAT:${checkAttr}]`;
                 if (ctx === 'EVAL_TARGET') suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
                 else suffixes.push(`where ${contextSubject}${statName} is ${opText} ${node.value}`.trim());
             }

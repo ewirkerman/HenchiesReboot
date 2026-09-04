@@ -3,7 +3,7 @@
  * Sorts and chunks payloads by Similarity Key so they can be merged linguistically.
  */
 
-import { formatCombinedPayloads } from './format_combined.js';
+import { formatCombinedPayloads } from './format_payload.js';
 import { joinWithAnd } from './utils.js';
 
 export function getSimilarityKey(eff) {
@@ -43,6 +43,25 @@ export function groupPayloads(payloadsToGroup, formatCtx) {
 export function finalizeString(arr, isCost, formatCtx) {
     const { tracker, groupId, targetStr, isPlural } = formatCtx;
     if(arr.length === 0) return null;
+    
+    // Deduplicate common trailing duration/condition modifiers
+    if (arr.length > 1) {
+        const suffixes = [' this turn', ' this round', ' for the current action', ' this action', ' while attached'];
+        for (const suffix of suffixes) {
+            // Check for the suffix at the end of the string, preserving any trailing format tokens
+            const regexStr = `${suffix}((?: instead)?(?:\\{OMIT_TARGET\\})?(?:\\{PER_TARGET\\})?)$`;
+            const regex = new RegExp(regexStr);
+            
+            const allHaveSuffix = arr.every(s => regex.test(s));
+            
+            if (allHaveSuffix) {
+                arr = arr.map((s, idx) => {
+                    if (idx === arr.length - 1) return s; // Keep the suffix on the final item
+                    return s.replace(regex, '$1'); // Strip it from the others but keep format tokens
+                });
+            }
+        }
+    }
     
     let combined = '';
     if (isCost) {

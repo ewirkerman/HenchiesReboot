@@ -20,18 +20,13 @@ export class CardPreview extends HTMLElement {
         }
         
         this.innerHTML = `
-            <div class="relative w-full flex flex-col items-center overflow-y-auto overflow-x-hidden minimal-scrollbar p-4 select-none">
-                <div class="flex flex-col items-center justify-center m-auto gap-8 w-full py-4 shrink-0 pointer-events-none">
-                    <div class="pointer-events-auto hover:z-[100] hover:-translate-y-2 hover:scale-105" style="transform: scale(1.25); transform-origin: center center;">
+            <div class="absolute inset-0 flex items-center justify-center overflow-hidden select-none pointer-events-none p-4">
+                <div class="flex flex-row items-center justify-center m-auto gap-4 sm:gap-8 w-full shrink-0 origin-center xl:scale-100 lg:scale-90 scale-75">
+                    <div class="pointer-events-auto hover:z-[100] transition-transform duration-200 hover:-translate-y-2 hover:scale-105">
                         <game-card card-data="${dataStr}" on-inspect="window.inspectMiniPreview()"></game-card>
                     </div>
-                    <div class="flex gap-4 items-end pointer-events-auto">
-                        <div class="hover:z-[100] hover:-translate-y-2 hover:scale-105 hover:mx-4">
-                            <game-card card-data="${dataStr}" size="micro" on-inspect="window.inspectMiniPreview()"></game-card>
-                        </div>
-                        <div class="hover:z-[100] hover:-translate-y-2 hover:scale-105 hover:mx-4">
-                            <game-card card-data="${dataStr}" size="nano" on-inspect="window.inspectMiniPreview()"></game-card>
-                        </div>
+                    <div class="pointer-events-auto hover:z-[100] transition-transform duration-200 hover:-translate-y-2 hover:scale-105">
+                        <game-card card-data="${dataStr}" size="nano" on-inspect="window.inspectMiniPreview()"></game-card>
                     </div>
                 </div>
             </div>

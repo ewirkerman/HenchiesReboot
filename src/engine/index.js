@@ -465,6 +465,7 @@ export class GameEngine {
                             actionPayload.source = source; actionPayload.target = currentTarget;
                         }
 
+                        actionPayload.actingPlayerId = ownerId;
                         actionPayload.eventContext = eventPayload;
                         actionPayload.sourceAbilityId = ability.abilityId; 
                         

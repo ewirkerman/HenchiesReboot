@@ -15,6 +15,9 @@ import { processBulkImport } from './importer.js';
 import { CardState } from './card/state.js';
 import { StudioState } from './ability/state.js';
 
+window.CardState = CardState;
+window.StudioState = StudioState;
+
 // Card logic
 import { populateGenuses, populateFamily, toggleStatFields, resetForm as resetCardForm, buildCardState } from './card/form.js';
 import { renderAssignedAbilities, renderReferencedAbilities } from './card/abilities.js';

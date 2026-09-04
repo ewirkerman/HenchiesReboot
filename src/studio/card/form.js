@@ -114,10 +114,11 @@ export function resetForm() {
     
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     setVal('card-art-x', 0); setVal('card-art-y', 0); setVal('card-art-scale', 100);
-    setVal('card-micro-art-x', 0); setVal('card-micro-art-y', 0); setVal('card-micro-art-scale', 185);
     setVal('card-nano-art-x', 0); setVal('card-nano-art-y', 0); setVal('card-nano-art-scale', 110);
     
     document.getElementById('card-description').value = '';
+    const hideDeckbuilderFlag = document.getElementById('card-hide-from-deckbuilder');
+    if (hideDeckbuilderFlag) hideDeckbuilderFlag.checked = false;
     
     CardState.currentAbilities = [];
     
@@ -150,16 +151,13 @@ export function buildCardState(forceId = null) {
     const valY = parseInt(document.getElementById('card-art-y')?.value) || 0;
     const valScale = parseInt(document.getElementById('card-art-scale')?.value);
     
-    const microX = parseInt(document.getElementById('card-micro-art-x')?.value) || 0;
-    const microY = parseInt(document.getElementById('card-micro-art-y')?.value) || 0;
-    const microScale = parseInt(document.getElementById('card-micro-art-scale')?.value);
-    
     const nanoX = parseInt(document.getElementById('card-nano-art-x')?.value) || 0;
     const nanoY = parseInt(document.getElementById('card-nano-art-y')?.value) || 0;
     const nanoScale = parseInt(document.getElementById('card-nano-art-scale')?.value);
     
     const searchId = forceId || CardState.currentEditingId;
     const existingCard = CardState.allCards.find(c => c.id === searchId);
+    const hideDeckbuilderCheckbox = document.getElementById('card-hide-from-deckbuilder');
     
     const state = {
         id: searchId || ('card_' + Date.now()),
@@ -176,12 +174,10 @@ export function buildCardState(forceId = null) {
         strength: isAllowed('strength') && strVal !== '' ? parseInt(strVal) : null,
         description: document.getElementById('card-description').value || '',
         artUrl: document.getElementById('card-art').value || '',
+        hideFromDeckBuilder: !!(hideDeckbuilderCheckbox && hideDeckbuilderCheckbox.checked),
         artX: valX,
         artY: valY,
         artScale: !isNaN(valScale) ? valScale : 100,
-        microArtX: microX,
-        microArtY: microY,
-        microArtScale: !isNaN(microScale) ? microScale : 185,
         nanoArtX: nanoX,
         nanoArtY: nanoY,
         nanoArtScale: !isNaN(nanoScale) ? nanoScale : 110,

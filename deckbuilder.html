@@ -1,4 +1,3 @@
-<!-- filepath: deckbuilder.html -->
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -53,7 +52,7 @@
       <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-3">
         <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider">🎴 Card Catalog</h2>
         
-        <!-- Filters (11 Tribes ONLY) -->
+        <!-- Filters -->
         <div class="flex flex-wrap gap-2 w-full xl:w-auto">
           <input type="text" id="filter-search" placeholder="🔍 Search cards..." class="bg-slate-900 border border-slate-700 text-xs px-2 py-1.5 rounded text-amber-300 focus:outline-none font-bold w-full xl:w-auto" />
           
@@ -68,6 +67,14 @@
             <option value="equipment">Equipment</option>
             <option value="artifact">Artifacts</option>
             <option value="boon">Boons</option>
+          </select>
+          
+          <select id="filter-sort" class="bg-slate-900 border border-slate-700 text-xs px-2 py-1.5 rounded text-sky-300 focus:outline-none font-bold">
+            <option value="tribe">Sort: Tribe (Default)</option>
+            <option value="cost_asc">Cost (Low to High)</option>
+            <option value="cost_desc">Cost (High to Low)</option>
+            <option value="alpha_asc">Alphabetical (A-Z)</option>
+            <option value="alpha_desc">Alphabetical (Z-A)</option>
           </select>
         </div>
       </div>
@@ -96,7 +103,15 @@
               <span id="avatar-status-text" class="text-red-400">Missing</span>
           </label>
           <div id="avatar-slot-ui" onclick="window.openAvatarSelector()" class="h-12 border-2 border-dashed border-amber-700/50 rounded-lg bg-amber-950/20 hover:bg-amber-900/30 flex items-center justify-center cursor-pointer transition-colors text-amber-500/50 font-bold text-xs shadow-inner relative overflow-hidden">
-             Click to Select Avatar
+              Click to Select Avatar
+          </div>
+      </div>
+
+      <!-- Mana Curve Visualizer -->
+      <div class="flex flex-col gap-1.5 border-b border-slate-800 pb-3">
+          <label class="text-[10px] font-black text-amber-500 uppercase tracking-wider">Mana Curve</label>
+          <div id="mana-curve-bars" class="flex flex-col gap-1">
+              <div class="text-[9px] text-slate-500 italic text-center">Add cards to visualize curve</div>
           </div>
       </div>
 
@@ -144,7 +159,7 @@
 
   <script type="module">
     import { CARD_CATALOG } from './src/engine/index.js';
-    import { renderCardHTML, openInspectionModal, showToast, TRIBE_STYLES, loadUI } from './src/ui.js';
+    import { renderCardHTML, openInspectionModal, showToast, loadUI } from './src/ui.js';
     import { fetchCustomCards, fetchCustomAbilities, saveDeckToCatalog, fetchUserDecks, fetchCustomTribes, deleteDeckFromCatalog } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { launchSandboxMatch } from './src/testing.js';
@@ -206,6 +221,10 @@
             ...ab,
             displayDescription: generateAbilityDescription(ab, rawAbs, tempCards)
         }));
+        
+        window.StudioState = window.StudioState || {};
+        window.StudioState.allAbilitiesRegistry = allAbilitiesRegistry;
+        window.StudioState.customTribesList = customTribesList;
 
         if (customCards && customCards.length > 0) {
            const hydratedCustomCards = customCards.map(c => {
@@ -234,6 +253,7 @@
 
       document.getElementById('filter-tribe').addEventListener('change', renderCatalog);
       document.getElementById('filter-type').addEventListener('change', renderCatalog);
+      document.getElementById('filter-sort').addEventListener('change', renderCatalog);
       document.getElementById('filter-search').addEventListener('input', renderCatalog);
       document.getElementById('deck-owner-input').addEventListener('input', () => localStorage.setItem('henchies_deck_owner', document.getElementById('deck-owner-input').value));
       document.getElementById('refresh-cloud-btn').addEventListener('click', refreshLoadDropdown);
@@ -314,11 +334,51 @@
       topbar.addEventListener('delete', deleteDeck);
       topbar.addEventListener('test', () => { if(window.launchTestMatch) window.launchTestMatch(); });
       
+      topbar.addEventListener('ai-match', async () => {
+          const check = validateDeckRules();
+          if (!check.valid) {
+              showToast(`Cannot play invalid deck: ${check.reason}`, 'error');
+              return;
+          }
+
+          const deckName = document.getElementById('deck-name-input').value.trim();
+          const owner = document.getElementById('deck-owner-input').value.trim();
+
+          if (!deckName || !owner) {
+              showToast('Please provide a Deck Name and Cloud Account (Username).', 'error');
+              return;
+          }
+
+          if (topbar && topbar.setLoading) topbar.setLoading('test-ai', true);
+
+          // Auto-save the deck first so the lobby can pull it natively
+          const payload = [currentAvatar.id, ...currentDeck.map(c => c.id)];
+          const success = await saveDeckToCatalog(owner, deckName, payload);
+
+          if (success) {
+              // Set the active deck for the lobby to pick up
+              localStorage.setItem('henchies_last_username', owner);
+              localStorage.setItem('henchies_last_deck', deckName);
+              
+              // Redirect to the tabletop with an auto-start flag
+              window.location.href = 'game.html?auto_ai=true';
+          } else {
+              showToast('Failed to save deck to cloud for AI match.', 'error');
+              if (topbar && topbar.setLoading) topbar.setLoading('test-ai', false);
+          }
+      });
+
       // Hide irrelevant topbar buttons
       topbar.querySelector('#btn-import').classList.add('hidden');
 
       const deckCatalogEl = document.getElementById('deck-catalog');
       deckCatalogEl.addEventListener('new-item', resetForm);
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('search')) document.getElementById('filter-search').value = urlParams.get('search');
+      if (urlParams.has('tribe')) document.getElementById('filter-tribe').value = urlParams.get('tribe');
+      if (urlParams.has('type')) document.getElementById('filter-type').value = urlParams.get('type');
+      if (urlParams.has('sort')) document.getElementById('filter-sort').value = urlParams.get('sort');
 
       renderCatalog();
       resetForm();
@@ -326,9 +386,18 @@
     }
 
     function renderCatalog() {
+      const rawSearchVal = document.getElementById('filter-search').value;
       const tribeVal = document.getElementById('filter-tribe').value;
       const typeVal = document.getElementById('filter-type').value;
-      const searchVal = document.getElementById('filter-search').value.toLowerCase();
+      const searchVal = rawSearchVal.toLowerCase();
+      const sortVal = document.getElementById('filter-sort').value;
+
+      const url = new URL(window.location);
+      if (rawSearchVal) url.searchParams.set('search', rawSearchVal); else url.searchParams.delete('search');
+      if (tribeVal !== 'ALL') url.searchParams.set('tribe', tribeVal); else url.searchParams.delete('tribe');
+      if (typeVal !== 'ALL') url.searchParams.set('type', typeVal); else url.searchParams.delete('type');
+      if (sortVal !== 'tribe') url.searchParams.set('sort', sortVal); else url.searchParams.delete('sort');
+      window.history.replaceState({}, '', url);
 
       let targetTribeName = '';
       if (tribeVal !== 'ALL') {
@@ -336,8 +405,9 @@
           if (t) targetTribeName = t.name.toLowerCase();
       }
 
-      // IMPORTANT: Hide Avatars from main catalog
+      // IMPORTANT: Hide Avatars and hidden cards from main catalog
       const filtered = fullCatalog.filter(c => {
+        if (c.hideFromDeckBuilder) return false;
         if (c.type === 'avatar') return false; 
         
         let matchTribe = (tribeVal === 'ALL');
@@ -347,11 +417,45 @@
         }
         
         const matchType = typeVal === 'ALL' || c.type === typeVal;
+        
+        const abilitiesText = (c.abilities || []).map(a => `${a.name || ''} ${a.displayDescription || ''}`).join(' ').toLowerCase();
+        const descText = (c.description || '').toLowerCase();
         const matchSearch = (c.name || '').toLowerCase().includes(searchVal) || 
                             (c.genus || '').toLowerCase().includes(searchVal) ||
-                            (c.family || '').toLowerCase().includes(searchVal);
+                            (c.family || '').toLowerCase().includes(searchVal) ||
+                            descText.includes(searchVal) ||
+                            abilitiesText.includes(searchVal);
 
         return matchTribe && matchType && matchSearch;
+      });
+
+      const getCost = (c) => typeof c.cost === 'object' ? parseInt(c.cost.tribeAmount || c.cost.carnie || c.cost.tent || 0) || 0 : parseInt(c.cost) || 0;
+
+      const getTribeSort = (t) => {
+          if (!t) return '';
+          let s = t.toLowerCase();
+          return s.startsWith('tribe_') ? s.replace('tribe_', '') : s;
+      };
+
+      filtered.sort((a, b) => {
+          const costA = getCost(a);
+          const costB = getCost(b);
+          const nameA = a.name || '';
+          const nameB = b.name || '';
+          const tribeA = getTribeSort(a.tribe);
+          const tribeB = getTribeSort(b.tribe);
+
+          // Introducing fallbacks to ensure multi-level sorts aren't contradicted
+          switch (sortVal) {
+              case 'cost_asc': return (costA - costB) || nameA.localeCompare(nameB);
+              case 'cost_desc': return (costB - costA) || nameA.localeCompare(nameB);
+              case 'alpha_asc': return nameA.localeCompare(nameB) || (costA - costB);
+              case 'alpha_desc': return nameB.localeCompare(nameA) || (costA - costB);
+              case 'tribe':
+              default:
+                  if (tribeA !== tribeB) return tribeA.localeCompare(tribeB);
+                  return (costA - costB) || nameA.localeCompare(nameB);
+          }
       });
 
       const container = document.getElementById('catalog-container');
@@ -417,12 +521,27 @@
     }
 
     function updateDeckUI() {
-      // Pin tribe, then cost
+      const getCost = (c) => typeof c.cost === 'object' ? parseInt(c.cost.tribeAmount || c.cost.carnie || c.cost.tent || 0) || 0 : parseInt(c.cost) || 0;
+
+      const getTribeSort = (t) => {
+          if (!t) return '';
+          let s = t.toLowerCase();
+          return s.startsWith('tribe_') ? s.replace('tribe_', '') : s;
+      };
+
+      // Pin tribe, then strict integer cost, then alphabetical
       currentDeck.sort((a, b) => {
-          const tribeA = a.tribe || '';
-          const tribeB = b.tribe || '';
+          const tribeA = getTribeSort(a.tribe);
+          const tribeB = getTribeSort(b.tribe);
           if (tribeA !== tribeB) return tribeA.localeCompare(tribeB);
-          return (a.cost || 0) - (b.cost || 0);
+          
+          const costA = getCost(a);
+          const costB = getCost(b);
+          if (costA !== costB) return costA - costB;
+          
+          const nameA = a.name || '';
+          const nameB = b.name || '';
+          return nameA.localeCompare(nameB);
       });
 
       const badge = document.getElementById('deck-count-badge');
@@ -433,16 +552,29 @@
 
       badge.innerText = `${currentDeck.length} / 40`;
 
+      const getTribeStyle = (tribeName) => {
+          const fallback = { bg: 'bg-slate-900', border: 'border-black', hexBg: '' };
+          if (!tribeName) return fallback;
+          const match = customTribesList.find(t => t.id === tribeName || t.name === tribeName);
+          if (!match) return fallback;
+          return { 
+              bg: match.colorBgClass || match.bgClass || 'bg-slate-900', 
+              border: match.colorBorderClass || match.borderClass || 'border-black',
+              hexBg: match.colorBgHex || match.hexBg || '' 
+          };
+      };
+
       if (currentAvatar) {
-          const style = TRIBE_STYLES[currentAvatar.tribe] || { bg: 'bg-slate-900', border: 'border-black' };
+          const style = getTribeStyle(currentAvatar.tribe);
           avatarStatus.innerText = "Assigned";
           avatarStatus.className = "text-emerald-400";
           avatarSlot.className = `h-14 rounded-lg flex items-center justify-between p-2 cursor-pointer shadow-lg border-2 border-amber-500/50 ${style.bg}`;
+          avatarSlot.style.backgroundColor = style.hexBg || '';
           avatarSlot.innerHTML = `
               <div class="flex items-center gap-3">
                   <span class="text-2xl drop-shadow-md">👑</span>
                   <div class="flex flex-col">
-                      <span class="font-black text-white text-sm drop-shadow-md tracking-wider">${currentAvatar.name}</span>
+                      <span class="font-bold text-white text-sm drop-shadow-md tracking-wider">${currentAvatar.name}</span>
                       <span class="text-[9px] text-slate-300 capitalize font-bold">${currentAvatar.tribe} Avatar</span>
                   </div>
               </div>
@@ -454,6 +586,28 @@
           avatarSlot.className = `h-12 border-2 border-dashed border-amber-700/50 rounded-lg bg-amber-950/20 hover:bg-amber-900/30 flex items-center justify-center cursor-pointer transition-colors text-amber-500/50 font-bold text-xs shadow-inner relative overflow-hidden`;
           avatarSlot.innerHTML = `Click to Select Avatar`;
       }
+
+      // Render Mana Curve
+      const curveCounts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, "6+": 0 };
+      currentDeck.forEach(c => {
+          const cCost = getCost(c);
+          if (cCost >= 6) curveCounts["6+"]++;
+          else curveCounts[cCost]++;
+      });
+      const maxCount = Math.max(...Object.values(curveCounts));
+      const curveHtml = Object.entries(curveCounts).map(([cost, count]) => {
+          const pct = maxCount === 0 ? 0 : (count / maxCount) * 100;
+          return `
+              <div class="flex items-center gap-2 text-[9px] font-bold">
+                  <span class="w-3 text-right text-slate-400">${cost}</span>
+                  <div class="flex-1 bg-slate-900 rounded-full h-1.5 overflow-hidden flex">
+                      <div class="bg-amber-500/80 h-full rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+                  </div>
+                  <span class="w-4 text-slate-500 text-left">${count > 0 ? count : ''}</span>
+              </div>
+          `;
+      }).join('');
+      document.getElementById('mana-curve-bars').innerHTML = curveHtml || `<div class="text-[9px] text-slate-500 italic text-center">Add cards to visualize curve</div>`;
 
       const check = validateDeckRules();
       if (check.valid) {
@@ -476,11 +630,11 @@
       });
 
       container.innerHTML = Object.values(cardMap).map(entry => {
-        const style = TRIBE_STYLES[entry.card.tribe] || { bg: 'bg-slate-900' };
+        const style = getTribeStyle(entry.card.tribe);
         const costVal = typeof entry.card.cost === 'object' ? (entry.card.cost.tribeAmount || entry.card.cost.carnie || entry.card.cost.tent || 0) : (entry.card.cost ?? 0);
         const json = encodeURIComponent(JSON.stringify(entry.card)).replace(/'/g, "%27");
         return `
-        <div class="flex justify-between items-center p-2 rounded-lg ${style.bg} border border-black/40 text-xs shadow-sm group hover:border-amber-500/50 transition-colors">
+        <div class="flex justify-between items-center p-2 rounded-lg ${style.bg} border border-black/40 text-xs shadow-sm group hover:border-amber-500/50 transition-colors" style="${style.hexBg ? 'background-color:'+style.hexBg+';' : ''}">
           <div class="flex items-center gap-2 flex-1 overflow-hidden cursor-pointer hover:text-amber-300 transition-colors" onclick="window.filterToCard('${entry.card.name.replace(/'/g, "\\'")}')" oncontextmenu="event.preventDefault(); window.inspectCard('${json}')" title="Left-click to filter, Right-click to inspect: ${entry.card.name}">
             <span class="w-5 h-5 rounded bg-amber-500 text-black font-extrabold text-[10px] flex items-center justify-center shadow-sm border border-amber-700 shrink-0">${costVal}</span>
             <span class="font-bold text-white drop-shadow-md truncate">${entry.card.name}</span>

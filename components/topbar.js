@@ -2,11 +2,12 @@ export class StudioTopbar extends HTMLElement {
     connectedCallback() {
         this.innerHTML = `
             <div class="flex items-center gap-2 mt-1">
-                <button type="button" id="btn-save" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider whitespace-nowrap">💾 Save</button>
-                <button type="button" id="btn-clone" class="bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-cyan-500/30 whitespace-nowrap">👯 Clone</button>
-                <button type="button" id="btn-test" class="bg-purple-600/80 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-purple-500/30 whitespace-nowrap">🧪 Test</button>
-                <button type="button" id="btn-import" class="bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-emerald-500/30 whitespace-nowrap">📥 Import</button>
-                <button type="button" id="btn-delete" class="bg-red-600/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap">🗑️ Delete</button>
+                <button type="button" id="btn-save" title="Save" class="bg-amber-500 hover:bg-amber-400 text-black font-extrabold px-2.5 sm:px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider whitespace-nowrap">💾<span class="hidden sm:inline ml-1">Save</span></button>
+                <button type="button" id="btn-clone" title="Clone" class="bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold px-2.5 sm:px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-cyan-500/30 whitespace-nowrap">👯<span class="hidden sm:inline ml-1">Clone</span></button>
+                <button type="button" id="btn-test" title="Test Match" class="bg-purple-600/80 hover:bg-purple-500 text-white font-bold px-2.5 sm:px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-purple-500/30 whitespace-nowrap">🧪<span class="hidden sm:inline ml-1">Test</span></button>
+                <button type="button" id="btn-test-ai" title="Vs AI" class="bg-indigo-600/80 hover:bg-indigo-500 text-white font-bold px-2.5 sm:px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-indigo-500/30 whitespace-nowrap">🤖<span class="hidden sm:inline ml-1">Vs AI</span></button>
+                <button type="button" id="btn-import" title="Import" class="bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold px-2.5 sm:px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-emerald-500/30 whitespace-nowrap">📥<span class="hidden sm:inline ml-1">Import</span></button>
+                <button type="button" id="btn-delete" title="Delete" class="bg-red-600/80 hover:bg-red-500 text-white font-bold px-2.5 sm:px-4 py-2 rounded-lg shadow-lg transition text-[11px] uppercase tracking-wider border border-red-500/30 whitespace-nowrap">🗑️<span class="hidden sm:inline ml-1">Delete</span></button>
             </div>
             
             <div id="import-modal" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
@@ -23,26 +24,33 @@ export class StudioTopbar extends HTMLElement {
 
         this.querySelector('#btn-save').addEventListener('click', () => this.dispatchEvent(new CustomEvent('save')));
         this.querySelector('#btn-clone').addEventListener('click', () => this.dispatchEvent(new CustomEvent('clone')));
-        this.querySelector('#btn-test').addEventListener('click', () => this.dispatchEvent(new CustomEvent('test')));
+        
+        this.querySelector('#btn-test').addEventListener('click', () => {
+            this.dispatchEvent(new CustomEvent('test'));
+        });
+        
+        this.querySelector('#btn-test-ai').addEventListener('click', () => {
+            this.dispatchEvent(new CustomEvent('ai-match'));
+        });
         
         // Handle Confirmed Delete inline so parents just listen for 'delete'
         this.querySelector('#btn-delete').addEventListener('click', (e) => {
-            const btn = e.target;
+            const btn = e.currentTarget;
             if (!btn.dataset.confirm) {
                 btn.dataset.confirm = 'true';
-                btn.innerHTML = '⚠️ Confirm';
+                btn.innerHTML = '⚠️<span class="hidden sm:inline ml-1">Confirm</span>';
                 btn.classList.replace('bg-red-600/80', 'bg-red-700');
                 setTimeout(() => { 
                     if (btn.dataset.confirm) { 
                         delete btn.dataset.confirm; 
-                        btn.innerHTML = '🗑️ Delete'; 
+                        btn.innerHTML = '🗑️<span class="hidden sm:inline ml-1">Delete</span>'; 
                         btn.classList.replace('bg-red-700', 'bg-red-600/80'); 
                     } 
                 }, 3000);
                 return;
             }
             delete btn.dataset.confirm;
-            btn.innerHTML = '🗑️ Delete';
+            btn.innerHTML = '🗑️<span class="hidden sm:inline ml-1">Delete</span>';
             btn.classList.replace('bg-red-700', 'bg-red-600/80');
             this.dispatchEvent(new CustomEvent('delete'));
         });
@@ -108,7 +116,7 @@ export class StudioTopbar extends HTMLElement {
         if (!btn) return;
         if (isLoading) {
             btn.dataset.origText = btn.innerHTML;
-            btn.innerHTML = '⏳ ...';
+            btn.innerHTML = '⏳<span class="hidden sm:inline ml-1">...</span>';
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
         } else {

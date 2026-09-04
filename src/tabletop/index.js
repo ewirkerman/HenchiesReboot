@@ -8,11 +8,17 @@ import { updateUI } from './renderer.js';
 import { handleQueueMatch, handleAIMatch, handleSendChallenge, handleAcceptInvite, handleResumeMatch, reconstructStateFromLog } from './multiplayer.js';
 import { handleSacrificeConfirm, handleSacrificeDecision, handleEndTurn, handleUndo, handleRestartMatch } from './interactions.js';
 
+window.ClientState = ClientState;
+
+// Bind UI actions to window object for web components
+window.handleSacrificeConfirm = handleSacrificeConfirm;
+window.handleSacrificeDecision = handleSacrificeDecision;
+
 import './modals.js'; 
 import '../../components/main_nav.js';
 import '../../components/match_lobby.js';
 import '../../components/action_log.js';
-import '../../components/harvest_overlay.js';
+import '../../components/harvest_modal.js';
 import '../../components/unit_action_modal.js';
 import '../../components/zone_viewer_modal.js';
 
@@ -91,7 +97,15 @@ async function initializeApp() {
                 }
             }
 
-            updateLobbyData();
+            await updateLobbyData();
+            
+            // Auto-trigger AI match if routed from the Deckbuilder
+            if (window.location.search.includes('auto_ai=true')) {
+                const btn = document.getElementById('ai-match-btn');
+                if (btn) btn.click();
+                // Clean up the URL to prevent reloading loops
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
         }
     } catch(err) {
         console.error("[INIT] Initialization failed:", err);
@@ -214,43 +228,16 @@ window.handleResumeMatch = handleResumeMatch;
 document.getElementById('queue-match-btn').addEventListener('click', (e) => handleQueueMatch(e.target));
 document.getElementById('ai-match-btn').addEventListener('click', (e) => handleAIMatch(e.target));
 document.getElementById('send-challenge-btn').addEventListener('click', (e) => handleSendChallenge(e.target));
-document.getElementById('overlay-sacrifice-confirm-btn').addEventListener('click', handleSacrificeConfirm);
-document.getElementById('overlay-sacrifice-skip-btn').addEventListener('click', () => handleSacrificeDecision('SKIP'));
 document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
 
 document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-    const radialMenu = document.querySelector('radial-action-menu');
-    const overlay = radialMenu?.querySelector('#radial-menu-overlay');
-    const isMenuOpen = overlay && !overlay.classList.contains('hidden');
-    
     const zoneModal = document.getElementById('zone-viewer-modal');
     const isZoneOpen = zoneModal && !zoneModal.classList.contains('hidden');
 
     if (isZoneOpen) {
         if (e.key === 'Escape') window.closeZoneModal();
-        return;
-    }
-
-    if (isMenuOpen) {
-        const num = parseInt(e.key);
-        if (!isNaN(num) && num >= 1 && num <= 9) {
-            const bg = overlay.querySelector('.bg-black\\/40');
-            const isTargeting = bg && bg.classList.contains('opacity-0');
-            if (!isTargeting && radialMenu.actions[num - 1]) {
-                radialMenu.selectAction(num - 1);
-            }
-        }
-        if (e.key === 'Escape') {
-            const bg = overlay.querySelector('.bg-black\\/40');
-            const isTargeting = bg && bg.classList.contains('opacity-0');
-            if (isTargeting) {
-                document.getElementById('cancel-action-btn')?.click();
-            } else {
-                radialMenu.close();
-            }
-        }
         return;
     }
 

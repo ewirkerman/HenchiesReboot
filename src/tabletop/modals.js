@@ -2,22 +2,6 @@ import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { renderCardHTML, showToast, openInspectionModal } from '../ui.js';
 
-window.toggleActionLog = () => {
-    const container = document.getElementById('action-log-drawer-container');
-    const chevron = document.getElementById('action-log-chevron');
-    const isOpen = !container.classList.contains('translate-y-[calc(100%-2rem)]');
-    
-    if (isOpen) {
-        container.classList.add('translate-y-[calc(100%-2rem)]');
-        chevron.style.transform = 'rotate(0deg)';
-    } else {
-        container.classList.remove('translate-y-[calc(100%-2rem)]');
-        chevron.style.transform = 'rotate(180deg)';
-        const logBox = document.getElementById('history-log-text');
-        if (logBox) logBox.scrollTop = logBox.scrollHeight;
-    }
-};
-
 window.openZoneModal = (playerId, zone) => {
     const player = ClientState.gameState.players[playerId];
     if (!player || !player[zone]) return;

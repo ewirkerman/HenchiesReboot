@@ -9,8 +9,10 @@ export function getTriggerWord(t) {
     if (!t || t === 'MANUAL') return '';
     if (t === 'UNTRIGGERABLE') return 'Passive';
     if (t === 'ON_BE_ATTACHED') return 'While Attached';
-    if (t.includes('STARTING') || t.includes('STARTED')) return 'Start';
-    if (t.includes('ENDING') || t.includes('ENDED')) return 'End';
+    if (t.includes('STARTED')) return 'Started';
+    if (t.includes('ENDED')) return 'Ended';
+    if (t.includes('STARTING')) return 'Starting';
+    if (t.includes('ENDING')) return 'Ending';
     if (t.includes('PLAY')) return 'Play';
 
     let isPassive = t.includes('_BE_') || t.includes('ATTACKED') || t.includes('DAMAGED') || t.includes('HEALED') || t.includes('KILLED') || t.includes('DRAWN') || t.includes('DISCARDED') || t.includes('SUMMONED');
@@ -67,8 +69,28 @@ export function parseTriggers(ability, allTribes) {
                 let contextPronoun = "{PRONOUN}";
                 
                 if (ctx === 'HOST') { contextSubject = "{POSS} host's"; contextPronoun = "{POSS} host"; }
-                else if (ctx === 'EVENT_SOURCE') { contextSubject = "doer's"; contextPronoun = "doer"; }
-                else if (ctx === 'EVENT_TARGET') { contextSubject = "receiver's"; contextPronoun = "receiver"; }
+                else if (ctx === 'EVENT_SOURCE') { 
+                    let noun = "doer";
+                    if (ability.trigger && ability.trigger.includes('ATTACK')) noun = ability.trigger.includes('BE_ATTACKED') ? "defender" : "attacker";
+                    else if (ability.trigger && ability.trigger.includes('DAMAGE')) noun = ability.trigger.includes('BE_DAMAGED') ? "damaged character" : "damage source";
+                    else if (ability.trigger && ability.trigger.includes('HEAL')) noun = ability.trigger.includes('BE_HEALED') ? "healed character" : "healer";
+                    else if (ability.trigger && ability.trigger.includes('KILL')) noun = ability.trigger.includes('BE_KILLED') ? "killed unit" : "killer";
+                    else if (ability.trigger && ability.trigger.includes('PLAY')) noun = "played card";
+                    else if (ability.trigger && ability.trigger.includes('SUMMON')) noun = "summoned unit";
+                    
+                    contextSubject = `the ${noun}'s`; 
+                    contextPronoun = `the ${noun}`; 
+                }
+                else if (ctx === 'EVENT_TARGET') { 
+                    let noun = "receiver";
+                    if (ability.trigger && ability.trigger.includes('ATTACK')) noun = ability.trigger.includes('BE_ATTACKED') ? "attacker" : "defender";
+                    else if (ability.trigger && ability.trigger.includes('DAMAGE')) noun = ability.trigger.includes('BE_DAMAGED') ? "damage source" : "damaged character";
+                    else if (ability.trigger && ability.trigger.includes('HEAL')) noun = ability.trigger.includes('BE_HEALED') ? "healer" : "healed character";
+                    else if (ability.trigger && ability.trigger.includes('KILL')) noun = ability.trigger.includes('BE_KILLED') ? "killer" : "killed unit";
+                    
+                    contextSubject = `the ${noun}'s`; 
+                    contextPronoun = `the ${noun}`; 
+                }
                 else if (ctx === 'ABILITY_SOURCE') { contextSubject = "its"; contextPronoun = "it"; }
 
                 const opMap = { '==': 'is', '!=': 'is not', '>': '>', '<': '<', '>=': '>=', '<=': '<=' };
@@ -101,7 +123,7 @@ export function parseTriggers(ability, allTribes) {
                         let subj = ctx === 'EVAL_TARGET' ? "{PRONOUN}" : contextPronoun;
                         conditionPhrases.push(`${subj} ${opText} ${displayValue}`);
                     } else if (['health', 'strength', 'readiness', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs'].includes(checkAttr)) {
-                        let statName = checkAttr.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+                        let statName = `[STAT:${checkAttr}]`;
                         let subj = ctx === 'EVAL_TARGET' ? "{POSS}" : contextSubject;
                         conditionPhrases.push(`${subj} ${statName} ${opText} ${node.value}`);
                     } else if (checkAttr === 'line') {

@@ -152,6 +152,8 @@ export function loadCard(id) {
     if (nScale) nScale.value = card.nanoArtScale ?? card.artScale ?? 110;
     
     document.getElementById('card-description').value = card.description || '';
+    const hideDeckbuilderCheckbox = document.getElementById('card-hide-from-deckbuilder');
+    if (hideDeckbuilderCheckbox) hideDeckbuilderCheckbox.checked = !!card.hideFromDeckBuilder;
     
     CardState.currentAbilities = (card.abilities || []).map(a => {
         if (typeof a === 'string') return { id: a, paramX: null };
