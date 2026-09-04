@@ -2,6 +2,7 @@ export class MatchLobby extends HTMLElement {
     connectedCallback() {
         const isTestMode = window.location.hash.startsWith('#test_');
         this.style.display = isTestMode ? 'none' : 'contents';
+        
         this.innerHTML = `
         <div id="match-setup-screen" class="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col justify-center my-auto ${isTestMode ? 'hidden' : ''}">
             <div class="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800 flex flex-col gap-5">
@@ -14,7 +15,11 @@ export class MatchLobby extends HTMLElement {
             <!-- Identity & Deck Section -->
             <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700 flex flex-col sm:flex-row gap-4">
                 <div class="flex-1">
-                    <label class="text-xs font-bold text-slate-300 block mb-1">Your Player Username</label>
+                    <div class="flex justify-between items-end mb-1">
+                        <label class="text-xs font-bold text-slate-300 block">Your Player Username</label>
+                        <!-- Added Turn Notification Subscribe Button -->
+                        <button id="enable-notifications-btn" class="bg-sky-900/40 hover:bg-sky-800 border border-sky-700 text-sky-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition">🔔 Notify on Turn</button>
+                    </div>
                     <input type="text" id="setup-username" value="Warlord Player" class="bg-slate-950 border border-slate-700 p-2.5 rounded-xl text-amber-300 font-extrabold text-sm w-full focus:outline-none focus:border-amber-500" />
                 </div>
                 <div class="flex-1">

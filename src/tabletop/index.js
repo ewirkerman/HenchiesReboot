@@ -1,11 +1,12 @@
 import { CARD_CATALOG, GLOBAL_UNDO_POLICY } from '../engine/index.js';
 import { showToast, loadUI } from '../ui.js';
-import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom, subscribeToUserInvites, subscribeToActiveMatches, pushActionToLog } from '../firebase.js';
+import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom, subscribeToUserInvites, subscribeToActiveMatches, pushActionToLog, db, messaging } from '../firebase.js';
 import { generateAbilityDescription } from '../language_description.js';
+import { loadPlayProfile, enableTurnNotifications, listenForForegroundNotifications } from '../profile.js';
 
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
-import { handleQueueMatch, handleAIMatch, handleSendChallenge, handleAcceptInvite, handleResumeMatch, reconstructStateFromLog } from './multiplayer.js';
+import { handleQueueMatch, handleAIMatch, handleSendChallenge, handleAcceptInvite, handleResumeMatch, connectToMatch, reconstructStateFromLog } from './multiplayer.js';
 import { handleSacrificeConfirm, handleSacrificeDecision, handleEndTurn, handleUndo, handleRestartMatch } from './interactions.js';
 
 window.ClientState = ClientState;
@@ -16,7 +17,7 @@ window.handleSacrificeDecision = handleSacrificeDecision;
 
 import './modals.js'; 
 import '../../components/main_nav.js';
-import '../../components/match_lobby.js';
+// Removed synchronous match_lobby.js import for lazy loading
 import '../../components/action_log.js';
 import '../../components/harvest_modal.js';
 import '../../components/unit_action_modal.js';
@@ -36,6 +37,15 @@ window.addEventListener("unhandledrejection", function(event) {
   showToast("Async Error: " + (event.reason?.message || "Unknown rejection"), "error");
   const btn = document.getElementById('launch-match-btn');
   if (btn) { btn.innerHTML = '🚀 Launch Battleboard Tabletop'; btn.disabled = false; }
+});
+
+window.addEventListener('hashchange', () => {
+    const newHash = window.location.hash;
+    // If the Service Worker just dropped us into a room, force a hard reload to bypass the lobby
+    if (newHash.includes('ROOM_')) {
+        console.log("[INIT] Dynamic room navigation detected. Reloading...");
+        window.location.reload();
+    }
 });
 
 // Synchronously swap UI to prevent lobby flashing in Sandbox mode
@@ -66,13 +76,16 @@ async function initializeApp() {
         const hashData = window.location.hash.replace('#', '');
         const isTestMode = hashData.startsWith('test_');
         const urlRoom = isTestMode ? hashData.replace('test_', '') : hashData;
+        const savedName = localStorage.getItem('henchies_last_username');
 
         if (isTestMode && urlRoom) {
             console.log("[INIT] Sandbox Test mode detected. Bypassing lobby.");
             ClientState.roomCode = urlRoom;
             ClientState.localPlayerRole = 'player1';
             document.getElementById('header-room-badge').innerText = `Sandbox: ${ClientState.roomCode}`;
-            document.getElementById('match-setup-screen').classList.add('hidden');
+            
+            const anchor = document.getElementById('lobby-anchor');
+            if (anchor) anchor.style.display = 'none';
             document.getElementById('match-tabletop-screen').classList.remove('hidden');
             
             console.log("[INIT] Subscribing to local Game Room...");
@@ -82,9 +95,22 @@ async function initializeApp() {
                     reconstructStateFromLog(data);
                 }
             });
+        } else if (urlRoom && savedName) {
+            // Direct Room URL Routing (BYPASS LOBBY ENTIRELY)
+            console.log(`[INIT] Direct room link detected. Connecting to ${urlRoom}...`);
+            
+            const anchor = document.getElementById('lobby-anchor');
+            if (anchor) anchor.innerHTML = '<div class="text-amber-400 font-bold text-center mt-20 text-xl animate-pulse">Entering Match...</div>';
+            
+            connectToMatch(urlRoom, savedName);
         } else {
-            const savedName = localStorage.getItem('henchies_last_username');
-            if (savedName) document.getElementById('setup-username').value = savedName;
+            // MOUNT LOBBY
+            await mountLobby();
+            
+            if (savedName) {
+                const nameInput = document.getElementById('setup-username');
+                if (nameInput) nameInput.value = savedName;
+            }
 
             const undoCheckbox = document.getElementById('setup-allow-undo');
             if (undoCheckbox) {
@@ -107,14 +133,42 @@ async function initializeApp() {
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
         }
+        
+        // Listen for foreground push notifications on the client
+        listenForForegroundNotifications(messaging, (title, body) => {
+            showToast(`${title}: ${body}`, "info");
+        });
+        
     } catch(err) {
         console.error("[INIT] Initialization failed:", err);
         showToast("Failed to initialize game registries.", "error");
     }
 }
 
+// Lazy Load the Lobby Component
+async function mountLobby() {
+    await import('../../components/match_lobby.js');
+    const anchor = document.getElementById('lobby-anchor');
+    if (anchor) {
+        anchor.innerHTML = '<match-lobby></match-lobby>';
+    }
+
+    let lobbyDebounce;
+    document.getElementById('setup-username')?.addEventListener('input', () => {
+        clearTimeout(lobbyDebounce);
+        lobbyDebounce = setTimeout(updateLobbyData, 500);
+    });
+
+    document.getElementById('queue-match-btn')?.addEventListener('click', (e) => handleQueueMatch(e.target));
+    document.getElementById('ai-match-btn')?.addEventListener('click', (e) => handleAIMatch(e.target));
+    document.getElementById('send-challenge-btn')?.addEventListener('click', (e) => handleSendChallenge(e.target));
+}
+
 async function updateDeckDropdown() {
-  const username = document.getElementById('setup-username').value.trim();
+  const usernameInput = document.getElementById('setup-username');
+  if (!usernameInput) return; // Abort safely if lobby isn't mounted
+  
+  const username = usernameInput.value.trim();
   const select = document.getElementById('setup-deck-select');
   
   if (!username) {
@@ -150,13 +204,77 @@ let invitesUnsub = null;
 let matchesUnsub = null;
 
 async function updateLobbyData() {
+    const usernameInput = document.getElementById('setup-username');
+    if (!usernameInput) return; // Abort safely if lobby isn't mounted
+    
     await updateDeckDropdown();
     
-    const username = document.getElementById('setup-username').value.trim();
+    const username = usernameInput.value.trim();
     if (invitesUnsub) { invitesUnsub(); invitesUnsub = null; }
     if (matchesUnsub) { matchesUnsub(); matchesUnsub = null; }
 
     if (!username || window.location.hash.startsWith('#test_')) return;
+    
+    // Wire up push notification profile
+    ClientState.profile = await loadPlayProfile(db, username);
+    const notifBtn = document.getElementById('enable-notifications-btn');
+    
+    if (notifBtn) {
+        const updateBtnState = () => {
+            if (Notification.permission === 'granted') {
+                if (ClientState.profile && ClientState.profile.fcmTokens && ClientState.profile.fcmTokens.length > 0) {
+                    notifBtn.innerText = "🔔 Notifications Active";
+                    notifBtn.className = "bg-emerald-900/40 border border-emerald-700 text-emerald-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition opacity-70 cursor-not-allowed";
+                    notifBtn.disabled = true;
+                    notifBtn.title = "Manage in browser settings";
+                } else {
+                    // Browser allows it, but Firebase profile is missing the token
+                    notifBtn.innerText = "🔄 Sync Notifications";
+                    notifBtn.className = "bg-amber-900/40 hover:bg-amber-800 border border-amber-700 text-amber-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition";
+                    notifBtn.disabled = false;
+                    notifBtn.title = "Save device to profile";
+                }
+            } else if (Notification.permission === 'denied') {
+                notifBtn.innerText = "🔕 Notifications Blocked";
+                notifBtn.className = "bg-red-900/40 border border-red-700 text-red-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition opacity-70 cursor-not-allowed";
+                notifBtn.disabled = true;
+                notifBtn.title = "Unblock in browser settings (URL bar icon) to enable";
+            } else {
+                notifBtn.innerText = "🔔 Notify on Turn";
+                notifBtn.className = "bg-sky-900/40 hover:bg-sky-800 border border-sky-700 text-sky-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition";
+                notifBtn.disabled = false;
+                notifBtn.title = "Enable turn notifications";
+            }
+        };
+
+        // Run immediately to set initial state
+        updateBtnState();
+
+        // Listen to browser-level permission changes dynamically!
+        if (navigator.permissions && navigator.permissions.query) {
+            navigator.permissions.query({ name: 'notifications' }).then((status) => {
+                status.onchange = () => updateBtnState();
+            });
+        }
+
+        notifBtn.onclick = async () => {
+            if (Notification.permission === 'denied') {
+                showToast("Please allow notifications in your browser's URL bar settings.", "error");
+                return;
+            }
+            const success = await enableTurnNotifications(messaging, db, username);
+            if (success) {
+                showToast("Turn notifications enabled!", "success");
+                // Mock local profile update so UI updates instantly
+                if (!ClientState.profile) ClientState.profile = {};
+                if (!ClientState.profile.fcmTokens) ClientState.profile.fcmTokens = [];
+                ClientState.profile.fcmTokens.push('local_sync_token');
+                updateBtnState();
+            } else {
+                showToast("Failed to enable notifications. (Check console)", "error");
+            }
+        };
+    }
 
     invitesUnsub = await subscribeToUserInvites(username, (invites) => {
         const countEl = document.getElementById('invites-count');
@@ -209,13 +327,7 @@ window.handleForfeitFromLobby = async (gameId) => {
     showToast("Match forfeited.", "info");
 };
 
-// Bind Event Listeners
-let lobbyDebounce;
-document.getElementById('setup-username').addEventListener('input', () => {
-    clearTimeout(lobbyDebounce);
-    lobbyDebounce = setTimeout(updateLobbyData, 500);
-});
-
+// Bind Global Event Listeners (Lobby listeners moved to mountLobby)
 document.getElementById('cancel-action-btn').addEventListener('click', () => {
     ClientState.pendingAbility = null;
     ClientState.validTargets = [];
@@ -225,9 +337,6 @@ document.getElementById('cancel-action-btn').addEventListener('click', () => {
 window.handleAcceptInvite = handleAcceptInvite;
 window.handleResumeMatch = handleResumeMatch;
 
-document.getElementById('queue-match-btn').addEventListener('click', (e) => handleQueueMatch(e.target));
-document.getElementById('ai-match-btn').addEventListener('click', (e) => handleAIMatch(e.target));
-document.getElementById('send-challenge-btn').addEventListener('click', (e) => handleSendChallenge(e.target));
 document.getElementById('end-turn-btn').addEventListener('click', handleEndTurn);
 
 document.addEventListener('keydown', (e) => {

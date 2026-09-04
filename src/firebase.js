@@ -10,6 +10,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getMessaging } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js';
 
 // Default Firebase Configuration
 const firebaseConfig = {
@@ -21,7 +22,7 @@ const firebaseConfig = {
   appId: "1:641284877771:web:0497d79a089e6ca2831a4e"
 };
 
-let app, db, storage, auth;
+let app, db, storage, auth, messaging;
 let isFirebaseOnline = false;
 let authReady = false; 
 
@@ -36,6 +37,7 @@ const memoryCache = {
 let authResolved = false;
 let authWaiters = [];
 const resolveAuth = () => {
+    console.log("[DIAGNOSTIC] resolveAuth called. isFirebaseOnline:", isFirebaseOnline, "authReady:", authReady);
     authResolved = true;
     authWaiters.forEach(resolve => resolve(isFirebaseOnline && authReady));
     authWaiters = [];
@@ -46,20 +48,29 @@ try {
   db = getFirestore(app);
   storage = getStorage(app);
   auth = getAuth(app);
+  console.log("[DIAGNOSTIC] Firebase initializeApp called successfully.");
+  
+  try {
+      messaging = getMessaging(app);
+  } catch(e) {
+      console.warn("Firebase Messaging not supported in this environment.", e);
+  }
   
   // Sign in anonymously immediately so we have a valid request.auth for Firestore rules
+  console.log("[DIAGNOSTIC] Attempting signInAnonymously...");
   signInAnonymously(auth)
-    .then(() => {
-        console.log("🤫 Signed in anonymously");
+    .then((cred) => {
+        console.log("[DIAGNOSTIC] 🤫 Signed in anonymously. UID:", cred.user.uid);
     })
     .catch((error) => {
-        console.error("Auth Error:", error.code, error.message);
+        console.error("[DIAGNOSTIC] Auth Error:", error.code, error.message);
         isFirebaseOnline = false;
         resolveAuth();
     });
 
   // Listen for auth state to confirm we are ready to write
   onAuthStateChanged(auth, (user) => {
+    console.log("[DIAGNOSTIC] onAuthStateChanged fired. User:", user ? user.uid : "null");
     if (user) {
         authReady = true;
         isFirebaseOnline = true;
@@ -77,10 +88,13 @@ try {
 }
 
 const isReadyForDB = () => {
+  console.log("[DIAGNOSTIC] isReadyForDB check started. authResolved:", authResolved);
   return new Promise((resolve) => {
     if (authResolved) {
+      console.log("[DIAGNOSTIC] isReadyForDB returning immediate result:", (isFirebaseOnline && authReady));
       resolve(isFirebaseOnline && authReady);
     } else {
+      console.log("[DIAGNOSTIC] isReadyForDB waiting for auth resolution...");
       authWaiters.push(resolve);
       // Safety timeout: if auth takes more than 3 seconds, assume offline and unlock the app
       setTimeout(() => {
@@ -150,12 +164,20 @@ export async function createGameRoom(gameId, state) {
 }
 
 export async function pushActionToLog(gameId, actionPayload, updatedTurnStartState, currentHistoryLog) {
+    console.log(`[DIAGNOSTIC] pushActionToLog triggered for room ${gameId}. Action type:`, actionPayload?.type);
     if (gameId.startsWith('TEST_')) {
         const existing = localStorage.getItem(`henchies_game_${gameId}`);
         if (existing) {
             const data = JSON.parse(existing);
-            if (!data.action_log) data.action_log = [];
-            data.action_log.push(actionPayload);
+            
+            // Fix: Reset the log array at the start of a new turn to prevent infinite scaling
+            if (actionPayload.type === 'END_TURN' || actionPayload.type === 'PLAYER_JOINED') {
+                data.action_log = [actionPayload];
+            } else {
+                if (!data.action_log) data.action_log = [];
+                data.action_log.push(actionPayload);
+            }
+            
             if (currentHistoryLog) data.history_log = currentHistoryLog;
             if (updatedTurnStartState) data.turn_start_state = updatedTurnStartState;
             if (actionPayload.type === 'PLAYER_JOINED') {
@@ -173,26 +195,53 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
         return;
     }
 
-    if (await isReadyForDB()) {
-        try {
-            const updateData = {
-                action_log: arrayUnion(actionPayload),
-                updatedAt: Date.now()
-            };
-            if (currentHistoryLog) updateData.history_log = currentHistoryLog;
-            if (updatedTurnStartState) updateData.turn_start_state = updatedTurnStartState;
-            if (actionPayload.type === 'PLAYER_JOINED') {
-                updateData.isOpen = false;
-                updateData.participants = arrayUnion(actionPayload.playerName);
-            }
-            if (actionPayload.type === 'FORFEIT') {
-                updateData.status = 'finished';
-            }
-            
-            await updateDoc(doc(db, "games", gameId), updateData);
-        } catch (e) {
-            console.error("Firestore pushActionToLog failed:", e);
+    const isOnline = await isReadyForDB();
+    console.log(`[DIAGNOSTIC] pushActionToLog isOnline check result:`, isOnline);
+    
+    if (!isOnline) {
+        console.error("FATAL DESYNC: Firebase disconnected or Auth dropped. Cannot save move.");
+        window.dispatchEvent(new CustomEvent('henchies_toast', { 
+            detail: { msg: "FATAL: Lost connection to server. Match desynced. Please refresh page.", type: "error" } 
+        }));
+        return;
+    }
+
+    try {
+        const updateData = {
+            updatedAt: Date.now()
+        };
+        
+        // Fix: Reset the log array at the start of a new turn in Firebase
+        if (actionPayload.type === 'END_TURN' || actionPayload.type === 'PLAYER_JOINED') {
+            updateData.action_log = [actionPayload];
+        } else {
+            updateData.action_log = arrayUnion(actionPayload);
         }
+
+        if (currentHistoryLog) updateData.history_log = currentHistoryLog;
+        if (updatedTurnStartState) updateData.turn_start_state = updatedTurnStartState;
+        if (actionPayload.type === 'PLAYER_JOINED') {
+            updateData.isOpen = false;
+            updateData.participants = arrayUnion(actionPayload.playerName);
+        }
+        if (actionPayload.type === 'FORFEIT') {
+            updateData.status = 'finished';
+        }
+        
+        console.log(`[DIAGNOSTIC] Executing Firestore setDoc for game ${gameId}...`, updateData);
+        
+        // Wrap setDoc in a timeout. Firebase SDK promises never reject if offline; they hang indefinitely.
+        const writePromise = setDoc(doc(db, "games", gameId), updateData, { merge: true });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DIAGNOSTIC TIMEOUT: Firestore write hung for 5 seconds. Websocket is likely blocked or offline.")), 5000));
+        
+        await Promise.race([writePromise, timeoutPromise]);
+        
+        console.log(`[DIAGNOSTIC] Successfully wrote action to Firestore!`);
+    } catch (e) {
+        console.error("[DIAGNOSTIC] pushActionToLog failed or timed out:", e);
+        window.dispatchEvent(new CustomEvent('henchies_toast', { 
+            detail: { msg: "NETWORK ERROR: " + (e.message || "Failed to save move.") + " Please refresh.", type: "error" } 
+        }));
     }
 }
 
@@ -613,3 +662,5 @@ export async function subscribeToActiveMatches(username, callback) {
     }
     return () => {};
 }
+
+export { db, messaging };

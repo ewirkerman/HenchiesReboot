@@ -1,7 +1,7 @@
 export const ClientState = {
     gameState: null,
     localPlayerRole: 'player1',
-    roomCode: 'ROOM_HENCHIES_1',
+    roomCode: null,
     activeBattleDeck: null,
     selectedCardId: null,
     pendingAbility: null,

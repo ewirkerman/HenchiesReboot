@@ -29,8 +29,8 @@
   <!-- Header Navigation -->
   <main-nav active-page="game" subtitle="Match Setup Lobby"></main-nav>
 
-  <!-- SCREEN 1: MATCH SETUP & DECK SELECTOR -->
-  <match-lobby></match-lobby>
+  <!-- SCREEN 1: MATCH SETUP & DECK SELECTOR (LAZY LOADED) -->
+  <div id="lobby-anchor" class="flex-1 flex flex-col justify-center items-center w-full"></div>
 
   <!-- SCREEN 2: TABLETOP MATCH BOARD (HIDDEN INITIALLY) -->
   <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 pb-0 flex flex-col gap-1 hidden overflow-visible min-h-screen relative">

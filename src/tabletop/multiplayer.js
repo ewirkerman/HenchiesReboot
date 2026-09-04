@@ -3,6 +3,7 @@ import { updateUI } from './renderer.js';
 import { createGameRoom, subscribeToGameRoom, pushActionToLog, findOpenQueueRoom, sendDirectInvite, updateInviteStatus } from '../firebase.js';
 import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, hydrateAbility, GameEngine, startTurn } from '../engine/index.js';
 import { showToast } from '../ui.js';
+import { checkTurnStateForNotification } from '../profile.js';
 
 export async function validateAndGetDeck() {
     const username = document.getElementById('setup-username').value.trim();
@@ -93,7 +94,7 @@ export async function handleQueueMatch(btn) {
     
     const gameId = await findOpenQueueRoom(username);
     ClientState.roomCode = gameId;
-    window.location.hash = gameId;
+    history.pushState(null, null, '#' + gameId);
     
     connectToMatch(gameId, username);
 }
@@ -107,7 +108,7 @@ export async function handleAIMatch(btn) {
     
     const gameId = 'TEST_AI_' + Date.now();
     ClientState.roomCode = gameId;
-    window.location.hash = gameId;
+    history.pushState(null, null, '#' + gameId);
     
     ClientState.localPlayerRole = 'player1';
     ClientState.gameState = initGame(gameId, username, ClientState.activeBattleDeck, ClientState.allAbilitiesRegistry, ClientState.allCardsRegistry, ClientState.customTribesList);
@@ -126,6 +127,7 @@ export async function handleAIMatch(btn) {
     subscribeToGameRoom(gameId, (data) => {
         if (data && data.turn_start_state) {
             reconstructStateFromLog(data);
+            // checkTurnStateForNotification(ClientState.gameState, username); Removed local notification hook
         }
     });
 
@@ -150,7 +152,7 @@ export async function handleSendChallenge(btn) {
     
     if (success) {
         ClientState.roomCode = gameId;
-        window.location.hash = gameId;
+        history.pushState(null, null, '#' + gameId);
         connectToMatch(gameId, username);
         showToast("Challenge sent! Waiting for them to accept.", "success");
     } else {
@@ -167,7 +169,7 @@ export async function handleAcceptInvite(inviteId, gameId) {
     await updateInviteStatus(inviteId, 'accepted');
     
     ClientState.roomCode = gameId;
-    window.location.hash = gameId;
+    history.pushState(null, null, '#' + gameId);
     connectToMatch(gameId, username);
 }
 
@@ -176,13 +178,17 @@ export async function handleResumeMatch(gameId) {
     if (!username) return;
     
     ClientState.roomCode = gameId;
-    window.location.hash = gameId;
+    history.pushState(null, null, '#' + gameId);
     connectToMatch(gameId, username);
 }
 
 export async function connectToMatch(gameId, username) {
+    ClientState.roomCode = gameId;
     localStorage.setItem('henchies_last_username', username);
-    localStorage.setItem('henchies_last_deck', document.getElementById('setup-deck-select').value);
+    const deckSelect = document.getElementById('setup-deck-select');
+    if (deckSelect && deckSelect.value) {
+        localStorage.setItem('henchies_last_deck', deckSelect.value);
+    }
 
     let isJoining = true;
     
@@ -203,6 +209,13 @@ export async function connectToMatch(gameId, username) {
             isJoining = false;
             
             if (!data || !data.turn_start_state) {
+              if (!ClientState.activeBattleDeck) {
+                  showToast("Cannot initialize match: No deck selected. Returning to lobby.", "error");
+                  document.getElementById('match-setup-screen')?.classList.remove('hidden');
+                  history.pushState(null, null, ' '); 
+                  isJoining = true;
+                  return;
+              }
               ClientState.localPlayerRole = 'player1';
               ClientState.gameState = initGame(gameId, username, ClientState.activeBattleDeck, ClientState.allAbilitiesRegistry, ClientState.allCardsRegistry, ClientState.customTribesList);
               
@@ -227,6 +240,13 @@ export async function connectToMatch(gameId, username) {
                   reconstructStateFromLog(data);
                   enterTabletop();
               } else if (parsedState.players.player2.isDummy) {
+                  if (!ClientState.activeBattleDeck) {
+                      showToast("Cannot join match: No deck selected. Returning to lobby.", "error");
+                      document.getElementById('match-setup-screen')?.classList.remove('hidden');
+                      history.pushState(null, null, ' ');
+                      isJoining = true;
+                      return;
+                  }
                   ClientState.localPlayerRole = 'player2';
                   reconstructStateFromLog(data);
                   ClientState.gameState = joinGame(ClientState.gameState, username, ClientState.activeBattleDeck);
@@ -254,10 +274,13 @@ export async function connectToMatch(gameId, username) {
             }
           } else {
             if (data && data.turn_start_state) {
+              console.warn(`[DIAGNOSTIC-SYNC] Incoming Data Sync from Firebase. Action Log size: ${data.action_log ? data.action_log.length : 'none'}`);
               reconstructStateFromLog(data);
+              // checkTurnStateForNotification(ClientState.gameState, username); Removed local notification hook
             }
           }
         } catch (innerErr) {
+          console.error("Full match join error:", innerErr);
           showToast("Error joining match: " + (innerErr.message || "Unknown error"), "error");
           isJoining = true; 
           const qBtn = document.getElementById('queue-match-btn');
@@ -274,7 +297,12 @@ export async function connectToMatch(gameId, username) {
 
 export function enterTabletop() {
     document.getElementById('header-room-badge').innerText = `Lobby: ${ClientState.roomCode}`;
-    document.getElementById('match-setup-screen').classList.add('hidden');
+    
+    // Safely hide lobby and anchor elements
+    document.getElementById('match-setup-screen')?.classList.add('hidden');
+    const anchor = document.getElementById('lobby-anchor');
+    if (anchor) anchor.style.display = 'none';
+    
     document.getElementById('match-tabletop-screen').classList.remove('hidden');
     showToast(`Entered match tabletop as ${ClientState.localPlayerRole.toUpperCase()}!`, 'success');
     updateUI();
@@ -283,8 +311,11 @@ export function enterTabletop() {
 export function reconstructStateFromLog(data) {
     if (!data.turn_start_state) return;
     
+    console.warn(`[DIAGNOSTIC-RECONSTRUCT] --- RECONSTRUCTION START ---`);
+    
     try {
       const baseState = JSON.parse(data.turn_start_state);
+      console.warn(`[DIAGNOSTIC-RECONSTRUCT] Base State Active Player: ${baseState.activePlayerId}, Action Index: ${baseState.actionIndex}`);
       
       Object.defineProperty(baseState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
       Object.defineProperty(baseState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
@@ -298,6 +329,7 @@ export function reconstructStateFromLog(data) {
       let lastRealActionIndex = 0;
       
       if (data.action_log && data.action_log.length > 0) {
+        console.warn(`[DIAGNOSTIC-RECONSTRUCT] Action Log Length: ${data.action_log.length}`);
         const validActions = [];
         for (const action of data.action_log) {
             if (action.type === 'UNDO') {
@@ -311,8 +343,11 @@ export function reconstructStateFromLog(data) {
         
         for (const action of validActions) {
           if (action.actionIndex && action.actionIndex <= (liveState.actionIndex || 0)) {
+            console.warn(`[DIAGNOSTIC-RECONSTRUCT] SKIPPING action ${action.type} (Index ${action.actionIndex} <= ${liveState.actionIndex})`);
             continue;
           }
+          
+          console.warn(`[DIAGNOSTIC-RECONSTRUCT] EXECUTING action ${action.type} (Index ${action.actionIndex})`);
 
           if (action.type === 'UNDO') {
               console.log(`[REPLAY] Processed UNDO marker. Fast-forwarding clock to ${action.actionIndex}`);
@@ -329,6 +364,8 @@ export function reconstructStateFromLog(data) {
             executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
           } else if (action.type === 'END_TURN') {
             endTurn(liveState);
+            const engine = new GameEngine(liveState);
+            startTurn(liveState, engine);
           } else if (action.type === 'FORFEIT') {
               liveState.status = 'finished';
               let forfeitingPlayerId = action.playerId;
@@ -347,17 +384,25 @@ export function reconstructStateFromLog(data) {
           if (action.isUnsafe || action.type === 'END_TURN' || action.type === 'PLAYER_JOINED') {
               ClientState.lastSafeUndoIndex = action.actionIndex;
           }
+          
+          ClientState.localReplayStates.push(cloneGameState(liveState));
         }
       }
       
       liveState.lastRealActionIndex = lastRealActionIndex;
       liveState.isReconstructing = false;
       ClientState.gameState = liveState;
+      
+      console.warn(`[DIAGNOSTIC-RECONSTRUCT] FINAL STATE Active Player: ${ClientState.gameState.activePlayerId}`);
+      
       Object.defineProperty(ClientState.gameState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
       Object.defineProperty(ClientState.gameState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
       Object.defineProperty(ClientState.gameState, 'tribeCatalog', { value: ClientState.customTribesList, enumerable: false, configurable: true });
       ClientState.replayStepIndex = Math.max(0, ClientState.localReplayStates.length - 1);
       updateUI();
+      
+      const localUsername = document.getElementById('setup-username')?.value.trim() || localStorage.getItem('henchies_last_username');
+      checkTurnStateForNotification(ClientState.gameState, localUsername);
       
     } catch (err) {
       console.error("Error reconstructing game state from log:", err);

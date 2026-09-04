@@ -1,7 +1,7 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { pushActionToLog } from '../firebase.js';
-import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getValidAttackTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable } from '../engine/index.js';
+import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getValidAttackTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable, GameEngine, startTurn } from '../engine/index.js';
 import { showToast } from '../ui.js';
 import { reconstructStateFromLog } from './multiplayer.js';
 import { RandomAI } from '../ai/random.js';
@@ -84,12 +84,23 @@ export async function dispatchSacrificeDecision(option, cardId = null) {
 
 export async function handleEndTurn() {
     if (!ClientState.isMyTurn()) return;
+    
+    console.warn(`[DIAGNOSTIC-END-TURN] 1. Pre-EndTurn: Active Player = ${ClientState.gameState.activePlayerId}, Phase = ${ClientState.gameState.turnPhase}`);
+    
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     
     endTurn(ClientState.gameState);
+    console.warn(`[DIAGNOSTIC-END-TURN] 2. Post-endTurn() call: Active Player = ${ClientState.gameState.activePlayerId}, Phase = ${ClientState.gameState.turnPhase}`);
+    
+    const engine = new GameEngine(ClientState.gameState);
+    startTurn(ClientState.gameState, engine);
+    console.warn(`[DIAGNOSTIC-END-TURN] 3. Post-startTurn() call: Active Player = ${ClientState.gameState.activePlayerId}, Phase = ${ClientState.gameState.turnPhase}`);
+
     const payload = { type: 'END_TURN', actionIndex: ClientState.gameState.actionIndex, isUnsafe: true };
     const snapshot = JSON.stringify(ClientState.gameState);
+    
+    console.warn(`[DIAGNOSTIC-END-TURN] 4. Snapshot Check: includes "activePlayerId":"player2"? ${snapshot.includes('"activePlayerId":"player2"')}`);
     
     await pushActionToLog(ClientState.roomCode, payload, snapshot, ClientState.gameState.history_log);
     updateUI();
@@ -1128,6 +1139,8 @@ export async function triggerAILoop() {
             await pushActionToLog(ClientState.roomCode, { type: 'SACRIFICE_DECISION', option: move.action?.action || (move.type === 'SACRIFICE_SKIP' ? 'SKIP' : 'OPTION_A'), cardId: move.action?.cardId || null, actionIndex: state.actionIndex, isUnsafe: false }, null, state.history_log);
         } else if (move.type === 'PASS' || move.type === 'NO_MOVES') {
             endTurn(state);
+            const engine = new GameEngine(state);
+            startTurn(state, engine);
             await pushActionToLog(ClientState.roomCode, { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true }, JSON.stringify(state), state.history_log);
         } else if (move.executed) {
             const actionData = move.action || move;
@@ -1141,6 +1154,8 @@ export async function triggerAILoop() {
             if (payload) await pushActionToLog(ClientState.roomCode, payload, JSON.stringify(state), state.history_log);
         } else {
             endTurn(state);
+            const engine = new GameEngine(state);
+            startTurn(state, engine);
             await pushActionToLog(ClientState.roomCode, { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true }, JSON.stringify(state), state.history_log);
         }
         updateUI();
