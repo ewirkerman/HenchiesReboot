@@ -289,7 +289,44 @@ function processPendingTarget(targetId) {
     } else {
         cancelTargeting(targetId);
     }
-}
+
+    if (prefix === 'player' || prefix === 'equator') {
+      if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
+        const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
+        if (actions.length === 1) {
+            window.activateAbility(entityId, actions[0].abilityId);
+        } else if (actions.length > 1) {
+          let entityName = "Unknown Entity";
+          if (prefix === 'equator') {
+              const eq = ClientState.gameState.equator.find(i => i.instanceId === entityId);
+              if (eq) entityName = eq.name;
+          } else {
+            for (const l of LINES) {
+              const u = ClientState.gameState.players[ClientState.localPlayerRole].lines[l]?.find(u => u.instanceId === entityId);
+              if (u) { entityName = u.name; break; }
+            }
+          }
+          
+          window.openActionModal(entityId, entityName, actions, false);
+        } else {
+          let entity = null;
+          if (prefix === 'equator') entity = ClientState.gameState.equator?.find(i => i.instanceId === entityId);
+          else entity = ClientState.gameState.players[ClientState.localPlayerRole].lines[line]?.find(u => u.instanceId === entityId);
+          if (entity) {
+              const json = encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27");
+              window.inspectCard(json);
+          }
+        }
+      }
+    } else if (prefix === 'opp') {
+      const oppRole = ClientState.localPlayerRole === 'player1' ? 'player2' : 'player1';
+      const entity = ClientState.gameState.players[oppRole].lines[line]?.find(u => u.instanceId === entityId);
+      if (entity) {
+          const json = encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27");
+          window.inspectCard(json);
+      }
+    }
+};
 
 function maybeOpenZoneModal() {
     const uniqueZones = [...new Set(ClientState.validTargets.map(t => t.line))];
@@ -377,8 +414,95 @@ window.handleHandCardClick = async (cardId) => {
             return;
         }
 
-        if (actions.length === 1) {
-            window.activateHandCardAbility(cardId, actions[0].abilityId);
+        const canAffordAbility = (abCost) => {
+            if (!abCost) return true;
+            let reqCarnie = abCost.carnie || abCost.tent || 0;
+            let reqTribe = abCost.tribeAmount || 0;
+            
+            if (reqCarnie === 0 && reqTribe === 0) return true;
+            
+            let availCarnie = simCarnie;
+            let availTribe = simTribe;
+
+            if (reqCarnie > 0) {
+                if (availCarnie < reqCarnie) return false;
+                availCarnie -= reqCarnie;
+            }
+
+            if (reqTribe > 0) {
+                if (cTribe === 'Carnie') {
+                    if (availCarnie < reqTribe) return false;
+                } else {
+                    let maxConversion = Math.floor(availCarnie / 3);
+                    if ((availTribe + maxConversion) < reqTribe) return false;
+                }
+            }
+            return true;
+        };
+
+        const playAbilities = c.abilities ? c.abilities.filter(ab => {
+            const t = ab.trigger || 'MANUAL';
+            const isPlayTrigger = ['PLAY', 'PLAY_OPTIONAL', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(t);
+            const requiresTarget = ab.activation?.method === 'PLAYER_CHOICE';
+            const hasTargets = requiresTarget ? getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, cardId, ab.abilityId).length > 0 : true;
+            
+            if (t === 'PLAY_OPTIONAL') {
+                return canPlay && canAffordAbility(ab.cost) && hasTargets;
+            }
+
+            if (t === 'MANUAL' && ab.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
+                // Hand activations don't require the card's base cost! We check base resources directly.
+                if (!hasTargets) return false;
+                
+                let rawCarnie = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
+                let rawTribe = (cTribe !== 'Carnie' && player.resources[cTribe]) ? player.resources[cTribe].current : 0;
+                
+                let reqCarnie = ab.cost?.carnie || ab.cost?.tent || 0;
+                let reqTribe = ab.cost?.tribeAmount || 0;
+                
+                if (reqCarnie === 0 && reqTribe === 0) return true;
+                
+                if (reqCarnie > 0) {
+                    if (rawCarnie < reqCarnie) return false;
+                    rawCarnie -= reqCarnie;
+                }
+                
+                if (reqTribe > 0) {
+                    if (cTribe === 'Carnie') {
+                        if (rawCarnie < reqTribe) return false;
+                    } else {
+                        let maxConversion = Math.floor(rawCarnie / 3);
+                        if ((rawTribe + maxConversion) < reqTribe) return false;
+                    }
+                }
+                return true;
+            }
+            
+            return canPlay && isPlayTrigger && requiresTarget;
+        }) : [];
+
+        const hasMandatoryTarget = playAbilities.some(ab => ['PLAY', 'MODIFY_PLAY', 'ON_PLAYED', 'ON_BE_PLAYED'].includes(ab.trigger) && ab.activation?.method === 'PLAYER_CHOICE');
+        const showPlayNormally = canPlay && !hasMandatoryTarget;
+
+        if (playAbilities.length > 0 || canPlay) {
+            const actions = [];
+            
+            if (showPlayNormally) {
+                actions.push({ type: 'PLAY', name: 'Play Normally', undoable: !isPlayUnsafe(c, null), cost: c.cost });
+            }
+
+            playAbilities.forEach(ab => {
+                actions.push({ type: 'ABILITY', name: ab.name, abilityId: ab.abilityId, undoable: isUndoable(ClientState.gameState, ab), cost: ab.cost });
+            });
+            
+            if (actions.length === 1) {
+                if (actions[0].type === 'PLAY') window.executeNormalPlay(cardId);
+                else window.activateHandCardAbility(cardId, actions[0].abilityId);
+            } else if (actions.length > 1) {
+                window.openActionModal(cardId, c.name, actions, true);
+            } else if (!canPlay) {
+                showToast("Cannot play this card.", "error");
+            }
         } else {
             window.openActionModal(cardId, card.name, actions, true);
         }
@@ -1083,7 +1207,7 @@ function handlePointerUp(e) {
 
     hardResetGestureState(e);
 }
-
+window.handleUndo = handleUndo;
 // Global Kill-Switch for Long-Press (Context Menu) - Kept as Desktop Right-Click Fallback
 function handleContextMenu(e) {
     if (window.HoverManager) {
@@ -1125,7 +1249,9 @@ export async function triggerAILoop() {
         if (!state || state.status === 'finished' || state.activePlayerId !== activePlayer.id) return;
 
         const AIClass = activePlayer.isPassOnlyAI ? PassAI : RandomAI;
-        if (!ClientState.aiInstance || ClientState.aiInstance.playerId !== state.activePlayerId || !(ClientState.aiInstance instanceof AIClass)) ClientState.aiInstance = new AIClass(state.activePlayerId);
+        if (!ClientState.aiInstance || ClientState.aiInstance.playerId !== state.activePlayerId || !(ClientState.aiInstance instanceof AIClass)) {
+            ClientState.aiInstance = new AIClass(state.activePlayerId);
+        }
         if (ClientState.aiTurnNumber !== state.turnNumber) {
             ClientState.aiInstance.resetTurn();
             ClientState.aiTurnNumber = state.turnNumber;
@@ -1136,7 +1262,17 @@ export async function triggerAILoop() {
         const move = ClientState.aiInstance.executeNextMove(state);
 
         if (move.type === 'SACRIFICE' || move.type === 'SACRIFICE_SKIP') {
-            await pushActionToLog(ClientState.roomCode, { type: 'SACRIFICE_DECISION', option: move.action?.action || (move.type === 'SACRIFICE_SKIP' ? 'SKIP' : 'OPTION_A'), cardId: move.action?.cardId || null, actionIndex: state.actionIndex, isUnsafe: false }, null, state.history_log);
+            const option = move.action?.action || (move.type === 'SACRIFICE_SKIP' ? 'SKIP' : 'OPTION_A');
+            const cardId = move.action?.cardId || null;
+            const actionPayload = { 
+                type: 'SACRIFICE_DECISION', 
+                option, 
+                cardId, 
+                actionIndex: state.actionIndex, 
+                isUnsafe: false 
+            };
+            await pushActionToLog(ClientState.roomCode, actionPayload, null, state.history_log);
+            
         } else if (move.type === 'PASS' || move.type === 'NO_MOVES') {
             endTurn(state);
             const engine = new GameEngine(state);
@@ -1147,20 +1283,49 @@ export async function triggerAILoop() {
             let payload = null;
 
             if (move.type === 'PLAY_CARD' || actionData.type === 'PLAY_CARD') {
-                payload = { type: 'PLAY_CARD', actionIndex: state.actionIndex, playerId: state.activePlayerId, cardId: actionData.cardId || actionData.entityId, targetLine: actionData.targetLine || 'back', chosenAbilityId: actionData.abilityId, abilityTargetId: actionData.targetId || actionData.abilityTargetId, isUnsafe: true };
+                payload = { 
+                    type: 'PLAY_CARD', 
+                    actionIndex: state.actionIndex, 
+                    playerId: state.activePlayerId, 
+                    cardId: actionData.cardId || actionData.entityId, 
+                    targetLine: actionData.targetLine || 'back', 
+                    chosenAbilityId: actionData.abilityId, 
+                    abilityTargetId: actionData.targetId || actionData.abilityTargetId, 
+                    isUnsafe: true 
+                };
             } else if (move.type === 'ABILITY' || move.type === 'ATTACK' || actionData.type === 'ENTITY_ACTION') {
-                payload = { type: 'ENTITY_ACTION', actionIndex: state.actionIndex, playerId: state.activePlayerId, entityId: actionData.entityId || actionData.cardId, actionType: move.type === 'ABILITY' || move.type === 'ATTACK' ? move.type : actionData.actionType, abilityId: actionData.abilityId, targetId: actionData.targetId, targetLine: actionData.targetLine, isUnsafe: true };
+                payload = { 
+                    type: 'ENTITY_ACTION', 
+                    actionIndex: state.actionIndex, 
+                    playerId: state.activePlayerId, 
+                    entityId: actionData.entityId || actionData.cardId, 
+                    actionType: (move.type === 'ABILITY' || move.type === 'ATTACK') ? move.type : actionData.actionType, 
+                    abilityId: actionData.abilityId, 
+                    targetId: actionData.targetId, 
+                    targetLine: actionData.targetLine, 
+                    isUnsafe: true 
+                };
             }
-            if (payload) await pushActionToLog(ClientState.roomCode, payload, JSON.stringify(state), state.history_log);
+            
+            if (payload) {
+                await pushActionToLog(ClientState.roomCode, payload, JSON.stringify(state), state.history_log);
+            }
         } else {
+            // Include the helpful console warning from HEAD alongside the fallback from the target branch
+            console.warn("[AI] Move failed to execute or was invalid. Forcing PASS to prevent infinite loop.", move);
             endTurn(state);
             const engine = new GameEngine(state);
             startTurn(state, engine);
             await pushActionToLog(ClientState.roomCode, { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true }, JSON.stringify(state), state.history_log);
         }
+        
+        // This will naturally recall triggerAILoop via the renderer if the turn didn't end
         updateUI();
-    } catch(e) { console.error("AI Loop Error:", e); } 
-    finally { isAIRunning = false; }
+    } catch(e) { 
+        console.error("AI Loop Error:", e); 
+    } finally { 
+        isAIRunning = false; 
+    }
 }
 window.triggerAILoop = triggerAILoop;
 
