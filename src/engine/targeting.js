@@ -7,16 +7,26 @@ import { hasEngineFlag, resolveResourceKey, LINES, isUndoable } from './utils.js
 import { GameEngine } from './index.js';
 
 function findEntity(state, playerId, entityId) {
-    let entity = state.equator?.find(i => i.instanceId === entityId);
+    let entity = state.equator?.find(i => i.instanceId === entityId || i.id === entityId);
     if (entity) return entity;
     
     const p = state.players[playerId];
-    for (const line of LINES) {
-        entity = p.lines[line]?.find(u => u.instanceId === entityId);
-        if (entity) return entity;
+    if (p && p.lines) {
+        for (const line of LINES) {
+            entity = p.lines[line]?.find(u => u.instanceId === entityId || u.id === entityId);
+            if (entity) return entity;
+        }
     }
     
-    return p.hand.find(c => c.instanceId === entityId || c.id === entityId);
+    if (p) {
+        for (const zone of ['hand', 'discard', 'deck', 'banish']) {
+            if (p[zone]) {
+                entity = p[zone].find(c => c.instanceId === entityId || c.id === entityId);
+                if (entity) return entity;
+            }
+        }
+    }
+    return null;
 }
 
 function getStat(entity, statKey) {
@@ -53,9 +63,11 @@ function isFriendly(ownerA, ownerB) {
 }
 
 function matchesAlignment(targetOwnerId, sourceOwnerId, qt) {
+    if (!qt.alignment || qt.alignment.length === 0) return true; // <--- FIX: Missing alignment means no restrictions
+    
     const friendly = isFriendly(targetOwnerId, sourceOwnerId);
-    if (friendly && !(qt.alignment || []).includes('FRIENDLY')) return false;
-    if (!friendly && !(qt.alignment || []).includes('ENEMY')) return false;
+    if (friendly && !qt.alignment.includes('FRIENDLY')) return false;
+    if (!friendly && !qt.alignment.includes('ENEMY')) return false;
     return true;
 }
 
@@ -164,7 +176,7 @@ function collectFieldTargets(state, pId, source, sourceId, qt, isPlay) {
         p.lines[line].forEach(u => {
             if (u.type === 'boon') return; 
             addIfValid(u, u.line || line);
-            if (u.attachments) u.attachments.forEach(att => addIfValid(att, 'attachment'));
+            // Attachments are explicitly ignored here so they cannot be targeted directly
         });
     }
 
@@ -179,6 +191,7 @@ function collectFieldTargets(state, pId, source, sourceId, qt, isPlay) {
 function collectZoneTargets(state, pId, source, sourceId, qt, isPlay) {
     const targets = [];
     const p = state.players[pId];
+    if (!p) return targets;
 
     const addIfValid = (ent, line) => {
         if (checkQuickTargetingValidity(state, ent, pId, source, sourceId, qt, isPlay)) {
@@ -187,7 +200,7 @@ function collectZoneTargets(state, pId, source, sourceId, qt, isPlay) {
     };
 
     ['hand', 'discard', 'deck', 'banish'].forEach(z => {
-        if (qt.zones.includes(z.toUpperCase())) {
+        if (qt.zones.includes(z.toUpperCase()) && p[z]) {
             p[z].forEach(c => addIfValid(c, z));
         }
     });
@@ -196,25 +209,26 @@ function collectZoneTargets(state, pId, source, sourceId, qt, isPlay) {
 }
 
 function enforceBattlelinesOnTargets(state, targets, playerId, entity) {
-    const atkTargets = getValidAttackTargets(state, playerId, entity);
+    const defenderId = playerId === 'player1' ? 'player2' : 'player1';
+    
+    // We pass null for the attacker so it doesn't try to check block flags on the spell itself,
+    // and we assume spells don't inherently have perception unless specifically flagged.
+    const usePerception = hasPerception(state, entity);
+    const validPhysicalTargets = resolvePerspectiveTargets(state, defenderId, null, usePerception);
+
     return targets.filter(t => {
         if (isFriendly(t.playerId, playerId)) return true; 
         const isFieldLine = ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(t.line);
         if (!isFieldLine) return true; 
-        return atkTargets.some(at => at.id === t.id);
+        return validPhysicalTargets.some(at => at.id === t.id);
     });
-}
-
-function checkLogicTreeValidity(engine, ability, targetEntity, sourceEntity) {
-    if (!ability.activation?.logicTree) return true;
-    return engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, sourceEntity);
 }
 
 function checkSpecificLogicValidity(engine, state, ability, targetObj, sourceEntity) {
     const targetEntity = findEntity(state, targetObj.playerId, targetObj.id);
     if (!targetEntity) return false;
     
-    if (!checkLogicTreeValidity(engine, ability, targetEntity, sourceEntity)) return false;
+    if (ability.activation?.logicTree && !engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, state)) return false;
     if (!checkStatCostValidity(targetEntity, ability, 'SAME_AS_ACTIVATION')) return false;
     
     return true;
@@ -254,7 +268,9 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
 
 function isEntityInHand(state, playerId, entity) {
     const p = state.players[playerId];
-    return ['hand', 'discard', 'deck'].some(z => p[z]?.some(c => c.instanceId === entity.instanceId));
+    if (!p) return false;
+    const refId = entity.instanceId || entity.id;
+    return ['hand', 'discard', 'deck'].some(z => p[z]?.some(c => (c.instanceId || c.id) === refId));
 }
 
 function checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct) {
