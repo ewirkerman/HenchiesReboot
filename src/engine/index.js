@@ -1,6 +1,6 @@
 import { randomInt, shuffleArray as prandomShuffle } from './prandom.js';
 import { ACTION_REGISTRY, ACTION_MANIFEST, findEntityLocation } from './actions/index.js';
-import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES } from './utils.js';
+import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES, canAffordCost, payCost, getAttackCost } from './utils.js';
 import { getEntityAvailableActions, getValidAttackTargets } from './targeting.js';
 import { ATTRIBUTE_MANIFEST } from './attributes.js';
 
@@ -9,7 +9,7 @@ export class GameEngine {
         this.state = state;
         this.stack = [];
         this.processingDepth = 0;
-        this.activeChainAbilities = new Set(); // Loop prevention
+        this.activeChainAbilities = new Set(); 
         
         this.utils = {
             randomInt,
@@ -25,12 +25,15 @@ export class GameEngine {
         if (!eventType.startsWith('WOULD_') && !eventType.startsWith('MODIFY_') && !eventType.startsWith('ON_')) {
             const wouldEvent = `WOULD_${eventType}`;
             const addedTriggers = this.queueTriggers(wouldEvent, payload);
+            
+            let interceptCancelled = false;
             if (addedTriggers > 0) {
                 log(this.state, `[EVENT BUS] ⚡ Stack resolved immediately for ${wouldEvent} due to interceptors.`);
-                this.processStack(addedTriggers, wouldEvent);
+                interceptCancelled = this.processStack(addedTriggers, wouldEvent);
             }
-            if (payload && payload.cancelled) {
+            if (interceptCancelled || (payload && payload.cancelled)) {
                 log(this.state, `[EVENT BUS] 🛑 Event ${eventType} was CANCELLED.`);
+                if (payload) payload.cancelled = true;
                 return { cancelled: true };
             }
         }
@@ -55,13 +58,11 @@ export class GameEngine {
         const triggers = [];
         const checkedEntities = new Set();
 
-        // 1. Force-check transit entities in the payload
         if (payload) {
             if (payload.source) this._evaluateTriggerMatch(payload.source, getOwnerId(this.state, payload.source), eventType, payload, checkedEntities, triggers);
             if (payload.target) this._evaluateTriggerMatch(payload.target, getOwnerId(this.state, payload.target), eventType, payload, checkedEntities, triggers);
         }
         
-        // 2. Scan Board
         for (const pId of ['player1', 'player2']) {
             const player = this.state.players[pId];
             for (const line of LINES) {
@@ -75,7 +76,6 @@ export class GameEngine {
             }
         }
         
-        // 3. Scan Equator
         if (this.state.equator) {
             for (const item of this.state.equator) {
                 this._evaluateTriggerMatch(item, item.ownerId || this.state.activePlayerId, eventType, payload, checkedEntities, triggers);
@@ -84,7 +84,6 @@ export class GameEngine {
 
         if (triggers.length === 0) return 0;
 
-        // APNAP Sorting
         triggers.sort((a, b) => {
             if (a.owner === this.state.activePlayerId && b.owner !== this.state.activePlayerId) return -1;
             if (a.owner !== this.state.activePlayerId && b.owner === this.state.activePlayerId) return 1;
@@ -196,9 +195,8 @@ export class GameEngine {
             
             this.activeChainAbilities.add(frame.ability.abilityId);
             
-            // Directly pass the reference so modifiers (like Fire! or Resilient) can mutate the parent event!
             let livePayload = frame.payload;
-            if (!livePayload) livePayload = {}; // Ensure it exists for xValue injection
+            if (!livePayload) livePayload = {}; 
             
             if (livePayload?.eventContext && rootEventCancelled) {
                  livePayload.eventContext.cancelled = true;
@@ -229,11 +227,8 @@ export class GameEngine {
                 abilityId: 'native_attack',
                 name: 'Attack',
                 trigger: 'MANUAL',
-                cost: { readinessCost: hasEngineFlag(this.state, source, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' },
-                effects: [{
-                    targetMethod: 'EVENT_TARGET',
-                    payloads: [{ type: 'ATTACK' }]
-                }]
+                cost: getAttackCost(this.state, source),
+                effects: [{ targetMethod: 'EVENT_TARGET', payloads: [{ type: 'ATTACK' }] }]
             };
         }
 
@@ -250,7 +245,7 @@ export class GameEngine {
             }
 
             ownerId = ownerId || this.state.activePlayerId;
-            if (!eventPayload) eventPayload = {}; // Ensure eventPayload exists to receive xValue
+            if (!eventPayload) eventPayload = {}; 
             if (!this._checkAndPayCost(ability, source, ownerId, eventPayload)) return;
 
             if (ability.trigger === 'MANUAL') {
@@ -279,7 +274,6 @@ export class GameEngine {
 
         const p = this.state.players[ownerId];
         const cost = ability.cost || {};
-        let canAfford = true;
         
         let currentReadiness = Number(source.readiness);
         if (isNaN(currentReadiness)) currentReadiness = 0;
@@ -287,47 +281,20 @@ export class GameEngine {
         const loc = findEntityLocation(this, source);
         const isHandAct = ability.passiveFlags?.includes('ACTIVATE_FROM_HAND') && loc && ['hand', 'discard', 'deck'].includes(loc.zone);
         
-        let requiresReadiness = true; // All manual actions natively require readiness
+        let requiresReadiness = true; 
         if (isHandAct) {
             requiresReadiness = false;
         } else if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && previousUses > 0) {
             requiresReadiness = false;
         }
-        if (ability.trigger === 'MANUAL' && requiresReadiness && currentReadiness < 1) canAfford = false;
         
-        // --- ESCALATING COST (LINEAR) ---
+        if (ability.trigger === 'MANUAL' && requiresReadiness && currentReadiness < 1) return false;
+        
         const lifetimeUses = source.lifetimeAbilityUses?.[ability.abilityId] || 0;
         const escalateAmount = cost.escalates ? lifetimeUses : 0;
         
-        let cCost = (cost.carnie || cost.tent || 0);
-        let pCost = (cost.power || 0);
-        let tCost = (cost.tribeAmount || 0);
-
-        if (cost.escalates) {
-            if (pCost > 0) pCost += escalateAmount;
-            else if (tCost > 0) tCost += escalateAmount;
-            else cCost += escalateAmount;
-        }
-
-        if (cCost > 0 && (p.resources['Carnie']?.current || 0) < cCost) canAfford = false;
-        if (pCost > 0 && (source.power || 0) < pCost) canAfford = false;
-        
-        let tribeResKey = null;
-        if (canAfford && tCost > 0) {
-            const entityTribe = resolveResourceKey(this.state, p, source.tribe);
-            if (entityTribe === 'Carnie') {
-                const remainingCarnie = Math.max(0, (p.resources['Carnie']?.current || 0) - cCost);
-                if (remainingCarnie < tCost) canAfford = false;
-            } else {
-                tribeResKey = entityTribe;
-                const tribeRes = p.resources[tribeResKey] ? p.resources[tribeResKey].current : 0;
-                const remainingCarnie = Math.max(0, (p.resources['Carnie']?.current || 0) - cCost);
-                const maxCarnieConversion = Math.floor(remainingCarnie / 3);
-                if (tribeRes + maxCarnieConversion < tCost) canAfford = false;
-            }
-        }
-
-        if (!canAfford) {
+        const affordCheck = canAffordCost(this.state, p, source, cost, escalateAmount, false);
+        if (!affordCheck.success) {
             log(this.state, `[Engine] Could not afford trigger cost for '${ability.name}'.`);
             if (ability.trigger !== 'MANUAL') this.state.history_log.push({ text: `⚠️ ${source.name} tried to trigger '${ability.name}', but lacked resources.`, depth: this.state._actionDepth || this.processingDepth || 0 });
             return false;
@@ -348,23 +315,7 @@ export class GameEngine {
             if (source.readiness < -1) source.readiness = -1;
         }
         
-        if (cCost > 0 && p.resources['Carnie']) p.resources['Carnie'].current -= cCost;
-        if (pCost > 0) source.power -= pCost;
-        
-        if (tCost > 0) {
-            const entityTribe = resolveResourceKey(this.state, p, source.tribe);
-            if (entityTribe === 'Carnie') {
-                p.resources['Carnie'].current -= tCost;
-            } else if (tribeResKey) {
-                let costRemaining = tCost;
-                let tribeResToUse = Math.min(p.resources[tribeResKey].current, costRemaining);
-                costRemaining -= tribeResToUse;
-                p.resources[tribeResKey].current -= tribeResToUse;
-                if (costRemaining > 0 && p.resources['Carnie']) {
-                    p.resources['Carnie'].current -= (costRemaining * 3);
-                }
-            }
-        }
+        payCost(this.state, p, source, cost, escalateAmount, false);
 
         return true;
     }
@@ -407,7 +358,7 @@ export class GameEngine {
                 }
             }
             else if (group.targetMethod?.startsWith('AUTO_')) {
-                return []; // Deferred to phase 2
+                return []; 
             }
             
             if (targets.length === 0 && group.targetMethod === 'SAME_AS_ACTIVATION' && eventPayload?.target) targets = [eventPayload.target];
@@ -440,7 +391,6 @@ export class GameEngine {
                     for (const target of targets) {
                         let currentTarget = target;
                         
-                        // Interceptor for tunneled ATTACH actions
                         if (['ATTACH', 'ATTACH_TO'].includes(payload.type) && currentTarget.instanceId === source.instanceId) {
                             if (eventPayload?.abilityTargetId) {
                                 const p1 = this.state.players.player1;
@@ -454,7 +404,7 @@ export class GameEngine {
                                 const altTarget = allEntities.find(e => e.id === eventPayload.abilityTargetId || e.instanceId === eventPayload.abilityTargetId);
                                 if (altTarget) currentTarget = altTarget;
                             }
-                            if (currentTarget.instanceId === source.instanceId) continue; // Abort self-attach
+                            if (currentTarget.instanceId === source.instanceId) continue; 
                         }
                         
                         const actionPayload = { ...payload };
@@ -590,7 +540,6 @@ export class GameEngine {
                 targetEnt = source;
             }
 
-            // Immediately fail unsupported attributes based on the Entity's type to prevent logic crashes
             const attrDef = ATTRIBUTE_MANIFEST[checkAttr];
             if (attrDef && attrDef.domain === 'ENTITY' && !attrDef.allowedTypes.includes('ALL')) {
                 const tType = targetEnt.type ? targetEnt.type.toUpperCase() : 'UNIT';

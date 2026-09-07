@@ -3,31 +3,8 @@
  * Logic for determining valid targets and available actions.
  */
 
-import { hasEngineFlag, resolveResourceKey, LINES, isUndoable } from './utils.js';
+import { hasEngineFlag, resolveResourceKey, LINES, isUndoable, findEntity, canAffordCost, getAttackCost } from './utils.js';
 import { GameEngine } from './index.js';
-
-function findEntity(state, playerId, entityId) {
-    let entity = state.equator?.find(i => i.instanceId === entityId || i.id === entityId);
-    if (entity) return entity;
-    
-    const p = state.players[playerId];
-    if (p && p.lines) {
-        for (const line of LINES) {
-            entity = p.lines[line]?.find(u => u.instanceId === entityId || u.id === entityId);
-            if (entity) return entity;
-        }
-    }
-    
-    if (p) {
-        for (const zone of ['hand', 'discard', 'deck', 'banish']) {
-            if (p[zone]) {
-                entity = p[zone].find(c => c.instanceId === entityId || c.id === entityId);
-                if (entity) return entity;
-            }
-        }
-    }
-    return null;
-}
 
 function getStat(entity, statKey) {
     const val = Number(entity[statKey]);
@@ -63,7 +40,7 @@ function isFriendly(ownerA, ownerB) {
 }
 
 function matchesAlignment(targetOwnerId, sourceOwnerId, qt) {
-    if (!qt.alignment || qt.alignment.length === 0) return true; // <--- FIX: Missing alignment means no restrictions
+    if (!qt.alignment || qt.alignment.length === 0) return true;
     
     const friendly = isFriendly(targetOwnerId, sourceOwnerId);
     if (friendly && !qt.alignment.includes('FRIENDLY')) return false;
@@ -110,7 +87,10 @@ function getFieldTargets(state, targetPlayerId, isValidTarget, enforceBattleline
 }
 
 function getBattlelineTargets(logicalLines) {
-    if (logicalLines['taunt'].length > 0) return logicalLines['taunt'];
+    if (logicalLines['taunt'].length > 0) {
+        if (logicalLines['sideline'].length > 0) return [...logicalLines['taunt'], ...logicalLines['sideline']];
+        return logicalLines['taunt'];
+    }
 
     const validTargets = [];
     for (const line of ['front', 'mid', 'back', 'sheltered']) {
@@ -176,7 +156,7 @@ function collectFieldTargets(state, pId, source, sourceId, qt, isPlay) {
         p.lines[line].forEach(u => {
             if (u.type === 'boon') return; 
             addIfValid(u, u.line || line);
-            // Attachments are explicitly ignored here so they cannot be targeted directly
+            // Attachments explicitly ignored here
         });
     }
 
@@ -211,8 +191,7 @@ function collectZoneTargets(state, pId, source, sourceId, qt, isPlay) {
 function enforceBattlelinesOnTargets(state, targets, playerId, entity) {
     const defenderId = playerId === 'player1' ? 'player2' : 'player1';
     
-    // We pass null for the attacker so it doesn't try to check block flags on the spell itself,
-    // and we assume spells don't inherently have perception unless specifically flagged.
+    // Check lines physically, ignoring whether the source is a valid physical attacker
     const usePerception = hasPerception(state, entity);
     const validPhysicalTargets = resolvePerspectiveTargets(state, defenderId, null, usePerception);
 
@@ -228,7 +207,10 @@ function checkSpecificLogicValidity(engine, state, ability, targetObj, sourceEnt
     const targetEntity = findEntity(state, targetObj.playerId, targetObj.id);
     if (!targetEntity) return false;
     
-    if (ability.activation?.logicTree && !engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, state)) return false;
+    if (ability.activation?.logicTree) {
+        if (!engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, sourceEntity, null)) return false;
+    }
+    
     if (!checkStatCostValidity(targetEntity, ability, 'SAME_AS_ACTIVATION')) return false;
     
     return true;
@@ -256,7 +238,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     targets.push(...collectZoneTargets(state, playerId, entity, playerId, qt, isPlay));
     targets.push(...collectZoneTargets(state, oppId, entity, playerId, qt, isPlay));
 
-    if (qt.zones.includes('FIELD') && !qt.ignoreBattlelines) {
+    if (qt.zones.includes('FIELD') && !qt.ignoreBattlelines && !isPlay) {
         targets = enforceBattlelinesOnTargets(state, targets, playerId, entity);
     }
 
@@ -277,46 +259,6 @@ function checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct)
     if (isHandAct) return true;
     if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0) return true;
     return getStat(entity, 'readiness') >= 1;
-}
-
-function calculateEscalatedCostValues(costObj, escalateAmt) {
-    let cCost = (costObj.carnie || costObj.tent || 0);
-    let pCost = (costObj.power || 0);
-    let tCost = (costObj.tribeAmount || 0);
-
-    if (costObj.escalates) {
-        if (pCost > 0) pCost += escalateAmt;
-        else if (tCost > 0) tCost += escalateAmt;
-        else cCost += escalateAmt;
-    }
-    return { cCost, pCost, tCost };
-}
-
-function checkBasicResourceAffordability(player, entity, cCost, pCost) {
-    if (cCost > 0 && (player.resources['Carnie']?.current || 0) < cCost) return false;
-    if (pCost > 0 && getStat(entity, 'power') < pCost) return false;
-    return true;
-}
-
-function checkTribeResourceAffordability(state, player, entity, cCost, tCost) {
-    if (tCost <= 0) return true;
-    
-    const entityTribe = resolveResourceKey(state, player, entity.tribe);
-    const remainingCarnie = Math.max(0, (player.resources['Carnie']?.current || 0) - cCost);
-    
-    if (entityTribe === 'Carnie') {
-        return remainingCarnie >= tCost;
-    } 
-    
-    const tribeRes = player.resources[entityTribe] ? player.resources[entityTribe].current : 0;
-    return tribeRes + Math.floor(remainingCarnie / 3) >= tCost;
-}
-
-function checkResourceAffordability(state, player, entity, costObj, escalateAmt) {
-    const { cCost, pCost, tCost } = calculateEscalatedCostValues(costObj, escalateAmt);
-    if (!checkBasicResourceAffordability(player, entity, cCost, pCost)) return false;
-    if (!checkTribeResourceAffordability(state, player, entity, cCost, tCost)) return false;
-    return true;
 }
 
 function checkActionAffordability(entity, costObj, isHandAct) {
@@ -349,7 +291,7 @@ function checkAbilityAffordability(state, playerId, entity, ability, abilityKey)
     const lifetimeUses = entity.lifetimeAbilityUses?.[ability.abilityId] || 0;
     const escalateAmt = cost.escalates ? lifetimeUses * cost.escalates : 0;
     
-    if (!checkResourceAffordability(state, player, entity, cost, escalateAmt)) return false;
+    if (!canAffordCost(state, player, entity, cost, escalateAmt, isHandAct && isPlayAct).success) return false;
     if (!checkActionAffordability(entity, cost, isHandAct)) return false;
     
     return true;
@@ -373,11 +315,7 @@ function buildPlayAction(state, playerId, entity) {
     if (!isEntityInHand(state, playerId, entity)) return null;
 
     const player = state.players[playerId];
-    const baseCostObj = typeof entity.cost === 'object' && entity.cost !== null 
-        ? entity.cost 
-        : { carnie: (typeof entity.cost === 'number' ? entity.cost : 0) };
-        
-    if (!checkResourceAffordability(state, player, entity, baseCostObj, 0)) return null;
+    if (!canAffordCost(state, player, entity, entity.cost, 0, true).success) return null;
 
     return {
         type: 'PLAY',
@@ -404,7 +342,7 @@ function buildAttackAction(state, playerId, entity) {
         name: 'Attack',
         abilityId: 'native_attack',
         undoable: true,
-        cost: { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' },
+        cost: getAttackCost(state, entity),
         requiresTarget: true,
         validTargets: atkTargets,
         isPlayAbility: false
@@ -437,7 +375,7 @@ function buildAbilityAction(state, playerId, entity, ability) {
         name: ability.name, 
         abilityId: ability.abilityId, 
         undoable: isUndoable(state, ability), 
-        cost: ability.cost, // Action exposes just the ability cost for UI
+        cost: ability.cost, 
         requiresTarget,
         validTargets,
         isPlayAbility: isPlayTrigger(ability.trigger)
@@ -463,7 +401,6 @@ export function getEntityAvailableActions(state, playerId, entityId) {
         });
     }
     
-    // Ensure Spells/Interceptors never render as 'Play Normally' if their ability requirements fail
     const mandatoryPlayTriggers = ['PLAY', 'ON_PLAY', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'MODIFY_PLAY'];
     const cardHasMandatoryPlay = entity.abilities?.some(ab => mandatoryPlayTriggers.includes(ab.trigger));
     

@@ -1,11 +1,10 @@
-// filepath: src/engine/flow.js
 /**
  * src/engine/flow.js
  * Top-level player actions and turn progression flow.
  */
 
 import { GameEngine } from './index.js';
-import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG, hasEngineFlag } from './utils.js';
+import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG, hasEngineFlag, isEntityOnBoard, canAffordCost, payCost, findEntity, getAttackCost } from './utils.js';
 import { HarvestAction, PlayAction, sweepTurnEffects } from './actions/index.js';
 import { generateId, shuffleArray } from './prandom.js';
 
@@ -179,7 +178,7 @@ export function startTurn(state, engine) {
 }
 
 export function executeSacrificeDecision(state, option, cardId) {
-    state._actionDepth = 0; // Hard reset to prevent depth leaks from previous errors
+    state._actionDepth = 0; 
     if (state.turnPhase !== 'SACRIFICE_DECISION') return;
     const player = state.players[state.activePlayerId];
 
@@ -203,37 +202,11 @@ export function canPlayCard(state, playerId, card) {
     if (!player) return { success: false, reason: "Player not found" };
 
     if (hasEngineFlag(state, card, 'UNIQUE_ENTITY')) {
-        let found = false;
-        for (const pId of ['player1', 'player2']) {
-            const p = state.players[pId];
-            for (const line of LINES) {
-                if (p.lines[line]?.some(u => u.name === card.name || u.id === card.id)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (found) break;
-        }
-        if (!found && state.equator?.some(i => i.name === card.name || i.id === card.id)) {
-            found = true;
-        }
-        if (found) return { success: false, reason: "A unique copy of this entity is already on the board" };
+        if (isEntityOnBoard(state, card)) return { success: false, reason: "A unique copy of this entity is already on the board" };
     }
 
-    let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
-    let cTribe = resolveResourceKey(state, player, card.tribe);
-    let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
-
-    if (baseCost > 0) {
-        if (cTribe === 'Carnie') {
-            if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Need ${baseCost})` };
-        } else {
-            const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
-            if (tribeRes < 1 && baseCost > 0) return { success: false, reason: `Must use at least 1 Tribe Resource for the card` };
-            const maxCarnieConversion = Math.floor(carnieRes / 3);
-            if (tribeRes + maxCarnieConversion < baseCost) return { success: false, reason: `Not enough resources (Need ${baseCost})` };
-        }
-    }
+    const affordCheck = canAffordCost(state, player, card, card.cost, 0, true);
+    if (!affordCheck.success) return affordCheck;
 
     if (card.abilities) {
         for (const ab of card.abilities) {
@@ -253,58 +226,20 @@ export function canPlayCard(state, playerId, card) {
 }
 
 export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbilityId = null, abilityTargetId = null) {
-    state._actionDepth = 0; // Hard reset to prevent depth leaks from previous errors
+    state._actionDepth = 0; 
     const player = state.players[playerId];
     const cardIdx = player.hand.findIndex(c => c.instanceId === cardId || c.id === cardId);
     if (cardIdx === -1) return { success: false, reason: "Card not in hand" };
     const card = player.hand[cardIdx];
 
     if (hasEngineFlag(state, card, 'UNIQUE_ENTITY')) {
-        let found = false;
-        for (const pId of ['player1', 'player2']) {
-            const p = state.players[pId];
-            for (const line of LINES) {
-                if (p.lines[line]?.some(u => u.name === card.name || u.id === card.id)) {
-                    found = true;
-                    break;
-                }
-            }
-            if (found) break;
-        }
-        if (!found && state.equator?.some(i => i.name === card.name || i.id === card.id)) {
-            found = true;
-        }
-        if (found) return { success: false, reason: "A unique copy of this entity is already on the board" };
+        if (isEntityOnBoard(state, card)) return { success: false, reason: "A unique copy of this entity is already on the board" };
     }
 
-    let baseCost = typeof card.cost === 'object' ? (card.cost.tribeAmount > 0 ? card.cost.tribeAmount : (card.cost.carnie || card.cost.tent || 0)) : (card.cost || 0);
-    let cTribe = resolveResourceKey(state, player, card.tribe);
-    let carnieRes = player.resources['Carnie'] ? player.resources['Carnie'].current : 0;
+    const affordCheck = canAffordCost(state, player, card, card.cost, 0, true);
+    if (!affordCheck.success) return affordCheck;
 
-    if (baseCost > 0) {
-        if (cTribe === 'Carnie') {
-            if (carnieRes < baseCost) return { success: false, reason: `Not enough Carnie (Need ${baseCost})` };
-        } else {
-            const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
-            if (tribeRes < 1 && baseCost > 0) return { success: false, reason: `Must use at least 1 Tribe Resource for the card` };
-            const maxCarnieConversion = Math.floor(carnieRes / 3);
-            if (tribeRes + maxCarnieConversion < baseCost) return { success: false, reason: `Not enough resources (Need ${baseCost})` };
-        }
-    }
-
-    // Deduct ONLY baseCost. (executeAbility handles the optional abilityCost natively later in the action)
-    if (baseCost > 0) {
-        if (cTribe === 'Carnie') {
-            player.resources['Carnie'].current -= baseCost;
-        } else {
-            const tribeRes = player.resources[cTribe] ? player.resources[cTribe].current : 0;
-            let costRemaining = baseCost;
-            let tribeResToUse = Math.min(tribeRes, costRemaining);
-            costRemaining -= tribeResToUse;
-            if (costRemaining > 0) player.resources['Carnie'].current -= (costRemaining * 3);
-            if (cTribe) player.resources[cTribe].current -= tribeResToUse;
-        }
-    }
+    payCost(state, player, card, card.cost, 0, true);
 
     const engine = new GameEngine(state);
     const action = new PlayAction({
@@ -318,18 +253,9 @@ export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbi
 }
 
 export function executeEntityAction(state, playerId, entityId, actionType, abilityId, targetId, targetLine) {
-    state._actionDepth = 0; // Hard reset to prevent depth leaks from previous errors
+    state._actionDepth = 0; 
     if (actionType === 'ABILITY' || actionType === 'ATTACK') {
-        let entity = state.equator?.find(i => i.instanceId === entityId);
-        if (!entity) {
-            for (const line of LINES) {
-                entity = state.players[playerId].lines[line]?.find(u => u.instanceId === entityId);
-                if (entity) break;
-            }
-        }
-        if (!entity) {
-            entity = state.players[playerId].hand.find(c => c.instanceId === entityId || c.id === entityId);
-        }
+        let entity = findEntity(state, playerId, entityId);
         if (!entity) return { success: false, reason: "Entity not found" };
         
         let ability = entity.abilities?.find(a => a.abilityId === abilityId);
@@ -338,7 +264,7 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
                 abilityId: 'native_attack',
                 name: 'Attack',
                 trigger: 'MANUAL',
-                cost: { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' },
+                cost: getAttackCost(state, entity),
                 effects: [{ targetMethod: 'EVENT_TARGET', payloads: [{ type: 'ATTACK' }] }]
             };
         }
@@ -365,9 +291,7 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         }
 
         const engine = new GameEngine(state);
-        
         engine.emit('ON_ACT', { source: entity, eventContext: { abilityId, actionType, targetId } });
-
         engine.processingDepth = 1;
         engine.executeAbility(ability, entity, { target: targetEntity });
         return { success: true };
