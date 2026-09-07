@@ -1,5 +1,5 @@
 /**
- * src/utils.js
+ * src/engine/utils.js
  * Shared utilities and helpers for the Henchies 2 Game Engine.
  */
 
@@ -241,4 +241,125 @@ export function cloneGameState(state) {
     if (state.catalog) Object.defineProperty(clone, 'catalog', { value: state.catalog, enumerable: false, configurable: true });
     if (state.tribeCatalog) Object.defineProperty(clone, 'tribeCatalog', { value: state.tribeCatalog, enumerable: false, configurable: true });
     return clone;
+}
+
+// -----------------------------------------------------------------------------
+// CENTRALIZED RESOURCE & TARGETING UTILS (CONSOLIDATED)
+// -----------------------------------------------------------------------------
+
+export function findEntity(state, playerId, entityId) {
+    let entity = state.equator?.find(i => i.instanceId === entityId || i.id === entityId);
+    if (entity) return entity;
+    
+    const p = state.players[playerId];
+    if (p && p.lines) {
+        for (const line of LINES) {
+            entity = p.lines[line]?.find(u => u.instanceId === entityId || u.id === entityId);
+            if (entity) return entity;
+        }
+    }
+    
+    if (p) {
+        const zonesToSearch = ['hand', 'discard', 'deck', 'banish'];
+        for (const zone of zonesToSearch) {
+            if (p[zone]) {
+                entity = p[zone].find(c => c.instanceId === entityId || c.id === entityId);
+                if (entity) return entity;
+            }
+        }
+    }
+    return null;
+}
+
+export function isEntityOnBoard(state, card) {
+    let found = false;
+    for (const pId of ['player1', 'player2']) {
+        const p = state.players[pId];
+        for (const line of LINES) {
+            if (p.lines[line]?.some(u => u.name === card.name || u.id === card.id)) return true;
+        }
+    }
+    if (state.equator?.some(i => i.name === card.name || i.id === card.id)) return true;
+    return false;
+}
+
+export function getAttackCost(state, entity) {
+    return { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' };
+}
+
+function normalizeCostObject(costObj, isCardPlay, entityTribe) {
+    if (isCardPlay) {
+        let baseCost = typeof costObj === 'number' ? costObj : ((costObj && costObj.tribeAmount > 0) ? costObj.tribeAmount : ((costObj && costObj.carnie) || (costObj && costObj.tent) || 0));
+        if (entityTribe !== 'Carnie' && entityTribe !== 'Generic') {
+            return { tribeAmount: baseCost };
+        } else {
+            return { carnie: baseCost };
+        }
+    }
+    return typeof costObj === 'number' ? { carnie: costObj } : (costObj || { carnie: 0 });
+}
+
+export function calculateEscalatedCostValues(costObj, escalateAmt) {
+    let cCost = (costObj.carnie || costObj.tent || 0);
+    let pCost = (costObj.power || 0);
+    let tCost = (costObj.tribeAmount || 0);
+
+    if (costObj.escalates) {
+        if (pCost > 0) pCost += escalateAmt;
+        else if (tCost > 0) tCost += escalateAmt;
+        else cCost += escalateAmt;
+    }
+    return { cCost, pCost, tCost };
+}
+
+export function canAffordCost(state, player, entity, costObj, escalateAmt = 0, isCardPlay = false) {
+    if (!player) return { success: false, reason: "Player not found" };
+
+    const entityTribe = resolveResourceKey(state, player, entity?.tribe);
+    const normalizedCost = normalizeCostObject(costObj, isCardPlay, entityTribe);
+    const { cCost, pCost, tCost } = calculateEscalatedCostValues(normalizedCost, escalateAmt);
+
+    if (cCost > 0 && (player.resources['Carnie']?.current || 0) < cCost) return { success: false, reason: `Not enough Carnie (Need ${cCost})` };
+    if (pCost > 0 && (entity?.power || 0) < pCost) return { success: false, reason: `Not enough Power (Need ${pCost})` };
+
+    if (tCost > 0) {
+        const entityTribe = resolveResourceKey(state, player, entity?.tribe);
+        const remainingCarnie = Math.max(0, (player.resources['Carnie']?.current || 0) - cCost);
+
+        if (entityTribe === 'Carnie') {
+            if (remainingCarnie < tCost) return { success: false, reason: `Not enough Carnie (Need ${tCost})` };
+        } else {
+            const tribeRes = player.resources[entityTribe] ? player.resources[entityTribe].current : 0;
+            if (isCardPlay && tribeRes < 1) return { success: false, reason: `Must use at least 1 Tribe Resource for the card` };
+            
+            const maxCarnieConversion = Math.floor(remainingCarnie / 3);
+            if (tribeRes + maxCarnieConversion < tCost) return { success: false, reason: `Not enough resources (Need ${tCost})` };
+        }
+    }
+    return { success: true };
+}
+
+export function payCost(state, player, entity, costObj, escalateAmt = 0, isCardPlay = false) {
+    const entityTribe = resolveResourceKey(state, player, entity?.tribe);
+    const normalizedCost = normalizeCostObject(costObj, isCardPlay, entityTribe);
+    const { cCost, pCost, tCost } = calculateEscalatedCostValues(normalizedCost, escalateAmt);
+
+    if (cCost > 0 && player.resources['Carnie']) player.resources['Carnie'].current -= cCost;
+    if (pCost > 0 && entity) entity.power -= pCost;
+
+    if (tCost > 0) {
+        const entityTribe = resolveResourceKey(state, player, entity?.tribe);
+        if (entityTribe === 'Carnie') {
+            if (player.resources['Carnie']) player.resources['Carnie'].current -= tCost;
+        } else {
+            let costRemaining = tCost;
+            let tribeResToUse = Math.min(player.resources[entityTribe]?.current || 0, costRemaining);
+            costRemaining -= tribeResToUse;
+            
+            if (player.resources[entityTribe]) player.resources[entityTribe].current -= tribeResToUse;
+            if (costRemaining > 0 && player.resources['Carnie']) {
+                player.resources['Carnie'].current -= (costRemaining * 3);
+            }
+        }
+    }
 }
