@@ -134,7 +134,7 @@ export function renderJumbo(ctx) {
           <!-- Type Band -->
           <div class="flex justify-center pb-1 shrink-0 mb-1 z-10 pointer-events-none relative">
             <div class="text-[10px] font-bold text-slate-200 capitalize tracking-wider bg-black/40 px-3 py-0.5 rounded-full shadow-inner">
-              ${style.name || card.tribe} • ${card.type}${card.genus ? ` • ${card.genus}` : ''}${card.family ? ` • ${card.family}` : ''}
+              ${style.name || card.tribe} • ${card.type}${(card.genus && card.genus.toLowerCase() != 'generic') ? ` • ${card.genus}` : ''}${card.family ? ` • ${card.family}` : ''}
             </div>
           </div>
 
