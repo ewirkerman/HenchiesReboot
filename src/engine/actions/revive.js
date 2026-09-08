@@ -14,6 +14,14 @@ export class ReviveAction extends Action {
             }
             
             moveEntity(engine, target, loc.playerId, destZone);
+            
+            // Override the default moveEntity behavior (which restores maxHealth)
+            // to inherently set the unit's HP to 1 upon revival.
+            if (target.type === 'unit') {
+                target.health = 1;
+            }
+            
+
             engine.state.history_log.push({ text: `🧟 '${target.name}' was revived from the discard pile.`, depth: this.getLogDepth(engine) });
             
             if (target.type !== 'spell') {

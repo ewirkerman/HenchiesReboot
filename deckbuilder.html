@@ -53,8 +53,17 @@
         <h2 class="text-lg font-black text-amber-400 uppercase tracking-wider">🎴 Card Catalog</h2>
         
         <!-- Filters -->
-        <div class="flex flex-wrap gap-2 w-full xl:w-auto">
+        <div class="flex flex-wrap gap-2 w-full xl:w-auto items-center">
           <input type="text" id="filter-search" placeholder="🔍 Search cards..." class="bg-slate-900 border border-slate-700 text-xs px-2 py-1.5 rounded text-amber-300 focus:outline-none font-bold w-full xl:w-auto" />
+          
+          <label class="flex items-center gap-2 bg-slate-900 border border-slate-700 px-2 py-1.5 rounded cursor-pointer group" title="Include Expansion Cards">
+            <span class="text-xs font-bold text-fuchsia-400 group-hover:text-fuchsia-300 transition-colors uppercase tracking-wider">Expansions</span>
+            <div class="relative inline-flex items-center">
+                <input type="checkbox" id="filter-series-expansion" class="sr-only peer" />
+                <div class="w-7 h-4 rounded-full bg-slate-800 peer-checked:bg-fuchsia-600 border border-slate-600 transition-all duration-200 shadow-inner"></div>
+                <div class="absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-slate-400 peer-checked:bg-white shadow-sm transition-transform duration-200 peer-checked:translate-x-3"></div>
+            </div>
+          </label>
           
           <select id="filter-tribe" class="bg-slate-900 border border-slate-700 text-xs px-2 py-1.5 rounded text-amber-300 focus:outline-none font-bold">
             <option value="ALL">All Tribes</option>
@@ -255,6 +264,7 @@
       document.getElementById('filter-type').addEventListener('change', renderCatalog);
       document.getElementById('filter-sort').addEventListener('change', renderCatalog);
       document.getElementById('filter-search').addEventListener('input', renderCatalog);
+      document.getElementById('filter-series-expansion').addEventListener('change', renderCatalog);
       document.getElementById('deck-owner-input').addEventListener('input', () => localStorage.setItem('henchies_deck_owner', document.getElementById('deck-owner-input').value));
       document.getElementById('refresh-cloud-btn').addEventListener('click', refreshLoadDropdown);
       
@@ -379,6 +389,7 @@
       if (urlParams.has('tribe')) document.getElementById('filter-tribe').value = urlParams.get('tribe');
       if (urlParams.has('type')) document.getElementById('filter-type').value = urlParams.get('type');
       if (urlParams.has('sort')) document.getElementById('filter-sort').value = urlParams.get('sort');
+      if (urlParams.has('expansions')) document.getElementById('filter-series-expansion').checked = urlParams.get('expansions') === 'true';
 
       renderCatalog();
       resetForm();
@@ -391,12 +402,14 @@
       const typeVal = document.getElementById('filter-type').value;
       const searchVal = rawSearchVal.toLowerCase();
       const sortVal = document.getElementById('filter-sort').value;
+      const showExpansions = document.getElementById('filter-series-expansion').checked;
 
       const url = new URL(window.location);
       if (rawSearchVal) url.searchParams.set('search', rawSearchVal); else url.searchParams.delete('search');
       if (tribeVal !== 'ALL') url.searchParams.set('tribe', tribeVal); else url.searchParams.delete('tribe');
       if (typeVal !== 'ALL') url.searchParams.set('type', typeVal); else url.searchParams.delete('type');
       if (sortVal !== 'tribe') url.searchParams.set('sort', sortVal); else url.searchParams.delete('sort');
+      if (showExpansions) url.searchParams.set('expansions', 'true'); else url.searchParams.delete('expansions');
       window.history.replaceState({}, '', url);
 
       let targetTribeName = '';
@@ -409,6 +422,7 @@
       const filtered = fullCatalog.filter(c => {
         if (c.hideFromDeckBuilder) return false;
         if (c.type === 'avatar') return false; 
+        if (!showExpansions && c.series === 'Expansion') return false;
         
         let matchTribe = (tribeVal === 'ALL');
         if (!matchTribe) {

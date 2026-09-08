@@ -7,6 +7,7 @@
 import { ACTION_MANIFEST } from '../engine/actions/index.js';
 import { buildTargetDesc } from './targeting.js';
 import { groupPayloads, finalizeString } from './grouping.js';
+import anExclusions from './an_exclusions.js';
 
 export function processTargetGroups(ability, ctx) {
     const { allAbilities, allCards, allTribes, globalTargetNoun, tracker, trigger } = ctx;
@@ -91,6 +92,7 @@ export function processTargetGroups(ability, ctx) {
                 possessiveStr = "the triggering card's";
             }
             isPlural = false;
+            
         } else if (group.targetMethod === 'EVENT_TARGET') {
             const hasExternalTarget = ['ON_ATTACK', 'WOULD_ATTACK', 'MODIFY_ATTACK', 'ON_BE_ATTACKED', 'WOULD_BE_ATTACKED', 'ON_DEAL_DAMAGE', 'WOULD_DEAL_DAMAGE', 'MODIFY_DEAL_DAMAGE', 'ON_BE_DAMAGED', 'WOULD_BE_DAMAGED', 'MODIFY_BE_DAMAGED', 'ON_HEAL', 'WOULD_HEAL', 'MODIFY_HEAL', 'ON_BE_HEALED', 'WOULD_BE_HEALED', 'ON_KILL', 'WOULD_KILL', 'KILL'].includes(trigger) || (['MANUAL', 'PLAY', 'PLAY_OPTIONAL'].includes(trigger) && ability.activation?.method === 'PLAYER_CHOICE');
             
@@ -123,6 +125,7 @@ export function processTargetGroups(ability, ctx) {
                 else targetStr = `the targeted card`;
                 possessiveStr = `its`;
             }
+            
         } else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
             const actMethod = ability.activation?.method || 'NONE';
             if (ability.triggerScope === 'GLOBAL' && globalTargetNoun) {
@@ -131,7 +134,24 @@ export function processTargetGroups(ability, ctx) {
                 possessiveStr = `${targetStr}'s`;
             } else if (actMethod === 'PLAYER_CHOICE') {
                 let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities);
-                let article = /^[aeiou]/i.test(actDesc) ? 'an' : 'a';
+                
+                let lowerDesc = actDesc.toLowerCase();
+                let article = /^[aeiou]/i.test(lowerDesc) ? 'an' : 'a';
+                
+                for (const word of anExclusions.vowel_starts_requiring_a) {
+                    if (lowerDesc === word || lowerDesc.startsWith(word + ' ') || lowerDesc.startsWith(word + '-')) {
+                        article = 'a';
+                        break;
+                    }
+                }
+                
+                for (const word of anExclusions.consonant_starts_requiring_an) {
+                    if (lowerDesc === word || lowerDesc.startsWith(word + ' ') || lowerDesc.startsWith(word + '-')) {
+                        article = 'an';
+                        break;
+                    }
+                }
+                
                 targetStr = `${article} ${actDesc}`;
                 possessiveStr = `${targetStr}'s`;
             } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
@@ -151,6 +171,7 @@ export function processTargetGroups(ability, ctx) {
                 else targetStr = `the triggered entity`;
                 possessiveStr = `its`;
             }
+            
         } else {
             isPlural = group.targetMethod === 'AUTO_ALL' || group.targetCount > 1;
             let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities);
