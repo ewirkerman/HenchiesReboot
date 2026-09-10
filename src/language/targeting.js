@@ -3,9 +3,9 @@
  * Translates JSON target constraints into Noun Phrases.
  */
 
-import { formatArrayToString } from './utils.js';
+import { formatArrayToString, resolveEntityName } from './utils.js';
 
-export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes = null, allAbilities = null) {
+export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes = null, allAbilities = null, allCards = null) {
     if (!qt) return isPlural ? 'targets' : 'target';
     
     let isCardZone = qt && qt.zones && qt.zones.length > 0 && qt.zones.every(z => ['HAND', 'DECK', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'].includes(z));
@@ -87,19 +87,26 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'with' : `where ${contextSubject}has`} '${abilityName}'`);
                 else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'without' : `where ${contextSubject}does not have`} '${abilityName}'`);
             } else if (checkAttr === 'entity') {
-                let val = String(node.value).toLowerCase();
-                if (val === 'self') val = 'this';
+                let val = String(node.value);
+                if (val.toLowerCase() === 'self') {
+                    val = 'this';
+                } else {
+                    val = resolveEntityName(val, allCards);
+                }
+                
+                let lowerVal = val.toLowerCase();
                 
                 if (node.operator === '==') {
-                    if (ctx === 'EVAL_TARGET' && val !== 'unit' && val !== 'avatar') adjectives.push(val);
+                    if (ctx === 'EVAL_TARGET' && lowerVal !== 'unit' && lowerVal !== 'avatar') adjectives.push(val);
                     else if (ctx !== 'EVAL_TARGET') suffixes.push(`where ${contextSubject}is a ${val}`);
                 } else {
                     let nounStr = val;
-                    if (val !== 'this') {
+                    if (lowerVal !== 'this') {
                         if (isPlural) {
-                            nounStr = (val === 'equipment' || val.endsWith('s')) ? val : val + 's';
+                            nounStr = (lowerVal === 'equipment' || lowerVal.endsWith('s') || lowerVal.endsWith(']s')) ? val : val + 's';
                         } else {
-                            nounStr = /^[aeiou]/i.test(val) ? 'an ' + val : 'a ' + val;
+                            let cleanForVowel = val.replace(/^@\[/, '');
+                            nounStr = /^[aeiou]/i.test(cleanForVowel) ? 'an ' + val : 'a ' + val;
                         }
                     }
                     if (ctx === 'EVAL_TARGET') suffixes.push(`that ${isAre} not ${nounStr}`);
@@ -151,19 +158,27 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
          else scopeAlignments = isPlural ? 'characters' : 'character';
     }
     
-    let validTypes = (qt.entityType || []).filter(e => e !== 'ANY' && e !== 'ALL');
+    let validTypesRaw = (qt.entityType || []).filter(e => e !== 'ANY' && e !== 'ALL');
+    let validTypes = validTypesRaw.map(type => resolveEntityName(type, allCards));
+    
     let scopeTypes = formatArrayToString(validTypes, 'entity');
     if (isPlural) {
-        scopeTypes = validTypes.map(s => {
+        scopeTypes = validTypes.map((s, idx) => {
             let l = s.toLowerCase();
-            if (isCardZone && l !== 'equipment') return l === 'entity' ? 'cards' : l + ' cards';
-            return l === 'entity' ? 'entities' : (l === 'equipment' ? l : l + 's');
+            let isBracketed = s.startsWith('@[');
+            let display = isBracketed ? s : l;
+            let rawType = validTypesRaw[idx].toLowerCase();
+            if (isCardZone && rawType !== 'equipment') return rawType === 'entity' ? 'cards' : display + ' cards';
+            return rawType === 'entity' ? 'entities' : (rawType === 'equipment' ? display : display + 's');
         }).join(' or ');
     } else {
-        scopeTypes = validTypes.map(s => {
+        scopeTypes = validTypes.map((s, idx) => {
             let l = s.toLowerCase();
-            if (isCardZone && l !== 'equipment') return l === 'entity' ? 'card' : l + ' card';
-            return l;
+            let isBracketed = s.startsWith('@[');
+            let display = isBracketed ? s : l;
+            let rawType = validTypesRaw[idx].toLowerCase();
+            if (isCardZone && rawType !== 'equipment') return rawType === 'entity' ? 'card' : display + ' card';
+            return display;
         }).join(' or ');
     }
     if (scopeTypes === '') {
@@ -185,9 +200,9 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             adjAlign = '';
         }
         
-        let canDropUnit = validTypes.length === 1 && validTypes[0] === 'UNIT' && !isCardZone;
+        let canDropUnit = validTypesRaw.length === 1 && validTypesRaw[0] === 'UNIT' && !isCardZone;
         
-        if (validTypes.length === 0 || canDropUnit) {
+        if (validTypesRaw.length === 0 || canDropUnit) {
             if (adjAlign) {
                  noun = isCardZone ? `${adjAlign} ${isPlural ? 'cards' : 'card'}` : scopeAlignments;
             } else {

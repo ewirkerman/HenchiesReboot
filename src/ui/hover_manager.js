@@ -204,9 +204,9 @@ class CardHoverManager {
     }
 
     onMouseEnter(targetEl, cacheId) {
-        console.log(`%c[HOVER MGR] onMouseEnter: ${cacheId}`, 'color: #3b82f6', { current: this.currentCardId, visible: this.isVisible, lastHide: this.lastHiddenTime });
+//            console.log(`%c[HOVER MGR] onMouseEnter: ${cacheId}`, 'color: #3b82f6', { current: this.currentCardId, visible: this.isVisible, lastHide: this.lastHiddenTime });
         if (this.shouldSuppress()) {
-            console.log(`%c[HOVER MGR] Suppressed during enter!`, 'color: #ef4444');
+//            console.log(`%c[HOVER MGR] Suppressed during enter!`, 'color: #ef4444');
             return;
         }
 
@@ -214,7 +214,7 @@ class CardHoverManager {
 
         // If hovering the exact same card, do nothing
         if (this.currentCardId === cacheId && this.isVisible) {
-            console.log(`%c[HOVER MGR] Already visible and hovering same card. Ignored.`, 'color: #6b7280');
+//            console.log(`%c[HOVER MGR] Already visible and hovering same card. Ignored.`, 'color: #6b7280');
             return;
         }
 
@@ -223,34 +223,34 @@ class CardHoverManager {
         // Phase 2: Check if we are currently visible, OR if we were visible very recently (within 300ms)
         const isWarm = this.isVisible || (Date.now() - this.lastHiddenTime < 300);
         const delay = isWarm ? this.FAST_FOLLOW_DELAY : this.SHOW_DELAY;
-        console.log(`%c[HOVER MGR] isWarm: ${isWarm}, Using delay: ${delay}ms`, 'color: #8b5cf6');
+//        console.log(`%c[HOVER MGR] isWarm: ${isWarm}, Using delay: ${delay}ms`, 'color: #8b5cf6');
 
         clearTimeout(this.showTimer);
         this.showTimer = setTimeout(() => {
-            console.log(`%c[HOVER MGR] showTimer completed for ${cacheId}`, 'color: #10b981');
+//            console.log(`%c[HOVER MGR] showTimer completed for ${cacheId}`, 'color: #10b981');
             this._showTooltip(targetEl, cacheId);
         }, delay);
     }
 
     // Phase 1: Accept the cacheId of the departing card
     onMouseLeave(cacheId) {
-        console.log(`%c[HOVER MGR] onMouseLeave: ${cacheId}`, 'color: #f59e0b', { current: this.currentCardId });
+//        console.log(`%c[HOVER MGR] onMouseLeave: ${cacheId}`, 'color: #f59e0b', { current: this.currentCardId });
         
         // Phase 1: If Card A says it's leaving, but we are already focused on Card B, ignore Card A!
         if (cacheId && this.currentCardId !== cacheId) {
-            console.log(`%c[HOVER MGR] Ignoring leave for ${cacheId} because focus is already on ${this.currentCardId}`, 'color: #6b7280');
+//            console.log(`%c[HOVER MGR] Ignoring leave for ${cacheId} because focus is already on ${this.currentCardId}`, 'color: #6b7280');
             return;
         }
 
         clearTimeout(this.showTimer);
         this.hideTimer = setTimeout(() => {
-            console.log(`%c[HOVER MGR] hideTimer completed. Forcing hide.`, 'color: #f59e0b');
+//            console.log(`%c[HOVER MGR] hideTimer completed. Forcing hide.`, 'color: #f59e0b');
             this.forceHide();
         }, this.HIDE_DELAY);
     }
 
     forceHide() {
-        console.log(`%c[HOVER MGR] forceHide executed.`, 'color: #ef4444');
+//        console.log(`%c[HOVER MGR] forceHide executed.`, 'color: #ef4444');
         clearTimeout(this.showTimer);
         clearTimeout(this.hideTimer);
         
@@ -274,9 +274,9 @@ class CardHoverManager {
     }
 
     _showTooltip(targetEl, cacheId) {
-        console.log(`%c[HOVER MGR] _showTooltip Initialized for ${cacheId}`, 'color: #10b981');
+//        console.log(`%c[HOVER MGR] _showTooltip Initialized for ${cacheId}`, 'color: #10b981');
         if (this.shouldSuppress()) {
-            console.log(`%c[HOVER MGR] Suppressed inside _showTooltip!`, 'color: #ef4444');
+//            console.log(`%c[HOVER MGR] Suppressed inside _showTooltip!`, 'color: #ef4444');
             this.forceHide();
             return;
         }
@@ -292,7 +292,7 @@ class CardHoverManager {
 
         const attemptPositioning = () => {
             if (!this.isVisible || this.currentCardId !== cacheId) {
-                console.log(`%c[HOVER MGR] Aborted positioning (No longer visible or ID mismatch)`, 'color: #ef4444');
+//                console.log(`%c[HOVER MGR] Aborted positioning (No longer visible or ID mismatch)`, 'color: #ef4444');
                 return;
             }
             
@@ -305,12 +305,12 @@ class CardHoverManager {
                 if (attempts < maxAttempts) {
                     requestAnimationFrame(attemptPositioning);
                 } else {
-                    console.log(`%c[HOVER MGR] ERROR: jumboWrapper not found in DOM after ${maxAttempts} attempts!`, 'color: #ef4444', this.tooltipEl.innerHTML);
+//                    console.log(`%c[HOVER MGR] ERROR: jumboWrapper not found in DOM after ${maxAttempts} attempts!`, 'color: #ef4444', this.tooltipEl.innerHTML);
                 }
                 return;
             }
 
-            console.log(`%c[HOVER MGR] jumboWrapper successfully mounted on frame ${attempts + 1}`, 'color: #10b981');
+//            console.log(`%c[HOVER MGR] jumboWrapper successfully mounted on frame ${attempts + 1}`, 'color: #10b981');
 
             const tooltipRect = jumboWrapper.getBoundingClientRect();
             const rect = targetEl.getBoundingClientRect();
@@ -343,7 +343,7 @@ class CardHoverManager {
 
             // Final frame: Trigger CSS transitions
             requestAnimationFrame(() => {
-                console.log(`%c[HOVER MGR] _showTooltip fading in`, 'color: #10b981');
+//                console.log(`%c[HOVER MGR] _showTooltip fading in`, 'color: #10b981');
                 if (!this.isVisible || this.currentCardId !== cacheId) return;
                 this.tooltipEl.classList.remove('opacity-0', 'scale-95', '-translate-x-3', 'translate-x-3');
                 this.tooltipEl.classList.add('opacity-100', 'scale-100', 'translate-x-0');

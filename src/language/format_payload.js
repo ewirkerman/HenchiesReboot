@@ -5,7 +5,7 @@
  */
 
 import { resolveTokens } from './tokens.js';
-import { joinWithAnd, formatResourceIcons } from './utils.js';
+import { joinWithAnd, formatResourceIcons, resolveEntityName, getIndefiniteArticle } from './utils.js';
 
 // --- Helpers for Entity Resolution ---
 
@@ -26,18 +26,6 @@ function resolveAbility(abilityId, allAbilities) {
         }
     }
     return { name, isManual };
-}
-
-function resolveCard(cardId, allCards) {
-    let name = cardId;
-    if (allCards && Array.isArray(allCards)) {
-        const match = allCards.find(c => c.id === cardId);
-        if (match) name = match.name;
-    } else if (typeof window !== 'undefined' && typeof getCard === 'function') {
-        const match = getCard(cardId);
-        if (match) name = match.name;
-    }
-    return name;
 }
 
 function resolveResource(resourceId, allTribes) {
@@ -162,7 +150,7 @@ export function formatPayload(eff, formatCtx) {
                 }
                 
                 if (eff.amountIsX) effText = `draw X ${typeStr}s{OMIT_TARGET}`;
-                else effText = `draw ${drawAmt === 1 ? (/^[aeiou]/i.test(typeStr) ? 'an' : 'a') + ' ' + typeStr : drawAmt + ' ' + (typeStr === 'equipment' ? typeStr : typeStr + 's')}{OMIT_TARGET}`;
+                else effText = `draw ${drawAmt === 1 ? getIndefiniteArticle(typeStr) + ' ' + typeStr : drawAmt + ' ' + (typeStr === 'equipment' ? typeStr : typeStr + 's')}{OMIT_TARGET}`;
             } else {
                 effText = `draw {TARGET}`;
             }
@@ -279,18 +267,19 @@ export function formatPayload(eff, formatCtx) {
             if (eff.blockDuplicates) effText += ` (unique)`;
             break;
         case 'TRANSFORM':
-            let transCardName = resolveCard(eff.cardId, allCards);
+            let transCardName = resolveEntityName(eff.cardId, allCards);
             let isSelfTarget = ['this', 'it', 'the triggering card', 'self', 'itself'].includes(targetStr);
             
             if (isPlural) {
-                let pluralSuffix = transCardName.endsWith('s') ? '' : 's';
+                let isTransPlural = transCardName.toLowerCase().endsWith('s]') || transCardName.toLowerCase().endsWith('s');
+                let pluralSuffix = isTransPlural ? '' : 's';
                 if (isSelfTarget) {
                     effText = `transform into ${transCardName}${pluralSuffix}{OMIT_TARGET}`;
                 } else {
                     effText = `transform {TARGET} into ${transCardName}${pluralSuffix}`;
                 }
             } else {
-                let article = /^[aeiou]/i.test(transCardName) ? 'an' : 'a';
+                let article = getIndefiniteArticle(transCardName);
                 if (isSelfTarget) {
                     effText = `transform into ${article} ${transCardName}{OMIT_TARGET}`;
                 } else {
@@ -303,9 +292,10 @@ export function formatPayload(eff, formatCtx) {
             effText = `remove **${rmAbilityName}** from {TARGET}`;
             break;
         case 'SUMMON':
-            let cardName = resolveCard(eff.cardId, allCards);
+            let cardName = resolveEntityName(eff.cardId, allCards);
             const summonAmt = Math.max(1, Math.abs(eff.amount || 1));
-            const pluralSuffix = (summonAmt > 1 && !cardName.endsWith('s')) ? 's' : '';
+            const isSummonPlural = cardName.toLowerCase().endsWith('s]') || cardName.toLowerCase().endsWith('s');
+            const pluralSuffix = (summonAmt > 1 && !isSummonPlural) ? 's' : '';
             
             let destZone = (eff.zone || 'FIELD').toLowerCase();
             let isCasterZone = (!eff.zoneOwner || eff.zoneOwner === 'CASTER');
@@ -343,7 +333,7 @@ export function formatPayload(eff, formatCtx) {
                 if (nextWord === lineAdj) {
                     testWord = lineAdj.trim();
                 }
-                amtText = /^[aeiou]/i.test(testWord) ? 'an' : 'a';
+                amtText = getIndefiniteArticle(testWord);
             }
 
             effText = `summon ${amtText} ${readinessAdj}${lineAdj}${cardName}${pluralSuffix}{OMIT_TARGET}`;

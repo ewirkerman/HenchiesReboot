@@ -98,7 +98,7 @@ export function processTargetGroups(ability, ctx) {
             
             if (!hasExternalTarget) {
                 isPlural = group.targetCount > 1;
-                let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities);
+                let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities, allCards);
                 
                 if (isPlural) {
                     targetStr = `${group.targetCount} random ${baseDesc}`;
@@ -133,7 +133,7 @@ export function processTargetGroups(ability, ctx) {
                 isPlural = /(allies|enemies|cards|characters|entities|all\b)/i.test(globalTargetNoun) || globalTargetNoun.endsWith('s');
                 possessiveStr = `${targetStr}'s`;
             } else if (actMethod === 'PLAYER_CHOICE') {
-                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities);
+                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards);
                 
                 let lowerDesc = actDesc.toLowerCase();
                 let article = /^[aeiou]/i.test(lowerDesc) ? 'an' : 'a';
@@ -174,8 +174,8 @@ export function processTargetGroups(ability, ctx) {
             
         } else {
             isPlural = group.targetMethod === 'AUTO_ALL' || group.targetCount > 1;
-            let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities);
-            singularDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities);
+            let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities, allCards);
+            singularDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards);
             
             if (group.targetMethod === 'AUTO_ALL') targetStr = `all ${baseDesc}`;
             else if (group.targetMethod === 'AUTO_RANDOM') targetStr = group.targetCount === 1 ? `a random ${singularDesc}` : `${group.targetCount} random ${baseDesc}`;
