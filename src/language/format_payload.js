@@ -123,6 +123,14 @@ export function formatPayload(eff, formatCtx) {
             else if (eff.amount < 0) effText = `deal ${Math.abs(eff.amount)} damage to {TARGET}`;
             else effText = `heal {TARGET} for ${eff.amount !== undefined ? eff.amount : 1}`; 
             break;
+        case 'TOP_DECK':
+            let tdAmt = eff.amountIsX ? 'X' : (eff.amount !== undefined ? eff.amount : 1);
+            let tdWord = tdAmt === 1 ? 'a card' : `${tdAmt} cards`;
+            
+            // By utilizing {OMIT_TARGET}{PER_TARGET}, the parser will automatically turn 
+            // "AUTO_ALL" targeting into "draw a card for each {target}" without hardcoding!
+            effText = `draw ${tdWord}{OMIT_TARGET}{PER_TARGET}`;
+            break;
         case 'DRAW_CARD': 
             let isStandardTypes = true;
             if (group.quickTargeting?.entityType?.length > 0) {

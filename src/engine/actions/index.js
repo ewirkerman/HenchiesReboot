@@ -109,7 +109,7 @@ export function getActionTriggers() {
 export {
     ACTION_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects,
     DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
-    GrantAbilityAction, RemoveAbilityAction, DrawCardAction, PlayAction, AttackAction, HarvestAction,
+    GrantAbilityAction, RemoveAbilityAction, DrawCardAction, TopDeckAction, PlayAction, AttackAction, HarvestAction,
     DiscardAction, ShuffleAction, ReturnAction, RecoverAction, TrashAction, BanishAction, FieldAction,
     ReviveAction, AttachAction, UnattachAction, UnfieldAction, RebelAction, DonateAction, SummonAction, BlockActAction,
     BlockAttackAction, BlockRetaliateAction, BlockTargetingAction, CancelEventAction, CleanseAction,
