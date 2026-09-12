@@ -47,7 +47,15 @@ describe('AttackAction Combat Logic', () => {
             state: { history_log: [] },
             emit: jest.fn(),
             utils: {
-                hasEngineFlag: jest.fn((state, ent, flag) => ent.flags && ent.flags.includes(flag))
+                hasEngineFlag: jest.fn((state, ent, flag, consume = false) => {
+                    if (!ent.flags) return false;
+                    const idx = ent.flags.indexOf(flag);
+                    if (idx > -1) {
+                        if (consume) ent.flags.splice(idx, 1); // Simulate consumption
+                        return true;
+                    }
+                    return false;
+                })
             }
         };
 
@@ -215,6 +223,66 @@ describe('AttackAction Combat Logic', () => {
 
             expect(attacker.health).toBe(1);
             expect(defender.health).toBe(1);
+        });
+
+        it('should consume STRIKE_FAST so it only applies to one combat per flag instance', () => {
+            attacker.flags = ['STRIKE_FAST']; 
+            attacker.strength = 3;
+            
+            // Combat 1: Attacker is Fast
+            const def1 = { ...defender, instanceId: 'def_1', health: 3, strength: 2 };
+            new AttackAction({ source: attacker, target: def1 }).execute(engine);
+            
+            expect(def1.health).toBe(0);
+            expect(attacker.health).toBe(3); // Fast kill, takes no damage
+
+            // Combat 2: STRIKE_FAST was consumed, Attacker is now Normal speed
+            const def2 = { ...defender, instanceId: 'def_2', health: 3, strength: 2 };
+            new AttackAction({ source: attacker, target: def2 }).execute(engine);
+            
+            expect(def2.health).toBe(0);
+            expect(attacker.health).toBe(1); // Simultaneous clash, takes 2 damage
+        });
+
+        it('should allow multiple STRIKE_FAST flags to stack for multiple consecutive combats', () => {
+            attacker.flags = ['STRIKE_FAST', 'STRIKE_FAST']; 
+            attacker.strength = 3;
+            
+            // Combat 1: Attacker is Fast (1 flag consumed)
+            const def1 = { ...defender, instanceId: 'def_1', health: 3 };
+            new AttackAction({ source: attacker, target: def1 }).execute(engine);
+            expect(def1.health).toBe(0);
+            expect(attacker.health).toBe(3); 
+
+            // Combat 2: Attacker is STILL Fast (2nd flag consumed)
+            const def2 = { ...defender, instanceId: 'def_2', health: 3 };
+            new AttackAction({ source: attacker, target: def2 }).execute(engine);
+            expect(def2.health).toBe(0);
+            expect(attacker.health).toBe(3); 
+        });
+
+        it('should not consume STRIKE_SLOW, applying it persistently across multiple combats', () => {
+            defender.flags = ['STRIKE_SLOW']; 
+            defender.health = 3;
+            attacker.strength = 3; // Lethal normal damage
+
+            // Combat 1: Defender is Slow
+            const atk1 = { ...attacker, instanceId: 'atk_1', health: 3 };
+            new AttackAction({ source: atk1, target: defender }).execute(engine);
+            
+            expect(defender.health).toBe(0);
+            expect(atk1.health).toBe(3); // Killed before phase -1 retaliation
+
+            // Resurrect defender for Combat 2
+            defender.health = 3;
+            defender._isDying = false;
+
+            // Combat 2: Defender should STILL be Slow (flag not consumed)
+            const atk2 = { ...attacker, instanceId: 'atk_2', health: 3 };
+            new AttackAction({ source: atk2, target: defender }).execute(engine);
+            
+            expect(defender.health).toBe(0);
+            expect(atk2.health).toBe(3); // Killed before phase -1 retaliation again!
         });
     });
 

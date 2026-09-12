@@ -548,6 +548,7 @@ export function generateEffectsHTML(ctx) {
                           'EVENT_SOURCE': 'Run on Event Source (e.g. Attacker, Caster)',
                           'EVENT_TARGET': 'Run on Event Target (e.g. Defender, Victim)',
                           'SELF': 'Run on Self (Card with ability)',
+                          'HOST': 'Run on Host (Attached Card)',
                           'AVATAR': 'Run on Your Avatar',
                           'ENEMY_AVATAR': 'Run on Enemy Avatar',
                           'AUTO_ALL': 'Auto-Target ALL Valid Below',

@@ -320,14 +320,26 @@ export class GameEngine {
         return true;
     }
 
-    _acquireTargets(ability, source, eventPayload, ownerId) {
+        _acquireTargets(ability, source, eventPayload, ownerId) {
         return ability.effects.map((group, index) => {
             if (!group) return [];
             let targets = [];
             
             if (group.targetMethod === 'SELF') targets = [source];
-            else if (group.targetMethod === 'EVENT_SOURCE') targets = eventPayload?.source ? [eventPayload.source] : [];
-            else if (group.targetMethod === 'EVENT_TARGET') targets = eventPayload?.target ? [eventPayload.target] : [];
+            else if (group.targetMethod === 'EVENT_SOURCE') {
+                if (eventPayload?.source) targets = [eventPayload.source];
+                else if (eventPayload?.playerId) {
+                    const av = getAvatar(this.state, eventPayload.playerId);
+                    if (av) targets = [av];
+                }
+            }
+            else if (group.targetMethod === 'EVENT_TARGET') {
+                if (eventPayload?.target) targets = [eventPayload.target];
+                else if (eventPayload?.playerId) {
+                    const av = getAvatar(this.state, eventPayload.playerId);
+                    if (av) targets = [av];
+                }
+            }
             else if (group.targetMethod === 'AVATAR') {
                 const av = getAvatar(this.state, ownerId);
                 targets = av ? [av] : [];

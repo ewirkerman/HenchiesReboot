@@ -4,7 +4,7 @@ import * as actualUtils from '../../src/engine/utils.js';
 jest.unstable_mockModule('../../src/engine/utils.js', () => ({
     ...actualUtils,
     hasEngineFlag: jest.fn(),
-    resolveResourceKey: jest.fn((state, p, key) => key), 
+    resolveResourceKey: jest.fn((state, p, key) => key ? key : 'Generic'), 
     isUndoable: jest.fn(() => true)
 }));
 
@@ -231,6 +231,33 @@ describe('targeting.js core logic', () => {
     });
 
     describe('Advanced Resource Affordability', () => {
+        it('should correctly separate Tribe base cost and Carnie ability cost for PLAY_OPTIONAL in hand', () => {
+            const arrrmsman = {
+                id: 'arrrmsman', instanceId: 'arrrmsman', type: 'unit', ownerId: 'player1',
+                tribe: 'Pirate', cost: 2, // Base cost: 2 Tribe (Pirate)
+                abilities: [{
+                    abilityId: 'ab_draw', trigger: 'PLAY_OPTIONAL',
+                    cost: { carnie: 2 } // Ability cost: 2 pure Carnie
+                }]
+            };
+            mockState.players.player1.hand.push(arrrmsman);
+
+            // Exactly enough to pay 2 Pirate and 2 Carnie
+            mockState.players.player1.resources['Pirate'] = { current: 2, max: 2 };
+            mockState.players.player1.resources['Carnie'] = { current: 2, max: 2 };
+
+            let actions = getEntityAvailableActions(mockState, 'player1', 'arrrmsman');
+            expect(actions.some(a => a.abilityId === 'ab_draw')).toBe(true);
+
+            // Fail condition: 0 Pirate, 4 Carnie. 
+            // Because card plays strictly require >= 1 true tribe resource, this should fail affordability.
+            mockState.players.player1.resources['Pirate'].current = 0;
+            mockState.players.player1.resources['Carnie'].current = 4;
+
+            actions = getEntityAvailableActions(mockState, 'player1', 'arrrmsman');
+            expect(actions.some(a => a.abilityId === 'ab_draw')).toBe(false);
+        });
+
         it('should return ability action if player can afford Carnie cost', () => {
             const unit = {
                 id: 'u1', instanceId: 'u1', type: 'unit', readiness: 1, acts: 1, ownerId: 'player1',
@@ -506,6 +533,84 @@ describe('targeting.js core logic', () => {
             const actions = getEntityAvailableActions(mockState, 'player1', 'esc_unit');
             expect(actions.some(a => a.abilityId === 'ab_power')).toBe(false);
             expect(actions.some(a => a.abilityId === 'ab_tribe')).toBe(false);
+        });
+    });
+
+    describe('Missing Exhaustive Edge Cases', () => {
+        it('should hide native_attack if the unit has 0 readiness', () => {
+            const exhaustedUnit = { id: 'ex_u', instanceId: 'ex_u', type: 'unit', ownerId: 'player1', strength: 2, readiness: 0 };
+            mockState.players.player1.lines.mid.push(exhaustedUnit);
+            mockState.players.player2.lines.mid.push({ id: 'target', instanceId: 'target', line: 'mid' });
+
+            const actions = getEntityAvailableActions(mockState, 'player1', 'ex_u');
+            expect(actions.some(a => a.type === 'ATTACK')).toBe(false);
+        });
+
+        it('should find valid ability targets sitting inside piles (Discard/Deck/Hand)', () => {
+            const spell = {
+                id: 'revive_spell', instanceId: 'revive_spell', type: 'spell', ownerId: 'player1',
+                abilities: [{
+                    abilityId: 'ab_revive', trigger: 'ON_BE_PLAYED',
+                    activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['DISCARD', 'DECK'], alignment: ['FRIENDLY'] } }
+                }]
+            };
+            mockState.players.player1.hand.push(spell);
+
+            const discardUnit = { id: 'd_unit', instanceId: 'd_unit', ownerId: 'player1' };
+            const deckUnit = { id: 'deck_unit', instanceId: 'deck_unit', ownerId: 'player1' };
+            
+            mockState.players.player1.discard.push(discardUnit);
+            mockState.players.player1.deck.push(deckUnit);
+
+            const targets = getValidAbilityTargets(mockState, 'player1', 'revive_spell', 'ab_revive');
+            expect(targets).toHaveLength(2);
+            expect(targets.some(t => t.id === 'd_unit')).toBe(true);
+            expect(targets.some(t => t.id === 'deck_unit')).toBe(true);
+        });
+
+        it('should exempt Boons from physical battleline blocking', () => {
+            const spell = {
+                id: 'boon_spell', instanceId: 'boon_spell', type: 'spell', ownerId: 'player1',
+                abilities: [{
+                    abilityId: 'ab_boon_target', trigger: 'ON_BE_PLAYED',
+                    activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'BOON'], ignoreBattlelines: false } }
+                }]
+            };
+            mockState.players.player1.hand.push(spell);
+
+            // Taunt is blocking the backline
+            mockState.players.player2.lines.taunt.push({ id: 'taunt_u', instanceId: 'taunt_u', type: 'unit', ownerId: 'player2' });
+            
+            // Unit in backline should be blocked, but Boon in backline should be targetable!
+            mockState.players.player2.lines.back.push({ id: 'back_u', instanceId: 'back_u', type: 'unit', ownerId: 'player2' });
+            mockState.players.player2.lines.back.push({ id: 'back_boon', instanceId: 'back_boon', type: 'boon', ownerId: 'player2' });
+
+            const targets = getValidAbilityTargets(mockState, 'player1', 'boon_spell', 'ab_boon_target');
+            
+            expect(targets.some(t => t.id === 'taunt_u')).toBe(true); // Taunt is valid
+            expect(targets.some(t => t.id === 'back_boon')).toBe(true); // Boon bypasses battlelines
+            expect(targets.some(t => t.id === 'back_u')).toBe(false); // Normal unit is blocked
+        });
+
+        it('should reject targets if checkSpecificLogicValidity fails via Logic Tree', async () => {
+            // Un-mock evaluateLogicTree to return false specifically for this test
+            const engineModule = await import('../../src/engine/index.js');
+            engineModule.GameEngine.mockImplementationOnce(() => ({
+                evaluateLogicTree: jest.fn(() => false) // FAILS the logic tree check
+            }));
+
+            const conditionalSpell = {
+                id: 'cond_spell', instanceId: 'cond_spell', type: 'spell', ownerId: 'player1',
+                abilities: [{
+                    abilityId: 'ab_cond', trigger: 'ON_BE_PLAYED',
+                    activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'] }, logicTree: { type: 'group' } }
+                }]
+            };
+            mockState.players.player1.hand.push(conditionalSpell);
+            mockState.players.player2.lines.mid.push({ id: 'target_u', instanceId: 'target_u', ownerId: 'player2' });
+
+            const targets = getValidAbilityTargets(mockState, 'player1', 'cond_spell', 'ab_cond');
+            expect(targets).toHaveLength(0); // Should be completely empty because Logic Tree rejected it
         });
     });
 });

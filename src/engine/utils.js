@@ -82,6 +82,23 @@ export function resolveResourceKey(state, player, tribeKey) {
     if (!tribeKey) return 'Generic';
     const t = tribeKey.toLowerCase();
     
+    // 1. ALWAYS prioritize matching the exact keys currently used in the player's resource pool
+    if (player && player.resources) {
+        const baseKey = getResKey(tribeKey);
+        if (baseKey === 'Carnie') return 'Carnie';
+        if (player.resources[baseKey]) return baseKey;
+        
+        // Deep normalized scan (strips 'tribe_' and spaces to safely match 'tribe_pirate' to 'Pirate')
+        const tkNorm = t.replace(/^(tribe_)/, '').replace(/[\s_]+/g, '');
+        for (const key in player.resources) {
+            const kNorm = key.toLowerCase().replace(/^(tribe_)/, '').replace(/[\s_]+/g, '');
+            if (kNorm === tkNorm) {
+                return key; // Perfectly returns 'Pirate' instead of 'tribe_pirate'
+            }
+        }
+    }
+    
+    // 2. Fallback to Catalog ID if the player doesn't have the resource active yet
     if (state && state.tribeCatalog) {
         const match = state.tribeCatalog.find(tc => tc.id.toLowerCase() === t || tc.name.toLowerCase() === t);
         if (match) {
@@ -91,20 +108,7 @@ export function resolveResourceKey(state, player, tribeKey) {
         }
     }
     
-    const baseKey = getResKey(tribeKey);
-    if (baseKey === 'Carnie') return 'Carnie';
-    if (player && player.resources[baseKey]) return baseKey;
-    
-    if (player) {
-        const tkLower = baseKey.toLowerCase();
-        for (const key in player.resources) {
-            const kLower = key.toLowerCase();
-            if (kLower === tkLower || kLower === `tribe_${tkLower}` || tkLower === `tribe_${kLower}`) {
-                return key;
-            }
-        }
-    }
-    return baseKey;
+    return getResKey(tribeKey);
 }
 
 export function log(state, msg) {
@@ -197,23 +201,47 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
     return false;
 }
 
-export function getOwnerId(state, ent) {
-    if (!ent) return null;
+export function getOwnerId(state, entity) {
+    if (!entity) return null;
     
-    // Items on the Equator (Artifacts, unequipped Equipment) are shared and act for the Active Player
-    if (state.equator && state.equator.some(i => i.instanceId === ent.instanceId)) {
-        return state.activePlayerId;
+    // 1. Standard entity properties (Fastest)
+    if (entity.ownerId) return entity.ownerId;
+    if (entity.originalOwnerId) return entity.originalOwnerId;
+    if (entity.playerId) return entity.playerId;
+
+    // 2. Avatar specific parsing (Avatars are system entities)
+    const isAvatar = entity.type?.toLowerCase() === 'avatar' || (entity.id && entity.id.includes('avatar'));
+    if (isAvatar && entity.id) {
+        const parsed = entity.id.replace('_avatar', '').replace('avatar_', '');
+        if (['player1', 'player2'].includes(parsed)) return parsed;
     }
 
-    if (ent.ownerId) return ent.ownerId;
-    for (const pId of ['player1', 'player2']) {
-        const p = state.players[pId];
-        if (['hand', 'deck', 'discard', 'banish'].some(z => p[z].some(c => c.instanceId === ent.instanceId))) return pId;
-        for (const line of LINES) {
-            if (p.lines[line] && p.lines[line].some(c => c.instanceId === ent.instanceId)) return pId;
-            if (p.lines[line] && p.lines[line].some(u => u.attachments && u.attachments.some(a => a.instanceId === ent.instanceId))) return pId;
+    // 3. Physical State Search (The missing structural truth!)
+    if (state && state.players && entity.instanceId) {
+        for (const pId of ['player1', 'player2']) {
+            const p = state.players[pId];
+            if (!p) continue;
+            
+            // Check board lines
+            if (p.lines) {
+                for (const line in p.lines) {
+                    if (p.lines[line]?.some(e => e.instanceId === entity.instanceId)) return pId;
+                }
+            }
+            
+            // Check piles
+            for (const zone of ['hand', 'deck', 'discard', 'banish']) {
+                if (p[zone]?.some(e => e.instanceId === entity.instanceId)) return pId;
+            }
         }
     }
+
+    // 4. Desperate Instance ID fallback parsing
+    if (entity.instanceId) {
+        if (entity.instanceId.includes('player1')) return 'player1';
+        if (entity.instanceId.includes('player2')) return 'player2';
+    }
+
     return null;
 }
 
@@ -327,15 +355,38 @@ export function getAttackCost(state, entity) {
 }
 
 function normalizeCostObject(costObj, isCardPlay, entityTribe) {
-    if (isCardPlay) {
-        let baseCost = typeof costObj === 'number' ? costObj : ((costObj && costObj.tribeAmount > 0) ? costObj.tribeAmount : ((costObj && costObj.carnie) || (costObj && costObj.tent) || 0));
-        if (entityTribe !== 'Carnie' && entityTribe !== 'Generic') {
-            return { tribeAmount: baseCost };
+    // 1. Raw numbers
+    if (typeof costObj === 'number') {
+        if (isCardPlay && entityTribe !== 'Carnie' && entityTribe !== 'Generic') {
+            return { tribeAmount: costObj, carnie: 0, power: 0 };
+        }
+        return { carnie: costObj, tribeAmount: 0, power: 0 };
+    }
+    
+    // 2. Objects (Preserve distinct cost channels!)
+    if (costObj) {
+        let tAmt = costObj.tribeAmount || 0;
+        let cAmt = costObj.carnie || costObj.tent || 0;
+        let pAmt = costObj.power || 0;
+        let escalates = costObj.escalates || false;
+
+        if (isCardPlay) {
+            if (entityTribe !== 'Carnie' && entityTribe !== 'Generic') {
+                // It's a non-generic card: 
+                // tribeAmount remains Tribe cost, carnie remains pure Carnie cost!
+                return { tribeAmount: tAmt, carnie: cAmt, power: pAmt, escalates };
+            } else {
+                // It's a Carnie/Generic card: 
+                // All tribeAmount requirements collapse into pure Carnie cost
+                return { tribeAmount: 0, carnie: tAmt + cAmt, power: pAmt, escalates };
+            }
         } else {
-            return { carnie: baseCost };
+            // Not a card play (e.g. board ability). We preserve everything exactly as authored.
+            return { tribeAmount: tAmt, carnie: cAmt, power: pAmt, escalates };
         }
     }
-    return typeof costObj === 'number' ? { carnie: costObj } : (costObj || { carnie: 0 });
+    
+    return { carnie: 0, tribeAmount: 0, power: 0 };
 }
 
 export function calculateEscalatedCostValues(costObj, escalateAmt) {

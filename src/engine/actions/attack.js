@@ -21,7 +21,7 @@ export class AttackAction extends Action {
         const getSpeed = (ent) => {
             let speed = 0;
             if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_FAST', true)) speed += 1;
-            if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_SLOW', true)) speed -= 1;
+            if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_SLOW', false)) speed -= 1;
             return Math.max(-1, Math.min(1, speed));
         };
 
