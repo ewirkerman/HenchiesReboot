@@ -219,8 +219,14 @@
       await loadUI();
       try {
         customTribesList = await fetchCustomTribes();
+        
+        // Initial setup of dynamic dropdown based on url or default
+        const urlParams = new URLSearchParams(window.location.search);
+        const showExpansions = urlParams.has('expansions') ? (urlParams.get('expansions') === 'true') : false;
+        
         const tribeSelect = document.getElementById('filter-tribe');
-        tribeSelect.innerHTML = '<option value="ALL">All Tribes</option>' + customTribesList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        const visibleTribes = customTribesList.filter(t => !t.hideFromDeckBuilder && (showExpansions || t.series !== 'Expansion'));
+        tribeSelect.innerHTML = '<option value="ALL">All Tribes</option>' + visibleTribes.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
 
         const customCards = await fetchCustomCards();
         const tempCards = [...CARD_CATALOG, ...customCards];
@@ -386,10 +392,10 @@
 
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.has('search')) document.getElementById('filter-search').value = urlParams.get('search');
-      if (urlParams.has('tribe')) document.getElementById('filter-tribe').value = urlParams.get('tribe');
       if (urlParams.has('type')) document.getElementById('filter-type').value = urlParams.get('type');
       if (urlParams.has('sort')) document.getElementById('filter-sort').value = urlParams.get('sort');
       if (urlParams.has('expansions')) document.getElementById('filter-series-expansion').checked = urlParams.get('expansions') === 'true';
+      if (urlParams.has('tribe')) document.getElementById('filter-tribe').value = urlParams.get('tribe');
 
       renderCatalog();
       resetForm();
@@ -397,12 +403,28 @@
     }
 
     function renderCatalog() {
+      const showExpansions = document.getElementById('filter-series-expansion').checked;
+      
+      // Update dynamic tribe filter dropdown
+      const tribeSelect = document.getElementById('filter-tribe');
+      const currentTribeVal = tribeSelect.value;
+      const visibleTribes = customTribesList.filter(t => !t.hideFromDeckBuilder && (showExpansions || t.series !== 'Expansion'));
+      const newHtml = '<option value="ALL">All Tribes</option>' + visibleTribes.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      
+      if (tribeSelect.innerHTML !== newHtml) {
+          tribeSelect.innerHTML = newHtml;
+          if (visibleTribes.some(t => t.id === currentTribeVal)) {
+              tribeSelect.value = currentTribeVal;
+          } else {
+              tribeSelect.value = 'ALL';
+          }
+      }
+
       const rawSearchVal = document.getElementById('filter-search').value;
-      const tribeVal = document.getElementById('filter-tribe').value;
+      const tribeVal = tribeSelect.value; 
       const typeVal = document.getElementById('filter-type').value;
       const searchVal = rawSearchVal.toLowerCase();
       const sortVal = document.getElementById('filter-sort').value;
-      const showExpansions = document.getElementById('filter-series-expansion').checked;
 
       const url = new URL(window.location);
       if (rawSearchVal) url.searchParams.set('search', rawSearchVal); else url.searchParams.delete('search');
@@ -424,6 +446,13 @@
         if (c.type === 'avatar') return false; 
         if (!showExpansions && c.series === 'Expansion') return false;
         
+        // Hide if the tribe itself is hidden or out of active series context
+        const tribeObj = customTribesList.find(tr => tr.id === c.tribe || tr.name === c.tribe);
+        if (tribeObj) {
+            if (tribeObj.hideFromDeckBuilder) return false;
+            if (!showExpansions && tribeObj.series === 'Expansion') return false;
+        }
+
         let matchTribe = (tribeVal === 'ALL');
         if (!matchTribe) {
             const cTribe = (c.tribe || '').toLowerCase();

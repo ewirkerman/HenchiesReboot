@@ -18,12 +18,51 @@ export function isUndoable(state, ability) {
     if (!ability || !ability.effects) return true;
 
     for (const group of ability.effects) {
+        // Auto-random targeting is always unsafe
         if (group.targetMethod === 'AUTO_RANDOM') return false;
         
         if (group.payloads) {
             for (const payload of group.payloads) {
-                if (['DRAW_CARD', 'SHUFFLE', 'DISCARD', 'DISCARD_CARD', 'MILL', 'CUSTOM_SCRIPT'].includes(payload.type)) {
+                // 1. Inherently unsafe payloads (FIXED 'this.type' to 'payload.type')
+                if (['SHUFFLE', 'MILL', 'CUSTOM_SCRIPT', 'TOP_DECK'].includes(payload.type)) {
                     return false;
+                }
+                
+                
+                // 2. DISCARD evaluation (unsafe if targeting enemy hand)
+                if (['DISCARD', 'DISCARD_CARD'].includes(payload.type)) {
+                    let qt = group.quickTargeting;
+                    if (group.targetMethod === 'SAME_AS_ACTIVATION' && ability.activation) {
+                        qt = ability.activation.quickTargeting || qt;
+                    }
+                    
+                    if (qt) {
+                        const aligns = qt.alignment || [];
+                        const zones = qt.zones || [];
+                        const targetsEnemy = aligns.includes('ENEMY') || aligns.includes('ANY');
+                        const targetsHand = zones.includes('HAND') || zones.includes('ANY');
+                        
+                        if (targetsEnemy && targetsHand) {
+                            return false;
+                        }
+                    }
+                }
+
+                // 3. DRAW_CARD evaluation (STRICT ALLOWLIST)
+                if (payload.type === 'DRAW_CARD') {
+                    // Resolve targeting method in strict priority order
+                    let method = payload.targetMethod || 'NONE';
+                    if (method === 'NONE') method = group.targetMethod || 'NONE';
+                    if (method === 'SAME_AS_ACTIVATION' && ability.activation) {
+                        method = ability.activation.method || 'NONE';
+                    }
+                    if (method === 'NONE') method = payload.drawMethod || 'NONE';
+
+                    // ONLY 'PLAYER_CHOICE' is considered a safe, targeted draw.
+                    // If the ability has 'NONE', 'SELF', 'AUTO_FIRST', 'RANDOM', etc., it is blind/unsafe.
+                    if (method !== 'PLAYER_CHOICE') {
+                        return false; 
+                    }
                 }
             }
         }

@@ -7,6 +7,7 @@
 import { ReferenceTracker } from './language/utils.js';
 import { parseTriggers } from './language/triggers.js';
 import { processTargetGroups } from './language/payloads.js';
+import anExclusions from './language/an_exclusions.js';
 
 export function generateAbilityDescription(ability, allAbilities = null, allCards = null, allTribes = null) {
     if (ability.description && ability.description.trim() !== '') {
@@ -93,6 +94,7 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             if (finalStr.endsWith('.')) finalStr = finalStr.slice(0, -1);
             finalStr += ' ' + limitSuffix + '.';
         }
+        
         finalStr = finalStr.replace(/(^\W*\w|[\.;:]\s+\w)/g, m => m.toUpperCase());
     }
 

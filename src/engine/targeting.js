@@ -154,9 +154,10 @@ function collectFieldTargets(state, pId, source, sourceId, qt, isPlay) {
     for (const line of LINES) {
         if (!p.lines[line]) continue;
         p.lines[line].forEach(u => {
-            if (u.type === 'boon') return; 
+            // Skip boons unless the ability explicitly requests BOON in its entityType filter
+            if (u.type === 'boon' && (!qt.entityType || !qt.entityType.includes('BOON'))) return; 
+            
             addIfValid(u, u.line || line);
-            // Attachments explicitly ignored here
         });
     }
 
@@ -199,6 +200,11 @@ function enforceBattlelinesOnTargets(state, targets, playerId, entity) {
         if (isFriendly(t.playerId, playerId)) return true; 
         const isFieldLine = ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(t.line);
         if (!isFieldLine) return true; 
+        
+        // Boons are intangible non-combat entities, so they are exempt from physical battleline blocking
+        const targetEnt = findEntity(state, t.playerId, t.id);
+        if (targetEnt && targetEnt.type === 'boon') return true;
+
         return validPhysicalTargets.some(at => at.id === t.id);
     });
 }
@@ -357,6 +363,10 @@ function buildAbilityAction(state, playerId, entity, ability) {
 
     const inHand = isEntityInHand(state, playerId, entity);
     if (ability.trigger === 'MANUAL' && inHand && !ability.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {
+        return null; 
+    }
+
+    if (!inHand && ability.trigger !== 'MANUAL') {
         return null; 
     }
 

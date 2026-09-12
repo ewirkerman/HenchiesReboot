@@ -151,15 +151,24 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
       const manifest = ACTION_MANIFEST[value];
       if (!manifest) return;
       
-      if (manifest.requiresAmount) {
+      const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
+      const requiresResource = manifest.requiresResource || value === 'HARVEST';
+
+      if (requiresAmount) {
           payload.amount = 1; 
           delete payload.amountIsX;
       } else { 
           delete payload.amount; 
           delete payload.amountIsX; 
       }
+      
+      if (requiresResource) {
+          payload.resource = value === 'HARVEST' ? 'default' : 'Carnie'; 
+      } else {
+          delete payload.resource;
+      }
+      
       if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
-      if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
       if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
       if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
       if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
@@ -229,15 +238,24 @@ export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
       const manifest = ACTION_MANIFEST[value];
       if (!manifest) return;
       
-      if (manifest.requiresAmount) { 
+      const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
+      const requiresResource = manifest.requiresResource || value === 'HARVEST';
+
+      if (requiresAmount) { 
           payload.amount = 1; 
           delete payload.amountIsX; 
       } else { 
           delete payload.amount; 
           delete payload.amountIsX; 
       }
+      
+      if (requiresResource) {
+          payload.resource = value === 'HARVEST' ? 'default' : 'Carnie'; 
+      } else {
+          delete payload.resource;
+      }
+
       if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
-      if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
       if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
       if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
       if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
@@ -290,9 +308,13 @@ export function revalidatePayloadTypes() {
                 
                 const manifest = ACTION_MANIFEST[fallback];
                 if (manifest) {
-                    if (manifest.requiresAmount) payload.amount = 1; else delete payload.amount;
+                    const requiresAmount = manifest.requiresAmount || fallback === 'HARVEST';
+                    const requiresResource = manifest.requiresResource || fallback === 'HARVEST';
+
+                    if (requiresAmount) payload.amount = 1; else delete payload.amount;
+                    if (requiresResource) payload.resource = fallback === 'HARVEST' ? 'default' : 'Carnie'; else delete payload.resource;
+                    
                     if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
-                    if (manifest.requiresResource) payload.resource = 'Carnie'; else delete payload.resource;
                     if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
                     if (fallback !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
                     if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;

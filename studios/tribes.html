@@ -55,10 +55,28 @@
                 <label class="font-bold text-slate-300 block mb-1">Tribe Name <span class="text-red-500">*</span></label>
                 <input type="text" id="tribe-name" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none font-bold" />
              </div>
-             <div>
-                <label class="font-bold text-slate-300 block mb-1">Valid Genuses (comma-separated)</label>
-                <input type="text" id="tribe-genuses" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="e.g. Melee, Ranged, Magic" />
+             
+             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                   <label class="font-bold text-slate-300 block mb-1">Valid Genuses (comma-separated)</label>
+                   <input type="text" id="tribe-genuses" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="e.g. Melee, Ranged, Magic" />
+                </div>
+                <div>
+                   <label class="font-bold text-slate-300 block mb-1">Series</label>
+                   <select id="tribe-series" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none font-bold">
+                       <option value="Base Set">Base Set</option>
+                       <option value="Expansion">Expansion</option>
+                   </select>
+                </div>
              </div>
+
+             <div class="pt-1 pb-1">
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" id="tribe-hide-deckbuilder" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900">
+                  <span class="font-bold text-slate-300 group-hover:text-white transition-colors">Hide Tribe from Deckbuilder Catalog</span>
+                </label>
+             </div>
+
              <div>
                 <label class="font-bold text-slate-300 block mb-1">Background Image URL (Wallpaper)</label>
                 <input type="text" id="tribe-bg-image" class="bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:border-amber-500 outline-none" placeholder="https://..." />
@@ -202,6 +220,8 @@
                 id: id,
                 name: name,
                 isDefault: true,
+                series: 'Base Set',
+                hideFromDeckBuilder: false,
                 colorBgClass: styles.bg,
                 colorLightBgClass: styles.lightBg,
                 colorBorderClass: styles.border,
@@ -222,7 +242,7 @@
             else allTribes.push(payload);
         }
 
-        window.StudioState.customTribesList = allTribes; // Sync State
+        window.StudioState.customTribesList = [...allTribes]; // Sync State without tying references
 
         btn.innerHTML = '🌱 Seed Default Tribes (One-Time)';
         btn.disabled = false;
@@ -304,9 +324,12 @@
     async function init() {
       window.StudioState = window.StudioState || {};
       allTribes = await fetchCustomTribes();
-      window.StudioState.customTribesList = allTribes; // Sync global state immediately
+      
+      // Ensure we are working with a distinct array for the global state so mutating it 
+      // with preview tribes doesn't infect the local catalog list
+      window.StudioState.customTribesList = [...allTribes]; 
 
-      const inputs = document.querySelectorAll('input:not(#catalog-search-input), textarea');
+      const inputs = document.querySelectorAll('input:not(#catalog-search-input), textarea, select');
       inputs.forEach(el => {
           el.addEventListener('input', updatePreview);
           el.addEventListener('change', updatePreview);
@@ -352,6 +375,8 @@
             id: currentEditingId || ('tribe_' + Date.now()),
             updatedAt: Date.now(),
             name: document.getElementById('tribe-name').value || 'Unnamed Tribe',
+            series: document.getElementById('tribe-series').value,
+            hideFromDeckBuilder: document.getElementById('tribe-hide-deckbuilder').checked,
             validGenuses: document.getElementById('tribe-genuses').value.split(',').map(s => s.trim()).filter(Boolean),
             isDefault: isCurrentDefault,
             colorBgClass: document.getElementById('tw-bg').value || 'bg-slate-900',
@@ -453,7 +478,12 @@
         const cloudSaveSuccess = await saveTribeToCatalog(tribe);
         
         allTribes = [...allTribes.filter(t => t.id !== tribe.id), tribe];
-        window.StudioState.customTribesList = allTribes; // Sync state
+        window.StudioState.customTribesList = [...allTribes]; // Re-sync state with new distinct array
+        
+        // Let's re-run updatePreview to re-inject the dummy tribe correctly into the new state array
+        // so the live preview doesn't break after saving
+        updatePreview();
+
         currentEditingId = tribe.id;
         
         document.getElementById('form-title').innerText = `⚡ Edit: ${tribe.name}`;
@@ -495,7 +525,9 @@
         }
         await deleteTribeFromCatalog(currentEditingId);
         allTribes = allTribes.filter(t => t.id !== currentEditingId);
-        window.StudioState.customTribesList = allTribes; // Sync state
+        window.StudioState.customTribesList = [...allTribes]; // Sync state
+        updatePreview(); // Re-inject the dummy tribe for the reset form
+        
         showToast('Tribe deleted.', 'success');
         resetForm();
         renderCatalog();
@@ -514,7 +546,10 @@
                     </div>
                     <div class="flex flex-col">
                         <span class="font-bold ${t.colorTextClass}" style="${t.colorTextHex ? 'color:'+t.colorTextHex : ''}">${t.name}</span>
-                        ${t.isDefault ? '<span class="text-[9px] text-red-400 font-bold uppercase">Core Locked</span>' : '<span class="text-[9px] text-slate-400 capitalize">Custom Tribe</span>'}
+                        <div class="flex items-center gap-1">
+                            ${t.isDefault ? '<span class="text-[9px] text-red-400 font-bold uppercase">Core Locked</span>' : '<span class="text-[9px] text-slate-400 capitalize">Custom Tribe</span>'}
+                            ${t.hideFromDeckBuilder ? '<span class="text-[9px] px-1 bg-slate-800 rounded text-amber-500">Hidden</span>' : ''}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -535,6 +570,8 @@
         const setVal = (id, val) => { document.getElementById(id).value = val || ''; };
         
         setVal('tribe-name', tribe.name);
+        setVal('tribe-series', tribe.series || 'Base Set');
+        document.getElementById('tribe-hide-deckbuilder').checked = !!tribe.hideFromDeckBuilder;
         setVal('tribe-genuses', (tribe.validGenuses || []).join(', '));
         setVal('tw-bg', tribe.colorBgClass);
         setVal('tw-light', tribe.colorLightBgClass);
@@ -581,6 +618,8 @@
         const setVal = (id, val) => { document.getElementById(id).value = val || ''; };
         
         setVal('tribe-name', '');
+        setVal('tribe-series', 'Expansion');
+        document.getElementById('tribe-hide-deckbuilder').checked = false;
         setVal('tribe-genuses', '');
         setVal('tw-bg', 'bg-slate-900');
         setVal('tw-light', 'bg-slate-950/90');

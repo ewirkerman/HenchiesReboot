@@ -171,7 +171,9 @@ export function startTurn(state, engine) {
     state.turnPhase = 'SACRIFICE_DECISION';
     state.history_log.push({ text: `🌅 Turn ${state.turnNumber} begins for ${player.name}. Drew ${drawn} cards.`, depth: 0 });
     
+    // src/engine/flow.js
     if (engine) {
+        console.trace('Emitting TURN_STARTING'); // <-- Add this!
         engine.emit('TURN_STARTING', { playerId: pId });
         engine.emit('TURN_STARTED', { playerId: pId });
     }

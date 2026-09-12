@@ -9,6 +9,7 @@ import { SetStatAction } from './set_stat.js';
 import { GrantAbilityAction } from './grant_ability.js';
 import { RemoveAbilityAction } from './remove_ability.js';
 import { DrawCardAction } from './draw_card.js';
+import { TopDeckAction } from './top_deck.js';
 import { PlayAction } from './play.js';
 import { AttackAction } from './attack.js';
 import { HarvestAction } from './harvest.js';
@@ -47,6 +48,7 @@ ACTION_REGISTRY['SET_STAT'] = SetStatAction;
 ACTION_REGISTRY['GRANT_ABILITY'] = GrantAbilityAction;
 ACTION_REGISTRY['REMOVE_ABILITY'] = RemoveAbilityAction;
 ACTION_REGISTRY['DRAW_CARD'] = DrawCardAction;
+ACTION_REGISTRY['TOP_DECK'] = TopDeckAction;
 ACTION_REGISTRY['PLAY'] = PlayAction;
 ACTION_REGISTRY['ATTACK'] = AttackAction;
 ACTION_REGISTRY['HARVEST'] = HarvestAction;
@@ -82,7 +84,7 @@ export const ACTION_CATEGORIES = {
     'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'REVIVE', 'TRASH', 'BANISH', 'CHANGE_DESTINATION'],
     'Field Presence': ['FIELD', 'UNFIELD'],
     'Attachments & Control': ['ATTACH', 'UNATTACH', 'REBEL', 'DONATE'],
-    'Meta & Utility': ['BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM']
+    'Meta & Utility': ['TOP_DECK', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM']
 };
 
 export const EFFECT_TYPES = Object.keys(ACTION_MANIFEST);
@@ -107,7 +109,7 @@ export function getActionTriggers() {
 export {
     ACTION_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects,
     DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
-    GrantAbilityAction, RemoveAbilityAction, DrawCardAction, PlayAction, AttackAction, HarvestAction,
+    GrantAbilityAction, RemoveAbilityAction, DrawCardAction, TopDeckAction, PlayAction, AttackAction, HarvestAction,
     DiscardAction, ShuffleAction, ReturnAction, RecoverAction, TrashAction, BanishAction, FieldAction,
     ReviveAction, AttachAction, UnattachAction, UnfieldAction, RebelAction, DonateAction, SummonAction, BlockActAction,
     BlockAttackAction, BlockRetaliateAction, BlockTargetingAction, CancelEventAction, CleanseAction,

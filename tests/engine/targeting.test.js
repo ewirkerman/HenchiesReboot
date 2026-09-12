@@ -194,6 +194,42 @@ describe('targeting.js core logic', () => {
         });
     });
 
+    describe('Boon Targeting', () => {
+        it('should allow targeting a boon ONLY if the ability explicitly includes BOON in entityType', () => {
+            const boonTarget = { id: 'b1', instanceId: 'b1', type: 'boon', line: 'mid', ownerId: 'player2' };
+            const unitTarget = { id: 'u1', instanceId: 'u1', type: 'unit', line: 'mid', ownerId: 'player2' };
+            
+            mockState.players.player2.lines.mid.push(boonTarget, unitTarget);
+
+            const spellExplicit = {
+                id: 'spell_boon', instanceId: 'spell_boon', type: 'spell', ownerId: 'player1',
+                abilities: [{
+                    abilityId: 'ab_boon', trigger: 'MANUAL',
+                    activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], entityType: ['BOON'] } }
+                }]
+            };
+
+            const spellGeneric = {
+                id: 'spell_gen', instanceId: 'spell_gen', type: 'spell', ownerId: 'player1',
+                abilities: [{
+                    abilityId: 'ab_gen', trigger: 'MANUAL',
+                    activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'] } } // No entityType specified
+                }]
+            };
+
+            mockState.players.player1.lines.mid.push(spellExplicit, spellGeneric);
+
+            const explicitTargets = getValidAbilityTargets(mockState, 'player1', 'spell_boon', 'ab_boon');
+            expect(explicitTargets).toHaveLength(1);
+            expect(explicitTargets[0].id).toBe('b1');
+
+            const genericTargets = getValidAbilityTargets(mockState, 'player1', 'spell_gen', 'ab_gen');
+            // genericTargets should include 'u1', but skip 'b1' because BOON wasn't explicitly requested
+            expect(genericTargets.some(t => t.id === 'b1')).toBe(false);
+            expect(genericTargets.some(t => t.id === 'u1')).toBe(true);
+        });
+    });
+
     describe('Advanced Resource Affordability', () => {
         it('should return ability action if player can afford Carnie cost', () => {
             const unit = {
@@ -349,6 +385,32 @@ describe('targeting.js core logic', () => {
             
             const actions = getEntityAvailableActions(mockState, 'player1', 'u1');
             expect(actions.some(a => a.abilityId === 'ab_target')).toBe(false);
+        });
+    });
+
+    describe('Play Triggers Zone Availability', () => {
+        it('should make ON_PLAY abilities available when the entity is in the hand', () => {
+            const card = {
+                id: 'hand_card', instanceId: 'hand_card', type: 'unit', ownerId: 'player1', cost: 0,
+                abilities: [{ abilityId: 'ab_on_play', trigger: 'ON_PLAY', cost: { carnie: 0 } }]
+            };
+            mockState.players.player1.hand.push(card);
+
+            const actions = getEntityAvailableActions(mockState, 'player1', 'hand_card');
+            expect(actions.some(a => a.abilityId === 'ab_on_play')).toBe(true);
+        });
+
+        it('should completely hide ON_PLAY abilities when the entity is on the board', () => {
+            const unit = {
+                id: 'board_unit', instanceId: 'board_unit', type: 'unit', ownerId: 'player1', readiness: 1, acts: 1,
+                abilities: [{ abilityId: 'ab_on_play', trigger: 'ON_PLAY', cost: { carnie: 0 } }]
+            };
+            mockState.players.player1.lines.mid.push(unit);
+
+            const actions = getEntityAvailableActions(mockState, 'player1', 'board_unit');
+            
+            // This should be false, as Play triggers are only relevant when cast from the hand
+            expect(actions.some(a => a.abilityId === 'ab_on_play')).toBe(false);
         });
     });
 
