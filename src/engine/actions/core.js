@@ -70,6 +70,8 @@ export class Action {
         this.logExecution(engine);
 
         try {
+            console.log(`[Action] ${this.type} executing...`, this.payload);
+
             if (this.emitWouldEvents(engine)) return false;
             
             this.emitModifyEvents(engine);
@@ -127,7 +129,7 @@ export class Action {
     }
 
     checkNativeUndoSafety(engine) {
-        if (['SHUFFLE', 'MILL', 'CUSTOM_SCRIPT'].includes(this.type)) {
+        if (['SHUFFLE', 'MILL', 'CUSTOM_SCRIPT', 'TOP_DECK'].includes(this.type)) {
             engine.state._irreversibleActionOccurred = true;
         }
         if (this.type === 'DRAW_CARD') {
@@ -258,7 +260,9 @@ export class Action {
     executeZoneMovement(engine, defaultDestination) {
         const loc = findEntityLocation(engine, this.payload.target);
         if (!loc) return;
-        const dest = this.payload.eventContext?.destination || defaultDestination;
+         // FIX: Check this.payload.destination first (injected by interceptors) before falling back!
+        const dest = this.payload.destination || this.payload.eventContext?.destination || defaultDestination;
+        
         if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) {
             const UnfieldAction = ACTION_REGISTRY['UNFIELD'];
             if (UnfieldAction) new UnfieldAction({ target: this.payload.target, destination: dest, eventContext: this.payload.eventContext }).run(engine);

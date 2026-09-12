@@ -23,10 +23,11 @@ export function isUndoable(state, ability) {
         
         if (group.payloads) {
             for (const payload of group.payloads) {
-                // 1. Inherently unsafe payloads
-                if (['SHUFFLE', 'MILL', 'CUSTOM_SCRIPT'].includes(payload.type)) {
+                // 1. Inherently unsafe payloads (FIXED 'this.type' to 'payload.type')
+                if (['SHUFFLE', 'MILL', 'CUSTOM_SCRIPT', 'TOP_DECK'].includes(payload.type)) {
                     return false;
                 }
+                
                 
                 // 2. DISCARD evaluation (unsafe if targeting enemy hand)
                 if (['DISCARD', 'DISCARD_CARD'].includes(payload.type)) {
