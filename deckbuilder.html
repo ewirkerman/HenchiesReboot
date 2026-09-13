@@ -542,10 +542,7 @@
       };
     }
 
-    function validateDeckRules() {
-      if (!currentAvatar) return { valid: false, reason: `Missing Avatar. Please select a Commander.` };
-      if (currentDeck.length !== 40) return { valid: false, reason: `Deck must have exactly 40 cards (Currently ${currentDeck.length}).` };
-
+    function validateDeckRules(allowPartial = false) {
       const counts = {};
       currentDeck.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
 
@@ -558,6 +555,13 @@
 
       if (fourCopyCards.length > 1) {
         return { valid: false, reason: `Deck can have at most ONE card with 4 copies (Currently ${fourCopyCards.length}).` };
+      }
+      
+      if (!allowPartial) {
+          if (!currentAvatar) return { valid: false, reason: `Missing Avatar. Please select a Commander.` };
+          if (currentDeck.length !== 40) return { valid: false, reason: `Deck must have exactly 40 cards (Currently ${currentDeck.length}).` };
+      } else if (!currentAvatar || currentDeck.length !== 40) {
+          return { valid: true, partial: true, reason: `Partial Deck (${currentDeck.length}/40 cards${currentAvatar ? '' : ', Missing Avatar'}).` };
       }
 
       return { valid: true, reason: '✅ Deck Valid (40 Cards + 1 Avatar, valid copies).' };
@@ -749,7 +753,7 @@
     };
 
     async function saveDeck() {
-        const check = validateDeckRules();
+        const check = validateDeckRules(true);
         if (!check.valid) {
             showToast(`Cannot save: ${check.reason}`, 'error');
             return;
@@ -767,7 +771,9 @@
         if (topbar && topbar.setLoading) topbar.setLoading('save', true);
 
         // Map full objects down to IDs for storage
-        const payload = [currentAvatar.id, ...currentDeck.map(c => c.id)];
+        const payload = [];
+        if (currentAvatar) payload.push(currentAvatar.id);
+        payload.push(...currentDeck.map(c => c.id));
 
         const success = await saveDeckToCatalog(owner, deckName, payload);
 
