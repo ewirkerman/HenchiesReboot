@@ -161,19 +161,6 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
             }
             return true;
         }
-        
-        const name = (ability.name || '').toLowerCase();
-        if (flagName === 'BLOCK_ACT' && (name === 'dazed' || name === 'stunned' || name === 'stun' || name === 'mindless')) return true;
-        if (flagName === 'BLOCK_ATTACK' && (name === 'unaggressive' || name === 'pacified' || name === 'pacify' || name === 'stunned' || name === 'stun')) return true;
-        if (flagName === 'BLOCK_RETALIATE' && (name === 'dazed' || name === 'daze' || name === 'stunned' || name === 'stun')) return true;
-        if (flagName === 'BLOCK_TARGETING' && name === 'hidden') return true;
-        if (flagName === 'BLOCK_TARGET_AVATAR' && name === 'timid') return true;
-        if (flagName === 'IGNORE_BLOCK_TARGETING' && name === 'perception') return true;
-        if (flagName === 'STRIKE_FAST' && (name === 'swift' || name === 'first strike' || name === 'fast')) return true;
-        if (flagName === 'STRIKE_SLOW' && name === 'slow') return true;
-        if (flagName === 'ATTACK_EXHAUSTS' && (name === 'sluggish' || name === 'heavy attack' || name === 'cumbersome')) return true;
-        if (flagName === 'UNIQUE_ENTITY' && (name === 'unique' || name === 'legendary')) return true;
-
         return false;
     };
 
