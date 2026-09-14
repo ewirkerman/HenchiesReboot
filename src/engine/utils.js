@@ -127,30 +127,15 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
         if (hasEngineFlag(state, entity, overrideFlag)) return false;
     }
 
-    let found = false;
-
-    if (flagName === 'STRIKE_FAST' && entity.fast > 0) {
-        if (consume) entity.fast--;
-        found = true;
-    }
-    if (flagName === 'STRIKE_SLOW' && entity.slow > 0) {
-        if (consume) entity.slow--;
-        found = true;
-    }
-    if (found) return true;
-
-    if (entity.activeEffects) {
-        for (const e of entity.activeEffects) {
-            if (e.type === flagName) found = true;
-            if (found) return true;
-        }
-    }
-
-    const checkAbility = (ability) => {
+    const checkAbility = (ability, index) => {
+        const abilityKey = `${entity.instanceId}_${ability.abilityId}_${index}`;
         if (ability.passiveFlags && ability.passiveFlags.includes(flagName)) {
+            
             if (ability.triggerLimit && ability.triggerLimit !== 'UNLIMITED') {
-                const abilityKey = `${entity.instanceId}_${ability.abilityId}`;
+                // Append the index to create a unique key per instance
+                
                 const uses = state.abilityUses?.[abilityKey] || 0;
+                
                 if (ability.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) return false;
                 if (ability.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) return false;
                 
@@ -164,23 +149,14 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
         return false;
     };
 
-    if (entity.abilities) {
-        for (const a of entity.abilities) {
+if (entity.abilities) {
+        for (let index = 0; index < entity.abilities.length; index++) {
+            const a = entity.abilities[index];
             if (typeof a === 'string') {
                 const catAb = state.abilityCatalog?.find(ca => ca.abilityId === a);
-                if (catAb && checkAbility(catAb)) return true;
+                if (catAb && checkAbility(catAb, index)) return true;
             } else {
-                if (checkAbility(a)) return true;
-            }
-        }
-    }
-
-    if (entity.activeEffects) {
-        for (const e of entity.activeEffects) {
-            if (e.type === 'GRANT_ABILITY' && e.grantedAbilityId) {
-                let catAb = state.abilityCatalog?.find(ca => ca.abilityId === e.grantedAbilityId);
-                if (!catAb) catAb = state.abilityCatalog?.find(ca => ca.name === e.grantedAbilityId);
-                if (catAb && checkAbility(catAb)) return true;
+                if (checkAbility(a, index)) return true;
             }
         }
     }

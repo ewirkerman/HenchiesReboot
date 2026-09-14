@@ -159,24 +159,27 @@ describe('Engine Utilities (utils.js)', () => {
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_ACT')).toBe(false);
         });
 
-        it('should detect direct active effect types', () => {
-            entity.activeEffects.push({ type: 'BLOCK_RETALIATE' });
-            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_RETALIATE')).toBe(true);
-        });
-
         it('should read fast/slow props and consume them when requested', () => {
-            entity.fast = 2;
-            entity.slow = 1;
+            const ability_fast_1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'ONCE_PER_ROUND', abilityId: 'ab1' };
+            const ability_fast_2 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'ONCE_PER_ROUND', abilityId: 'ab1' };
+            entity.abilities.push(ability_fast_1);
+            entity.abilities.push(ability_fast_2);
+
+            const ability_slow = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            entity.abilities.push(ability_slow);
 
             // Without consume
-            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_FAST')).toBe(true);
-            expect(entity.fast).toBe(2);
+            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_SLOW')).toBe(true);
+            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_SLOW')).toBe(true);
 
-            // With consume
-            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_FAST', true)).toBe(true);
-            expect(entity.fast).toBe(1); // Decremented
+            // Unlimited consume
             expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_SLOW', true)).toBe(true);
-            expect(entity.slow).toBe(0); // Decremented
+            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_SLOW', true)).toBe(true);
+
+            // With consume;
+            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_FAST', true)).toBe(true);
+            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_FAST', true)).toBe(true);
+            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_FAST', true)).toBe(false);
         });
 
         it('should parse passive flags and limit consumption', () => {
@@ -185,29 +188,10 @@ describe('Engine Utilities (utils.js)', () => {
             
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(true); // Check only
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING', true)).toBe(true); // Consume 1st time
-            expect(mockState.abilityUses['u1_ab1']).toBe(1);
+            expect(mockState.abilityUses['u1_ab1_0']).toBe(1);
             
             // Second time should return false because limit is hit
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(false);
-        });
-
-        it('should map specific hardcoded ability names to engine flags', () => {
-            entity.abilities.push({ name: 'Dazed' });
-            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_ACT')).toBe(true);
-            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_RETALIATE')).toBe(true);
-
-            entity.abilities.push({ name: 'Hidden' });
-            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(true);
-
-            entity.abilities.push({ name: 'Timid' });
-            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGET_AVATAR')).toBe(true);
-        });
-
-        it('should detect abilities granted via active effects', () => {
-            mockState.abilityCatalog.push({ abilityId: 'ab_swift', name: 'Swift' });
-            entity.activeEffects.push({ type: 'GRANT_ABILITY', grantedAbilityId: 'ab_swift' });
-            
-            expect(utils.hasEngineFlag(mockState, entity, 'STRIKE_FAST')).toBe(true);
         });
     });
 
@@ -277,7 +261,7 @@ describe('Engine Utilities (utils.js)', () => {
         it('getAttackCost should correctly flag exhaust requirements', () => {
             expect(utils.getAttackCost(mockState, {})).toEqual({ readinessCost: 'UNREADIES' });
             
-            mockState.abilityCatalog.push({ abilityId: 'heavy', name: 'Sluggish' });
+            mockState.abilityCatalog.push({ abilityId: 'heavy', passiveFlags: ['ATTACK_EXHAUSTS'], name: 'Sluggish' });
             const slowEnt = { abilities: ['heavy'] };
             expect(utils.getAttackCost(mockState, slowEnt)).toEqual({ readinessCost: 'EXHAUSTS' });
         });

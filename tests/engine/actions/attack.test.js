@@ -1,3 +1,4 @@
+import { hasEngineFlag } from '../../../src/engine/utils.js';
 import { jest } from '@jest/globals';
 
 // Mock dependencies using strict ESM relative paths
@@ -44,18 +45,11 @@ describe('AttackAction Combat Logic', () => {
         };
 
         engine = {
-            state: { history_log: [] },
+            state: { history_log: [], abilityUses: {} }, // Initialize abilityUses state
             emit: jest.fn(),
             utils: {
-                hasEngineFlag: jest.fn((state, ent, flag, consume = false) => {
-                    if (!ent.flags) return false;
-                    const idx = ent.flags.indexOf(flag);
-                    if (idx > -1) {
-                        if (consume) ent.flags.splice(idx, 1); // Simulate consumption
-                        return true;
-                    }
-                    return false;
-                })
+                // Pass the real function directly!
+                hasEngineFlag: (state, ent, flag, consume) => hasEngineFlag(state, ent, flag, consume) 
             }
         };
 
@@ -80,7 +74,8 @@ describe('AttackAction Combat Logic', () => {
 
     describe('Initialization & Restrictions', () => {
         it('should abort attack immediately if attacker is Timid and target is an Avatar', () => {
-            attacker.flags = ['BLOCK_TARGET_AVATAR'];
+            const ability = { passiveFlags: ['BLOCK_TARGET_AVATAR'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            attacker.abilities.push(ability);
             defender.type = 'avatar';
 
             const action = new AttackAction({ source: attacker, target: defender });
@@ -127,7 +122,8 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should allow a Fast attacker to kill a standard defender before retaliation (Phase 1)', () => {
-            attacker.flags = ['STRIKE_FAST']; 
+            const ability = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            attacker.abilities.push(ability);
             attacker.strength = 3; 
             defender.health = 3;
 
@@ -140,7 +136,8 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should allow a standard defender to retaliate if they survive a Fast strike', () => {
-            attacker.flags = ['STRIKE_FAST'];
+            const ability = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            attacker.abilities.push(ability);
             attacker.strength = 2; 
             defender.health = 4;
 
@@ -152,7 +149,8 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should allow a standard attacker to strike a Slow defender first (Phase 0 vs Phase -1)', () => {
-            defender.flags = ['STRIKE_SLOW']; 
+            const ability = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            defender.abilities.push(ability);
             attacker.strength = 3; 
             defender.health = 3;
 
@@ -165,8 +163,10 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should allow a Fast attacker to kill a Slow defender before retaliation (Phase 1 vs Phase -1)', () => {
-            attacker.flags = ['STRIKE_FAST'];
-            defender.flags = ['STRIKE_SLOW']; 
+            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
+            attacker.abilities.push(ability1);
+            const ability2 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            defender.abilities.push(ability2);
             attacker.strength = 3; 
             defender.health = 3;
 
@@ -179,7 +179,8 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should allow a Fast defender to kill a standard attacker before the attack lands (First Strike Defense)', () => {
-            defender.flags = ['STRIKE_FAST']; 
+            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
+            defender.abilities.push(ability1);
             defender.strength = 3; 
             attacker.health = 3;
 
@@ -192,7 +193,8 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should allow a Slow defender to retaliate in Phase -1 if they survive a standard Phase 0 strike', () => {
-            defender.flags = ['STRIKE_SLOW'];
+            const ability2 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            defender.abilities.push(ability2);
             attacker.strength = 2; // Non-lethal
             defender.health = 4;
 
@@ -204,8 +206,10 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should resolve combat simultaneously if both units are Fast (Phase 1 clash)', () => {
-            attacker.flags = ['STRIKE_FAST'];
-            defender.flags = ['STRIKE_FAST'];
+            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
+            attacker.abilities.push(ability1);
+            const ability2 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            defender.abilities.push(ability2);
 
             const action = new AttackAction({ source: attacker, target: defender });
             action.execute(engine);
@@ -215,8 +219,10 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should resolve combat simultaneously if both units are Slow (Phase -1 clash)', () => {
-            attacker.flags = ['STRIKE_SLOW'];
-            defender.flags = ['STRIKE_SLOW'];
+            const ability1 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
+            attacker.abilities.push(ability1);
+            const ability2 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
+            defender.abilities.push(ability2);
 
             const action = new AttackAction({ source: attacker, target: defender });
             action.execute(engine);
@@ -226,7 +232,8 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should consume STRIKE_FAST so it only applies to one combat per flag instance', () => {
-            attacker.flags = ['STRIKE_FAST']; 
+            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'ONCE_PER_ROUND', abilityId: 'ab1' };
+            attacker.abilities.push(ability1);
             attacker.strength = 3;
             
             // Combat 1: Attacker is Fast
@@ -245,7 +252,10 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should allow multiple STRIKE_FAST flags to stack for multiple consecutive combats', () => {
-            attacker.flags = ['STRIKE_FAST', 'STRIKE_FAST']; 
+            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'ONCE_PER_ROUND', abilityId: 'ab1' };
+            attacker.abilities.push(ability1);
+            const ability2 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
+            attacker.abilities.push(ability2);
             attacker.strength = 3;
             
             // Combat 1: Attacker is Fast (1 flag consumed)
@@ -262,7 +272,8 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should not consume STRIKE_SLOW, applying it persistently across multiple combats', () => {
-            defender.flags = ['STRIKE_SLOW']; 
+            const ability2 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
+            defender.abilities.push(ability2);
             defender.health = 3;
             attacker.strength = 3; // Lethal normal damage
 
@@ -288,7 +299,8 @@ describe('AttackAction Combat Logic', () => {
 
     describe('Combat Modifiers & State Interruptions', () => {
         it('should prevent defender from dealing damage if they are Dazed (BLOCK_RETALIATE)', () => {
-            defender.flags = ['BLOCK_RETALIATE'];
+            const ability2 = { passiveFlags: ['BLOCK_RETALIATE'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
+            defender.abilities.push(ability2);
             
             const action = new AttackAction({ source: attacker, target: defender });
             action.execute(engine);
@@ -309,7 +321,8 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should abort combat loop if a unit is moved off-board mid-combat', () => {
-            attacker.flags = ['STRIKE_FAST'];
+            const ability2 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
+            attacker.abilities.push(ability2);
             
             // Simulate defender bouncing to hand upon taking damage in Phase 1
             core.ACTION_REGISTRY['DEAL_DAMAGE'] = class {
