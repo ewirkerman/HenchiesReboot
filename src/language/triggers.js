@@ -26,6 +26,7 @@ export function getTriggerWord(t) {
     else if (t.includes('DISCARD')) base = isPassive ? 'Discarded' : 'Discard';
     else if (t.includes('SUMMON')) base = isPassive ? 'Summoned' : 'Summon';
     else if (t.includes('REBEL')) base = isPassive ? 'Controlled' : 'Control';
+    else if (t.includes('UNFIELD')) base = isPassive ? 'Unfielded' : 'Unfield';
     else if (t.includes('FIELD')) base = isPassive ? 'Fielded' : 'Field';
     else if (t.includes('RECOVER')) base = isPassive ? 'Recovered' : 'Recover';
     else if (t.includes('REVIVE')) base = isPassive ? 'Revived' : 'Revive';

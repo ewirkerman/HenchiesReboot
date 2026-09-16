@@ -1,7 +1,7 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { pushActionToLog } from '../firebase.js';
-import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getValidAttackTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable, GameEngine, startTurn } from '../engine/index.js';
+import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getValidAttackTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable } from '../engine/index.js';
 import { showToast } from '../ui.js';
 import { reconstructStateFromLog } from './multiplayer.js';
 import { RandomAI } from '../ai/random.js';
@@ -88,9 +88,6 @@ export async function handleEndTurn() {
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
     
     endTurn(ClientState.gameState);
-    
-    const engine = new GameEngine(ClientState.gameState);
-    startTurn(ClientState.gameState, engine);
 
     const payload = { type: 'END_TURN', actionIndex: ClientState.gameState.actionIndex, isUnsafe: true };
     const snapshot = JSON.stringify(ClientState.gameState);
@@ -1103,8 +1100,6 @@ export async function triggerAILoop() {
             
         } else if (move.type === 'PASS' || move.type === 'NO_MOVES') {
             endTurn(state);
-            const engine = new GameEngine(state);
-            startTurn(state, engine);
             await pushActionToLog(ClientState.roomCode, { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true }, JSON.stringify(state), state.history_log);
         } else if (move.executed) {
             const actionData = move.action || move;
@@ -1141,8 +1136,6 @@ export async function triggerAILoop() {
         } else {
             console.warn("[AI] Move failed to execute or was invalid. Forcing PASS to prevent infinite loop.", move);
             endTurn(state);
-            const engine = new GameEngine(state);
-            startTurn(state, engine);
             await pushActionToLog(ClientState.roomCode, { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true }, JSON.stringify(state), state.history_log);
         }
         

@@ -131,6 +131,7 @@ export class StudioCatalog extends HTMLElement {
                     item.tribe,
                     item.type,
                     item.family,
+                    item.series,
                     item.description,
                     item.displayDescription,
                     item.trigger,

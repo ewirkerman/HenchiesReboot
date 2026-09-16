@@ -120,6 +120,9 @@ export function resetForm() {
     const hideDeckbuilderFlag = document.getElementById('card-hide-from-deckbuilder');
     if (hideDeckbuilderFlag) hideDeckbuilderFlag.checked = false;
     
+    const seriesDropdown = document.getElementById('card-series');
+    if (seriesDropdown) seriesDropdown.value = 'Base Set';
+    
     CardState.currentAbilities = [];
     
     const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
@@ -158,6 +161,7 @@ export function buildCardState(forceId = null) {
     const searchId = forceId || CardState.currentEditingId;
     const existingCard = CardState.allCards.find(c => c.id === searchId);
     const hideDeckbuilderCheckbox = document.getElementById('card-hide-from-deckbuilder');
+    const seriesDropdown = document.getElementById('card-series');
     
     const state = {
         id: searchId || ('card_' + Date.now()),
@@ -165,6 +169,7 @@ export function buildCardState(forceId = null) {
         name: document.getElementById('card-name').value || 'Unnamed Card',
         tribe: document.getElementById('card-tribe').value,
         type: cardType,
+        series: seriesDropdown ? seriesDropdown.value : 'Base Set',
         genus: isAllowed('genus') ? (document.getElementById('card-genus').value || '') : '',
         family: isAllowed('family') ? (document.getElementById('card-family').value || '') : '',
         cost: isAllowed('cost') ? (parseInt(document.getElementById('card-cost').value) || 0) : 0,

@@ -311,11 +311,11 @@ export function enterTabletop() {
 export function reconstructStateFromLog(data) {
     if (!data.turn_start_state) return;
     
-    console.warn(`[DIAGNOSTIC-RECONSTRUCT] --- RECONSTRUCTION START ---`);
+    //console.warn(`[DIAGNOSTIC-RECONSTRUCT] --- RECONSTRUCTION START ---`);
     
     try {
       const baseState = JSON.parse(data.turn_start_state);
-      console.warn(`[DIAGNOSTIC-RECONSTRUCT] Base State Active Player: ${baseState.activePlayerId}, Action Index: ${baseState.actionIndex}`);
+      //console.warn(`[DIAGNOSTIC-RECONSTRUCT] Base State Active Player: ${baseState.activePlayerId}, Action Index: ${baseState.actionIndex}`);
       
       Object.defineProperty(baseState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
       Object.defineProperty(baseState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
@@ -329,7 +329,7 @@ export function reconstructStateFromLog(data) {
       let lastRealActionIndex = 0;
       
       if (data.action_log && data.action_log.length > 0) {
-        console.warn(`[DIAGNOSTIC-RECONSTRUCT] Action Log Length: ${data.action_log.length}`);
+        //console.warn(`[DIAGNOSTIC-RECONSTRUCT] Action Log Length: ${data.action_log.length}`);
         const validActions = [];
         for (const action of data.action_log) {
             if (action.type === 'UNDO') {
@@ -343,11 +343,11 @@ export function reconstructStateFromLog(data) {
         
         for (const action of validActions) {
           if (action.actionIndex && action.actionIndex <= (liveState.actionIndex || 0)) {
-            console.warn(`[DIAGNOSTIC-RECONSTRUCT] SKIPPING action ${action.type} (Index ${action.actionIndex} <= ${liveState.actionIndex})`);
+            //console.warn(`[DIAGNOSTIC-RECONSTRUCT] SKIPPING action ${action.type} (Index ${action.actionIndex} <= ${liveState.actionIndex})`);
             continue;
           }
           
-          console.warn(`[DIAGNOSTIC-RECONSTRUCT] EXECUTING action ${action.type} (Index ${action.actionIndex})`);
+          //console.warn(`[DIAGNOSTIC-RECONSTRUCT] EXECUTING action ${action.type} (Index ${action.actionIndex})`);
 
           if (action.type === 'UNDO') {
               console.log(`[REPLAY] Processed UNDO marker. Fast-forwarding clock to ${action.actionIndex}`);
@@ -393,7 +393,7 @@ export function reconstructStateFromLog(data) {
       liveState.isReconstructing = false;
       ClientState.gameState = liveState;
       
-      console.warn(`[DIAGNOSTIC-RECONSTRUCT] FINAL STATE Active Player: ${ClientState.gameState.activePlayerId}`);
+      //console.warn(`[DIAGNOSTIC-RECONSTRUCT] FINAL STATE Active Player: ${ClientState.gameState.activePlayerId}`);
       
       Object.defineProperty(ClientState.gameState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
       Object.defineProperty(ClientState.gameState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });

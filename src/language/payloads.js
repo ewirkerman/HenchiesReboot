@@ -7,6 +7,7 @@
 import { ACTION_MANIFEST } from '../engine/actions/index.js';
 import { buildTargetDesc } from './targeting.js';
 import { groupPayloads, finalizeString } from './grouping.js';
+import anExclusions from './an_exclusions.js';
 
 export function processTargetGroups(ability, ctx) {
     const { allAbilities, allCards, allTribes, globalTargetNoun, tracker, trigger } = ctx;
@@ -58,7 +59,7 @@ export function processTargetGroups(ability, ctx) {
         const primaryType = group.payloads[0].type;
         
         if (['REVIVE', 'RECOVER'].includes(primaryType)) impliedZone = 'DISCARD';
-        else if (['DRAW_CARD', 'MILL'].includes(primaryType)) impliedZone = 'DECK';
+        else if (['DRAW_CARD', 'MILL', 'TOP_DECK'].includes(primaryType)) impliedZone = 'DECK';
         else if (['DISCARD', 'DISCARD_CARD'].includes(primaryType)) impliedZone = 'HAND';
         else if (['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK', 'TRASH', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'RETURN', 'SET_STAT', 'MODIFY_STAT', 'GRANT_ABILITY', 'REMOVE_ABILITY'].includes(primaryType)) impliedZone = 'FIELD';
 
@@ -91,12 +92,13 @@ export function processTargetGroups(ability, ctx) {
                 possessiveStr = "the triggering card's";
             }
             isPlural = false;
+            
         } else if (group.targetMethod === 'EVENT_TARGET') {
             const hasExternalTarget = ['ON_ATTACK', 'WOULD_ATTACK', 'MODIFY_ATTACK', 'ON_BE_ATTACKED', 'WOULD_BE_ATTACKED', 'ON_DEAL_DAMAGE', 'WOULD_DEAL_DAMAGE', 'MODIFY_DEAL_DAMAGE', 'ON_BE_DAMAGED', 'WOULD_BE_DAMAGED', 'MODIFY_BE_DAMAGED', 'ON_HEAL', 'WOULD_HEAL', 'MODIFY_HEAL', 'ON_BE_HEALED', 'WOULD_BE_HEALED', 'ON_KILL', 'WOULD_KILL', 'KILL'].includes(trigger) || (['MANUAL', 'PLAY', 'PLAY_OPTIONAL'].includes(trigger) && ability.activation?.method === 'PLAYER_CHOICE');
             
             if (!hasExternalTarget) {
                 isPlural = group.targetCount > 1;
-                let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities);
+                let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities, allCards);
                 
                 if (isPlural) {
                     targetStr = `${group.targetCount} random ${baseDesc}`;
@@ -123,6 +125,7 @@ export function processTargetGroups(ability, ctx) {
                 else targetStr = `the targeted card`;
                 possessiveStr = `its`;
             }
+            
         } else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
             const actMethod = ability.activation?.method || 'NONE';
             if (ability.triggerScope === 'GLOBAL' && globalTargetNoun) {
@@ -130,8 +133,25 @@ export function processTargetGroups(ability, ctx) {
                 isPlural = /(allies|enemies|cards|characters|entities|all\b)/i.test(globalTargetNoun) || globalTargetNoun.endsWith('s');
                 possessiveStr = `${targetStr}'s`;
             } else if (actMethod === 'PLAYER_CHOICE') {
-                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities);
-                let article = /^[aeiou]/i.test(actDesc) ? 'an' : 'a';
+                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards);
+                
+                let lowerDesc = actDesc.toLowerCase();
+                let article = /^[aeiou]/i.test(lowerDesc) ? 'an' : 'a';
+                
+                for (const word of anExclusions.vowel_starts_requiring_a) {
+                    if (lowerDesc === word || lowerDesc.startsWith(word + ' ') || lowerDesc.startsWith(word + '-')) {
+                        article = 'a';
+                        break;
+                    }
+                }
+                
+                for (const word of anExclusions.consonant_starts_requiring_an) {
+                    if (lowerDesc === word || lowerDesc.startsWith(word + ' ') || lowerDesc.startsWith(word + '-')) {
+                        article = 'an';
+                        break;
+                    }
+                }
+                
                 targetStr = `${article} ${actDesc}`;
                 possessiveStr = `${targetStr}'s`;
             } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
@@ -151,10 +171,11 @@ export function processTargetGroups(ability, ctx) {
                 else targetStr = `the triggered entity`;
                 possessiveStr = `its`;
             }
+            
         } else {
             isPlural = group.targetMethod === 'AUTO_ALL' || group.targetCount > 1;
-            let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities);
-            singularDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities);
+            let baseDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities, allCards);
+            singularDesc = buildTargetDesc(group.quickTargeting || {}, group.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards);
             
             if (group.targetMethod === 'AUTO_ALL') targetStr = `all ${baseDesc}`;
             else if (group.targetMethod === 'AUTO_RANDOM') targetStr = group.targetCount === 1 ? `a random ${singularDesc}` : `${group.targetCount} random ${baseDesc}`;
@@ -197,9 +218,34 @@ export function processTargetGroups(ability, ctx) {
         let effects = groupPayloads(group.payloads.filter(p => !p.isCost), formatCtx);
         
         let cStr = finalizeString(costs, true, formatCtx);
-        if (cStr) allCostSentences.push(cStr);
-        
         let eStr = finalizeString(effects, false, formatCtx);
+
+        const applyTopDeckLanguage = (str, payloads, isCost) => {
+            const tdPayload = payloads.find(p => p.type === 'TOP_DECK' && !!p.isCost === !!isCost);
+            if (!tdPayload) return str;
+
+            const amt = tdPayload.amount || 1;
+            const cardWord = amt === 1 ? 'a card' : `${amt} cards`;
+            let phrase = `draw ${cardWord}`;
+
+            // Smart contextual overrides based on the targeting loop
+            if (group.targetMethod === 'AUTO_ALL') phrase = `draw ${cardWord} for each ${singularDesc}`;
+            else if (group.targetMethod.startsWith('AUTO_')) phrase = `draw ${cardWord} for ${targetStr}`;
+
+            if (payloads.filter(p => !!p.isCost === !!isCost).length === 1) {
+                // If Top Deck is the only payload, cleanly overwrite the entire sentence
+                return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+            } else if (str) {
+                // Otherwise, intelligently swap out the raw phrase while preserving other actions (like Healing)
+                return str.replace(/Top deck (them|it|this|that|[0-9]+)/i, phrase);
+            }
+            return str;
+        };
+
+        cStr = applyTopDeckLanguage(cStr, group.payloads, true);
+        eStr = applyTopDeckLanguage(eStr, group.payloads, false);
+
+        if (cStr) allCostSentences.push(cStr);
         if (eStr) allEffectSentences.push(eStr);
     });
 

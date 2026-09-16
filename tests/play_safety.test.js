@@ -1,6 +1,13 @@
 import { getValidAbilityTargets } from '../src/engine/targeting.js';
 import { isPlayUnsafe, isDefaultPlayOptionUnsafe } from '../src/tabletop/play_safety.js';
 import { getActionButtonTheme } from '../components/action_button_theme.js';
+import { jest } from '@jest/globals';
+
+
+// Add this block to clear out any lingering mocks from other test files
+beforeEach(() => {
+    jest.restoreAllMocks(); 
+});
 
 describe('Play Safety', () => {
     test('Deckhand default play is safe even when the optional on-play ability is unsafe', () => {
@@ -84,7 +91,7 @@ describe('Play Safety', () => {
                     abilityId: 'ab_draw',
                     trigger: 'PLAY',
                     effects: [{
-                        targetMethod: 'SELF',
+                        targetMethod: 'NONE',
                         payloads: [{ type: 'DRAW_CARD', amount: 2 }]
                     }]
                 }

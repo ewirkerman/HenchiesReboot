@@ -67,6 +67,7 @@ export const SYSTEM_GLOSSARY = [
     { regex: /\bbanish(ed|es)?\b/i, id: 'sys_banish', name: 'Banish', trigger: 'ACTION', displayDescription: 'To remove a card from the game completely. It cannot be recovered.' },
     { regex: /\btrash(ed|es)?\b/i, id: 'sys_trash', name: 'Trash', trigger: 'ACTION', displayDescription: 'To move a card from the field, hand, or deck to the discard pile.' },
     { regex: /\brecover(ed|s)?\b/i, id: 'sys_recover', name: 'Recover', trigger: 'ACTION', displayDescription: 'To return a card from the discard pile to your hand.' },
+    { regex: /\brevive(d|s)?\b/i, id: 'sys_revive', name: 'Revive', trigger: 'ACTION', displayDescription: 'To move a card from the discard to the field with 1[STAT:health].' },
     { regex: /\bmill(ed|s)?\b/i, id: 'sys_mill', name: 'Mill', trigger: 'ACTION', displayDescription: 'To move a card directly from a player\'s deck to their discard pile.' },
     { regex: /\bharvest(ed|s)?\b/i, id: 'sys_harvest', name: 'Harvest', trigger: 'ACTION', displayDescription: 'Sacrificing a card from your hand at the start of your turn to gain +1 Max Carnie and +1 Max Tribe Resource.' },
 

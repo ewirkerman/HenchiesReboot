@@ -170,3 +170,76 @@ export function formatArrayToString(arr, fallback = 'any') {
     if (!arr || arr.length === 0) return fallback;
     return arr.map(s => s.toLowerCase().replace(/_/g, ' ')).join(' or ');
 }
+
+import anExclusions from './an_exclusions.js';
+
+export function getIndefiniteArticle(word) {
+    if (!word) return 'a';
+    let cleanWord = word.replace(/^@\[/, '').replace(/\]$/, '').toLowerCase().trim();
+    
+    for (const exc of anExclusions.vowel_starts_requiring_a) {
+        if (cleanWord === exc || cleanWord.startsWith(exc + ' ') || cleanWord.startsWith(exc + '-')) return 'a';
+    }
+    for (const exc of anExclusions.consonant_starts_requiring_an) {
+        if (cleanWord === exc || cleanWord.startsWith(exc + ' ') || cleanWord.startsWith(exc + '-')) return 'an';
+    }
+    
+    return /^[aeiou]/i.test(cleanWord) ? 'an' : 'a';
+}
+
+export function resolveEntityName(identifier, allCards) {
+    if (!identifier) return 'Unknown Card';
+    let rawId = String(identifier);
+
+    // If it's a generic enum, return it as-is
+    if (!rawId.startsWith('card_') && !/\d{10,}/.test(rawId) && !rawId.toLowerCase().includes('unknown card')) {
+        return rawId;
+    }
+
+    if (!allCards) {
+        console.error(`[NLG] Aborting card resolution: allCards dictionary is falsy for ID '${rawId}'. Check your function signatures!`);
+        return 'Unknown Card';
+    }
+
+    const findInArray = (arr) => {
+        if (!arr) return null;
+        let iter = arr;
+        if (arr instanceof Map || arr instanceof Set) iter = Array.from(arr.values());
+        else if (typeof arr === 'object' && !Array.isArray(arr)) iter = Object.values(arr);
+        
+        for (const item of iter) {
+            const card = item?.card || item; // Handle nested wrappers if they exist
+            if (card && (card.id === rawId || card.cardId === rawId || card._id === rawId)) {
+                return card;
+            }
+        }
+        return null;
+    };
+
+    let found = findInArray(allCards);
+
+    // Fallback to global state lookups for tokens/summons not in the main deck list
+    if (!found && typeof window !== 'undefined') {
+        const sources = [
+            window.ClientState?.allCards, window.ClientState?.cards, window.ClientState?.tokens, window.ClientState?.customCards,
+            window.StudioState?.allCards, window.StudioState?.cards, window.StudioState?.tokens, window.StudioState?.customCards,
+            window.CardState?.allCards, window.CardState?.cards, window.CardState?.tokens, window.CardState?.customCards,
+            window.__GAME_CARD_CACHE
+        ];
+        for (const src of sources) {
+            found = findInArray(src);
+            if (found) break;
+        }
+    }
+
+    if (found && found.name) {
+        return `@[${found.name}]`;
+    }
+    
+    // Clean up ugly IDs if still missing to prevent "Unknown Card 1785522839644s"
+    if (rawId.startsWith('card_') || /\d{10,}/.test(rawId) || rawId.toLowerCase().includes('unknown card')) {
+        return 'Unknown Card';
+    }
+    
+    return rawId;
+}

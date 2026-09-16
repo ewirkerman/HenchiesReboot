@@ -18,6 +18,8 @@ export function isDefaultPlayTrigger(ab) {
 export function isDefaultPlayOptionUnsafe(state, card) {
     if (!state || !card?.abilities) return false;
     for (const ab of card.abilities) {
+        //console.log("Trigger Check:", isDefaultPlayTrigger(ab)); // Is this true?
+        //console.log("Undoable Check:", isUndoable(state, ab));   // Is this true?
         if (isDefaultPlayTrigger(ab) && !isUndoable(state, ab)) return true;
     }
     return false;

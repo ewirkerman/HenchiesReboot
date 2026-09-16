@@ -63,12 +63,12 @@ async function initializeApp() {
             fetchCustomTribes(),
             loadUI()
         ]);
-
+        
         ClientState.allCardsRegistry = [...CARD_CATALOG, ...cards];
         ClientState.customTribesList = tribes;
         ClientState.allAbilitiesRegistry = abs.map(ab => {
             let desc = '';
-            try { desc = generateAbilityDescription(ab, abs); } catch(e) {}
+            try { desc = generateAbilityDescription(ab, abs, ClientState.allCardsRegistry, tribes); } catch(e) {}
             return { ...ab, displayDescription: desc };
         });
         console.log("[INIT] Registries and UI Styles loaded.");

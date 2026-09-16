@@ -248,6 +248,15 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
     const isAvatar = card.type === 'avatar';
     const defLine = card.defaultLine || 'mid';
     
+    // Fetch global cards and tribes dictionaries for the NLG generator
+    let globalCards = (typeof window !== 'undefined') ? ((window.ClientState && (window.ClientState.allCards || window.ClientState.cards)) || (window.StudioState && (window.StudioState.allCards || window.StudioState.cards)) || (window.CardState && (window.CardState.allCards || window.CardState.cards)) || []) : [];
+    const globalTribes = (typeof window !== 'undefined') ? ((window.ClientState && window.ClientState.customTribesList) || (window.StudioState && window.StudioState.customTribesList) || (window.CardState && window.CardState.customTribes) || []) : [];
+    
+    // Fallback: If global state missed it, supply at least the current rendered cache so it can find itself!
+    if ((!globalCards || globalCards.length === 0) && typeof window !== 'undefined' && window.__GAME_CARD_CACHE) {
+         globalCards = Array.from(window.__GAME_CARD_CACHE.values());
+    }
+
     if (isUnit && !isAvatar && defLine !== 'mid') {
         const lineAb = getSystemLineAbility(defLine);
         if (lineAb) {
@@ -264,7 +273,7 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
         
         let rawDesc = ab.displayDescription || ab.description || '';
         if (!rawDesc) {
-            try { rawDesc = generateAbilityDescription(ab, allAbilitiesRegistry); } catch (e) {}
+            try { rawDesc = generateAbilityDescription(ab, allAbilitiesRegistry, globalCards, globalTribes); } catch (e) { console.error(e); }
         }
         
         const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
