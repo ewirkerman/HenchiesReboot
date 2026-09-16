@@ -84,7 +84,8 @@ export async function enableTurnNotifications(legacyMessaging, legacyDb, usernam
         }
 
         // Explicitly register and wait for the Service Worker to be active
-        const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+        const firebaseScriptSw = './firebase-messaging-sw.js'
+        const registration = await navigator.serviceWorker.register(firebaseScriptSw);
         await navigator.serviceWorker.ready;
 
         // Fetch Token entirely through the centralized firebase API
