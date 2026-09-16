@@ -111,33 +111,43 @@ export async function enableTurnNotifications(legacyMessaging, legacyDb, usernam
  * @param {Object} legacyMessaging - DEPRECATED: Handled by firebase.js.
  * @param {Function} onNotificationReceived - Callback to run on message.
  */
+export function resolveNotificationTargetUrl(rawUrl, baseUrl = window.location.href) {
+    if (!rawUrl) return new URL('game.html', baseUrl).href;
+    if (/^https?:\/\//i.test(rawUrl)) return new URL(rawUrl).href;
+
+    const cleanedUrl = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+    return new URL(cleanedUrl, baseUrl).href;
+}
+
 export function listenForForegroundNotifications(messaging, onNotificationReceived) {
     if (!messaging) return;
-    
-    onMessage(messaging, (payload) => {
+
+    subscribeToFCMForeground((payload) => {
         console.log('Foreground message received: ', payload);
-        
+
         const data = payload.data || payload.notification;
         if (!data) return;
-        
-        // 1. If the user is actively focused on the game, just show the HTML toast
+
+        // 1. If the user is actively focused on the game, just show the HTML toast.
         if (document.hasFocus()) {
             if (onNotificationReceived) {
                 onNotificationReceived(data.title || "Turn Update", data.body || "It's your turn!");
             }
-        } else {
-            // 2. If the tab is visible but blurred, Firebase routes it here instead of the Service Worker! 
-            // We MUST manually generate the OS notification to alert them.
-            if (Notification.permission === 'granted') {
-                const sysNotif = new Notification(data.title || "Turn Update", {
-                    body: data.body || "It's your turn!",
-                    data: data
-                });
-                sysNotif.onclick = function() {
-                    window.focus();
-                    this.close();
-                };
-            }
+            return;
+        }
+
+        // 2. If the tab is visible but blurred, Firebase routes it here instead of the Service Worker!
+        // We MUST manually generate the OS notification to alert them.
+        if (Notification.permission === 'granted') {
+            const notificationData = { ...data, url: resolveNotificationTargetUrl(data.url || 'game.html', window.location.href) };
+            const sysNotif = new Notification(data.title || "Turn Update", {
+                body: data.body || "It's your turn!",
+                data: notificationData
+            });
+            sysNotif.onclick = function() {
+                window.location.href = notificationData.url;
+                this.close();
+            };
         }
     });
 }

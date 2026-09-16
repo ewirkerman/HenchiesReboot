@@ -3,6 +3,24 @@ const {
 } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 
+/**
+ * Builds the Firebase Cloud Messaging payload for a turn-change notification.
+ *
+ * @param {string} gameId - The game room id to open when user clicks the alert.
+ * @param {number} turnNumber - The turn number that has started.
+ * @return {{ data: { title: string, body: string, url: string } }}
+ *   A data-only notification payload that opens the target match with its hash.
+ */
+function buildTurnNotificationPayload(gameId, turnNumber) {
+  return {
+    data: {
+      title: "It's your turn! ⚔️",
+      body: `Turn ${turnNumber} has begun. Make your move!`,
+      url: `game.html#${gameId}`,
+    },
+  };
+}
+
 admin.initializeApp();
 
 exports.onTurnChanged = onDocumentUpdated(
@@ -60,13 +78,7 @@ exports.onTurnChanged = onDocumentUpdated(
           return null;
         }
 
-        const payload = {
-          data: {
-            title: "It's your turn! ⚔️",
-            body: `Turn ${afterState.turnNumber} has begun. Make your move!`,
-            url: `/game.html#${event.params.gameId}`,
-          },
-        };
+        const payload = buildTurnNotificationPayload(event.params.gameId, afterState.turnNumber);
 
         const response = await admin.messaging().sendEachForMulticast({
           tokens: tokens,
@@ -102,3 +114,9 @@ exports.onTurnChanged = onDocumentUpdated(
       }
     },
 );
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    buildTurnNotificationPayload,
+  };
+}
