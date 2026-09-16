@@ -1,6 +1,18 @@
 import { Action, ACTION_REGISTRY, findEntityLocation } from './core.js';
 
 export class AttackAction extends Action {
+    run(engine) {
+        // Wrap the entire action (including WOULD_ and MODIFY_ events) in a combat state
+        // to allow other actions (like DealDamage) to automatically defer deaths.
+        const previousCombatState = engine.state.activeCombatState;
+        engine.state.activeCombatState = true;
+        
+        const result = super.run(engine);
+        
+        engine.state.activeCombatState = previousCombatState;
+        return result;
+    }
+
     execute(engine) {
         const attacker = this.payload.source;
         const defender = this.payload.target;
@@ -8,63 +20,134 @@ export class AttackAction extends Action {
         const isTimid = engine.utils.hasEngineFlag(engine.state, attacker, 'BLOCK_TARGET_AVATAR');
 
         if (isTimid && defender.type === 'avatar') {
-            engine.state.history_log.push({ text: `🙈 ${attacker.name} cannot attack the Avatar!`, depth: this.getLogDepth(engine) });
+            engine.state.history_log.push({
+                text: `🙈 ${attacker.name} cannot attack the Avatar!`,
+                depth: this.getLogDepth(engine)
+            });
             return;
         }
 
-        engine.state.history_log.push({ text: `⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`, depth: this.getLogDepth(engine) });
+        engine.state.history_log.push({
+            text: `⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`,
+            depth: this.getLogDepth(engine)
+        });
         
-        engine.emit('ON_ATTACK', this.payload);
-        engine.emit('ON_BE_ATTACKED', this.payload);
         this.payload.preventReaction = true;
-        
-        const getSpeed = (ent) => {
-            let speed = 0;
-            if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_FAST', true)) speed += 1;
-            if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_SLOW', false)) speed -= 1;
-            return Math.max(-1, Math.min(1, speed));
-        };
 
-        const atkSpeed = getSpeed(attacker);
-        const defSpeed = getSpeed(defender);
+        const atkSpeed = this.getSpeed(engine, attacker);
+        const defSpeed = this.getSpeed(engine, defender);
 
-        const checkBoard = (ent) => {
-            const loc = findEntityLocation(engine, ent);
-            return loc && ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone);
-        };
-
-        const DealDamageAction = ACTION_REGISTRY['DEAL_DAMAGE'];
-        const KillAction = ACTION_REGISTRY['KILL'];
+        let eventsEmitted = false;
 
         for (const phase of [1, 0, -1]) {
             // Abort combat entirely if either unit was killed/bounced/banished before this speed phase begins
-            if (attacker._isDying || !checkBoard(attacker) || defender._isDying || !checkBoard(defender)) {
+            if (
+                attacker._isDying || !this.checkBoard(engine, attacker) || 
+                defender._isDying || !this.checkBoard(engine, defender)
+            ) {
                 break;
             }
 
-            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined ? attacker.strength : null;
+            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined 
+                ? attacker.strength 
+                : null;
+            
             const defBlockRetaliate = engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_RETALIATE');
-            const currentDefDmg = defBlockRetaliate ? null : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
+            const currentDefDmg = defBlockRetaliate 
+                ? null 
+                : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
 
-            let atkStrikes = atkSpeed === phase && currentAtkDmg !== null && currentAtkDmg >= 0 && !attacker._isDying && checkBoard(attacker);
-            let defStrikes = defSpeed === phase && currentDefDmg !== null && currentDefDmg >= 0 && !defender._isDying && checkBoard(defender);
+            const atkStrikes = atkSpeed === phase && 
+                               currentAtkDmg !== null && 
+                               currentAtkDmg >= 0 && 
+                               !attacker._isDying && 
+                               this.checkBoard(engine, attacker);
+
+            const defStrikes = defSpeed === phase && 
+                               currentDefDmg !== null && 
+                               currentDefDmg >= 0 && 
+                               !defender._isDying && 
+                               this.checkBoard(engine, defender);
 
             const strikesHappened = atkStrikes || defStrikes;
 
-            if (atkStrikes && DealDamageAction) new DealDamageAction({ source: attacker, target: defender, amount: currentAtkDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
-            if (defStrikes && DealDamageAction) new DealDamageAction({ source: defender, target: attacker, amount: currentDefDmg, isCombat: true, deferDeath: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
-            
-            if (strikesHappened && KillAction) {
-                const atkLKI = attacker.abilities ? [...attacker.abilities] : [];
-                const defLKI = defender.abilities ? [...defender.abilities] : [];
-
-                if (atkStrikes && defender.health <= 0 && defender.type !== 'avatar' && !defender._isDying) {
-                    new KillAction({ source: attacker, target: defender, _lkiSourceAbilities: atkLKI, _lkiTargetAbilities: defLKI, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
-                }
-                if (defStrikes && attacker.health <= 0 && attacker.type !== 'avatar' && !attacker._isDying) {
-                    new KillAction({ source: defender, target: attacker, _lkiSourceAbilities: defLKI, _lkiTargetAbilities: atkLKI, isCombat: true, eventContext: { isCombat: true, combatAttackerId: attacker.instanceId, combatDefenderId: defender.instanceId } }).run(engine);
-                }
+            if (strikesHappened && !eventsEmitted) {
+                eventsEmitted = true;
+                engine.emit('ON_ATTACK', this.payload);
+                engine.emit('ON_BE_ATTACKED', this.payload);
             }
+
+            if (atkStrikes) {
+                this.executeStrike(engine, attacker, defender, attacker, defender, currentAtkDmg);
+            }
+            if (defStrikes) {
+                this.executeStrike(engine, attacker, defender, defender, attacker, currentDefDmg);
+            }
+            
+            // SRP: Death checking is handled purely based on state, independent of who struck
+            this.processKill(engine, attacker, defender, attacker, defender);
+            this.processKill(engine, attacker, defender, defender, attacker);
+        }
+    }
+
+    getSpeed(engine, ent) {
+        let speed = 0;
+        if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_FAST', true)) {
+            speed += 1;
+        }
+        if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_SLOW', false)) {
+            speed -= 1;
+        }
+        return Math.max(-1, Math.min(1, speed));
+    }
+
+    checkBoard(engine, ent) {
+        const loc = findEntityLocation(engine, ent);
+        const validZones = [
+            'front', 'mid', 'back', 'sheltered', 
+            'sideline', 'taunt', 'bodyguard', 'avatar'
+        ];
+        return loc && validZones.includes(loc.zone);
+    }
+
+    executeStrike(engine, combatAttacker, combatDefender, source, target, amount) {
+        const DealDamageAction = ACTION_REGISTRY['DEAL_DAMAGE'];
+        if (!DealDamageAction) return;
+
+        new DealDamageAction({
+            source: source,
+            target: target,
+            amount: amount,
+            isCombat: true,
+            deferDeath: true,
+            eventContext: {
+                isCombat: true,
+                combatAttackerId: combatAttacker.instanceId,
+                combatDefenderId: combatDefender.instanceId
+            }
+        }).run(engine);
+    }
+
+    processKill(engine, combatAttacker, combatDefender, source, target) {
+        const KillAction = ACTION_REGISTRY['KILL'];
+        if (!KillAction) return;
+
+        if (target.health <= 0 && target.type !== 'avatar' && !target._isDying) {
+            const sourceLKI = source.abilities ? [...source.abilities] : [];
+            const targetLKI = target.abilities ? [...target.abilities] : [];
+
+            new KillAction({
+                source: source,
+                target: target,
+                _lkiSourceAbilities: sourceLKI,
+                _lkiTargetAbilities: targetLKI,
+                isCombat: true,
+                eventContext: {
+                    isCombat: true,
+                    combatAttackerId: combatAttacker.instanceId,
+                    combatDefenderId: combatDefender.instanceId
+                }
+            }).run(engine);
         }
     }
 }

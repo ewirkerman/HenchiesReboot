@@ -22,7 +22,11 @@ export class DealDamageAction extends Action {
                 engine.state.winner = loserId === 'player1' ? 'player2' : 'player1';
                 engine.state.history_log.push({ text: `☠️ Avatar ${target.name} has fallen! Match finished.`, depth: this.getLogDepth(engine) });
             }
-            if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && !this.payload.deferDeath) {
+            
+            // Defer death if explicitly requested by the payload OR if a combat state is active
+            const shouldDeferDeath = this.payload.deferDeath || engine.state.activeCombatState;
+
+            if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && !shouldDeferDeath) {
                 const atkLKI = source && source.abilities ? [...source.abilities] : [];
                 const defLKI = target.abilities ? [...target.abilities] : [];
                 const KillAction = ACTION_REGISTRY['KILL'];
