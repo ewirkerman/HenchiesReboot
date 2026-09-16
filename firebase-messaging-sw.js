@@ -32,13 +32,15 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   // Extract the dynamic URL passed from our Cloud Function
-  const targetPath = event.notification.data?.url || "/game.html";
-  const targetUrl = new URL(targetPath, self.location.origin).href; 
+  const targetPath = event.notification.data?.url || "";
+  
+  // Use self.registration.scope instead of self.location.origin to support GitHub Pages subdirectories
+  const targetUrl = new URL(`game.html${targetPath}`, self.registration.scope).href; 
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       // Check if ANY tab is open to our game domain
-      const client = windowClients.find(c => c.url.startsWith(self.location.origin) && 'focus' in c);
+      const client = windowClients.find(c => c.url.startsWith(self.registration.scope) && 'focus' in c);
 
       if (client) {
         // Focus first, then navigate to the specific room hash
