@@ -128,18 +128,24 @@ export function listenForForegroundNotifications(messaging, onNotificationReceiv
         const data = payload.data || payload.notification;
         if (!data) return;
 
-        // 1. If the user is actively focused on the game, just show the HTML toast.
-        if (document.hasFocus()) {
+        const targetUrl = resolveNotificationTargetUrl(data.url || 'game.html', window.location.href);
+        const currentUrl = new URL(window.location.href);
+        const target = new URL(targetUrl);
+        const isOnExactTarget = currentUrl.origin === target.origin &&
+            currentUrl.pathname === target.pathname &&
+            currentUrl.hash === target.hash;
+
+        // 1. If the exact target room is already open and focused, do not interrupt the user.
+        if (document.hasFocus() && isOnExactTarget) {
             if (onNotificationReceived) {
                 onNotificationReceived(data.title || "Turn Update", data.body || "It's your turn!");
             }
             return;
         }
 
-        // 2. If the tab is visible but blurred, Firebase routes it here instead of the Service Worker!
-        // We MUST manually generate the OS notification to alert them.
+        // 2. If the user is focused elsewhere, or the tab is blurred, show a browser notification.
         if (Notification.permission === 'granted') {
-            const notificationData = { ...data, url: resolveNotificationTargetUrl(data.url || 'game.html', window.location.href) };
+            const notificationData = { ...data, url: targetUrl };
             const sysNotif = new Notification(data.title || "Turn Update", {
                 body: data.body || "It's your turn!",
                 data: notificationData

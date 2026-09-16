@@ -11,7 +11,7 @@ const admin = require("firebase-admin");
  * @return {{ data: { title: string, body: string, url: string } }}
  *   A data-only notification payload that opens the target match with its hash.
  */
-function buildTurnNotificationPayload(gameId, turnNumber) {
+function buildNotifyPayload(gameId, turnNumber) {
   return {
     data: {
       title: "It's your turn! ⚔️",
@@ -78,7 +78,8 @@ exports.onTurnChanged = onDocumentUpdated(
           return null;
         }
 
-        const payload = buildTurnNotificationPayload(event.params.gameId, afterState.turnNumber);
+        const gameId = event.params.gameId;
+        const payload = buildNotifyPayload(gameId, afterState.turnNumber);
 
         const response = await admin.messaging().sendEachForMulticast({
           tokens: tokens,
@@ -117,6 +118,6 @@ exports.onTurnChanged = onDocumentUpdated(
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    buildTurnNotificationPayload,
+    buildTurnNotificationPayload: buildNotifyPayload,
   };
 }

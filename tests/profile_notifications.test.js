@@ -74,4 +74,30 @@ describe('Foreground notification handling', () => {
     const notificationOptions = global.Notification.mock.calls[0][1];
     expect(notificationOptions.data.url).toBe('https://ewirkerman.github.io/HenchiesReboot/game.html#game_abc');
   });
+
+  test('does not create a browser notification when the exact target game room is already focused', () => {
+    const handler = jest.fn();
+    mockSubscribeToFCMForeground.mockImplementation((cb) => {
+      handler.mockImplementation(cb);
+    });
+
+    global.document = {
+      hasFocus: () => true,
+    };
+    global.window = {
+      location: { href: 'https://ewirkerman.github.io/HenchiesReboot/game.html#game_abc' },
+    };
+
+    listenForForegroundNotifications({ id: 'messaging-1' }, jest.fn());
+
+    handler({
+      data: {
+        title: 'It\'s your turn!',
+        body: 'Turn 7 has begun.',
+        url: '/game.html#game_abc',
+      },
+    });
+
+    expect(global.Notification).not.toHaveBeenCalled();
+  });
 });
