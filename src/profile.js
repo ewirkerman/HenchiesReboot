@@ -38,6 +38,7 @@ export async function loadPlayProfile(legacyDbParam, usernameOpt) {
     try {
         const existingProfile = await fetchUserProfile(username);
         if (existingProfile) {
+            console.log(`[NOTIF-DEBUG] Profile loaded for ${username}. FCM Tokens: ${existingProfile.fcmTokens?.length || 0}`);
             return existingProfile;
         }
     } catch (error) {
@@ -47,6 +48,7 @@ export async function loadPlayProfile(legacyDbParam, usernameOpt) {
     }
 
     // Default Profile Structure
+    console.log(`[NOTIF-DEBUG] Creating new profile for ${username}.`);
     const newProfile = {
         username: username,
         fcmTokens: [],      
@@ -74,33 +76,44 @@ export async function enableTurnNotifications(legacyMessaging, legacyDb, usernam
         username = legacyMessaging;
     }
 
-    if (!username) return false;
+    console.log(`[NOTIF-DEBUG] enableTurnNotifications called for user: ${username}`);
+    if (!username) {
+        console.error("[NOTIF-DEBUG] No username provided to enableTurnNotifications.");
+        return false;
+    }
 
     try {
+        console.log("[NOTIF-DEBUG] Requesting Notification permission from browser...");
         const permission = await Notification.requestPermission();
+        console.log(`[NOTIF-DEBUG] Permission result: ${permission}`);
+        
         if (permission !== 'granted') {
-            console.warn("Notifications denied by user.");
+            console.warn("[NOTIF-DEBUG] Notifications denied by user.");
             return false;
         }
 
         // Explicitly register and wait for the Service Worker to be active
+        console.log("[NOTIF-DEBUG] Registering Service Worker './firebase-messaging-sw.js'...");
         const firebaseScriptSw = './firebase-messaging-sw.js'
         const registration = await navigator.serviceWorker.register(firebaseScriptSw);
         await navigator.serviceWorker.ready;
+        console.log("[NOTIF-DEBUG] Service Worker is ready.");
 
         // Fetch Token entirely through the centralized firebase API
+        console.log("[NOTIF-DEBUG] Requesting FCM Token...");
         const currentToken = await requestFCMToken(VAPID_KEY, registration);
 
         if (currentToken) {
+            console.log(`[NOTIF-DEBUG] FCM Token acquired. Length: ${currentToken.length}. Saving to profile...`);
             await addFCMTokenToProfile(username, currentToken);
-            console.log("Device registered for turn notifications.");
+            console.log("[NOTIF-DEBUG] Device successfully registered for turn notifications.");
             return true;
         } else {
-            console.warn("No registration token available. Check VAPID key and messaging setup.");
+            console.warn("[NOTIF-DEBUG] No registration token returned. Check VAPID key and messaging setup.");
             return false;
         }
     } catch (err) {
-        console.error("An error occurred while setting up notifications: ", err);
+        console.error("[NOTIF-DEBUG] An error occurred while setting up notifications: ", err);
         return false;
     }
 }
@@ -108,7 +121,6 @@ export async function enableTurnNotifications(legacyMessaging, legacyDb, usernam
 /**
  * Listens for FCM push messages while the app is active and focused.
  * 
- * @param {Object} legacyMessaging - DEPRECATED: Handled by firebase.js.
  * @param {Function} onNotificationReceived - Callback to run on message.
  */
 export function resolveNotificationTargetUrl(rawUrl, baseUrl = window.location.href) {
@@ -119,14 +131,18 @@ export function resolveNotificationTargetUrl(rawUrl, baseUrl = window.location.h
     return new URL(cleanedUrl, baseUrl).href;
 }
 
-export function listenForForegroundNotifications(messaging, onNotificationReceived) {
-    if (!messaging) return;
-
+// REMOVED `messaging` requirement here. `firebase.js` handles it.
+export function listenForForegroundNotifications(onNotificationReceived) {
+    console.log("[NOTIF-DEBUG] Setting up listenForForegroundNotifications hook...");
+    
     subscribeToFCMForeground((payload) => {
-        console.log('Foreground message received: ', payload);
+        console.log('[NOTIF-DEBUG] 🚨 FOREGROUND MESSAGE RECEIVED!', payload);
 
         const data = payload.data || payload.notification;
-        if (!data) return;
+        if (!data) {
+            console.warn('[NOTIF-DEBUG] Payload missing data/notification objects.');
+            return;
+        }
 
         const targetUrl = resolveNotificationTargetUrl(data.url || 'game.html', window.location.href);
         const currentUrl = new URL(window.location.href);
@@ -135,8 +151,11 @@ export function listenForForegroundNotifications(messaging, onNotificationReceiv
             currentUrl.pathname === target.pathname &&
             currentUrl.hash === target.hash;
 
+        console.log(`[NOTIF-DEBUG] Foreground target analysis. Current: ${currentUrl.hash}, Target: ${target.hash}. Exact Match: ${isOnExactTarget}, HasFocus: ${document.hasFocus()}`);
+
         // 1. If the exact target room is already open and focused, do not interrupt the user.
         if (document.hasFocus() && isOnExactTarget) {
+            console.log('[NOTIF-DEBUG] User is active in the target room. Triggering local UI hook instead of system notification.');
             if (onNotificationReceived) {
                 onNotificationReceived(data.title || "Turn Update", data.body || "It's your turn!");
             }
@@ -145,6 +164,7 @@ export function listenForForegroundNotifications(messaging, onNotificationReceiv
 
         // 2. If the user is focused elsewhere, or the tab is blurred, show a browser notification.
         if (Notification.permission === 'granted') {
+            console.log('[NOTIF-DEBUG] User not focused on target. Displaying system Notification.');
             const notificationData = { ...data, url: targetUrl };
             const sysNotif = new Notification(data.title || "Turn Update", {
                 body: data.body || "It's your turn!",
@@ -154,6 +174,8 @@ export function listenForForegroundNotifications(messaging, onNotificationReceiv
                 window.location.href = notificationData.url;
                 this.close();
             };
+        } else {
+            console.warn('[NOTIF-DEBUG] Cannot show fallback system notification; permission not granted.');
         }
     });
 }

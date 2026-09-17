@@ -134,8 +134,12 @@ async function initializeApp() {
             }
         }
         
+        console.log(`[NOTIF-DEBUG] App initialized. Firebase messaging instance available: ${!!messaging}`);
+        
         // Listen for foreground push notifications on the client
-        listenForForegroundNotifications(messaging, (title, body) => {
+        // Note: Removed the `messaging` parameter to match the updated profile.js signature
+        listenForForegroundNotifications((title, body) => {
+            console.log(`[NOTIF-DEBUG] Foreground callback executed! Title: ${title}`);
             showToast(`${title}: ${body}`, "info");
         });
         
@@ -216,18 +220,22 @@ async function updateLobbyData() {
     if (!username || window.location.hash.startsWith('#test_')) return;
     
     // Wire up push notification profile
+    console.log(`[NOTIF-DEBUG] Lobby updated for user: ${username}. Fetching profile...`);
     ClientState.profile = await loadPlayProfile(db, username);
     const notifBtn = document.getElementById('enable-notifications-btn');
     
     if (notifBtn) {
         const updateBtnState = () => {
+            console.log(`[NOTIF-DEBUG] UI Button State Update. Browser Permission: ${Notification.permission}`);
             if (Notification.permission === 'granted') {
                 if (ClientState.profile && ClientState.profile.fcmTokens && ClientState.profile.fcmTokens.length > 0) {
+                    console.log("[NOTIF-DEBUG] Token found in profile. UI Button -> Active/Disabled.");
                     notifBtn.innerText = "🔔 Notifications Active";
                     notifBtn.className = "bg-emerald-900/40 border border-emerald-700 text-emerald-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition opacity-70 cursor-not-allowed";
                     notifBtn.disabled = true;
                     notifBtn.title = "Manage in browser settings";
                 } else {
+                    console.log("[NOTIF-DEBUG] Permission granted, but no token in profile. UI Button -> Sync.");
                     // Browser allows it, but Firebase profile is missing the token
                     notifBtn.innerText = "🔄 Sync Notifications";
                     notifBtn.className = "bg-amber-900/40 hover:bg-amber-800 border border-amber-700 text-amber-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition";
@@ -235,11 +243,13 @@ async function updateLobbyData() {
                     notifBtn.title = "Save device to profile";
                 }
             } else if (Notification.permission === 'denied') {
+                console.log("[NOTIF-DEBUG] Permission denied. UI Button -> Blocked.");
                 notifBtn.innerText = "🔕 Notifications Blocked";
                 notifBtn.className = "bg-red-900/40 border border-red-700 text-red-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition opacity-70 cursor-not-allowed";
                 notifBtn.disabled = true;
                 notifBtn.title = "Unblock in browser settings (URL bar icon) to enable";
             } else {
+                console.log("[NOTIF-DEBUG] Permission default (not asked). UI Button -> Enable.");
                 notifBtn.innerText = "🔔 Notify on Turn";
                 notifBtn.className = "bg-sky-900/40 hover:bg-sky-800 border border-sky-700 text-sky-300 font-bold px-2 py-0.5 rounded text-[9px] shadow-sm transition";
                 notifBtn.disabled = false;
@@ -253,17 +263,23 @@ async function updateLobbyData() {
         // Listen to browser-level permission changes dynamically!
         if (navigator.permissions && navigator.permissions.query) {
             navigator.permissions.query({ name: 'notifications' }).then((status) => {
-                status.onchange = () => updateBtnState();
+                status.onchange = () => {
+                    console.log(`[NOTIF-DEBUG] Browser permission changed via system! New status: ${status.state}`);
+                    updateBtnState();
+                }
             });
         }
 
         notifBtn.onclick = async () => {
+            console.log("[NOTIF-DEBUG] Notification button clicked!");
             if (Notification.permission === 'denied') {
                 showToast("Please allow notifications in your browser's URL bar settings.", "error");
                 return;
             }
+            
             const success = await enableTurnNotifications(messaging, db, username);
             if (success) {
+                console.log("[NOTIF-DEBUG] enableTurnNotifications returned success.");
                 showToast("Turn notifications enabled!", "success");
                 // Mock local profile update so UI updates instantly
                 if (!ClientState.profile) ClientState.profile = {};
@@ -271,6 +287,7 @@ async function updateLobbyData() {
                 ClientState.profile.fcmTokens.push('local_sync_token');
                 updateBtnState();
             } else {
+                console.error("[NOTIF-DEBUG] enableTurnNotifications returned false.");
                 showToast("Failed to enable notifications. (Check console)", "error");
             }
         };
