@@ -359,7 +359,7 @@ function buildAbilityAction(state, playerId, entity, ability) {
     const validTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL', 'ON_PLAY', 'ON_BE_PLAYED', 'ON_PLAY_OPTIONAL', 'MODIFY_PLAY', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'WOULD_PLAY_OPTIONAL'];
     if (!validTriggers.includes(ability.trigger)) return null;
     
-    if (hasEngineFlag(state, entity, 'BLOCK_ACT')) return null;
+    if (hasEngineFlag(state, entity, 'BLOCK_ACT') && ability.trigger == 'MANUAL') return null;
 
     const inHand = isEntityInHand(state, playerId, entity);
     if (ability.trigger === 'MANUAL' && inHand && !ability.passiveFlags?.includes('ACTIVATE_FROM_HAND')) {

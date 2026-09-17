@@ -356,6 +356,48 @@ describe('targeting.js core logic', () => {
         });
     });
 
+    describe('BLOCK_ACT Flag Restrictions', () => {
+        it('should block MANUAL abilities from being available if the entity has the BLOCK_ACT flag', () => {
+            const unit = {
+                id: 'u_block', instanceId: 'u_block', type: 'unit', readiness: 1, acts: 1, ownerId: 'player1',
+                abilities: [{ abilityId: 'ab_manual', trigger: 'MANUAL', cost: { carnie: 0 } }]
+            };
+            mockState.players.player1.lines.mid.push(unit);
+
+            hasEngineFlagMock.mockImplementation((state, ent, flag) => {
+                if (ent.id === 'u_block' && flag === 'BLOCK_ACT') return true;
+                return false;
+            });
+
+            const actions = getEntityAvailableActions(mockState, 'player1', 'u_block');
+            expect(actions.some(a => a.abilityId === 'ab_manual')).toBe(false);
+        });
+
+        it('should NOT block non-MANUAL abilities (e.g., PLAY triggers) even if the BLOCK_ACT flag is present', () => {
+            const card = {
+                id: 'c_block', instanceId: 'c_block', type: 'unit', ownerId: 'player1', cost: 0,
+                abilities: [
+                    { abilityId: 'ab_manual_hand', trigger: 'MANUAL', passiveFlags: ['ACTIVATE_FROM_HAND'], cost: { carnie: 0 } },
+                    { abilityId: 'ab_play', trigger: 'PLAY', cost: { carnie: 0 } }
+                ]
+            };
+            mockState.players.player1.hand.push(card);
+
+            hasEngineFlagMock.mockImplementation((state, ent, flag) => {
+                if (ent.id === 'c_block' && flag === 'BLOCK_ACT') return true;
+                return false;
+            });
+
+            const actions = getEntityAvailableActions(mockState, 'player1', 'c_block');
+            
+            // The ON_PLAY or PLAY ability should still be fully available.
+            expect(actions.some(a => a.abilityId === 'ab_play')).toBe(true);
+            
+            // The MANUAL ability activated from hand should be explicitly restricted.
+            expect(actions.some(a => a.abilityId === 'ab_manual_hand')).toBe(false);
+        });
+    });
+
     describe('Hand Activation Filtering', () => {
         it('should hide MANUAL abilities in hand UNLESS they have ACTIVATE_FROM_HAND flag', () => {
             const unit = {
