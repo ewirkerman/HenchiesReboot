@@ -123,12 +123,16 @@ export async function enableTurnNotifications(legacyMessaging, legacyDb, usernam
  * 
  * @param {Function} onNotificationReceived - Callback to run on message.
  */
-export function resolveNotificationTargetUrl(rawUrl, baseUrl = window.location.href) {
-    if (!rawUrl) return new URL('game.html', baseUrl).href;
+export function resolveNotificationTargetUrl(rawUrl) {
+    if (!rawUrl) rawUrl = 'game.html';
     if (/^https?:\/\//i.test(rawUrl)) return new URL(rawUrl).href;
 
     const cleanedUrl = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
-    return new URL(cleanedUrl, baseUrl).href;
+    
+    // import.meta.url points directly to this file (e.g., .../src/profile.js)
+    // Resolving '../' + cleanedUrl safely anchors us back to the app's root directory
+    // regardless of whether the user is currently on /studios/creator.html or /deckbuilder.html
+    return new URL('../' + cleanedUrl, import.meta.url).href;
 }
 
 // REMOVED `messaging` requirement here. `firebase.js` handles it.
@@ -144,7 +148,7 @@ export function listenForForegroundNotifications(onNotificationReceived) {
             return;
         }
 
-        const targetUrl = resolveNotificationTargetUrl(data.url || 'game.html', window.location.href);
+        const targetUrl = resolveNotificationTargetUrl(data.url || 'game.html');
         const currentUrl = new URL(window.location.href);
         const target = new URL(targetUrl);
         const isOnExactTarget = currentUrl.origin === target.origin &&
