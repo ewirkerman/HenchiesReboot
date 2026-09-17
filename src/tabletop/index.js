@@ -206,6 +206,135 @@ async function updateDeckDropdown() {
 
 let invitesUnsub = null;
 let matchesUnsub = null;
+let latestInvites = [];
+let latestMatches = [];
+
+function renderCombinedLobbyList(username) {
+    const listEl = document.getElementById('combined-matches-list');
+    const countEl = document.getElementById('combined-count');
+    if (!listEl) return;
+
+    // 1. Process matches to extract local turn states
+    const enrichedMatches = latestMatches.map(m => {
+        let realActivePlayerId = m.activePlayerId;
+        let realTurnNumber = m.turnNumber || 1;
+        let realTurnPhase = m.turnPhase || 'Setup';
+        let activePlayerName = m.players ? m.players[realActivePlayerId + "Name"] : null;
+
+        if (m.turn_start_state) {
+            try {
+                const stateObj = typeof m.turn_start_state === 'string' ? JSON.parse(m.turn_start_state) : m.turn_start_state;
+                realActivePlayerId = stateObj.activePlayerId || realActivePlayerId;
+                realTurnNumber = stateObj.turnNumber || realTurnNumber;
+                realTurnPhase = stateObj.turnPhase || realTurnPhase;
+                activePlayerName = stateObj.players?.[realActivePlayerId]?.name || activePlayerName;
+            } catch (e) {
+                console.warn("Failed to parse match state", e);
+            }
+        }
+        
+        const isMyTurn = activePlayerName === username;
+        return { ...m, isMyTurn, realTurnNumber, realTurnPhase };
+    });
+    
+    // 2. Separate into My Turn vs Waiting, sorted individually
+    const myTurnMatches = enrichedMatches.filter(m => m.isMyTurn).sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
+    const waitingMatches = enrichedMatches.filter(m => !m.isMyTurn).sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
+
+    const totalItems = myTurnMatches.length + latestInvites.length + waitingMatches.length;
+    if (countEl) countEl.innerText = totalItems;
+
+    if (totalItems === 0) {
+        listEl.innerHTML = '<span class="text-xs text-slate-500 italic px-1">No active games or invites.</span>';
+        return;
+    }
+
+    let html = '';
+
+    // Group 1: Your Turn (Matches)
+    myTurnMatches.forEach(m => {
+        const oppName = m.participants.find(p => p !== username) || 'Waiting...';
+        const phaseStr = (m.realTurnPhase || 'Setup').replace('_', ' ');
+        html += `
+            <div class="flex justify-between items-center p-1.5 sm:p-2 rounded-md border border-amber-500/80 bg-amber-950/30 hover:bg-amber-950/50 shadow-[0_0_8px_rgba(245,158,11,0.1)] transition group mb-1.5 cursor-pointer" onclick="window.handleResumeMatch('${m.gameId}')">
+                <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+                    <span class="text-[10px] sm:text-[11px] font-black text-amber-400 uppercase tracking-wider leading-none truncate">vs ${oppName}</span>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="text-[9px] font-bold text-amber-500 animate-pulse flex items-center gap-1 leading-none">
+                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_4px_#f59e0b]"></span> YOUR TURN
+                        </span>
+                        <span class="text-[9px] text-amber-600/70 font-semibold truncate hidden sm:inline">• T${m.realTurnNumber} • ${phaseStr}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1 shrink-0 ml-2">
+                    <button onclick="if(event)event.stopPropagation(); window.handleForfeitFromLobby('${m.gameId}')" class="text-[9px] text-amber-700 hover:text-red-500 font-bold px-1.5 py-0.5 rounded transition" title="Forfeit Match">🏳️</button>
+                    <button class="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black px-2.5 sm:px-3 py-1 rounded text-[9px] font-black shadow-md transition-all active:scale-95">
+                        PLAY
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    // Group 2: Pending Invites
+    latestInvites.forEach(inv => {
+        html += `
+            <div class="flex justify-between items-center p-1.5 sm:p-2 rounded-md border border-sky-600/60 bg-sky-950/40 hover:bg-sky-900/50 shadow-sm transition group mb-1.5">
+                <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+                    <span class="text-[10px] sm:text-[11px] font-black text-sky-300 uppercase tracking-wider leading-none truncate">Invite: ${inv.from}</span>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="text-[9px] font-semibold text-sky-500 flex items-center gap-1 leading-none">
+                            <span class="h-1 w-1 rounded-full bg-sky-500"></span> Pending...
+                        </span>
+                    </div>
+                </div>
+                <div class="flex items-center shrink-0 ml-2">
+                    <button onclick="window.acceptAndJoinInvite('${inv.id}', '${inv.gameId}')" class="bg-sky-600 hover:bg-sky-500 text-white px-3 py-1 rounded text-[9px] font-bold shadow-md transition-all active:scale-95">
+                        ACCEPT
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    // Group 3: Waiting on Opponent (Matches)
+    waitingMatches.forEach(m => {
+        const oppName = m.participants.find(p => p !== username) || 'Waiting...';
+        const phaseStr = (m.realTurnPhase || 'Setup').replace('_', ' ');
+        html += `
+            <div class="flex justify-between items-center p-1.5 sm:p-2 rounded-md border border-slate-700/50 bg-slate-800/30 opacity-70 hover:opacity-100 transition-opacity group mb-1.5 cursor-pointer" onclick="window.handleResumeMatch('${m.gameId}')">
+                <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+                    <span class="text-[10px] sm:text-[11px] font-bold text-slate-300 leading-none truncate">vs ${oppName}</span>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="text-[9px] font-semibold text-slate-500 flex items-center gap-1 leading-none">
+                            <span class="h-1 w-1 rounded-full bg-slate-600"></span> Waiting
+                        </span>
+                        <span class="text-[9px] text-slate-600 font-semibold truncate hidden sm:inline">• T${m.realTurnNumber} • ${phaseStr}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1 shrink-0 ml-2">
+                    <button onclick="if(event)event.stopPropagation(); window.handleForfeitFromLobby('${m.gameId}')" class="text-[9px] text-slate-600 hover:text-red-500 font-bold px-1.5 py-0.5 rounded transition" title="Forfeit Match">🏳️</button>
+                    <button class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded text-[9px] font-bold shadow-sm transition-colors border border-slate-600">
+                        VIEW
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    listEl.innerHTML = html;
+}
+
+window.acceptAndJoinInvite = async (inviteId, gameId) => {
+    // Attempt to accept it (resolves backend updates)
+    if (window.handleAcceptInvite) {
+        await window.handleAcceptInvite(inviteId, gameId);
+    }
+    // Route instantly into the game
+    if (window.handleResumeMatch) {
+        window.handleResumeMatch(gameId);
+    }
+};
 
 async function updateLobbyData() {
     const usernameInput = document.getElementById('setup-username');
@@ -294,45 +423,13 @@ async function updateLobbyData() {
     }
 
     invitesUnsub = await subscribeToUserInvites(username, (invites) => {
-        const countEl = document.getElementById('invites-count');
-        const listEl = document.getElementById('invites-list');
-        if (countEl) countEl.innerText = invites.length;
-        if (listEl) {
-            if (invites.length === 0) {
-                listEl.innerHTML = '<span class="text-xs text-slate-500 italic">No pending invites.</span>';
-            } else {
-                listEl.innerHTML = invites.map(inv => `
-                    <div class="bg-slate-950 p-2 rounded border border-slate-700 flex justify-between items-center">
-                        <span class="text-xs text-amber-300 font-bold">From: ${inv.from}</span>
-                        <button onclick="window.handleAcceptInvite('${inv.id}', '${inv.gameId}')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded transition">Accept</button>
-                    </div>
-                `).join('');
-            }
-        }
+        latestInvites = invites || [];
+        renderCombinedLobbyList(username);
     });
 
     matchesUnsub = await subscribeToActiveMatches(username, (matches) => {
-        const countEl = document.getElementById('matches-count');
-        const listEl = document.getElementById('active-matches-list');
-        if (countEl) countEl.innerText = matches.length;
-        if (listEl) {
-            if (matches.length === 0) {
-                listEl.innerHTML = '<span class="text-xs text-slate-500 italic">No active matches.</span>';
-            } else {
-                listEl.innerHTML = matches.map(m => `
-                    <div class="bg-slate-950 p-2 rounded border border-slate-700 flex justify-between items-center group">
-                        <div class="flex flex-col cursor-pointer flex-1 hover:opacity-80 transition-opacity" onclick="window.handleResumeMatch('${m.gameId}')">
-                            <span class="text-xs text-emerald-400 font-bold">vs ${m.participants.find(p => p !== username) || 'Waiting...'}</span>
-                            <span class="text-[9px] text-slate-500">Turn ${m.turnNumber || 1} • ${(m.turnPhase || 'Setup').replace('_', ' ')}</span>
-                        </div>
-                        <div class="flex items-center gap-1.5 shrink-0">
-                            <button onclick="window.handleForfeitFromLobby('${m.gameId}')" class="text-[10px] text-slate-500 hover:text-red-400 font-bold px-1.5 py-0.5 rounded border border-transparent hover:border-red-900 transition" title="Forfeit Match">🏳️</button>
-                            <span class="text-lg text-emerald-500 cursor-pointer" onclick="window.handleResumeMatch('${m.gameId}')">▶</span>
-                        </div>
-                    </div>
-                `).join('');
-            }
-        }
+        latestMatches = matches || [];
+        renderCombinedLobbyList(username);
     });
 }
 
