@@ -30,6 +30,7 @@ import { UnfieldAction } from './unfield.js';
 import { RebelAction } from './rebel.js';
 import { DonateAction } from './donate.js';
 import { SummonAction } from './summon.js';
+import { ConditionalAction } from './conditional.js';
 import { BlockActAction } from './block_act.js';
 import { BlockAttackAction } from './block_attack.js';
 import { BlockRetaliateAction } from './block_retaliate.js';
@@ -70,6 +71,7 @@ ACTION_REGISTRY['UNFIELD'] = UnfieldAction;
 ACTION_REGISTRY['REBEL'] = RebelAction;
 ACTION_REGISTRY['DONATE'] = DonateAction;
 ACTION_REGISTRY['SUMMON'] = SummonAction;
+ACTION_REGISTRY['CONDITIONAL'] = ConditionalAction;
 ACTION_REGISTRY['BLOCK_ACT'] = BlockActAction;
 ACTION_REGISTRY['BLOCK_ATTACK'] = BlockAttackAction;
 ACTION_REGISTRY['BLOCK_RETALIATE'] = BlockRetaliateAction;
@@ -86,7 +88,7 @@ export const ACTION_CATEGORIES = {
     'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'REVIVE', 'TRASH', 'BANISH', 'CHANGE_DESTINATION'],
     'Field Presence': ['FIELD', 'UNFIELD'],
     'Attachments & Control': ['ATTACH', 'UNATTACH', 'REBEL', 'DONATE'],
-    'Meta & Utility': ['TOP_DECK', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM']
+    'Meta & Utility': ['TOP_DECK', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM', 'CONDITIONAL']
 };
 
 export const EVENT_CATEGORIES = {
@@ -128,5 +130,5 @@ export {
     DiscardAction, ShuffleAction, ReturnAction, RecoverAction, TrashAction, BanishAction, FieldAction,
     ReviveAction, AttachAction, UnattachAction, UnfieldAction, RebelAction, DonateAction, SummonAction, BlockActAction,
     BlockAttackAction, BlockRetaliateAction, BlockTargetingAction, CancelEventAction, CleanseAction,
-    ChangeDestinationAction, ModifyEventAction, TransformAction, CustomScriptAction
+    ChangeDestinationAction, ModifyEventAction, TransformAction, CustomScriptAction, ConditionalAction
 };

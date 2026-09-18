@@ -182,7 +182,9 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
       if (!manifest.canBeCost) delete payload.isCost;
       
       if (manifest.hasNestedGroup) {
-          payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
+          payload.nestedGroup = manifest.hasLogicTree
+              ? { logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] }
+              : { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
       } else {
           delete payload.nestedGroup;
       }

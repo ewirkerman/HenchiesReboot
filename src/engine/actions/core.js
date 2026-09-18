@@ -11,6 +11,7 @@ export const ACTION_MANIFEST = {
     'DRAW_CARD': { passiveType: 'BE_DRAWN', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DECK'], endZone: ['HAND'], validDurations: ['INSTANT'] },
     'TOP_DECK': { requiresAmount: true, validZones: 'ALL', canInvert: true, canBeCost: false, validDurations: ['INSTANT'] },
     'SUMMON': { passiveType: 'BE_SUMMONED', canInvert: false, canBeCost: false, requiresAmount: true, requiresCardId: true, requiresZone: true, requiresZoneOwner: true, hasNestedGroup: true, validZones: 'ALL', endZone: ['FIELD'], validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
+    'CONDITIONAL': { passiveType: null, canInvert: false, canBeCost: false, hasNestedGroup: true, hasLogicTree: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'PLAY': { passiveType: 'BE_PLAYED', canInvert: true, canBeCost: false, validZones: ['HAND'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
     'ATTACK': { passiveType: 'BE_ATTACKED', canInvert: true, canBeCost: false, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'HARVEST': { passiveType: 'BE_HARVESTED', canInvert: true, canBeCost: false, requiresAmount: true, requiresResource: true, validZones: 'ALL', endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true },

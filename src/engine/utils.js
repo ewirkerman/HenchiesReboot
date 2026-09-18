@@ -307,10 +307,10 @@ export function isEntityOnBoard(state, card) {
     for (const pId of ['player1', 'player2']) {
         const p = state.players[pId];
         for (const line of LINES) {
-            if (p.lines[line]?.some(u => u.name === card.name || u.id === card.id)) return true;
+            if (p.lines[line]?.some(u => u.id === card.id)) return true;
         }
     }
-    if (state.equator?.some(i => i.name === card.name || i.id === card.id)) return true;
+    if (state.equator?.some(i => i.id === card.id)) return true;
     return false;
 }
 

@@ -9,6 +9,10 @@ import { ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
 
 export function getRoot(treeType) {
     if (treeType === 'activation') return StudioState.activationRoot;
+    if (treeType.startsWith('conditional_')) {
+        const [, gIdx, pIdx] = treeType.split('_').map(Number);
+        return StudioState.effectGroups[gIdx]?.payloads[pIdx]?.nestedGroup?.logicTree;
+    }
     if (treeType.startsWith('effect_')) {
         const idx = parseInt(treeType.split('_')[1], 10);
         return StudioState.effectGroups[idx].logicTree;

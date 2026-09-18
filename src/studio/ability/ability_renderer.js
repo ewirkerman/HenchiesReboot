@@ -439,7 +439,7 @@ export function generateEffectsHTML(ctx) {
                         <button type="button" onclick="window.removeNestedPayload(${gIdx}, ${pIdx}, ${nIdx})" class="absolute top-1/2 -translate-y-1/2 right-2 text-slate-500 hover:text-red-400 font-bold px-1 text-[12px]">&times;</button>
                         <div class="w-1/3 min-w-[120px]">
                             <select onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'type', this.value)" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-emerald-400 font-bold text-[10px] w-full">
-                               ${typeOptions.replace(/selected/g, '').replace(new RegExp(`value="${np.type}"`), `value="${np.type}" selected`)}
+                               ${(manifest.hasLogicTree ? typeOptions.replace(/<option value="(?:SUMMON|CONDITIONAL)"[^>]*>[^<]*<\/option>/g, '') : typeOptions).replace(/selected/g, '').replace(new RegExp(`value="${np.type}"`), `value="${np.type}" selected`)}
                             </select>
                         </div>
                         ${npParamsHtml}
@@ -448,13 +448,21 @@ export function generateEffectsHTML(ctx) {
                   `;
                   }).join('');
 
-                  const nestedGroupHtml = `
+                                    const conditionalLogicHtml = manifest.hasLogicTree ? `
+                                        <div class="w-full mb-3 bg-slate-950/70 p-2 rounded border border-amber-700/50">
+                                                <label class="block text-[10px] font-black text-amber-400 tracking-wider mb-2">CONDITION MUST PASS</label>
+                                                ${generateGroupHTML(`conditional_${gIdx}_${pIdx}`, ng.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
+                                        </div>
+                                    ` : '';
+
+                                    const nestedGroupHtml = `
                     <div class="w-full mt-4 bg-slate-900/80 p-3 rounded-lg border border-fuchsia-700/50 shadow-inner">
                         <div class="flex justify-between items-center mb-3 border-b border-fuchsia-900/50 pb-2">
-                           <label class="block text-[11px] font-black text-fuchsia-400 tracking-wider">🎯 POST-SUMMON ACTIONS</label>
+                           <label class="block text-[11px] font-black text-fuchsia-400 tracking-wider">🎯 ${manifest.hasLogicTree ? 'CONDITIONAL ACTIONS' : 'POST-SUMMON ACTIONS'}</label>
                            <button type="button" onclick="window.addNestedPayload(${gIdx}, ${pIdx})" class="text-[10px] bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-3 py-1 rounded shadow transition">+ Add Nested Action</button>
                         </div>
-                        <div class="flex gap-3 mb-3 w-full">
+                        ${conditionalLogicHtml}
+                        ${!manifest.hasLogicTree ? `<div class="flex gap-3 mb-3 w-full">
                             <div class="flex-1">
                                 <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase">Target Scope</label>
                                 <select onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white text-[10px] w-full">
@@ -469,7 +477,7 @@ export function generateEffectsHTML(ctx) {
                                 <input type="number" value="${ng.targetCount || 1}" onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetCount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]" />
                             </div>
                             ` : ''}
-                        </div>
+                        </div>` : ''}
                         <div class="flex flex-col gap-2">
                             ${nestedPayloadsHtml}
                         </div>
@@ -507,8 +515,7 @@ export function generateEffectsHTML(ctx) {
                                 <input type="checkbox" ${payload.isCost ? 'checked' : ''} onchange="window.updatePayload(${gIdx}, ${pIdx}, 'isCost', this.checked)" class="accent-rose-500 w-3 h-3" />
                                 <span class="text-[9px] font-black text-rose-400 uppercase tracking-wider">Is Cost</span>
                             </label>` : ''}
-                        </div>
-                      </div>
+                                                </div>
                       ${showDuration ? `
                       <div class="w-32 pb-0.5">
                         <label class="block text-[10px] font-bold text-sky-400 mb-0.5">Duration</label>
