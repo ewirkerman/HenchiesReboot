@@ -1,11 +1,26 @@
 import { Action } from './core.js';
 import { DrawCardAction } from './draw_card.js';
+import { getOwnerId } from '../utils.js';
 
 export class TopDeckAction extends Action {
     execute(engine) {
-        // Find the owner of the catalyst (e.g., the Compost Pixie in the discard)
-        let ownerId = this.payload.actingPlayerId;
-        if (!ownerId && this.payload.source) ownerId = this.payload.source.ownerId || this.payload.source.originalOwnerId;
+        let ownerId = null;
+
+        // 1. Try to get the owner of the target
+        if (this.payload.target) {
+            ownerId = getOwnerId(engine.state, this.payload.target);
+        }
+
+        // 2. Fall back to the source (e.g., the catalyst artifact)
+        if (!ownerId && this.payload.source) {
+            ownerId = getOwnerId(engine.state, this.payload.source);
+        }
+
+        // 3. Absolute fallback to the acting player
+        if (!ownerId) {
+            ownerId = this.payload.actingPlayerId;
+        }
+
         if (!ownerId) return;
 
         const player = engine.state.players[ownerId];
@@ -14,10 +29,8 @@ export class TopDeckAction extends Action {
         if (player && player.deck) {
             for (let i = 0; i < amount; i++) {
                 if (player.deck.length > 0) {
-                    // Identify the top card
                     const topCard = player.deck[player.deck.length - 1]; 
                     
-                    // Delegate the actual movement to the unified DrawCardAction
                     const drawAction = new DrawCardAction({
                         source: this.payload.source,
                         target: topCard,

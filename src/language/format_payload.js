@@ -119,9 +119,10 @@ export function formatPayload(eff, formatCtx) {
             else effText = `deal ${eff.amount !== undefined ? eff.amount : 1} damage to {TARGET}`; 
             break;
         case 'HEAL': 
-            if (eff.amountIsX) effText = `heal {TARGET} for X`;
+            const healVerb = eff.overheal ? 'overheal' : 'heal';
+            if (eff.amountIsX) effText = `${healVerb} {TARGET} for X`;
             else if (eff.amount < 0) effText = `deal ${Math.abs(eff.amount)} damage to {TARGET}`;
-            else effText = `heal {TARGET} for ${eff.amount !== undefined ? eff.amount : 1}`; 
+            else effText = `${healVerb} {TARGET} for ${eff.amount !== undefined ? eff.amount : 1}`;
             break;
         case 'TOP_DECK':
             let tdAmt = eff.amountIsX ? 'X' : (eff.amount !== undefined ? eff.amount : 1);

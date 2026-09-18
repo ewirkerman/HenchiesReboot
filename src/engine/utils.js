@@ -3,6 +3,7 @@
  * Shared utilities and helpers for the Henchies 2 Game Engine.
  */
 
+
 export const CARD_CATALOG = []; // Will be hydrated by deckbuilder/firebase
 
 export const GLOBAL_UNDO_POLICY = 'ALLOWED'; // Options: 'ALLOWED', 'FORCED_ON', 'FORCED_OFF'
@@ -82,6 +83,23 @@ export function resolveResourceKey(state, player, tribeKey) {
     if (!tribeKey) return 'Generic';
     const t = tribeKey.toLowerCase();
     
+    // 1. ALWAYS prioritize matching the exact keys currently used in the player's resource pool
+    if (player && player.resources) {
+        const baseKey = getResKey(tribeKey);
+        if (baseKey === 'Carnie') return 'Carnie';
+        if (player.resources[baseKey]) return baseKey;
+        
+        // Deep normalized scan (strips 'tribe_' and spaces to safely match 'tribe_pirate' to 'Pirate')
+        const tkNorm = t.replace(/^(tribe_)/, '').replace(/[\s_]+/g, '');
+        for (const key in player.resources) {
+            const kNorm = key.toLowerCase().replace(/^(tribe_)/, '').replace(/[\s_]+/g, '');
+            if (kNorm === tkNorm) {
+                return key; // Perfectly returns 'Pirate' instead of 'tribe_pirate'
+            }
+        }
+    }
+    
+    // 2. Fallback to Catalog ID if the player doesn't have the resource active yet
     if (state && state.tribeCatalog) {
         const match = state.tribeCatalog.find(tc => tc.id.toLowerCase() === t || tc.name.toLowerCase() === t);
         if (match) {
@@ -91,20 +109,7 @@ export function resolveResourceKey(state, player, tribeKey) {
         }
     }
     
-    const baseKey = getResKey(tribeKey);
-    if (baseKey === 'Carnie') return 'Carnie';
-    if (player && player.resources[baseKey]) return baseKey;
-    
-    if (player) {
-        const tkLower = baseKey.toLowerCase();
-        for (const key in player.resources) {
-            const kLower = key.toLowerCase();
-            if (kLower === tkLower || kLower === `tribe_${tkLower}` || tkLower === `tribe_${kLower}`) {
-                return key;
-            }
-        }
-    }
-    return baseKey;
+    return getResKey(tribeKey);
 }
 
 export function log(state, msg) {
@@ -123,30 +128,15 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
         if (hasEngineFlag(state, entity, overrideFlag)) return false;
     }
 
-    let found = false;
-
-    if (flagName === 'STRIKE_FAST' && entity.fast > 0) {
-        if (consume) entity.fast--;
-        found = true;
-    }
-    if (flagName === 'STRIKE_SLOW' && entity.slow > 0) {
-        if (consume) entity.slow--;
-        found = true;
-    }
-    if (found) return true;
-
-    if (entity.activeEffects) {
-        for (const e of entity.activeEffects) {
-            if (e.type === flagName) found = true;
-            if (found) return true;
-        }
-    }
-
-    const checkAbility = (ability) => {
+    const checkAbility = (ability, index) => {
+        const abilityKey = `${entity.instanceId}_${ability.abilityId}_${index}`;
         if (ability.passiveFlags && ability.passiveFlags.includes(flagName)) {
+            
             if (ability.triggerLimit && ability.triggerLimit !== 'UNLIMITED') {
-                const abilityKey = `${entity.instanceId}_${ability.abilityId}`;
+                // Append the index to create a unique key per instance
+                
                 const uses = state.abilityUses?.[abilityKey] || 0;
+                
                 if (ability.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) return false;
                 if (ability.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) return false;
                 
@@ -157,39 +147,17 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
             }
             return true;
         }
-        
-        const name = (ability.name || '').toLowerCase();
-        if (flagName === 'BLOCK_ACT' && (name === 'dazed' || name === 'stunned' || name === 'stun' || name === 'mindless')) return true;
-        if (flagName === 'BLOCK_ATTACK' && (name === 'unaggressive' || name === 'pacified' || name === 'pacify' || name === 'stunned' || name === 'stun')) return true;
-        if (flagName === 'BLOCK_RETALIATE' && (name === 'dazed' || name === 'daze' || name === 'stunned' || name === 'stun')) return true;
-        if (flagName === 'BLOCK_TARGETING' && name === 'hidden') return true;
-        if (flagName === 'BLOCK_TARGET_AVATAR' && name === 'timid') return true;
-        if (flagName === 'IGNORE_BLOCK_TARGETING' && name === 'perception') return true;
-        if (flagName === 'STRIKE_FAST' && (name === 'swift' || name === 'first strike' || name === 'fast')) return true;
-        if (flagName === 'STRIKE_SLOW' && name === 'slow') return true;
-        if (flagName === 'ATTACK_EXHAUSTS' && (name === 'sluggish' || name === 'heavy attack' || name === 'cumbersome')) return true;
-        if (flagName === 'UNIQUE_ENTITY' && (name === 'unique' || name === 'legendary')) return true;
-
         return false;
     };
 
-    if (entity.abilities) {
-        for (const a of entity.abilities) {
+if (entity.abilities) {
+        for (let index = 0; index < entity.abilities.length; index++) {
+            const a = entity.abilities[index];
             if (typeof a === 'string') {
                 const catAb = state.abilityCatalog?.find(ca => ca.abilityId === a);
-                if (catAb && checkAbility(catAb)) return true;
+                if (catAb && checkAbility(catAb, index)) return true;
             } else {
-                if (checkAbility(a)) return true;
-            }
-        }
-    }
-
-    if (entity.activeEffects) {
-        for (const e of entity.activeEffects) {
-            if (e.type === 'GRANT_ABILITY' && e.grantedAbilityId) {
-                let catAb = state.abilityCatalog?.find(ca => ca.abilityId === e.grantedAbilityId);
-                if (!catAb) catAb = state.abilityCatalog?.find(ca => ca.name === e.grantedAbilityId);
-                if (catAb && checkAbility(catAb)) return true;
+                if (checkAbility(a, index)) return true;
             }
         }
     }
@@ -197,23 +165,47 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
     return false;
 }
 
-export function getOwnerId(state, ent) {
-    if (!ent) return null;
+export function getOwnerId(state, entity) {
+    if (!entity) return null;
     
-    // Items on the Equator (Artifacts, unequipped Equipment) are shared and act for the Active Player
-    if (state.equator && state.equator.some(i => i.instanceId === ent.instanceId)) {
-        return state.activePlayerId;
+    // 1. Standard entity properties (Fastest)
+    if (entity.ownerId) return entity.ownerId;
+    if (entity.originalOwnerId) return entity.originalOwnerId;
+    if (entity.playerId) return entity.playerId;
+
+    // 2. Avatar specific parsing (Avatars are system entities)
+    const isAvatar = entity.type?.toLowerCase() === 'avatar' || (entity.id && entity.id.includes('avatar'));
+    if (isAvatar && entity.id) {
+        const parsed = entity.id.replace('_avatar', '').replace('avatar_', '');
+        if (['player1', 'player2'].includes(parsed)) return parsed;
     }
 
-    if (ent.ownerId) return ent.ownerId;
-    for (const pId of ['player1', 'player2']) {
-        const p = state.players[pId];
-        if (['hand', 'deck', 'discard', 'banish'].some(z => p[z].some(c => c.instanceId === ent.instanceId))) return pId;
-        for (const line of LINES) {
-            if (p.lines[line] && p.lines[line].some(c => c.instanceId === ent.instanceId)) return pId;
-            if (p.lines[line] && p.lines[line].some(u => u.attachments && u.attachments.some(a => a.instanceId === ent.instanceId))) return pId;
+    // 3. Physical State Search (The missing structural truth!)
+    if (state && state.players && entity.instanceId) {
+        for (const pId of ['player1', 'player2']) {
+            const p = state.players[pId];
+            if (!p) continue;
+            
+            // Check board lines
+            if (p.lines) {
+                for (const line in p.lines) {
+                    if (p.lines[line]?.some(e => e.instanceId === entity.instanceId)) return pId;
+                }
+            }
+            
+            // Check piles
+            for (const zone of ['hand', 'deck', 'discard', 'banish']) {
+                if (p[zone]?.some(e => e.instanceId === entity.instanceId)) return pId;
+            }
         }
     }
+
+    // 4. Desperate Instance ID fallback parsing
+    if (entity.instanceId) {
+        if (entity.instanceId.includes('player1')) return 'player1';
+        if (entity.instanceId.includes('player2')) return 'player2';
+    }
+
     return null;
 }
 
@@ -327,15 +319,38 @@ export function getAttackCost(state, entity) {
 }
 
 function normalizeCostObject(costObj, isCardPlay, entityTribe) {
-    if (isCardPlay) {
-        let baseCost = typeof costObj === 'number' ? costObj : ((costObj && costObj.tribeAmount > 0) ? costObj.tribeAmount : ((costObj && costObj.carnie) || (costObj && costObj.tent) || 0));
-        if (entityTribe !== 'Carnie' && entityTribe !== 'Generic') {
-            return { tribeAmount: baseCost };
+    // 1. Raw numbers
+    if (typeof costObj === 'number') {
+        if (isCardPlay && entityTribe !== 'Carnie' && entityTribe !== 'Generic') {
+            return { tribeAmount: costObj, carnie: 0, power: 0 };
+        }
+        return { carnie: costObj, tribeAmount: 0, power: 0 };
+    }
+    
+    // 2. Objects (Preserve distinct cost channels!)
+    if (costObj) {
+        let tAmt = costObj.tribeAmount || 0;
+        let cAmt = costObj.carnie || costObj.tent || 0;
+        let pAmt = costObj.power || 0;
+        let escalates = costObj.escalates || false;
+
+        if (isCardPlay) {
+            if (entityTribe !== 'Carnie' && entityTribe !== 'Generic') {
+                // It's a non-generic card: 
+                // tribeAmount remains Tribe cost, carnie remains pure Carnie cost!
+                return { tribeAmount: tAmt, carnie: cAmt, power: pAmt, escalates };
+            } else {
+                // It's a Carnie/Generic card: 
+                // All tribeAmount requirements collapse into pure Carnie cost
+                return { tribeAmount: 0, carnie: tAmt + cAmt, power: pAmt, escalates };
+            }
         } else {
-            return { carnie: baseCost };
+            // Not a card play (e.g. board ability). We preserve everything exactly as authored.
+            return { tribeAmount: tAmt, carnie: cAmt, power: pAmt, escalates };
         }
     }
-    return typeof costObj === 'number' ? { carnie: costObj } : (costObj || { carnie: 0 });
+    
+    return { carnie: 0, tribeAmount: 0, power: 0 };
 }
 
 export function calculateEscalatedCostValues(costObj, escalateAmt) {
@@ -402,3 +417,121 @@ export function payCost(state, player, entity, costObj, escalateAmt = 0, isCardP
         }
     }
 }
+
+export function moveEntity(engine, target, destPlayerId, destZone) {
+    destZone = String(destZone || 'discard').toLowerCase();
+
+    removeFromCurrentLocation(engine, target);
+    resetEntityStateForBoard(target, destZone);
+    resetEntityReadinessForPile(target, destZone);
+    addToDestination(engine, target, destPlayerId, destZone);
+}
+function removeFromCurrentLocation(engine, target) {
+    const loc = findEntityLocation(engine, target);
+    if (loc && loc.array) loc.array.splice(loc.index, 1);
+}
+function resetEntityStateForBoard(target, destZone) {
+    const boardZones = ['hand', 'deck', 'back', 'front', 'mid', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'equator', 'attachment'];
+    if (boardZones.includes(destZone)) {
+        target._isDying = false;
+        if (target.health !== undefined && target.health !== null && target.health <= 0) {
+            target.health = target.maxHealth || 1;
+        }
+    }
+}
+function resetEntityReadinessForPile(target, destZone) {
+    if (['deck', 'banish'].includes(destZone)) {
+        target.readiness = 0;
+    }
+}
+function addToDestination(engine, target, destPlayerId, destZone) {
+    if (destZone === 'equator') {
+        if (!engine.state.equator) engine.state.equator = [];
+        engine.state.equator.push(target);
+        return;
+    }
+
+    const p = engine.state.players[destPlayerId];
+    if (!p) return;
+
+    if (['hand', 'deck', 'discard', 'banish'].includes(destZone)) {
+        p[destZone].push(target);
+    } else if (p.lines[destZone]) {
+        p.lines[destZone].push(target);
+    } else {
+        if (!p.lines['back']) p.lines['back'] = [];
+        p.lines['back'].push(target);
+    }
+}export function findEntityLocation(engine, target) {
+    if (!target || !target.instanceId) return null;
+
+    let result = searchPlayerZones(engine, target);
+    if (result) return result;
+
+    result = searchEquator(engine, target);
+    return result;
+}
+function searchPlayerZones(engine, target) {
+    for (const pId of ['player1', 'player2']) {
+        const p = engine.state.players[pId];
+
+        let result = searchPlayerLines(p, pId, target);
+        if (result) return result;
+
+        result = searchPlayerPiles(p, pId, target);
+        if (result) return result;
+    }
+    return null;
+}
+function searchPlayerLines(player, playerId, target) {
+    for (const line in player.lines) {
+        if (!player.lines[line]) continue;
+
+        const idx = player.lines[line].findIndex(c => c.instanceId === target.instanceId);
+        if (idx > -1) return { playerId, zone: line, array: player.lines[line], index: idx };
+
+        for (const host of player.lines[line]) {
+            const found = searchAttachments(host, playerId, target);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+function searchPlayerPiles(player, playerId, target) {
+    const zones = ['hand', 'deck', 'discard', 'banish'];
+    for (const z of zones) {
+        const idx = player[z].findIndex(c => c.instanceId === target.instanceId);
+        if (idx > -1) return { playerId, zone: z, array: player[z], index: idx };
+
+        for (const host of player[z]) {
+            const found = searchAttachments(host, playerId, target);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+function searchEquator(engine, target) {
+    if (!engine.state.equator) return null;
+
+    const idx = engine.state.equator.findIndex(c => c.instanceId === target.instanceId);
+    if (idx > -1) return { playerId: null, zone: 'equator', array: engine.state.equator, index: idx };
+
+    for (const host of engine.state.equator) {
+        const found = searchAttachments(host, null, target);
+        if (found) return found;
+    }
+    return null;
+}
+function searchAttachments(host, playerId, target) {
+    if (!host.attachments) return null;
+
+    const aIdx = host.attachments.findIndex(a => a.instanceId === target.instanceId);
+    if (aIdx > -1) return { playerId, zone: 'attachment', array: host.attachments, index: aIdx, host: host };
+
+    for (const att of host.attachments) {
+        const found = searchAttachments(att, playerId, target);
+        if (found) return found;
+    }
+    return null;
+}
+

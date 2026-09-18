@@ -1,6 +1,6 @@
 import { randomInt, shuffleArray as prandomShuffle } from './prandom.js';
 import { ACTION_REGISTRY, ACTION_MANIFEST, findEntityLocation } from './actions/index.js';
-import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES, canAffordCost, payCost, getAttackCost } from './utils.js';
+import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES, canAffordCost, payCost, getAttackCost, moveEntity } from './utils.js';
 import { getEntityAvailableActions, getValidAttackTargets } from './targeting.js';
 import { ATTRIBUTE_MANIFEST } from './attributes.js';
 
@@ -16,7 +16,8 @@ export class GameEngine {
             shuffleArray: prandomShuffle,
             getEntityAvailableActions,
             getValidAttackTargets,
-            hasEngineFlag
+            hasEngineFlag, 
+            moveEntity
         };
     }
 
@@ -57,6 +58,7 @@ export class GameEngine {
     queueTriggers(eventType, payload) {
         const triggers = [];
         const checkedEntities = new Set();
+        const isTurnEvent = ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(eventType);
 
         if (payload) {
             if (payload.source) this._evaluateTriggerMatch(payload.source, getOwnerId(this.state, payload.source), eventType, payload, checkedEntities, triggers);
@@ -65,6 +67,17 @@ export class GameEngine {
         
         for (const pId of ['player1', 'player2']) {
             const player = this.state.players[pId];
+            if (isTurnEvent) {
+                const avatar = getAvatar(this.state, pId);
+                if (avatar) this._evaluateTriggerMatch(avatar, pId, eventType, payload, checkedEntities, triggers);
+                for (const line of LINES) {
+                    if (line === 'avatar' || !player.lines[line]) continue;
+                    for (const unit of player.lines[line]) {
+                        this._evaluateTriggerMatch(unit, pId, eventType, payload, checkedEntities, triggers, { personalTurnAliasesOnly: true });
+                    }
+                }
+                continue;
+            }
             for (const line of LINES) {
                 if (!player.lines[line]) continue;
                 for (const unit of player.lines[line]) {
@@ -76,7 +89,7 @@ export class GameEngine {
             }
         }
         
-        if (this.state.equator) {
+        if (!isTurnEvent && this.state.equator) {
             for (const item of this.state.equator) {
                 this._evaluateTriggerMatch(item, item.ownerId || this.state.activePlayerId, eventType, payload, checkedEntities, triggers);
             }
@@ -99,7 +112,7 @@ export class GameEngine {
         return addedCount;
     }
 
-    _evaluateTriggerMatch(ent, ownerId, eventType, payload, checkedEntities, triggers) {
+    _evaluateTriggerMatch(ent, ownerId, eventType, payload, checkedEntities, triggers, options = {}) {
         if (!ent || !ent.instanceId || checkedEntities.has(ent.instanceId)) return;
         checkedEntities.add(ent.instanceId);
         
@@ -117,7 +130,19 @@ export class GameEngine {
 
         for (const ability of abilitiesToCheck) {
             const allTriggers = [ability.trigger, ...(ability.additionalTriggers || [])];
-            if (allTriggers.includes(eventType) && !this.activeChainAbilities.has(ability.abilityId)) {
+            const matchedTrigger = allTriggers.find(trigger => {
+                if (trigger === eventType) return true;
+                if (!payload?.playerId) return false;
+                if (trigger?.startsWith('OWN_TURN_')) {
+                    return trigger.replace('OWN_', '') === eventType && payload.playerId === ownerId;
+                }
+                if (trigger?.startsWith('OPP_TURN_')) {
+                    return trigger.replace('OPP_', '') === eventType && payload.playerId !== ownerId;
+                }
+                return false;
+            });
+            if (options.personalTurnAliasesOnly && (!ability.triggerScope || ability.triggerScope !== 'PERSONAL' || !matchedTrigger?.match(/^(OWN|OPP)_TURN_/))) continue;
+            if (matchedTrigger && !this.activeChainAbilities.has(ability.abilityId)) {
                 
                 let isValid = true;
                 const scope = ability.triggerScope || 'PERSONAL';
@@ -141,7 +166,13 @@ export class GameEngine {
                 if (payload) {
                     if (scope === 'PERSONAL') {
                         if (isPhaseEvent) {
-                            if (payload.playerId && payload.playerId !== ownerId) isValid = false;
+                            if (matchedTrigger?.startsWith('OWN_TURN_')) {
+                                if (payload.playerId !== ownerId) isValid = false;
+                            } else if (matchedTrigger?.startsWith('OPP_TURN_')) {
+                                if (payload.playerId === ownerId) isValid = false;
+                            } else if (payload.playerId && payload.playerId !== ownerId) {
+                                isValid = false;
+                            }
                         } else {
                             if (!eventEntity || eventEntity.instanceId !== ent.instanceId) isValid = false;
                         }
@@ -320,14 +351,26 @@ export class GameEngine {
         return true;
     }
 
-    _acquireTargets(ability, source, eventPayload, ownerId) {
+        _acquireTargets(ability, source, eventPayload, ownerId) {
         return ability.effects.map((group, index) => {
             if (!group) return [];
             let targets = [];
             
             if (group.targetMethod === 'SELF') targets = [source];
-            else if (group.targetMethod === 'EVENT_SOURCE') targets = eventPayload?.source ? [eventPayload.source] : [];
-            else if (group.targetMethod === 'EVENT_TARGET') targets = eventPayload?.target ? [eventPayload.target] : [];
+            else if (group.targetMethod === 'EVENT_SOURCE') {
+                if (eventPayload?.source) targets = [eventPayload.source];
+                else if (eventPayload?.playerId) {
+                    const av = getAvatar(this.state, eventPayload.playerId);
+                    if (av) targets = [av];
+                }
+            }
+            else if (group.targetMethod === 'EVENT_TARGET') {
+                if (eventPayload?.target) targets = [eventPayload.target];
+                else if (eventPayload?.playerId) {
+                    const av = getAvatar(this.state, eventPayload.playerId);
+                    if (av) targets = [av];
+                }
+            }
             else if (group.targetMethod === 'AVATAR') {
                 const av = getAvatar(this.state, ownerId);
                 targets = av ? [av] : [];
@@ -656,10 +699,7 @@ export class GameEngine {
         }
         return true;
     }
-}
-
-export function shuffleArray(state, array) {
-    return prandomShuffle(state, array);
+    moveEntity = moveEntity;
 }
 
 export * from './utils.js';

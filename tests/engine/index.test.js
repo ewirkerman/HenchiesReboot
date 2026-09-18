@@ -16,7 +16,7 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
         return actualUtils.hasEngineFlag(state, ent, flag);
     }),
     getOwnerId: jest.fn((state, ent) => ent.ownerId),
-    getAvatar: jest.fn(),
+    getAvatar: jest.fn((state, playerId) => state.players[playerId]?.lines.avatar?.find(unit => unit.type === 'avatar') || null),
     resolveResourceKey: jest.fn((state, p, t) => t || 'Carnie'),
     findEntityLocation: jest.fn(() => ({ zone: 'mid' }))
 }));
@@ -67,13 +67,41 @@ describe('index.js GameEngine', () => {
             history_log: [],
             abilityUses: {},
             players: {
-                player1: { resources: { Carnie: { current: 5, max: 5 } }, lines: { mid: [] }, hand: [] },
-                player2: { resources: { Carnie: { current: 5, max: 5 } }, lines: { mid: [] }, hand: [] }
+                player1: { resources: { Carnie: { current: 5, max: 5 } }, lines: { avatar: [], mid: [] }, hand: [] },
+                player2: { resources: { Carnie: { current: 5, max: 5 } }, lines: { avatar: [], mid: [] }, hand: [] }
             }
         };
     });
 
     describe('Event Bus & Interceptors', () => {
+        it('should register own and opponent turn aliases against generic turn events', () => {
+            const engine = new GameEngine(mockState);
+            const ownUnit = {
+                instanceId: 'own-avatar', ownerId: 'player1', type: 'avatar',
+                abilities: [
+                    { abilityId: 'own-turn', trigger: 'OWN_TURN_STARTED', effects: [] },
+                    { abilityId: 'opp-turn', trigger: 'OPP_TURN_STARTED', effects: [] },
+                    { abilityId: 'global-turn', trigger: 'TURN_STARTED', triggerScope: 'GLOBAL', effects: [] }
+                ]
+            };
+            mockState.players.player1.lines.avatar.push(ownUnit);
+            mockState.players.player2.lines.avatar.push({
+                instanceId: 'player2-avatar', ownerId: 'player2', type: 'avatar', abilities: []
+            });
+            mockState.players.player1.lines.mid.push({
+                instanceId: 'non-avatar-unit', ownerId: 'player1',
+                abilities: [
+                    { abilityId: 'unit-turn', trigger: 'TURN_STARTED', triggerScope: 'GLOBAL', effects: [] },
+                    { abilityId: 'unit-own-turn', trigger: 'OWN_TURN_STARTED', triggerScope: 'PERSONAL', effects: [] },
+                    { abilityId: 'unit-opp-turn', trigger: 'OPP_TURN_STARTED', triggerScope: 'PERSONAL', effects: [] }
+                ]
+            });
+
+            expect(engine.queueTriggers('TURN_STARTED', { playerId: 'player1' })).toBe(3);
+            engine.stack = [];
+            expect(engine.queueTriggers('TURN_STARTED', { playerId: 'player2' })).toBe(3);
+        });
+
         it('should cancel the root event if a WOULD_ interceptor cancels the payload', () => {
             const engine = new GameEngine(mockState);
             const targetUnit = {

@@ -63,7 +63,7 @@ function loadServiceWorkerModule(scope) {
 
 describe('Notification contract', () => {
   test('cloud function payload includes the game hash URL for the targeted room', () => {
-    const payload = functionModule.buildTurnNotificationPayload('room_abc', 12);
+    const payload = functionModule.buildNotifyPayload('room_abc', 12);
 
     expect(payload).toEqual({
       data: {

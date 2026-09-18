@@ -21,6 +21,8 @@ function buildNotifyPayload(gameId, turnNumber) {
   };
 }
 
+exports.buildNotifyPayload = buildNotifyPayload;
+
 admin.initializeApp();
 
 exports.onTurnChanged = onDocumentUpdated(

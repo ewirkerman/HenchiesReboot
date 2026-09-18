@@ -227,6 +227,10 @@ export function generateEffectsHTML(ctx) {
                 }
             }
 
+            if (manifest.canOverheal) {
+                basicParamsHtml += `<div class="flex items-end pb-1.5"><label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition whitespace-nowrap"><input type="checkbox" ${payload.overheal ? 'checked' : ''} onchange="window.updatePayload(${gIdx}, ${pIdx}, 'overheal', this.checked)" class="accent-emerald-500 w-3 h-3" /><span class="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Overheal</span></label></div>`;
+            }
+
             if (manifest.canLimitStacks) {
                 basicParamsHtml += `<div class="w-20 pb-0.5"><label class="block text-[10px] font-bold text-pink-400 mb-0.5" title="Max allowed from this specific ability (0 = no limit)">Src Cap</label><input type="number" value="${payload.maxStacks || 0}" min="0" onchange="window.updatePayload(${gIdx}, ${pIdx}, 'maxStacks', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full" /></div>`;
             }
@@ -363,7 +367,11 @@ export function generateEffectsHTML(ctx) {
                        npParamsHtml += `<div class="w-20 flex flex-col justify-end"><label class="flex items-center gap-1 cursor-pointer text-[9px] font-bold text-amber-400 mb-0.5"><input type="checkbox" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amountIsX', this.checked)" ${xChecked} class="w-2.5 h-2.5 accent-amber-500">Var X</label><input type="number" value="${np.amount !== undefined ? np.amount : 1}" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'amount', parseInt(this.value))" class="bg-slate-900 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px] ${inputDisabled}" /></div>`;
                     } 
                     
-                    if (nMan.canLimitStacks) {
+                          if (nMan.canOverheal) {
+                              npParamsHtml += `<div class="flex items-end pb-1.5"><label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition whitespace-nowrap"><input type="checkbox" ${np.overheal ? 'checked' : ''} onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'overheal', this.checked)" class="accent-emerald-500 w-3 h-3" /><span class="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Overheal</span></label></div>`;
+                          }
+
+                          if (nMan.canLimitStacks) {
                        npParamsHtml += `<div class="w-16"><input type="number" value="${np.maxStacks || 0}" min="0" onchange="window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, 'maxStacks', parseInt(this.value))" class="bg-slate-900 border border-pink-700/50 p-1.5 rounded text-white font-bold w-full text-[10px]" title="Source Cap" /></div>`;
                     }
 
@@ -548,6 +556,7 @@ export function generateEffectsHTML(ctx) {
                           'EVENT_SOURCE': 'Run on Event Source (e.g. Attacker, Caster)',
                           'EVENT_TARGET': 'Run on Event Target (e.g. Defender, Victim)',
                           'SELF': 'Run on Self (Card with ability)',
+                          'HOST': 'Run on Host (Attached Card)',
                           'AVATAR': 'Run on Your Avatar',
                           'ENEMY_AVATAR': 'Run on Enemy Avatar',
                           'AUTO_ALL': 'Auto-Target ALL Valid Below',

@@ -40,16 +40,63 @@ describe('Interactions - Card Play Affordability & Cost Enforcement', () => {
         mockState = { status: 'active' };
     });
 
-    test('getCardPlayState blocks play immediately if base card cost (canPlayCard) fails', () => {
+    test('getCardPlayState keeps hand abilities available when base card cost fails', () => {
         const expensiveCard = { id: 'expensive_dragon', cost: 10, instanceId: 'inst_1' };
         
         engineModule.canPlayCard.mockReturnValue({ success: false, reason: 'Not enough Carnie' });
+        engineModule.getEntityAvailableActions.mockReturnValue([
+            { type: 'PLAY', abilityId: 'native_play' },
+            { type: 'HARVEST', abilityId: 'harvest_ability', isPlayAbility: false }
+        ]);
         
         const result = interactionsModule.getCardPlayState('inst_1', expensiveCard);
         
-        expect(result.playable).toBe(false);
-        expect(result.reason).toBe('Not enough Carnie');
-        expect(engineModule.getEntityAvailableActions).not.toHaveBeenCalled();
+        expect(result.playable).toBe(true);
+        expect(result.mode).toBe('single');
+        expect(result.actionType).toBe('HARVEST');
+        expect(engineModule.getEntityAvailableActions).toHaveBeenCalled();
+    });
+
+    test('getCardPlayState keeps an ON_BE_PLAYED hand ability available when the card is unaffordable', () => {
+        const plunder = {
+            id: 'card_1787097518624',
+            instanceId: 'card_1787097518624',
+            type: 'spell',
+            cost: 1,
+            abilities: [{
+                abilityId: 'ability_1787097550768',
+                trigger: 'ON_BE_PLAYED',
+                triggerScope: 'PERSONAL',
+                activation: { method: 'NONE' },
+                effects: [{
+                    targetMethod: 'AUTO_FIRST',
+                    quickTargeting: { zones: ['DECK'], alignment: ['ENEMY'], entityType: [] },
+                    payloads: [
+                        { type: 'REBEL', duration: 'INDEFINITE' },
+                        { type: 'GRANT_ABILITY', grantedAbilityId: 'ability_1787101556810', amount: 1, duration: 'BRIEF' },
+                        { type: 'DRAW_CARD', duration: 'INSTANT' }
+                    ]
+                }]
+            }]
+        };
+
+        engineModule.canPlayCard.mockReturnValue({ success: false, reason: 'Not enough Carnie' });
+        engineModule.getEntityAvailableActions.mockReturnValue([{
+            type: 'ABILITY',
+            abilityId: 'ability_1787097550768',
+            isPlayAbility: true,
+            requiresTarget: false,
+            validTargets: []
+        }]);
+
+        const result = interactionsModule.getCardPlayState(plunder.instanceId, plunder);
+
+        expect(result).toMatchObject({
+            playable: true,
+            mode: 'single',
+            actionType: 'ABILITY',
+            abilityId: 'ability_1787097550768'
+        });
     });
 
     test('getCardPlayState blocks play if affordable but has no valid actions (e.g. missing targets)', () => {

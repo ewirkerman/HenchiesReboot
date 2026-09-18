@@ -194,34 +194,38 @@ export const handleSacrificeConfirm = async () => {
 
 export function getCardPlayState(cardId, card) {
     const baseCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, card);
-    if (!baseCheck || !baseCheck.success) {
-        return { playable: false, reason: baseCheck ? baseCheck.reason : "Cannot play", mode: 'none', actions: [] };
-    }
+    const legalActions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId) || [];
+    
+    // Filter out only native card play if the base card cost cannot be met.
+    // Hand abilities are separate actions and may have their own costs.
+    const validActions = legalActions.filter(a => {
+        if (a.type === 'PLAY') return baseCheck && baseCheck.success;
+        return true; 
+    });
 
-    const legalActions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId);
-    if (legalActions.length === 0) {
-        return { playable: false, reason: "No valid targets available.", mode: 'none', actions: [] };
+    if (validActions.length === 0) {
+        return { playable: false, reason: baseCheck?.reason || "No valid targets available.", mode: 'none', actions: [] };
     }
     
-    if (legalActions.length === 1) {
+    if (validActions.length === 1) {
         return { 
             playable: true,
             mode: 'single', 
-            actionType: legalActions[0].type,
-            requiresTarget: legalActions[0].requiresTarget,
-            isPlayAbility: legalActions[0].isPlayAbility,
-            abilityId: legalActions[0].abilityId, 
-            validTargets: legalActions[0].validTargets, 
-            action: legalActions[0],
-            actions: legalActions
+            actionType: validActions[0].type,
+            requiresTarget: validActions[0].requiresTarget,
+            isPlayAbility: validActions[0].isPlayAbility,
+            abilityId: validActions[0].abilityId, 
+            validTargets: validActions[0].validTargets, 
+            action: validActions[0],
+            actions: validActions
         };
     }
     
     return { 
         playable: true,
         mode: 'multi', 
-        actions: legalActions, 
-        validTargets: [...new Set(legalActions.flatMap(a => a.validTargets || []))] 
+        actions: validActions, 
+        validTargets: [...new Set(validActions.flatMap(a => a.validTargets || []))] 
     };
 }
 window.getCardPlayState = getCardPlayState;

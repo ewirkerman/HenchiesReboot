@@ -1,10 +1,10 @@
-export const UNPREVENTABLE_TRIGGERS = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'ON_ACT'];
+export const UNPREVENTABLE_TRIGGERS = ['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED', 'ON_ACT'];
 export const MODIFIABLE_EVENTS = ['DAMAGE', 'HEAL', 'ATTACK', 'STAT', 'RESOURCE', 'DRAW', 'DISCARD', 'RECOVER', 'SUMMON'];
-export const PASSIVE_TRIGGERS = ['UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'ON_ACT'];
+export const SYSTEM_TRIGGERS = ['UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED', 'ON_ACT'];
 export const STRICTLY_POSITIVE_ACTIONS = ['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'DISCARD', 'DISCARD_CARD', 'TRASH', 'RECOVER', 'SUMMON'];
 
 export function getValidScopes(trigger) {
-    if (['MANUAL', 'UNTRIGGERABLE'].includes(trigger)) return ['PERSONAL'];
+    if (['MANUAL', 'UNTRIGGERABLE', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) return ['PERSONAL'];
     return ['PERSONAL', 'GLOBAL'];
 }
 
@@ -17,7 +17,7 @@ export function getValidActivationMethods(trigger, scope) {
 }
 
 export function getValidTargetMethods(trigger, scope, actMethod) {
-    const isPassive = PASSIVE_TRIGGERS.includes(trigger);
+    const isSystem = SYSTEM_TRIGGERS.includes(trigger);
     const hasChoice = actMethod === 'PLAYER_CHOICE';
     
     let methods = [
@@ -25,13 +25,17 @@ export function getValidTargetMethods(trigger, scope, actMethod) {
         'AVATAR', 'ENEMY_AVATAR', 'AUTO_ALL', 'AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'
     ];
 
-    if (isPassive || trigger === 'MANUAL') {
-        methods = methods.filter(m => m !== 'EVENT_SOURCE');
-    }
+    // If an ability has GLOBAL scope, it acts as a board monitor.
+    // It ALWAYS needs access to the event's source and target!
+    if (scope !== 'GLOBAL') {
+        if (isSystem || trigger === 'MANUAL') {
+            methods = methods.filter(m => m !== 'EVENT_SOURCE');
+        }
 
-    if (isPassive || (trigger === 'MANUAL' && !hasChoice)) {
-        methods = methods.filter(m => m !== 'EVENT_TARGET');
-        methods = methods.filter(m => m !== 'SAME_AS_ACTIVATION');
+        if (isSystem || (trigger === 'MANUAL' && !hasChoice)) {
+            methods = methods.filter(m => m !== 'EVENT_TARGET');
+            methods = methods.filter(m => m !== 'SAME_AS_ACTIVATION');
+        }
     }
 
     return methods;

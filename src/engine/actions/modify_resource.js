@@ -1,4 +1,5 @@
-import { Action, findEntityLocation, registerEffect } from './core.js';
+import { Action, registerEffect } from './core.js';
+import { findEntityLocation } from '../utils.js';
 import { resolveResourceKey, getOwnerId } from '../utils.js';
 
 export class ModifyResourceAction extends Action {

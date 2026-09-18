@@ -1,4 +1,6 @@
-import { Action, ACTION_REGISTRY, findEntityLocation, moveEntity, registerEffect } from './core.js';
+import { Action, ACTION_REGISTRY, registerEffect } from './core.js';
+import { findEntityLocation } from '../utils.js';
+import { moveEntity } from '../utils.js';
 
 export class TransformAction extends Action {
     execute(engine) {

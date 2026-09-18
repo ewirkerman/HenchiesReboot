@@ -1,4 +1,6 @@
-import { Action, findEntityLocation, moveEntity, registerEffect } from './core.js';
+import { Action, registerEffect } from './core.js';
+import { findEntityLocation } from '../utils.js';
+import { moveEntity } from '../utils.js';
 
 export class SetStatAction extends Action {
     execute(engine) {

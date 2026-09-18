@@ -112,6 +112,10 @@
                     <option value="Expansion">Expansion</option>
                   </select>
                 </div>
+                <div class="col-span-2 sm:col-span-4">
+                  <label class="font-bold text-slate-300 block mb-1">Developer Notes</label>
+                  <textarea id="card-developer-notes" rows="2" class="creator-input bg-slate-900 border border-slate-700 px-2 py-1.5 rounded text-white w-full focus:border-amber-500 outline-none custom-scrollbar" placeholder="Private design notes for the creator studio only."></textarea>
+                </div>
                 <div id="stat-line-container" class="col-span-2 transition-all duration-300">
                   <label class="font-bold text-slate-300 block mb-1">Default Line</label>
                   <select id="card-default-line" class="creator-input bg-slate-900 border border-slate-700 px-2 py-1.5 rounded text-white w-full focus:border-amber-500 outline-none">
@@ -227,6 +231,11 @@
                 </select>
               </div>
 
+              <div class="md:col-span-3">
+                <label class="font-bold text-slate-300 block mb-1">Developer Notes</label>
+                <textarea id="ab-developer-notes" rows="2" class="creator-input bg-slate-900 border border-slate-700 p-2 rounded text-white w-full focus:outline-none focus:border-amber-500 custom-scrollbar" placeholder="Private design notes for the creator studio only."></textarea>
+              </div>
+
               <div class="md:col-span-3 border-t border-slate-700/50 pt-3 mt-1">
                 <label class="font-bold text-slate-300 block mb-2">Passive Engine Flags (Paired Overrides)</label>
                 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 text-[10px]">
@@ -264,6 +273,9 @@
                     <label class="flex items-center gap-1.5 cursor-pointer text-orange-200 hover:text-white"><input type="checkbox" value="ATTACK_EXHAUSTS" class="creator-input ab-flag-chk accent-orange-500 w-3 h-3" /> ATTACK_EXHAUSTS (Sluggish)</label>
                     <div class="my-0.5 border-t border-slate-800/80"></div>
                     <label class="flex items-center gap-1.5 cursor-pointer text-purple-200 hover:text-white"><input type="checkbox" value="UNIQUE_ENTITY" class="creator-input ab-flag-chk accent-purple-500 w-3 h-3" /> UNIQUE_ENTITY (Legendary)</label>
+                  </div>
+                  <div class="flex flex-col p-1.5 bg-slate-900/60 rounded border border-slate-700/50">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-teal-200 hover:text-white"><input type="checkbox" value="PLAY_EXHAUSTS" class="creator-input ab-flag-chk accent-teal-500 w-3 h-3" /> PLAY_EXHAUSTS (Dormant)</label>
                   </div>
                 </div>
               </div>

@@ -32,6 +32,47 @@
   <!-- SCREEN 1: MATCH SETUP & DECK SELECTOR (LAZY LOADED) -->
   <div id="lobby-anchor" class="flex-1 flex flex-col justify-center items-center w-full"></div>
 
+  <!-- Lobby Deck Validation Enforcer -->
+  <script>
+    document.addEventListener('click', (e) => {
+      const lobby = document.getElementById('lobby-anchor');
+      // Only intercept clicks within the lobby before the match starts
+      if (lobby && !lobby.classList.contains('hidden') && lobby.contains(e.target)) {
+          const deckEl = e.target.closest('.cursor-pointer, button, [onclick]');
+          if (deckEl && deckEl.innerText && deckEl.innerText.includes('Cards')) {
+              const match = deckEl.innerText.match(/(\d+)\s+Cards/i);
+              if (match) {
+                  const count = parseInt(match[1]);
+                  // A full deck must have exactly 41 cards (1 Avatar + 40 Standard Cards)
+                  if (count !== 41) {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      
+                      const toast = document.createElement('div');
+                      toast.className = 'bg-red-950 border-2 border-red-500 text-red-100 font-bold text-xs px-4 py-3 rounded-lg shadow-[0_0_15px_rgba(239,68,68,0.5)] z-[999] pointer-events-auto flex items-center gap-2 mt-2';
+                      toast.innerHTML = '<span>⚠️</span> <span>Cannot select a partial deck (' + count + '/41 cards). Please complete it in the Deckbuilder first.</span>';
+                      
+                      let container = document.getElementById('toast-container');
+                      if (!container) {
+                          container = document.createElement('div');
+                          container.id = 'toast-container';
+                          container.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[110] flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center';
+                          document.body.appendChild(container);
+                      }
+                      
+                      container.appendChild(toast);
+                      setTimeout(() => {
+                          toast.style.opacity = '0';
+                          toast.style.transition = 'opacity 0.5s ease-out';
+                          setTimeout(() => toast.remove(), 500);
+                      }, 3500);
+                  }
+              }
+          }
+      }
+    }, true);
+  </script>
+
   <!-- SCREEN 2: TABLETOP MATCH BOARD (HIDDEN INITIALLY) -->
   <main id="match-tabletop-screen" class="flex-1 max-w-full w-full mx-auto p-1 sm:p-2 pb-0 flex flex-col gap-1 hidden overflow-visible min-h-screen relative">
 

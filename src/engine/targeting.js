@@ -282,7 +282,7 @@ function checkAbilityAffordability(state, playerId, entity, ability, abilityKey)
     if (isHandAct && isPlayAct) {
         const baseCostObj = typeof entity.cost === 'object' && entity.cost !== null 
             ? entity.cost 
-            : { carnie: (typeof entity.cost === 'number' ? entity.cost : 0) };
+            : { tribeAmount: (typeof entity.cost === 'number' ? entity.cost : 0) };
             
         cost = { 
             ...cost, 
