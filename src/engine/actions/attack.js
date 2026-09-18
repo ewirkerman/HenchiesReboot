@@ -117,10 +117,10 @@ export class AttackAction extends Action {
     }
 
     executeStrike(engine, combatAttacker, combatDefender, source, target, amount) {
-        const DealDamageAction = ACTION_REGISTRY['DEAL_DAMAGE'];
-        if (!DealDamageAction || amount === null || amount === undefined) return;
+        const HitAction = ACTION_REGISTRY['HIT'];
+        if (!HitAction || amount === null || amount === undefined) return;
 
-        const damagePayload = {
+        const hitPayload = {
             source: source,
             target: target,
             amount: amount,
@@ -135,10 +135,7 @@ export class AttackAction extends Action {
 
         this._combatHitTargets.add(target.instanceId || target);
 
-        engine.emit('HIT', damagePayload);
-        engine.emit('GET_HIT', damagePayload);
-
-        new DealDamageAction(damagePayload).run(engine);
+        new HitAction(hitPayload).run(engine);
     }
 
     processKill(engine, combatAttacker, combatDefender, source, target) {

@@ -2,6 +2,8 @@ import { ACTION_MANIFEST, EVENT_MANIFEST, ACTION_REGISTRY, Action, registerEffec
 import { findEntityLocation } from '../utils.js';
 import { moveEntity } from '../utils.js';
 
+
+import { HitAction } from './hit.js';
 import { DealDamageAction } from './deal_damage.js';
 import { HealAction } from './heal.js';
 import { KillAction } from './kill.js';
@@ -42,6 +44,7 @@ import { ModifyEventAction } from './modify_event.js';
 import { TransformAction } from './transform.js';
 import { CustomScriptAction } from './custom_script.js';
 
+ACTION_REGISTRY['HIT'] = HitAction;
 ACTION_REGISTRY['DEAL_DAMAGE'] = DealDamageAction;
 ACTION_REGISTRY['HEAL'] = HealAction;
 ACTION_REGISTRY['KILL'] = KillAction;
@@ -125,7 +128,7 @@ export function getEventTriggers() {
 
 export {
     ACTION_MANIFEST, EVENT_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects,
-    DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
+    HitAction, DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
     GrantAbilityAction, RemoveAbilityAction, DrawCardAction, TopDeckAction, PlayAction, AttackAction, HarvestAction,
     DiscardAction, ShuffleAction, ReturnAction, RecoverAction, TrashAction, BanishAction, FieldAction,
     ReviveAction, AttachAction, UnattachAction, UnfieldAction, RebelAction, DonateAction, SummonAction, BlockActAction,
