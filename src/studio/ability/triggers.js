@@ -1,7 +1,7 @@
 // filepath: src/studio/ability/triggers.js
 
 import { StudioState } from './state.js';
-import { ACTION_MANIFEST, ACTION_CATEGORIES } from '../../engine/actions/index.js';
+import { ACTION_MANIFEST, ACTION_CATEGORIES, EVENT_MANIFEST, EVENT_CATEGORIES } from '../../engine/actions/index.js';
 import { updateJSONPreview } from './catalog_sync.js';
 import { getValidScopes, getValidActivationMethods } from '../../ability_validation.js';
 import { generateQuickMatrixHTML } from './ability_renderer.js';
@@ -35,6 +35,9 @@ export function populateBaseTriggers() {
     Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
         baseOptionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
     });
+    Object.entries(EVENT_CATEGORIES).forEach(([categoryName, events]) => {
+        baseOptionsHtml += `<optgroup label="${categoryName} Events">` + events.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+    });
 
     baseTriggerSelect.innerHTML = baseOptionsHtml;
 }
@@ -51,6 +54,15 @@ export function parseTriggerToComposite(triggerString) {
         }
         if (triggerString === effect) return { base: effect, phase: 'ON', role: 'ACTIVE' };
         if (passive && triggerString === passive) return { base: effect, phase: 'ON', role: 'PASSIVE' };
+    }
+    for (const event in EVENT_MANIFEST) {
+        const passive = EVENT_MANIFEST[event].passiveType;
+        for (const phase of EVENT_MANIFEST[event].phases || ['ON']) {
+            if (triggerString === `${phase}_${event}`) return { base: event, phase, role: 'ACTIVE' };
+            if (passive && triggerString === `${phase}_${passive}`) return { base: event, phase, role: 'PASSIVE' };
+        }
+        if (triggerString === event) return { base: event, phase: 'ON', role: 'ACTIVE' };
+        if (passive && triggerString === passive) return { base: event, phase: 'ON', role: 'PASSIVE' };
     }
     return { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
 }
@@ -87,12 +99,17 @@ export function renderAdditionalTriggers() {
     Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
         baseOptionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
     });
+    Object.entries(EVENT_CATEGORIES).forEach(([categoryName, events]) => {
+        baseOptionsHtml += `<optgroup label="${categoryName} Events">` + events.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+    });
 
     container.innerHTML = StudioState.additionalTriggers.map((trigStr, idx) => {
         const comp = parseTriggerToComposite(trigStr);
-        const manifest = ACTION_MANIFEST[comp.base] || {};
+        const manifest = ACTION_MANIFEST[comp.base] || EVENT_MANIFEST[comp.base] || {};
         const isAction = !!manifest.validDurations;
-        const hasDual = isAction && manifest.passiveType;
+        const isEvent = !!EVENT_MANIFEST[comp.base];
+        const hasPhase = isAction || isEvent;
+        const hasDual = hasPhase && manifest.passiveType;
         
         return `
         <div class="flex items-center gap-1.5 bg-slate-900/60 p-1.5 rounded border border-slate-700/80">
@@ -100,7 +117,7 @@ export function renderAdditionalTriggers() {
             <select onchange="window.updateAdditionalTrigger(${idx}, 'base', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-amber-300 text-[10px] font-bold flex-1 w-full min-w-[80px]">
                 ${baseOptionsHtml.replace(`value="${comp.base}"`, `value="${comp.base}" selected`)}
             </select>
-            ${isAction ? `
+            ${hasPhase ? `
             <select onchange="window.updateAdditionalTrigger(${idx}, 'phase', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-amber-300 text-[10px] font-bold w-20 shrink-0">
                 <option value="ON" ${comp.phase==='ON'?'selected':''}>React</option>
                 <option value="WOULD" ${comp.phase==='WOULD'?'selected':''}>Int</option>
@@ -135,9 +152,11 @@ export function updateAdditionalTrigger(idx, field, value) {
     const comp = parseTriggerToComposite(StudioState.additionalTriggers[idx]);
     comp[field] = value;
     
-    const manifest = ACTION_MANIFEST[comp.base] || {};
+    const manifest = ACTION_MANIFEST[comp.base] || EVENT_MANIFEST[comp.base] || {};
     const isAction = !!manifest.validDurations;
-    const hasDual = isAction && manifest.passiveType;
+    const isEvent = !!EVENT_MANIFEST[comp.base];
+    const hasPhase = isAction || isEvent;
+    const hasDual = hasPhase && manifest.passiveType;
     
     if (field === 'base') {
         comp.phase = 'ON';
@@ -145,7 +164,7 @@ export function updateAdditionalTrigger(idx, field, value) {
     }
 
     let finalStr = comp.base;
-    if (isAction) {
+    if (hasPhase) {
         let verb = comp.base;
         if (comp.role === 'PASSIVE' && hasDual) verb = manifest.passiveType;
         finalStr = `${comp.phase}_${verb}`;
@@ -163,11 +182,13 @@ export function updateTriggerComposite() {
     const hiddenTrigger = document.getElementById('ab-trigger');
     const preview = document.getElementById('ab-trigger-preview');
 
-    const manifest = ACTION_MANIFEST[base];
-    const isAction = !!manifest;
-    const hasDual = isAction && manifest.passiveType;
+    const manifest = ACTION_MANIFEST[base] || EVENT_MANIFEST[base];
+    const isAction = !!ACTION_MANIFEST[base];
+    const isEvent = !!EVENT_MANIFEST[base];
+    const hasPhase = isAction || isEvent;
+    const hasDual = hasPhase && manifest.passiveType;
 
-    if (isAction) {
+    if (hasPhase) {
         phaseSelect.classList.remove('hidden');
         if (hasDual) {
             roleSelect.classList.remove('hidden');

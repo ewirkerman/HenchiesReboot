@@ -114,6 +114,36 @@ describe('AttackAction Combat Logic', () => {
             expect(defender._isDying).toBeFalsy();
         });
 
+        it('should not kill a unit at 0 HP if it never got hit during combat', () => {
+            attacker.health = 0;
+            defender.health = 0;
+            attacker.strength = null;
+            defender.strength = null;
+
+            const action = new AttackAction({ source: attacker, target: defender });
+            action.execute(engine);
+
+            expect(attacker.health).toBe(0);
+            expect(defender.health).toBe(0);
+            expect(attacker._isDying).toBeFalsy();
+            expect(defender._isDying).toBeFalsy();
+        });
+
+        it('should kill a unit at 0 HP if it was hit for 0 damage during combat', () => {
+            attacker.health = 0;
+            defender.health = 0;
+            attacker.strength = 0;
+            defender.strength = 0;
+
+            const action = new AttackAction({ source: attacker, target: defender });
+            action.execute(engine);
+
+            expect(attacker.health).toBe(0);
+            expect(defender.health).toBe(0);
+            expect(attacker._isDying).toBe(true);
+            expect(defender._isDying).toBe(true);
+        });
+
         it('should trigger KillAction for both if lethal damage is dealt simultaneously', () => {
             attacker.health = 2;
             defender.health = 2;

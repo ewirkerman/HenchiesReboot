@@ -27,6 +27,7 @@ jest.unstable_mockModule('../../src/engine/actions/index.js', () => ({
         'DAMAGE': class { run = jest.fn(); },
         'ACT': class { run = jest.fn(); }
     },
+    EVENT_MANIFEST: {},
     ACTION_MANIFEST: { DAMAGE: { passiveType: 'TAKE_DAMAGE' } },
     findEntityLocation: jest.fn(() => ({ zone: 'mid' })),
     HarvestAction: class { run = jest.fn(); },

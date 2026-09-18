@@ -42,6 +42,10 @@ export const ACTION_MANIFEST = {
     'DONATE': { passiveType: 'BE_DONATED', canInvert: false, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] }
 };
 
+export const EVENT_MANIFEST = {
+    'HIT': { passiveType: 'GET_HIT', phases: ['WOULD', 'MODIFY', 'ON'] }
+};
+
 export const ACTION_REGISTRY = {};
 
 export class Action {

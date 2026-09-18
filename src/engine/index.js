@@ -1,5 +1,5 @@
 import { randomInt, shuffleArray as prandomShuffle } from './prandom.js';
-import { ACTION_REGISTRY, ACTION_MANIFEST, findEntityLocation } from './actions/index.js';
+import { ACTION_REGISTRY, ACTION_MANIFEST, EVENT_MANIFEST, findEntityLocation } from './actions/index.js';
 import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES, canAffordCost, payCost, getAttackCost, moveEntity } from './utils.js';
 import { getEntityAvailableActions, getValidAttackTargets } from './targeting.js';
 import { ATTRIBUTE_MANIFEST } from './attributes.js';
@@ -36,6 +36,22 @@ export class GameEngine {
                 log(this.state, `[EVENT BUS] 🛑 Event ${eventType} was CANCELLED.`);
                 if (payload) payload.cancelled = true;
                 return { cancelled: true };
+            }
+        }
+
+        const isEventRoot = Object.entries(EVENT_MANIFEST).some(([eventName, manifest]) => (
+            eventName === eventType || manifest.passiveType === eventType
+        ));
+        if (isEventRoot) {
+            const modifyEvent = `MODIFY_${eventType}`;
+            const modifyTriggers = this.queueTriggers(modifyEvent, payload);
+            if (modifyTriggers > 0) {
+                log(this.state, `[EVENT BUS] ⚡ Stack resolved immediately for ${modifyEvent}.`);
+                const modifyCancelled = this.processStack(modifyTriggers, modifyEvent);
+                if (modifyCancelled || (payload && payload.cancelled)) {
+                    if (payload) payload.cancelled = true;
+                    return { cancelled: true };
+                }
             }
         }
         
@@ -150,8 +166,10 @@ export class GameEngine {
                 let isPassive = false;
                 let isPhaseEvent = eventType.includes('TURN_');
 
-                for (const actionKey in ACTION_MANIFEST) {
-                    const manifest = ACTION_MANIFEST[actionKey];
+                for (const manifest of [
+                    ...Object.values(ACTION_MANIFEST),
+                    ...Object.values(EVENT_MANIFEST)
+                ]) {
                     if (manifest.passiveType && (eventType === manifest.passiveType || eventType.endsWith(`_${manifest.passiveType}`))) {
                         isPassive = true;
                         break;

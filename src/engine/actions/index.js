@@ -1,4 +1,4 @@
-import { ACTION_MANIFEST, ACTION_REGISTRY, Action, registerEffect, revertEffect, sweepTurnEffects } from './core.js';
+import { ACTION_MANIFEST, EVENT_MANIFEST, ACTION_REGISTRY, Action, registerEffect, revertEffect, sweepTurnEffects } from './core.js';
 import { findEntityLocation } from '../utils.js';
 import { moveEntity } from '../utils.js';
 
@@ -89,6 +89,10 @@ export const ACTION_CATEGORIES = {
     'Meta & Utility': ['TOP_DECK', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM']
 };
 
+export const EVENT_CATEGORIES = {
+    'Combat': ['HIT']
+};
+
 export const EFFECT_TYPES = Object.keys(ACTION_MANIFEST);
 
 export function getActionTriggers() {
@@ -108,8 +112,17 @@ export function getActionTriggers() {
     return triggers;
 }
 
+export function getEventTriggers() {
+    const triggers = [];
+    Object.entries(EVENT_MANIFEST).forEach(([event, manifest]) => {
+        (manifest.phases || ['ON']).forEach(phase => triggers.push(`${phase}_${event}`));
+        if (manifest.passiveType) triggers.push(manifest.passiveType);
+    });
+    return triggers;
+}
+
 export {
-    ACTION_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects,
+    ACTION_MANIFEST, EVENT_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects,
     DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
     GrantAbilityAction, RemoveAbilityAction, DrawCardAction, TopDeckAction, PlayAction, AttackAction, HarvestAction,
     DiscardAction, ShuffleAction, ReturnAction, RecoverAction, TrashAction, BanishAction, FieldAction,

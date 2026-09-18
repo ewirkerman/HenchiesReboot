@@ -2,6 +2,11 @@ import { Action, ACTION_REGISTRY } from './core.js';
 import { findEntityLocation } from '../utils.js';
 
 export class AttackAction extends Action {
+    constructor(payload) {
+        super(payload);
+        this._combatHitTargets = new Set();
+    }
+
     run(engine) {
         // Wrap the entire action (including WOULD_ and MODIFY_ events) in a combat state
         // to allow other actions (like DealDamage) to automatically defer deaths.
@@ -113,9 +118,9 @@ export class AttackAction extends Action {
 
     executeStrike(engine, combatAttacker, combatDefender, source, target, amount) {
         const DealDamageAction = ACTION_REGISTRY['DEAL_DAMAGE'];
-        if (!DealDamageAction) return;
+        if (!DealDamageAction || amount === null || amount === undefined) return;
 
-        new DealDamageAction({
+        const damagePayload = {
             source: source,
             target: target,
             amount: amount,
@@ -126,14 +131,24 @@ export class AttackAction extends Action {
                 combatAttackerId: combatAttacker.instanceId,
                 combatDefenderId: combatDefender.instanceId
             }
-        }).run(engine);
+        };
+
+        this._combatHitTargets.add(target.instanceId || target);
+
+        engine.emit('HIT', damagePayload);
+        engine.emit('GET_HIT', damagePayload);
+
+        new DealDamageAction(damagePayload).run(engine);
     }
 
     processKill(engine, combatAttacker, combatDefender, source, target) {
         const KillAction = ACTION_REGISTRY['KILL'];
         if (!KillAction) return;
 
-        if (target.health <= 0 && target.type !== 'avatar' && !target._isDying) {
+        const targetKey = target.instanceId || target;
+        const wasHitThisCombat = this._combatHitTargets.has(targetKey);
+
+        if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && wasHitThisCombat) {
             const sourceLKI = source.abilities ? [...source.abilities] : [];
             const targetLKI = target.abilities ? [...target.abilities] : [];
 
