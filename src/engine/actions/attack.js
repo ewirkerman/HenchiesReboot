@@ -1,4 +1,5 @@
-import { Action, ACTION_REGISTRY, findEntityLocation } from './core.js';
+import { Action, ACTION_REGISTRY } from './core.js';
+import { findEntityLocation } from '../utils.js';
 
 export class AttackAction extends Action {
     execute(engine) {

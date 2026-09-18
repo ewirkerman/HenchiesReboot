@@ -1,4 +1,6 @@
-import { ACTION_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects } from './core.js';
+import { ACTION_MANIFEST, ACTION_REGISTRY, Action, registerEffect, revertEffect, sweepTurnEffects } from './core.js';
+import { findEntityLocation } from '../utils.js';
+import { moveEntity } from '../utils.js';
 
 import { DealDamageAction } from './deal_damage.js';
 import { HealAction } from './heal.js';

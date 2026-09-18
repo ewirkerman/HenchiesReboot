@@ -36,6 +36,7 @@ export function exportCurrentState(formData, uiState) {
         name: formData.name,
         isKeyword: !!formData.isKeyword,
         description: formData.description || '',
+        developerNotes: formData.developerNotes || '',
         trigger: formData.trigger,
         additionalTriggers: formData.additionalTriggers || [],
         triggerScope: formData.triggerScope || 'PERSONAL',
@@ -88,6 +89,7 @@ export function getCurrentAbilityState(forceId = null) {
     name: document.getElementById('ab-name').value.trim(),
     isKeyword: document.getElementById('ab-is-keyword') ? document.getElementById('ab-is-keyword').checked : false,
     description: document.getElementById('ab-description').value,
+    developerNotes: document.getElementById('ab-developer-notes') ? document.getElementById('ab-developer-notes').value.trim() : '',
     trigger: derivedTrigger,
     additionalTriggers: StudioState.additionalTriggers || [],
     triggerScope: document.getElementById('ab-trigger-scope').value,
@@ -249,6 +251,9 @@ export function resetForm() {
   
   const elDesc = document.getElementById('ab-description');
   if (elDesc) elDesc.value = '';
+
+  const elDeveloperNotes = document.getElementById('ab-developer-notes');
+  if (elDeveloperNotes) elDeveloperNotes.value = '';
   
   const elBaseTrig = document.getElementById('ab-base-trigger');
   if (elBaseTrig) elBaseTrig.value = 'MANUAL';
@@ -365,6 +370,9 @@ export function loadAbility(id) {
   
   const elDesc = document.getElementById('ab-description');
   if (elDesc) elDesc.value = ab.description || '';
+
+  const elDeveloperNotes = document.getElementById('ab-developer-notes');
+  if (elDeveloperNotes) elDeveloperNotes.value = ab.developerNotes || '';
   
   const comp = window.parseTriggerToComposite ? window.parseTriggerToComposite(ab.trigger) : {base: 'MANUAL', phase: 'ON', role: 'ACTIVE'};
   

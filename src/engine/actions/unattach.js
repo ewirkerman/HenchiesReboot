@@ -1,4 +1,6 @@
-import { Action, findEntityLocation, moveEntity, revertEffect } from './core.js';
+import { Action, revertEffect } from './core.js';
+import { findEntityLocation } from '../utils.js';
+import { moveEntity } from '../utils.js';
 
 export class UnattachAction extends Action {
     execute(engine) {

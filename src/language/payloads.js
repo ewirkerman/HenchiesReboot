@@ -84,7 +84,7 @@ export function processTargetGroups(ability, ctx) {
             possessiveStr = "the enemy avatar's";
             isPlural = false;
         } else if (group.targetMethod === 'EVENT_SOURCE') {
-            if (trigger === 'MANUAL' || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
+            if (trigger === 'MANUAL' || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) {
                 targetStr = 'this';
                 possessiveStr = "its";
             } else {
@@ -121,7 +121,7 @@ export function processTargetGroups(ability, ctx) {
                 else if (trigger.includes('DISCARD')) targetStr = 'the discarded card';
                 else if (trigger.includes('HARVEST')) targetStr = 'the harvested card';
                 else if (trigger === 'ON_BE_ATTACHED') targetStr = 'host';
-                else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) targetStr = 'this';
+                else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) targetStr = 'this';
                 else targetStr = `the targeted card`;
                 possessiveStr = `its`;
             }
@@ -154,7 +154,7 @@ export function processTargetGroups(ability, ctx) {
                 
                 targetStr = `${article} ${actDesc}`;
                 possessiveStr = `${targetStr}'s`;
-            } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(trigger)) {
+            } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) {
                 targetStr = 'this';
                 possessiveStr = "its";
             } else {

@@ -1,4 +1,5 @@
-import { Action, findEntityLocation, registerEffect } from './core.js';
+import { Action, registerEffect } from './core.js';
+import { findEntityLocation } from '../utils.js';
 
 export class AttachAction extends Action {
     execute(engine) {
