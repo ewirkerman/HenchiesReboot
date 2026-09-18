@@ -3,6 +3,7 @@
  * Shared utilities and helpers for the Henchies 2 Game Engine.
  */
 
+
 export const CARD_CATALOG = []; // Will be hydrated by deckbuilder/firebase
 
 export const GLOBAL_UNDO_POLICY = 'ALLOWED'; // Options: 'ALLOWED', 'FORCED_ON', 'FORCED_OFF'
@@ -416,3 +417,121 @@ export function payCost(state, player, entity, costObj, escalateAmt = 0, isCardP
         }
     }
 }
+
+export function moveEntity(engine, target, destPlayerId, destZone) {
+    destZone = String(destZone || 'discard').toLowerCase();
+
+    removeFromCurrentLocation(engine, target);
+    resetEntityStateForBoard(target, destZone);
+    resetEntityReadinessForPile(target, destZone);
+    addToDestination(engine, target, destPlayerId, destZone);
+}
+function removeFromCurrentLocation(engine, target) {
+    const loc = findEntityLocation(engine, target);
+    if (loc && loc.array) loc.array.splice(loc.index, 1);
+}
+function resetEntityStateForBoard(target, destZone) {
+    const boardZones = ['hand', 'deck', 'back', 'front', 'mid', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'equator', 'attachment'];
+    if (boardZones.includes(destZone)) {
+        target._isDying = false;
+        if (target.health !== undefined && target.health !== null && target.health <= 0) {
+            target.health = target.maxHealth || 1;
+        }
+    }
+}
+function resetEntityReadinessForPile(target, destZone) {
+    if (['deck', 'banish'].includes(destZone)) {
+        target.readiness = 0;
+    }
+}
+function addToDestination(engine, target, destPlayerId, destZone) {
+    if (destZone === 'equator') {
+        if (!engine.state.equator) engine.state.equator = [];
+        engine.state.equator.push(target);
+        return;
+    }
+
+    const p = engine.state.players[destPlayerId];
+    if (!p) return;
+
+    if (['hand', 'deck', 'discard', 'banish'].includes(destZone)) {
+        p[destZone].push(target);
+    } else if (p.lines[destZone]) {
+        p.lines[destZone].push(target);
+    } else {
+        if (!p.lines['back']) p.lines['back'] = [];
+        p.lines['back'].push(target);
+    }
+}export function findEntityLocation(engine, target) {
+    if (!target || !target.instanceId) return null;
+
+    let result = searchPlayerZones(engine, target);
+    if (result) return result;
+
+    result = searchEquator(engine, target);
+    return result;
+}
+function searchPlayerZones(engine, target) {
+    for (const pId of ['player1', 'player2']) {
+        const p = engine.state.players[pId];
+
+        let result = searchPlayerLines(p, pId, target);
+        if (result) return result;
+
+        result = searchPlayerPiles(p, pId, target);
+        if (result) return result;
+    }
+    return null;
+}
+function searchPlayerLines(player, playerId, target) {
+    for (const line in player.lines) {
+        if (!player.lines[line]) continue;
+
+        const idx = player.lines[line].findIndex(c => c.instanceId === target.instanceId);
+        if (idx > -1) return { playerId, zone: line, array: player.lines[line], index: idx };
+
+        for (const host of player.lines[line]) {
+            const found = searchAttachments(host, playerId, target);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+function searchPlayerPiles(player, playerId, target) {
+    const zones = ['hand', 'deck', 'discard', 'banish'];
+    for (const z of zones) {
+        const idx = player[z].findIndex(c => c.instanceId === target.instanceId);
+        if (idx > -1) return { playerId, zone: z, array: player[z], index: idx };
+
+        for (const host of player[z]) {
+            const found = searchAttachments(host, playerId, target);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+function searchEquator(engine, target) {
+    if (!engine.state.equator) return null;
+
+    const idx = engine.state.equator.findIndex(c => c.instanceId === target.instanceId);
+    if (idx > -1) return { playerId: null, zone: 'equator', array: engine.state.equator, index: idx };
+
+    for (const host of engine.state.equator) {
+        const found = searchAttachments(host, null, target);
+        if (found) return found;
+    }
+    return null;
+}
+function searchAttachments(host, playerId, target) {
+    if (!host.attachments) return null;
+
+    const aIdx = host.attachments.findIndex(a => a.instanceId === target.instanceId);
+    if (aIdx > -1) return { playerId, zone: 'attachment', array: host.attachments, index: aIdx, host: host };
+
+    for (const att of host.attachments) {
+        const found = searchAttachments(att, playerId, target);
+        if (found) return found;
+    }
+    return null;
+}
+

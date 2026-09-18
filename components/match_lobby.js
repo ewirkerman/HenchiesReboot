@@ -47,26 +47,15 @@ export class MatchLobby extends HTMLElement {
                      </div>
                 </div>
                 
-                <!-- Active Matches & Invites -->
-                <div class="flex flex-col gap-4">
-                    <div class="bg-slate-900/30 p-4 rounded-xl border border-slate-700/50 flex flex-col gap-2 h-full">
-                         <h3 class="text-sky-400 font-black uppercase tracking-wider border-b border-slate-700/50 pb-1 text-sm flex justify-between items-center">
-                            <span>Incoming Invites</span>
-                            <span id="invites-count" class="bg-sky-900 text-sky-200 px-2 py-0.5 rounded text-[9px]">0</span>
-                         </h3>
-                         <div id="invites-list" class="flex flex-col gap-2 min-h-[50px] max-h-[120px] overflow-y-auto minimal-scrollbar">
-                             <span class="text-xs text-slate-500 italic">No pending invites.</span>
-                         </div>
-                    </div>
-                    <div class="bg-slate-900/30 p-4 rounded-xl border border-slate-700/50 flex flex-col gap-2 h-full">
-                         <h3 class="text-emerald-400 font-black uppercase tracking-wider border-b border-slate-700/50 pb-1 text-sm flex justify-between items-center">
-                            <span>Active Matches</span>
-                            <span id="matches-count" class="bg-emerald-900 text-emerald-200 px-2 py-0.5 rounded text-[9px]">0</span>
-                         </h3>
-                         <div id="active-matches-list" class="flex flex-col gap-2 min-h-[50px] max-h-[120px] overflow-y-auto minimal-scrollbar">
-                             <span class="text-xs text-slate-500 italic">No active matches.</span>
-                         </div>
-                    </div>
+                <!-- Combined Active Matches & Invites -->
+                <div class="bg-slate-900/30 p-3 sm:p-4 rounded-xl border border-slate-700/50 flex flex-col gap-2 h-full">
+                     <h3 class="text-amber-400 font-black uppercase tracking-wider border-b border-slate-700/50 pb-1 text-xs flex justify-between items-center">
+                        <span>Active Games & Invites</span>
+                        <span id="combined-count" class="bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded text-[9px] font-bold">0</span>
+                     </h3>
+                     <div id="combined-matches-list" class="flex flex-col gap-1.5 min-h-[150px] max-h-[350px] overflow-y-auto minimal-scrollbar pr-1">
+                         <span class="text-xs text-slate-500 italic px-1">No active games or invites.</span>
+                     </div>
                 </div>
             </div>
 

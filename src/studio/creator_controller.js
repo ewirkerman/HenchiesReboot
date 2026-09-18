@@ -11,6 +11,7 @@ import { generateAbilityDescription } from '../language_description.js';
 import { extractGlossary, renderJSONPreview, loadUI, showToast, openInspectionModal } from '../ui.js';
 import { launchSandboxMatch } from '../testing.js';
 import { processBulkImport } from './importer.js';
+import { listenForForegroundNotifications } from '../profile.js';
 
 import { CardState } from './card/state.js';
 import { StudioState } from './ability/state.js';
@@ -52,6 +53,12 @@ export const CreatorState = {
 window.CreatorController = {
     async init() {
         await loadUI();
+        
+        // Listen for foreground push notifications so we can trigger OS popups if a turn changes while in the Studio
+        listenForForegroundNotifications((title, body) => {
+            console.log(`[NOTIF-DEBUG] Turn update caught on Creator Studio: ${title}`);
+            showToast(`Turn Update: ${body}`, "info");
+        });
         
         // Initial Hydration
         await this.refreshStudioData();

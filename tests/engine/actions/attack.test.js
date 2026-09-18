@@ -1,6 +1,13 @@
 import { hasEngineFlag } from '../../../src/engine/utils.js';
 import { jest } from '@jest/globals';
 
+const mockFindEntityLocation = jest.fn();
+
+jest.unstable_mockModule('../../../src/engine/utils.js', () => ({
+    hasEngineFlag: jest.fn(() => false),
+    findEntityLocation: mockFindEntityLocation
+}));
+
 // Mock dependencies using strict ESM relative paths
 jest.unstable_mockModule('../../../src/engine/actions/core.js', () => {
     class MockAction {
@@ -13,8 +20,7 @@ jest.unstable_mockModule('../../../src/engine/actions/core.js', () => {
     
     return {
         Action: MockAction,
-        ACTION_REGISTRY: {},
-        findEntityLocation: jest.fn()
+        ACTION_REGISTRY: {}
     };
 });
 
@@ -69,7 +75,7 @@ describe('AttackAction Combat Logic', () => {
             run() { this.payload.target._isDying = true; }
         };
 
-        core.findEntityLocation.mockReturnValue({ zone: 'mid' });
+        mockFindEntityLocation.mockReturnValue({ zone: 'mid' });
     });
 
     describe('Initialization & Restrictions', () => {
@@ -329,7 +335,7 @@ describe('AttackAction Combat Logic', () => {
                 constructor(payload) { this.payload = payload; }
                 run() { 
                     this.payload.target.health -= this.payload.amount;
-                    core.findEntityLocation.mockImplementation((eng, ent) => {
+                    mockFindEntityLocation.mockImplementation((eng, ent) => {
                         if (ent.instanceId === defender.instanceId) return { zone: 'hand' };
                         return { zone: 'mid' };
                     });

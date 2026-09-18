@@ -193,18 +193,18 @@ export const handleSacrificeConfirm = async () => {
 };
 
 export function getCardPlayState(cardId, card) {
-    const legalActions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId);
     const baseCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, card);
+    const legalActions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId) || [];
     
-    // Filter out standard PLAY actions if the base card cost can't be met, 
-    // but KEEP alternative hand abilities (like Harvest) which have their own costs.
+    // Filter out only native card play if the base card cost cannot be met.
+    // Hand abilities are separate actions and may have their own costs.
     const validActions = legalActions.filter(a => {
-        if (a.type === 'PLAY' || a.isPlayAbility) return baseCheck && baseCheck.success;
+        if (a.type === 'PLAY') return baseCheck && baseCheck.success;
         return true; 
     });
 
     if (validActions.length === 0) {
-        return { playable: false, reason: baseCheck ? baseCheck.reason : "No valid targets or resources.", mode: 'none', actions: [] };
+        return { playable: false, reason: baseCheck?.reason || "No valid targets available.", mode: 'none', actions: [] };
     }
     
     if (validActions.length === 1) {

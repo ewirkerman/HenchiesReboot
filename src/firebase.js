@@ -698,32 +698,41 @@ export async function createUserProfile(username, defaultData) {
 export async function addFCMTokenToProfile(username, token) {
     if (!await isReadyForDB()) return false;
     try {
+        console.log(`[NOTIF-DEBUG] Adding token to Firestore for ${username}: ${token.substring(0, 15)}...`);
         await updateDoc(doc(db, 'profiles', username), {
             fcmTokens: arrayUnion(token),
             lastActive: Date.now()
         });
         return true;
     } catch(e) {
-        console.error("[FIREBASE] Failed to add FCM token to profile", e);
+        console.error("[FIREBASE] [NOTIF-DEBUG] Failed to add FCM token to profile", e);
         return false;
     }
 }
 
 export async function requestFCMToken(vapidKey, serviceWorkerRegistration) {
+    console.log(`[NOTIF-DEBUG] requestFCMToken invoked. Messaging instance available: ${!!messaging}`);
     if (!messaging) return null;
     try {
-        return await getToken(messaging, { 
+        const token = await getToken(messaging, { 
             vapidKey: vapidKey, 
             serviceWorkerRegistration: serviceWorkerRegistration 
         });
+        console.log(`[NOTIF-DEBUG] getToken returned:`, token ? (token.substring(0, 15) + "...") : "null/empty");
+        return token;
     } catch (e) {
-        console.warn("[FIREBASE] Failed to fetch FCM Token", e);
+        console.warn("[FIREBASE] [NOTIF-DEBUG] Failed to fetch FCM Token", e);
         return null;
     }
 }
 
 export function subscribeToFCMForeground(callback) {
-    if (!messaging) return;
+    console.log(`[NOTIF-DEBUG] subscribeToFCMForeground invoked. Messaging instance available: ${!!messaging}`);
+    if (!messaging) {
+        console.warn("[NOTIF-DEBUG] Cannot subscribe to foreground messages, messaging is undefined.");
+        return;
+    }
+    console.log("[NOTIF-DEBUG] Registering onMessage listener.");
     onMessage(messaging, callback);
 }
 

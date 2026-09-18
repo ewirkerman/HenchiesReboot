@@ -117,6 +117,8 @@ export function resetForm() {
     setVal('card-nano-art-x', 0); setVal('card-nano-art-y', 0); setVal('card-nano-art-scale', 110);
     
     document.getElementById('card-description').value = '';
+    const developerNotesEl = document.getElementById('card-developer-notes');
+    if (developerNotesEl) developerNotesEl.value = '';
     const hideDeckbuilderFlag = document.getElementById('card-hide-from-deckbuilder');
     if (hideDeckbuilderFlag) hideDeckbuilderFlag.checked = false;
     
@@ -178,6 +180,7 @@ export function buildCardState(forceId = null) {
         maxHealth: finalHealth,
         strength: isAllowed('strength') && strVal !== '' ? parseInt(strVal) : null,
         description: document.getElementById('card-description').value || '',
+        developerNotes: document.getElementById('card-developer-notes')?.value.trim() || '',
         artUrl: document.getElementById('card-art').value || '',
         hideFromDeckBuilder: !!(hideDeckbuilderCheckbox && hideDeckbuilderCheckbox.checked),
         artX: valX,

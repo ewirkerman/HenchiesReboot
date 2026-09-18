@@ -166,13 +166,14 @@
       </div>
   </div>
 
-  <script type="module">
+    <script type="module">
     import { CARD_CATALOG } from './src/engine/index.js';
     import { renderCardHTML, openInspectionModal, showToast, loadUI } from './src/ui.js';
     import { fetchCustomCards, fetchCustomAbilities, saveDeckToCatalog, fetchUserDecks, fetchCustomTribes, deleteDeckFromCatalog } from './src/firebase.js';
     import { generateAbilityDescription } from './src/language_description.js';
     import { launchSandboxMatch } from './src/testing.js';
     import { hydrateAbility } from './src/engine/utils.js';
+    import { listenForForegroundNotifications } from './src/profile.js';
     import './components/main_nav.js';
     import './components/catalog.js';
     import './components/topbar.js';
@@ -206,7 +207,7 @@
         document.getElementById('avatar-modal').classList.add('flex');
     };
 
-    window.selectAvatar = (cardId) => {
+   window.selectAvatar = (cardId) => {
         currentAvatar = fullCatalog.find(c => c.id === cardId);
         document.getElementById('avatar-modal').classList.add('hidden');
         document.getElementById('avatar-modal').classList.remove('flex');
@@ -217,6 +218,13 @@
 
     async function init() {
       await loadUI();
+      
+      // Listen for foreground push notifications so we can trigger OS popups if a turn changes while building a deck
+      listenForForegroundNotifications((title, body) => {
+          console.log(`[NOTIF-DEBUG] Turn update caught on Deckbuilder: ${title}`);
+          showToast(`Turn Update: ${body}`, "info");
+      });
+      
       try {
         customTribesList = await fetchCustomTribes();
         

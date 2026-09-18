@@ -1,4 +1,6 @@
-import { Action, ACTION_REGISTRY, findEntityLocation, moveEntity, registerEffect } from './core.js';
+import { Action, ACTION_REGISTRY, registerEffect } from './core.js';
+import { findEntityLocation } from '../utils.js';
+import { moveEntity } from '../utils.js';
 import { generateId, shuffleArray } from '../prandom.js';
 
 export class SummonAction extends Action {

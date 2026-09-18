@@ -19,6 +19,14 @@ export function populateBaseTriggers() {
         { val: 'TURN_STARTED', label: 'Turn Started' },
         { val: 'TURN_ENDING', label: 'Turn Ending' },
         { val: 'TURN_ENDED', label: 'Turn Ended' },
+        { val: 'OWN_TURN_STARTING', label: 'Own Turn Starting' },
+        { val: 'OWN_TURN_STARTED', label: 'Own Turn Started' },
+        { val: 'OWN_TURN_ENDING', label: 'Own Turn Ending' },
+        { val: 'OWN_TURN_ENDED', label: 'Own Turn Ended' },
+        { val: 'OPP_TURN_STARTING', label: 'Opponent Turn Starting' },
+        { val: 'OPP_TURN_STARTED', label: 'Opponent Turn Started' },
+        { val: 'OPP_TURN_ENDING', label: 'Opponent Turn Ending' },
+        { val: 'OPP_TURN_ENDED', label: 'Opponent Turn Ended' },
         { val: 'ON_ACT', label: 'When Acting (Ability/Attack)' }
     ];
     
@@ -32,7 +40,7 @@ export function populateBaseTriggers() {
 }
 
 export function parseTriggerToComposite(triggerString) {
-    const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'ON_ACT'];
+    const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED', 'ON_ACT'];
     if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
 
     for (const effect in ACTION_MANIFEST) {
@@ -63,6 +71,14 @@ export function renderAdditionalTriggers() {
         { val: 'TURN_STARTED', label: 'Turn Started' },
         { val: 'TURN_ENDING', label: 'Turn Ending' },
         { val: 'TURN_ENDED', label: 'Turn Ended' },
+        { val: 'OWN_TURN_STARTING', label: 'Own Turn Starting' },
+        { val: 'OWN_TURN_STARTED', label: 'Own Turn Started' },
+        { val: 'OWN_TURN_ENDING', label: 'Own Turn Ending' },
+        { val: 'OWN_TURN_ENDED', label: 'Own Turn Ended' },
+        { val: 'OPP_TURN_STARTING', label: 'Opponent Turn Starting' },
+        { val: 'OPP_TURN_STARTED', label: 'Opponent Turn Started' },
+        { val: 'OPP_TURN_ENDING', label: 'Opponent Turn Ending' },
+        { val: 'OPP_TURN_ENDED', label: 'Opponent Turn Ended' },
         { val: 'ON_ACT', label: 'When Acting (Ability/Attack)' }
     ];
     

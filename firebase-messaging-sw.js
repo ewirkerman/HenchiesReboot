@@ -14,14 +14,24 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+function normalizeNotificationTargetUrl(rawUrl, scope = self.registration?.scope || 'https://example.com/') {
+  if (!rawUrl) return new URL('game.html', scope).href;
+  if (/^https?:\/\//i.test(rawUrl)) return new URL(rawUrl).href;
+
+  const cleanedUrl = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+  const baseUrl = scope.endsWith('/') ? scope : `${scope}/`;
+  return new URL(cleanedUrl, baseUrl).href;
+}
+
 messaging.onBackgroundMessage(function(payload) {
   console.log('[firebase-messaging-sw.js] Received background data message ', payload);
   
   // Data-only payload processing allows full custom control
-  const notificationTitle = payload.data?.title || 'Henchies 2 Alert';
+  const data = payload.data || {};
+  const notificationTitle = data.title || 'Henchies 2 Alert';
   const notificationOptions = {
-    body: payload.data?.body || 'It is your turn!',
-    data: payload.data, // Pass the whole data object so the click handler has the dynamic URL
+    body: data.body || 'It is your turn!',
+    data: { ...data, url: normalizeNotificationTargetUrl(data.url) },
     // icon: '/assets/logo.png', // Add this later when you want a custom image!
   };
 
@@ -31,28 +41,48 @@ messaging.onBackgroundMessage(function(payload) {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  // Extract the dynamic URL passed from our Cloud Function
-  const targetPath = event.notification.data?.url || "/game.html";
-  const targetUrl = new URL(targetPath, self.location.origin).href; 
+  const targetUrl = normalizeNotificationTargetUrl(event.notification.data?.url || 'game.html', self.registration.scope);
+  const target = new URL(targetUrl);
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Check if ANY tab is open to our game domain
-      const client = windowClients.find(c => c.url.startsWith(self.location.origin) && 'focus' in c);
+      const client = windowClients.find((c) => {
+        try {
+          const currentUrl = new URL(c.url);
+          return currentUrl.origin === target.origin && currentUrl.pathname === target.pathname;
+        } catch (err) {
+          return false;
+        }
+      });
 
       if (client) {
-        // Focus first, then navigate to the specific room hash
-        return client.focus().then(focusedClient => {
-          if (focusedClient && focusedClient.url !== targetUrl) {
+        return client.focus().then((focusedClient) => {
+          if (!focusedClient) return focusedClient;
+
+          try {
+            const focusedTarget = new URL(focusedClient.url);
+            if (focusedTarget.origin !== target.origin || focusedTarget.pathname !== target.pathname || focusedTarget.hash !== target.hash) {
+              return focusedClient.navigate(targetUrl);
+            }
+          } catch (err) {
             return focusedClient.navigate(targetUrl);
           }
+
           return focusedClient;
         });
       }
-      
+
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
       }
+
+      return undefined;
     })
   );
 });
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    normalizeNotificationTargetUrl,
+  };
+}

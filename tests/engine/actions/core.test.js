@@ -1,8 +1,12 @@
 import { jest } from '@jest/globals';
+import * as actualUtils from '../../../src/engine/utils.js';
 
 // Mock dependencies before importing the core module
 jest.unstable_mockModule('../../../src/engine/utils.js', () => ({
-    isUndoable: jest.fn(() => true)
+    ...actualUtils,
+    isUndoable: jest.fn(() => true),
+    findEntityLocation: actualUtils.findEntityLocation,
+    moveEntity: actualUtils.moveEntity
 }));
 
 describe('core.js Action Core & Utilities', () => {
@@ -159,13 +163,13 @@ describe('core.js Action Core & Utilities', () => {
             const unit = { instanceId: 'u1' };
             mockEngine.state.players.player1.lines.mid.push(unit);
             
-            let loc = core.findEntityLocation(mockEngine, unit);
+            let loc = utilsMock.findEntityLocation(mockEngine, unit);
             expect(loc.playerId).toBe('player1');
             expect(loc.zone).toBe('mid');
 
-            core.moveEntity(mockEngine, unit, 'player2', 'hand');
+            utilsMock.moveEntity(mockEngine, unit, 'player2', 'hand');
             
-            loc = core.findEntityLocation(mockEngine, unit);
+            loc = utilsMock.findEntityLocation(mockEngine, unit);
             expect(loc.playerId).toBe('player2');
             expect(loc.zone).toBe('hand');
         });
@@ -174,9 +178,9 @@ describe('core.js Action Core & Utilities', () => {
             const artifact = { instanceId: 'art1' };
             mockEngine.state.players.player1.hand.push(artifact);
 
-            core.moveEntity(mockEngine, artifact, null, 'equator');
+            utilsMock.moveEntity(mockEngine, artifact, null, 'equator');
             
-            const loc = core.findEntityLocation(mockEngine, artifact);
+            const loc = utilsMock.findEntityLocation(mockEngine, artifact);
             expect(loc.zone).toBe('equator');
             expect(mockEngine.state.equator[0].instanceId).toBe('art1');
         });
@@ -187,7 +191,7 @@ describe('core.js Action Core & Utilities', () => {
             const host = { instanceId: 'h1', attachments: [attachment] };
             mockEngine.state.players.player2.lines.front.push(host);
             
-            const loc = core.findEntityLocation(mockEngine, subAttachment);
+            const loc = utilsMock.findEntityLocation(mockEngine, subAttachment);
             expect(loc.playerId).toBe('player2');
             expect(loc.zone).toBe('attachment');
             expect(loc.host.instanceId).toBe('att1');
@@ -197,7 +201,7 @@ describe('core.js Action Core & Utilities', () => {
             const card = { instanceId: 'c1', health: -5, maxHealth: 10, _isDying: true };
             mockEngine.state.players.player1.hand.push(card);
             
-            core.moveEntity(mockEngine, card, 'player1', 'mid');
+            utilsMock.moveEntity(mockEngine, card, 'player1', 'mid');
             expect(card.health).toBe(10);
             expect(card._isDying).toBe(false);
         });
@@ -206,7 +210,7 @@ describe('core.js Action Core & Utilities', () => {
             const card = { instanceId: 'c1', readiness: 1 };
             mockEngine.state.players.player1.hand.push(card);
             
-            core.moveEntity(mockEngine, card, 'player1', 'deck');
+            utilsMock.moveEntity(mockEngine, card, 'player1', 'deck');
             expect(card.readiness).toBe(0);
         });
     });
@@ -261,7 +265,7 @@ describe('core.js Action Core & Utilities', () => {
             core.revertEffect(mockEngine, target, { type: 'SET_STAT', stat: 'line', originalValue: 'front', id: 'eff1' });
             
             expect(target.line).toBe('front');
-            const loc = core.findEntityLocation(mockEngine, target);
+            const loc = utilsMock.findEntityLocation(mockEngine, target);
             expect(loc.zone).toBe('front'); // Moved successfully
         });
 
@@ -325,7 +329,7 @@ describe('core.js Action Core & Utilities', () => {
             core.revertEffect(mockEngine, target, { type: 'REBEL', originalOwnerId: 'player1' });
             
             expect(target.ownerId).toBe('player1');
-            const loc = core.findEntityLocation(mockEngine, target);
+            const loc = utilsMock.findEntityLocation(mockEngine, target);
             expect(loc.playerId).toBe('player1');
         });
     });

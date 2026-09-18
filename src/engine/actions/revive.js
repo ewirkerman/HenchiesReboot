@@ -1,4 +1,6 @@
-import { Action, findEntityLocation, moveEntity } from './core.js';
+import { Action } from './core.js';
+import { findEntityLocation } from '../utils.js';
+import { moveEntity } from '../utils.js';
 
 export class ReviveAction extends Action {
     execute(engine) {

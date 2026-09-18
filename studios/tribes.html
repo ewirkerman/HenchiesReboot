@@ -171,6 +171,7 @@
   <script type="module">
     import { fetchCustomTribes, saveTribeToCatalog, deleteTribeFromCatalog } from '../src/firebase.js';
     import { showToast, renderJSONPreview } from '../src/ui.js';
+    import { listenForForegroundNotifications } from '../src/profile.js';
     import '../components/main_nav.js';
     import '../components/catalog.js'; 
     import '../components/topbar.js';
@@ -195,6 +196,14 @@
         Luchador: { bg: 'bg-yellow-900', lightBg: 'bg-yellow-950/90', border: 'border-black', text: 'text-yellow-300' },
         Generic: { bg: 'bg-slate-900', lightBg: 'bg-slate-950/90', border: 'border-black', text: 'text-slate-300' }
     };
+
+          
+    // Listen for foreground push notifications so we can trigger OS popups if a turn changes while building a deck
+    listenForForegroundNotifications((title, body) => {
+        console.log(`[NOTIF-DEBUG] Turn update caught on Deckbuilder: ${title}`);
+        showToast(`Turn Update: ${body}`, "info");
+    });
+      
 
     window.seedDefaultTribes = async () => {
         if (!confirm("This will inject the 12 base tribes into the database. Existing default tribes will be overwritten. Proceed?")) return;

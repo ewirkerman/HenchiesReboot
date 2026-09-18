@@ -175,7 +175,8 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
       if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
       if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
       if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
-      if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+    if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+    if (!manifest.canOverheal) delete payload.overheal;
       if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
       if (!manifest.canInvert) delete payload.invertRoles;
       if (!manifest.canBeCost) delete payload.isCost;
@@ -262,7 +263,8 @@ export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
       if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
       if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
       if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
-      if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+    if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+    if (!manifest.canOverheal) delete payload.overheal;
       if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
       if (!manifest.canInvert) delete payload.invertRoles;
       if (!manifest.canBeCost) delete payload.isCost;
@@ -322,6 +324,7 @@ export function revalidatePayloadTypes() {
                     if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
                     if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
                     if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+                    if (!manifest.canOverheal) delete payload.overheal;
                     if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
                     if (!manifest.canInvert) delete payload.invertRoles;
                     if (!manifest.canBeCost) delete payload.isCost;
