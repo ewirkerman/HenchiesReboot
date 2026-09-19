@@ -40,13 +40,13 @@ export class AttackAction extends Action {
         
         this.payload.preventReaction = true;
 
+        // READ speed without consuming flags
         const atkSpeed = this.getSpeed(engine, attacker);
         const defSpeed = this.getSpeed(engine, defender);
 
         let eventsEmitted = false;
 
         for (const phase of [1, 0, -1]) {
-            // Abort combat entirely if either unit was killed/bounced/banished before this speed phase begins
             if (
                 attacker._isDying || !this.checkBoard(engine, attacker) || 
                 defender._isDying || !this.checkBoard(engine, defender)
@@ -84,9 +84,15 @@ export class AttackAction extends Action {
             }
 
             if (atkStrikes) {
+                // Consume the flag only at the exact moment the strike executes
+                if (phase === 1) engine.utils.hasEngineFlag(engine.state, attacker, 'STRIKE_FAST', true);
+                if (phase === -1) engine.utils.hasEngineFlag(engine.state, attacker, 'STRIKE_SLOW', true);
                 this.executeStrike(engine, attacker, defender, attacker, defender, currentAtkDmg);
             }
             if (defStrikes) {
+                // Consume the flag only at the exact moment the strike executes
+                if (phase === 1) engine.utils.hasEngineFlag(engine.state, defender, 'STRIKE_FAST', true);
+                if (phase === -1) engine.utils.hasEngineFlag(engine.state, defender, 'STRIKE_SLOW', true);
                 this.executeStrike(engine, attacker, defender, defender, attacker, currentDefDmg);
             }
             
@@ -98,7 +104,8 @@ export class AttackAction extends Action {
 
     getSpeed(engine, ent) {
         let speed = 0;
-        if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_FAST', true)) {
+        // Check state safely without consuming the ability uses
+        if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_FAST', false)) {
             speed += 1;
         }
         if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_SLOW', false)) {

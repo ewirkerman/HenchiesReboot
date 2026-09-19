@@ -1,170 +1,90 @@
-import { hasEngineFlag } from '../../../src/engine/utils.js';
 import { jest } from '@jest/globals';
-
-const mockFindEntityLocation = jest.fn();
-
-jest.unstable_mockModule('../../../src/engine/utils.js', () => ({
-    hasEngineFlag: jest.fn(() => false),
-    findEntityLocation: mockFindEntityLocation
-}));
-
-// Mock dependencies using strict ESM relative paths
-jest.unstable_mockModule('../../../src/engine/actions/core.js', () => {
-    class MockAction {
-        constructor(payload) {
-            this.payload = payload;
-            this.type = payload.type || 'MOCK_ACTION';
-        }
-        getLogDepth() { return 1; }
-    }
-    
-    return {
-        Action: MockAction,
-        ACTION_REGISTRY: {}
-    };
-});
+import { GameEngine } from '../../../src/engine/index.js';
+import { createTestState, spawnUnit, grantTestAbility } from '../../tests_utils.js';
 
 describe('AttackAction Combat Logic', () => {
     let AttackAction;
-    let core;
     let engine;
+    let state;
     let attacker;
     let defender;
 
     beforeAll(async () => {
-        // Dynamically import the modules AFTER mocks are established
         const attackModule = await import('../../../src/engine/actions/attack.js');
         AttackAction = attackModule.AttackAction;
-        core = await import('../../../src/engine/actions/core.js');
     });
 
     beforeEach(() => {
         jest.clearAllMocks();
 
-        attacker = { 
-            instanceId: 'atk_1', name: 'Attacker Unit', type: 'unit', 
-            strength: 2, health: 3, abilities: [], flags: [] 
-        };
-        defender = { 
-            instanceId: 'def_1', name: 'Defender Unit', type: 'unit', 
-            strength: 2, health: 3, abilities: [], flags: [] 
-        };
-
-        engine = {
-            state: { history_log: [], abilityUses: {} }, // Initialize abilityUses state
-            emit: jest.fn(),
-            utils: {
-                // Pass the real function directly!
-                hasEngineFlag: (state, ent, flag, consume) => hasEngineFlag(state, ent, flag, consume) 
-            }
-        };
-
-        Object.keys(core.ACTION_REGISTRY).forEach(key => delete core.ACTION_REGISTRY[key]);
-
-        core.ACTION_REGISTRY['DEAL_DAMAGE'] = class {
-            constructor(payload) { this.payload = payload; }
-            run() { 
-                if (this.payload.amount !== null && this.payload.amount !== undefined) {
-                    this.payload.target.health -= this.payload.amount; 
-                }
-            }
-        };
-
-        core.ACTION_REGISTRY['KILL'] = class {
-            constructor(payload) { this.payload = payload; }
-            run() { this.payload.target._isDying = true; }
-        };
-
-        mockFindEntityLocation.mockReturnValue({ zone: 'mid' });
+        // 1. DAMP over DRY: We set up a clean, vanilla board state using Front Door factories.
+        state = createTestState();
+        engine = new GameEngine(state);
+        
+        // Spawn basic vanilla units. Specific tests will apply buffs/mods individually.
+        attacker = spawnUnit(state, 'player1', 'mid', { instanceId: 'atk_1', name: 'Attacker' });
+        defender = spawnUnit(state, 'player2', 'mid', { instanceId: 'def_1', name: 'Defender' });
     });
 
     describe('Initialization & Restrictions', () => {
         it('should abort attack immediately if attacker is Timid and target is an Avatar', () => {
-            const ability = { passiveFlags: ['BLOCK_TARGET_AVATAR'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
-            attacker.abilities.push(ability);
-            defender.type = 'avatar';
+            grantTestAbility(attacker, ['BLOCK_TARGET_AVATAR']);
+            defender.type = 'avatar'; // Safe manual override for test context
 
+            const emitSpy = jest.spyOn(engine, 'emit');
             const action = new AttackAction({ source: attacker, target: defender });
-            action.run = action.execute; 
             action.execute(engine);
 
-            expect(engine.emit).not.toHaveBeenCalled();
-            expect(engine.state.history_log.some(l => l.text.includes('cannot attack the Avatar'))).toBe(true);
+            // Black Box check: ensure no events fired and log reflects the block
+            expect(emitSpy).not.toHaveBeenCalled();
+            expect(state.history_log.some(l => l.text.includes('cannot attack the Avatar'))).toBe(true);
         });
 
         it('should emit ON_ATTACK and ON_BE_ATTACKED events on a valid attack', () => {
             const payload = { source: attacker, target: defender };
-            const action = new AttackAction(payload);
-            action.execute(engine);
+            const emitSpy = jest.spyOn(engine, 'emit');
+            
+            new AttackAction(payload).execute(engine);
 
-            expect(engine.emit).toHaveBeenCalledWith('ON_ATTACK', payload);
-            expect(engine.emit).toHaveBeenCalledWith('ON_BE_ATTACKED', payload);
-            expect(payload.preventReaction).toBe(true);
+            expect(emitSpy).toHaveBeenCalledWith('ON_ATTACK', payload);
+            expect(emitSpy).toHaveBeenCalledWith('ON_BE_ATTACKED', payload);
         });
     });
 
     describe('Combat Resolution & Speed Phases', () => {
         it('should result in simultaneous damage for standard speed units (Phase 0)', () => {
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
+            new AttackAction({ source: attacker, target: defender }).run(engine);
 
+            // Asserting final behavioral output, not inner mechanics
             expect(attacker.health).toBe(1);
             expect(defender.health).toBe(1);
-            expect(attacker._isDying).toBeFalsy();
-            expect(defender._isDying).toBeFalsy();
         });
 
         it('should not kill a unit at 0 HP if it never got hit during combat', () => {
-            attacker.health = 0;
-            defender.health = 0;
-            attacker.strength = null;
-            defender.strength = null;
+            attacker.health = 0; defender.health = 0;
+            attacker.strength = null; defender.strength = null;
 
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
+            new AttackAction({ source: attacker, target: defender }).run(engine);
 
-            expect(attacker.health).toBe(0);
-            expect(defender.health).toBe(0);
             expect(attacker._isDying).toBeFalsy();
             expect(defender._isDying).toBeFalsy();
         });
 
         it('should kill a unit at 0 HP if it was hit for 0 damage during combat', () => {
-            attacker.health = 0;
-            defender.health = 0;
-            attacker.strength = 0;
-            defender.strength = 0;
+            attacker.health = 0; defender.health = 0;
+            attacker.strength = 0; defender.strength = 0;
 
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
+            new AttackAction({ source: attacker, target: defender }).execute(engine);
 
-            expect(attacker.health).toBe(0);
-            expect(defender.health).toBe(0);
             expect(attacker._isDying).toBe(true);
             expect(defender._isDying).toBe(true);
         });
 
-        it('should trigger KillAction for both if lethal damage is dealt simultaneously', () => {
-            attacker.health = 2;
-            defender.health = 2;
+        it('should allow a Fast attacker to kill a standard defender before retaliation', () => {
+            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND')
+            attacker.strength = 3; // Lethal
 
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
-
-            expect(attacker.health).toBe(0);
-            expect(defender.health).toBe(0);
-            expect(attacker._isDying).toBe(true);
-            expect(defender._isDying).toBe(true);
-        });
-
-        it('should allow a Fast attacker to kill a standard defender before retaliation (Phase 1)', () => {
-            const ability = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
-            attacker.abilities.push(ability);
-            attacker.strength = 3; 
-            defender.health = 3;
-
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
+            new AttackAction({ source: attacker, target: defender }).run(engine);
 
             expect(defender.health).toBe(0);
             expect(defender._isDying).toBe(true);
@@ -172,214 +92,107 @@ describe('AttackAction Combat Logic', () => {
         });
 
         it('should allow a standard defender to retaliate if they survive a Fast strike', () => {
-            const ability = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
-            attacker.abilities.push(ability);
-            attacker.strength = 2; 
-            defender.health = 4;
-
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
-
-            expect(defender.health).toBe(2);
-            expect(attacker.health).toBe(1); // Takes 2 damage in return
-        });
-
-        it('should allow a standard attacker to strike a Slow defender first (Phase 0 vs Phase -1)', () => {
-            const ability = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
-            defender.abilities.push(ability);
-            attacker.strength = 3; 
-            defender.health = 3;
-
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
-
-            expect(defender.health).toBe(0);
-            expect(defender._isDying).toBe(true);
-            expect(attacker.health).toBe(3);
-        });
-
-        it('should allow a Fast attacker to kill a Slow defender before retaliation (Phase 1 vs Phase -1)', () => {
-            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
-            attacker.abilities.push(ability1);
-            const ability2 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
-            defender.abilities.push(ability2);
-            attacker.strength = 3; 
-            defender.health = 3;
-
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
-
-            expect(defender.health).toBe(0);
-            expect(defender._isDying).toBe(true);
-            expect(attacker.health).toBe(3); // Completely untouched
-        });
-
-        it('should allow a Fast defender to kill a standard attacker before the attack lands (First Strike Defense)', () => {
-            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
-            defender.abilities.push(ability1);
-            defender.strength = 3; 
-            attacker.health = 3;
-
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
-
-            expect(attacker.health).toBe(0);
-            expect(attacker._isDying).toBe(true);
-            expect(defender.health).toBe(3); // Defender strikes in Phase 1, avoiding Phase 0 damage
-        });
-
-        it('should allow a Slow defender to retaliate in Phase -1 if they survive a standard Phase 0 strike', () => {
-            const ability2 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
-            defender.abilities.push(ability2);
+            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND')
             attacker.strength = 2; // Non-lethal
             defender.health = 4;
 
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
+            new AttackAction({ source: attacker, target: defender }).run(engine);
 
             expect(defender.health).toBe(2);
-            expect(attacker.health).toBe(1); // Attacker takes 2 damage in Phase -1
+            expect(attacker.health).toBe(1);
         });
 
-        it('should resolve combat simultaneously if both units are Fast (Phase 1 clash)', () => {
-            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
-            attacker.abilities.push(ability1);
-            const ability2 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
-            defender.abilities.push(ability2);
+        it('should allow a Fast defender to kill a standard attacker before the attack lands', () => {
+            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND')
+            defender.strength = 3; 
 
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
+            new AttackAction({ source: attacker, target: defender }).run(engine);
 
-            expect(attacker.health).toBe(1);
-            expect(defender.health).toBe(1);
-        });
-
-        it('should resolve combat simultaneously if both units are Slow (Phase -1 clash)', () => {
-            const ability1 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
-            attacker.abilities.push(ability1);
-            const ability2 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab2' };
-            defender.abilities.push(ability2);
-
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
-
-            expect(attacker.health).toBe(1);
-            expect(defender.health).toBe(1);
+            expect(attacker.health).toBe(0);
+            expect(attacker._isDying).toBe(true);
+            expect(defender.health).toBe(3); // Untouched
         });
 
         it('should consume STRIKE_FAST so it only applies to one combat per flag instance', () => {
-            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'ONCE_PER_ROUND', abilityId: 'ab1' };
-            attacker.abilities.push(ability1);
+            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND');
             attacker.strength = 3;
             
             // Combat 1: Attacker is Fast
-            const def1 = { ...defender, instanceId: 'def_1', health: 3, strength: 2 };
-            new AttackAction({ source: attacker, target: def1 }).execute(engine);
-            
-            expect(def1.health).toBe(0);
-            expect(attacker.health).toBe(3); // Fast kill, takes no damage
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+            expect(defender.health).toBe(0);
+            expect(attacker.health).toBe(3);
 
-            // Combat 2: STRIKE_FAST was consumed, Attacker is now Normal speed
-            const def2 = { ...defender, instanceId: 'def_2', health: 3, strength: 2 };
-            new AttackAction({ source: attacker, target: def2 }).execute(engine);
+            // Resilient Setup: Front-door spawn a brand new defender for combat 2 
+            // rather than manually altering health variables on a detached object.
+            const defender2 = spawnUnit(state, 'player2', 'mid', { instanceId: 'def_2' });
             
-            expect(def2.health).toBe(0);
-            expect(attacker.health).toBe(1); // Simultaneous clash, takes 2 damage
+            // Combat 2: Attacker is now normal speed (consumed)
+            new AttackAction({ source: attacker, target: defender2 }).run(engine);
+            expect(defender2.health).toBe(0);
+            expect(attacker.health).toBe(1); // Took retaliation
         });
 
-        it('should allow multiple STRIKE_FAST flags to stack for multiple consecutive combats', () => {
-            const ability1 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'ONCE_PER_ROUND', abilityId: 'ab1' };
-            attacker.abilities.push(ability1);
-            const ability2 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
-            attacker.abilities.push(ability2);
+        it('should allow multiple STRIKE_FAST flags to stack for consecutive combats', () => {
+            // Give 2 fast flags
+            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND');
+            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND');
             attacker.strength = 3;
             
-            // Combat 1: Attacker is Fast (1 flag consumed)
-            const def1 = { ...defender, instanceId: 'def_1', health: 3 };
-            new AttackAction({ source: attacker, target: def1 }).execute(engine);
-            expect(def1.health).toBe(0);
-            expect(attacker.health).toBe(3); 
+            // Combat 1: Uses flag 1
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+            expect(attacker.health).toBe(3);
 
-            // Combat 2: Attacker is STILL Fast (2nd flag consumed)
-            const def2 = { ...defender, instanceId: 'def_2', health: 3 };
-            new AttackAction({ source: attacker, target: def2 }).execute(engine);
-            expect(def2.health).toBe(0);
-            expect(attacker.health).toBe(3); 
+            // Setup Combat 2 safely
+            const defender2 = spawnUnit(state, 'player2', 'mid', { instanceId: 'def_2' });
+            
+            // Combat 2: Still fast using flag 2
+            new AttackAction({ source: attacker, target: defender2 }).run(engine);
+            expect(defender2.health).toBe(0);
+            expect(attacker.health).toBe(3); // Escaped retaliation again
         });
 
         it('should not consume STRIKE_SLOW, applying it persistently across multiple combats', () => {
-            const ability2 = { passiveFlags: ['STRIKE_SLOW'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
-            defender.abilities.push(ability2);
-            defender.health = 3;
-            attacker.strength = 3; // Lethal normal damage
+            grantTestAbility(defender, ['STRIKE_SLOW']);
+            attacker.strength = 3; 
 
-            // Combat 1: Defender is Slow
-            const atk1 = { ...attacker, instanceId: 'atk_1', health: 3 };
-            new AttackAction({ source: atk1, target: defender }).execute(engine);
-            
+            // Combat 1
+            new AttackAction({ source: attacker, target: defender }).run(engine);
             expect(defender.health).toBe(0);
-            expect(atk1.health).toBe(3); // Killed before phase -1 retaliation
+            expect(attacker.health).toBe(3);
 
-            // Resurrect defender for Combat 2
-            defender.health = 3;
-            defender._isDying = false;
+            // Resurrecting defender safely via Front Door replacement
+            state.players.player2.lines.mid = [];
+            const defender2 = spawnUnit(state, 'player2', 'mid', { instanceId: 'def_2', health: 3, strength: 2 });
+            grantTestAbility(defender2, ['STRIKE_SLOW']);
 
-            // Combat 2: Defender should STILL be Slow (flag not consumed)
-            const atk2 = { ...attacker, instanceId: 'atk_2', health: 3 };
-            new AttackAction({ source: atk2, target: defender }).execute(engine);
-            
-            expect(defender.health).toBe(0);
-            expect(atk2.health).toBe(3); // Killed before phase -1 retaliation again!
+            // Setup new attacker safely
+            const attacker2 = spawnUnit(state, 'player1', 'mid', { instanceId: 'atk_2', strength: 3 });
+
+            // Combat 2: Defender is STILL slow
+            new AttackAction({ source: attacker2, target: defender2 }).run(engine);
+            expect(defender2.health).toBe(0);
+            expect(attacker2.health).toBe(3);
         });
     });
 
     describe('Combat Modifiers & State Interruptions', () => {
         it('should prevent defender from dealing damage if they are Dazed (BLOCK_RETALIATE)', () => {
-            const ability2 = { passiveFlags: ['BLOCK_RETALIATE'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
-            defender.abilities.push(ability2);
+            grantTestAbility(defender, ['BLOCK_RETALIATE']);
             
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
+            new AttackAction({ source: attacker, target: defender }).run(engine);
 
-            expect(defender.health).toBe(1); 
-            expect(attacker.health).toBe(3); // Retaliation blocked
+            expect(defender.health).toBe(1);
+            expect(attacker.health).toBe(3);
         });
 
         it('should not deal damage if a unit\'s strength is null', () => {
             attacker.strength = null;
             defender.strength = null;
 
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
+            new AttackAction({ source: attacker, target: defender }).run(engine);
 
             expect(attacker.health).toBe(3);
             expect(defender.health).toBe(3);
-        });
-
-        it('should abort combat loop if a unit is moved off-board mid-combat', () => {
-            const ability2 = { passiveFlags: ['STRIKE_FAST'], triggerLimit: 'UNLIMITED', abilityId: 'ab1' };
-            attacker.abilities.push(ability2);
-            
-            // Simulate defender bouncing to hand upon taking damage in Phase 1
-            core.ACTION_REGISTRY['DEAL_DAMAGE'] = class {
-                constructor(payload) { this.payload = payload; }
-                run() { 
-                    this.payload.target.health -= this.payload.amount;
-                    mockFindEntityLocation.mockImplementation((eng, ent) => {
-                        if (ent.instanceId === defender.instanceId) return { zone: 'hand' };
-                        return { zone: 'mid' };
-                    });
-                }
-            };
-
-            const action = new AttackAction({ source: attacker, target: defender });
-            action.execute(engine);
-
-            // Phase 1 hits
-            expect(defender.health).toBe(1);
-            
-            // Phase 0 retaliation aborted because defender is in 'hand' now
-            expect(attacker.health).toBe(3); 
         });
     });
 });

@@ -21,7 +21,29 @@ export class GameEngine {
         };
     }
 
+    _getCanonicalEventKey(eventType) {
+        if (!eventType) return eventType;
+        const base = eventType.replace(/^(WOULD_|MODIFY_|ON_)/, '');
+        const canonicalBase = (() => {
+            if (base === 'GET_HIT') return 'HIT';
+            if (base === 'BE_DAMAGED') return 'DEAL_DAMAGE';
+            if (base === 'BE_ATTACKED') return 'ATTACK';
+            if (base === 'BE_HEALED') return 'HEAL';
+            return base;
+        })();
+        return canonicalBase;
+    }
+
     emit(eventType, payload) {
+        const canonicalKey = this._getCanonicalEventKey(eventType);
+        if (payload && !payload._eventQueueKeys) payload._eventQueueKeys = new Set();
+
+        const alreadyQueued = payload && payload._eventQueueKeys.has(canonicalKey);
+        if (alreadyQueued) {
+            return { cancelled: !!(payload && payload.cancelled) };
+        }
+        if (payload) payload._eventQueueKeys.add(canonicalKey);
+
         // Log passive routing for debugging
         let isPassiveLog = false;
         let matchedPassiveType = null;

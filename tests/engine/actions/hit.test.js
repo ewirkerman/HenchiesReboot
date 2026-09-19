@@ -75,13 +75,13 @@ describe('HIT event', () => {
         }).run(engine);
     }
 
-    it('emits HIT and GET_HIT for combat damage', () => {
+    it('emits MODIFY_HIT and the passive GET_HIT alias once for combat damage', () => {
         const emitSpy = jest.spyOn(engine, 'emit');
 
         runAttack();
 
-        const hitPayload = emitSpy.mock.calls.find(([eventType]) => eventType === 'HIT')?.[1];
-        const getHitPayload = emitSpy.mock.calls.find(([eventType]) => eventType === 'GET_HIT')?.[1];
+        const hitPayload = emitSpy.mock.calls.find(([eventType]) => eventType === 'MODIFY_HIT')?.[1];
+        const getHitPayload = emitSpy.mock.calls.find(([eventType]) => eventType === 'MODIFY_GET_HIT')?.[1];
 
         expect(hitPayload).toMatchObject({
             source: attacker,
@@ -90,6 +90,7 @@ describe('HIT event', () => {
             isCombat: true
         });
         expect(getHitPayload).toBe(hitPayload);
+        expect(emitSpy.mock.calls.filter(([eventType]) => eventType === 'MODIFY_HIT')).toHaveLength(1);
     });
 
     it('allows MODIFY_HIT to increase incoming damage through MODIFY_EVENT amount', () => {
@@ -118,23 +119,23 @@ describe('HIT event', () => {
         expect(defender.health).toBe(7);
     });
 
-    it('treats zero combat damage as HIT', () => {
+    it('treats zero combat damage as a HIT event', () => {
         attacker.strength = 0;
         const emitSpy = jest.spyOn(engine, 'emit');
 
         runAttack();
 
         expect(emitSpy.mock.calls.some(([eventType, payload]) => (
-            eventType === 'HIT' && payload.amount === 0 && payload.isCombat === true
+            eventType === 'MODIFY_HIT' && payload.amount === 0 && payload.isCombat === true
         ))).toBe(true);
     });
 
-    it('does not emit HIT for a null combat strength', () => {
+    it('does not emit a HIT event for a null combat strength', () => {
         attacker.strength = null;
         const emitSpy = jest.spyOn(engine, 'emit');
 
         runAttack();
 
-        expect(emitSpy.mock.calls.some(([eventType]) => eventType === 'HIT')).toBe(false);
+        expect(emitSpy.mock.calls.some(([eventType]) => eventType === 'MODIFY_HIT')).toBe(false);
     });
 });
