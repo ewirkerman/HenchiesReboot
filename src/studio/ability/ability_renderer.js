@@ -322,6 +322,7 @@ export function generateEffectsHTML(ctx) {
             
             if (manifest.hasNestedGroup && payload.nestedGroup) {
                   const ng = payload.nestedGroup;
+                  
                   const nestedPayloadsHtml = ng.payloads.map((np, nIdx) => {
                     const nMan = ACTION_MANIFEST[np.type] || { validDurations: ['INSTANT'] };
                     let npParamsHtml = '';
@@ -515,7 +516,8 @@ export function generateEffectsHTML(ctx) {
                                 <input type="checkbox" ${payload.isCost ? 'checked' : ''} onchange="window.updatePayload(${gIdx}, ${pIdx}, 'isCost', this.checked)" class="accent-rose-500 w-3 h-3" />
                                 <span class="text-[9px] font-black text-rose-400 uppercase tracking-wider">Is Cost</span>
                             </label>` : ''}
-                                                </div>
+                        </div>
+                      </div>
                       ${showDuration ? `
                       <div class="w-32 pb-0.5">
                         <label class="block text-[10px] font-bold text-sky-400 mb-0.5">Duration</label>

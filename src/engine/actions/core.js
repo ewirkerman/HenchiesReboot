@@ -2,7 +2,7 @@ import { findEntityLocation, isUndoable, moveEntity } from '../utils.js';
 
 export const ACTION_MANIFEST = {
     'DEAL_DAMAGE': { passiveType: 'BE_DAMAGED', canInvert: true, canBeCost: true, requiresAmount: true, validZones: ['FIELD'], validDurations: ['INSTANT'] },
-    'HIT': { passiveType: 'BE_HIT', canInvert: true, canBeCost: true, requiresAmount: true, validZones: ['FIELD'], validDurations: ['INSTANT'] },
+    'HIT': { passiveType: 'GET_HIT', canInvert: true, canBeCost: true, requiresAmount: true, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'HEAL': { passiveType: 'BE_HEALED', canInvert: true, canBeCost: false, requiresAmount: true, canOverheal: true, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'KILL': { passiveType: 'BE_KILLED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'GRANT_ABILITY': { passiveType: 'BE_GRANTED_ABILITY', canInvert: true, canBeCost: false, requiresGrantedAbility: true, canBlockDuplicates: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
@@ -27,8 +27,8 @@ export const ACTION_MANIFEST = {
     'MODIFY_EVENT': { passiveType: null, canInvert: false, canBeCost: false, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'TRANSFORM': { passiveType: 'BE_TRANSFORMED', canInvert: false, canBeCost: true, requiresCardId: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
-    'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
+    'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
+//    'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'MILL': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'SHUFFLE': { passiveType: 'BE_SHUFFLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT'], isLeavesPlay: true },
     'RETURN': { passiveType: 'BE_RETURNED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['HAND'], validDurations: ['INSTANT'], isLeavesPlay: true },

@@ -10,7 +10,8 @@ export class HitAction extends Action {
             // Because the Action class handles the WOULD_ and MODIFY_ hooks automatically
             // before this execute method runs, any modifiers to the payload (like damage amounts)
             // will carry over perfectly into the damage resolution.
-            new DealDamageAction(this.payload).run(engine);
+            const damagePayload = { ...this.payload, type: 'DEAL_DAMAGE' };
+            new DealDamageAction(damagePayload).run(engine);
         } else {
             console.warn("[Engine] DEAL_DAMAGE action not found in registry during Hit resolution.");
         }
