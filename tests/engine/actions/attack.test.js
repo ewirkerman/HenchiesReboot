@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { GameEngine } from '../../../src/engine/index.js';
-import { createTestState, spawnUnit, grantTestAbility } from '../../tests_utils.js';
+import { ACTION_REGISTRY } from '../../../src/engine/actions/index.js';
+import { createTestState, spawnUnit, grantTestAbility, getEntityZone } from '../../test_utils.js';
 
 describe('AttackAction Combat Logic', () => {
     let AttackAction;
@@ -17,11 +18,11 @@ describe('AttackAction Combat Logic', () => {
     beforeEach(() => {
         jest.clearAllMocks();
 
-        // 1. DAMP over DRY: We set up a clean, vanilla board state using Front Door factories.
+        // Use the factory to guarantee standard board state geometry
         state = createTestState();
         engine = new GameEngine(state);
         
-        // Spawn basic vanilla units. Specific tests will apply buffs/mods individually.
+        // Front Door Spawning: They are physically on the board!
         attacker = spawnUnit(state, 'player1', 'mid', { instanceId: 'atk_1', name: 'Attacker' });
         defender = spawnUnit(state, 'player2', 'mid', { instanceId: 'def_1', name: 'Defender' });
     });
@@ -29,15 +30,14 @@ describe('AttackAction Combat Logic', () => {
     describe('Initialization & Restrictions', () => {
         it('should abort attack immediately if attacker is Timid and target is an Avatar', () => {
             grantTestAbility(attacker, ['BLOCK_TARGET_AVATAR']);
-            defender.type = 'avatar'; // Safe manual override for test context
+            defender.type = 'avatar';
 
             const emitSpy = jest.spyOn(engine, 'emit');
             const action = new AttackAction({ source: attacker, target: defender });
             action.execute(engine);
 
-            // Black Box check: ensure no events fired and log reflects the block
             expect(emitSpy).not.toHaveBeenCalled();
-            expect(state.history_log.some(l => l.text.includes('cannot attack the Avatar'))).toBe(true);
+            expect(engine.state.history_log.some(l => l.text.includes('cannot attack the Avatar'))).toBe(true);
         });
 
         it('should emit ON_ATTACK and ON_BE_ATTACKED events on a valid attack', () => {
@@ -55,7 +55,8 @@ describe('AttackAction Combat Logic', () => {
         it('should result in simultaneous damage for standard speed units (Phase 0)', () => {
             new AttackAction({ source: attacker, target: defender }).run(engine);
 
-            // Asserting final behavioral output, not inner mechanics
+            expect(getEntityZone(engine, attacker)).toBe('mid');
+            expect(getEntityZone(engine, defender)).toBe('mid');
             expect(attacker.health).toBe(1);
             expect(defender.health).toBe(1);
         });
@@ -66,8 +67,11 @@ describe('AttackAction Combat Logic', () => {
 
             new AttackAction({ source: attacker, target: defender }).run(engine);
 
-            expect(attacker._isDying).toBeFalsy();
-            expect(defender._isDying).toBeFalsy();
+            // Because no hit occurred, no death check occurred. They survive at 0 HP.
+            expect(getEntityZone(engine, attacker)).toBe('mid');
+            expect(getEntityZone(engine, defender)).toBe('mid');
+            expect(attacker.health).toBe(0);
+            expect(defender.health).toBe(0);
         });
 
         it('should kill a unit at 0 HP if it was hit for 0 damage during combat', () => {
@@ -76,41 +80,88 @@ describe('AttackAction Combat Logic', () => {
 
             new AttackAction({ source: attacker, target: defender }).execute(engine);
 
-            expect(attacker._isDying).toBe(true);
-            expect(defender._isDying).toBe(true);
+            expect(getEntityZone(engine, attacker)).toBe('discard');
+            expect(getEntityZone(engine, defender)).toBe('discard');
         });
 
-        it('should allow a Fast attacker to kill a standard defender before retaliation', () => {
-            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND')
-            attacker.strength = 3; // Lethal
+        it('should trigger KillAction for both if lethal damage is dealt simultaneously', () => {
+            attacker.health = 2; defender.health = 2;
+
+            new AttackAction({ source: attacker, target: defender }).execute(engine);
+
+            expect(getEntityZone(engine, attacker)).toBe('discard');
+            expect(getEntityZone(engine, defender)).toBe('discard');
+        });
+
+        it('should allow a Fast attacker to kill a standard defender before retaliation (Phase 1)', () => {
+            grantTestAbility(attacker, ['STRIKE_FAST']);
+            attacker.strength = 3; 
 
             new AttackAction({ source: attacker, target: defender }).run(engine);
 
-            expect(defender.health).toBe(0);
-            expect(defender._isDying).toBe(true);
-            expect(attacker.health).toBe(3); // Untouched
+            expect(getEntityZone(engine, defender)).toBe('discard');
+            expect(getEntityZone(engine, attacker)).toBe('mid');
+            expect(attacker.health).toBe(3); // Escaped unscathed
         });
 
         it('should allow a standard defender to retaliate if they survive a Fast strike', () => {
-            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND')
+            grantTestAbility(attacker, ['STRIKE_FAST']);
+            attacker.strength = 2; 
+            defender.health = 4;
+
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+
+            expect(getEntityZone(engine, defender)).toBe('mid');
+            expect(getEntityZone(engine, attacker)).toBe('mid');
+            expect(defender.health).toBe(2);
+            expect(attacker.health).toBe(1);
+        });
+
+        it('should allow a standard attacker to strike a Slow defender first (Phase 0 vs Phase -1)', () => {
+            grantTestAbility(defender, ['STRIKE_SLOW']);
+            attacker.strength = 3; 
+
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+
+            expect(getEntityZone(engine, defender)).toBe('discard');
+            expect(getEntityZone(engine, attacker)).toBe('mid');
+            expect(attacker.health).toBe(3);
+        });
+
+        it('should allow a Fast attacker to kill a Slow defender before retaliation (Phase 1 vs Phase -1)', () => {
+            grantTestAbility(attacker, ['STRIKE_FAST']);
+            grantTestAbility(defender, ['STRIKE_SLOW']);
+            attacker.strength = 3; 
+
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+
+            expect(getEntityZone(engine, defender)).toBe('discard');
+            expect(getEntityZone(engine, attacker)).toBe('mid');
+            expect(attacker.health).toBe(3);
+        });
+
+        it('should allow a Fast defender to kill a standard attacker before the attack lands (First Strike Defense)', () => {
+            grantTestAbility(defender, ['STRIKE_FAST']);
+            defender.strength = 3; 
+
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+
+            expect(getEntityZone(engine, attacker)).toBe('discard');
+            expect(getEntityZone(engine, defender)).toBe('mid');
+            expect(defender.health).toBe(3);
+        });
+
+        it('should allow a Slow defender to retaliate in Phase -1 if they survive a standard Phase 0 strike', () => {
+            grantTestAbility(defender, ['STRIKE_SLOW']);
             attacker.strength = 2; // Non-lethal
             defender.health = 4;
 
             new AttackAction({ source: attacker, target: defender }).run(engine);
 
+            expect(getEntityZone(engine, defender)).toBe('mid');
+            expect(getEntityZone(engine, attacker)).toBe('mid');
             expect(defender.health).toBe(2);
             expect(attacker.health).toBe(1);
-        });
-
-        it('should allow a Fast defender to kill a standard attacker before the attack lands', () => {
-            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND')
-            defender.strength = 3; 
-
-            new AttackAction({ source: attacker, target: defender }).run(engine);
-
-            expect(attacker.health).toBe(0);
-            expect(attacker._isDying).toBe(true);
-            expect(defender.health).toBe(3); // Untouched
         });
 
         it('should consume STRIKE_FAST so it only applies to one combat per flag instance', () => {
@@ -119,27 +170,27 @@ describe('AttackAction Combat Logic', () => {
             
             // Combat 1: Attacker is Fast
             new AttackAction({ source: attacker, target: defender }).run(engine);
-            expect(defender.health).toBe(0);
+            expect(getEntityZone(engine, defender)).toBe('discard');
             expect(attacker.health).toBe(3);
 
             // Resilient Setup: Front-door spawn a brand new defender for combat 2 
-            // rather than manually altering health variables on a detached object.
             const defender2 = spawnUnit(state, 'player2', 'mid', { instanceId: 'def_2' });
             
             // Combat 2: Attacker is now normal speed (consumed)
             new AttackAction({ source: attacker, target: defender2 }).run(engine);
-            expect(defender2.health).toBe(0);
-            expect(attacker.health).toBe(1); // Took retaliation
+            expect(getEntityZone(engine, defender2)).toBe('discard'); // Died to 3 damage
+            expect(attacker.health).toBe(1); // Took retaliation from def2
         });
 
-        it('should allow multiple STRIKE_FAST flags to stack for consecutive combats', () => {
+        it('should allow multiple STRIKE_FAST flags to stack for multiple consecutive combats', () => {
             // Give 2 fast flags
             grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND');
-            grantTestAbility(attacker, ['STRIKE_FAST'], 'ONCE_PER_ROUND');
+            grantTestAbility(attacker, ['STRIKE_FAST'], 'UNLIMITED');
             attacker.strength = 3;
             
             // Combat 1: Uses flag 1
             new AttackAction({ source: attacker, target: defender }).run(engine);
+            expect(getEntityZone(engine, defender)).toBe('discard');
             expect(attacker.health).toBe(3);
 
             // Setup Combat 2 safely
@@ -147,7 +198,7 @@ describe('AttackAction Combat Logic', () => {
             
             // Combat 2: Still fast using flag 2
             new AttackAction({ source: attacker, target: defender2 }).run(engine);
-            expect(defender2.health).toBe(0);
+            expect(getEntityZone(engine, defender2)).toBe('discard');
             expect(attacker.health).toBe(3); // Escaped retaliation again
         });
 
@@ -157,11 +208,11 @@ describe('AttackAction Combat Logic', () => {
 
             // Combat 1
             new AttackAction({ source: attacker, target: defender }).run(engine);
-            expect(defender.health).toBe(0);
+            expect(getEntityZone(engine, defender)).toBe('discard');
             expect(attacker.health).toBe(3);
 
             // Resurrecting defender safely via Front Door replacement
-            state.players.player2.lines.mid = [];
+            state.players.player2.lines.mid = []; // clear the corpse
             const defender2 = spawnUnit(state, 'player2', 'mid', { instanceId: 'def_2', health: 3, strength: 2 });
             grantTestAbility(defender2, ['STRIKE_SLOW']);
 
@@ -170,7 +221,7 @@ describe('AttackAction Combat Logic', () => {
 
             // Combat 2: Defender is STILL slow
             new AttackAction({ source: attacker2, target: defender2 }).run(engine);
-            expect(defender2.health).toBe(0);
+            expect(getEntityZone(engine, defender2)).toBe('discard');
             expect(attacker2.health).toBe(3);
         });
     });
@@ -181,6 +232,8 @@ describe('AttackAction Combat Logic', () => {
             
             new AttackAction({ source: attacker, target: defender }).run(engine);
 
+            expect(getEntityZone(engine, defender)).toBe('mid');
+            expect(getEntityZone(engine, attacker)).toBe('mid');
             expect(defender.health).toBe(1);
             expect(attacker.health).toBe(3);
         });
@@ -191,6 +244,8 @@ describe('AttackAction Combat Logic', () => {
 
             new AttackAction({ source: attacker, target: defender }).run(engine);
 
+            expect(getEntityZone(engine, defender)).toBe('mid');
+            expect(getEntityZone(engine, attacker)).toBe('mid');
             expect(attacker.health).toBe(3);
             expect(defender.health).toBe(3);
         });
