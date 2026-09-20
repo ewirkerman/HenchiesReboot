@@ -21,7 +21,7 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
     findEntityLocation: jest.fn(() => ({ zone: 'mid' }))
 }));
 
-jest.unstable_mockModule('../../src/engine/actions/index.js', () => ({
+jest.unstable_mockModule('../../src/engine/actions/action_index.js', () => ({
     ACTION_REGISTRY: {
         'MOCK_ACT': class { run = jest.fn(); },
         'DAMAGE': class { run = jest.fn(); },
@@ -56,7 +56,7 @@ describe('index.js GameEngine', () => {
         const module = await import('../../src/engine/index.js');
         GameEngine = module.GameEngine;
         
-        const actions = await import('../../src/engine/actions/index.js');
+        const actions = await import('../../src/engine/actions/action_index.js');
         ACTION_REGISTRY = actions.ACTION_REGISTRY;
         ACTION_MANIFEST = actions.ACTION_MANIFEST;
     });

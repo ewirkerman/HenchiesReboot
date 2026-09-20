@@ -1,5 +1,5 @@
 import { randomInt, shuffleArray as prandomShuffle } from './prandom.js';
-import { ACTION_REGISTRY, ACTION_MANIFEST, EVENT_MANIFEST, findEntityLocation } from './actions/index.js';
+import { ACTION_REGISTRY, ACTION_MANIFEST, EVENT_MANIFEST, findEntityLocation } from './actions/action_index.js';
 import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES, canAffordCost, payCost, getAttackCost, moveEntity } from './utils.js';
 import { getEntityAvailableActions, getValidAttackTargets } from './targeting.js';
 import { ATTRIBUTE_MANIFEST } from './attributes.js';

@@ -17,7 +17,7 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
     })
 }));
 
-jest.unstable_mockModule('../../src/engine/actions/index.js', () => ({
+jest.unstable_mockModule('../../src/engine/actions/action_index.js', () => ({
     HarvestAction: class { run = jest.fn(); },
     PlayAction: class { run = jest.fn(); },
     sweepTurnEffects: jest.fn(),

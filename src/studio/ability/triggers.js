@@ -1,7 +1,7 @@
 // filepath: src/studio/ability/triggers.js
 
 import { StudioState } from './state.js';
-import { ACTION_MANIFEST, ACTION_CATEGORIES, EVENT_MANIFEST, EVENT_CATEGORIES } from '../../engine/actions/index.js';
+import { ACTION_MANIFEST, ACTION_CATEGORIES, EVENT_MANIFEST, EVENT_CATEGORIES } from '../../engine/actions/action_index.js';
 import { updateJSONPreview } from './catalog_sync.js';
 import { getValidScopes, getValidActivationMethods } from '../../ability_validation.js';
 import { generateQuickMatrixHTML } from './ability_renderer.js';

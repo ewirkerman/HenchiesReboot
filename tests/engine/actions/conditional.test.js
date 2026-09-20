@@ -5,7 +5,7 @@ describe('ConditionalAction', () => {
     let ACTION_REGISTRY;
 
     beforeAll(async () => {
-        ({ ConditionalAction, ACTION_REGISTRY } = await import('../../../src/engine/actions/index.js'));
+        ({ ConditionalAction, ACTION_REGISTRY } = await import('../../../src/engine/actions/action_index.js'));
     });
 
     beforeEach(() => {

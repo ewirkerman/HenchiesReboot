@@ -2,7 +2,7 @@
 
 import { StudioState } from './state.js';
 import { updateJSONPreview } from './catalog_sync.js';
-import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from '../../engine/actions/index.js';
+import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from '../../engine/actions/action_index.js';
 import { getValidTargetMethods, getValidEffectTypes } from '../../ability_validation.js';
 import { generateEffectsHTML } from './ability_renderer.js';
 
