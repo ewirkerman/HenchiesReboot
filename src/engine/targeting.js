@@ -3,7 +3,7 @@
  * Logic for determining valid targets and available actions.
  */
 
-import { hasEngineFlag, resolveResourceKey, LINES, isUndoable, findEntity, canAffordCost, getAttackCost } from './utils.js';
+import { hasEngineFlag, resolveResourceKey, LINES, isUndoable, findEntity, canAffordCost, getAttackCost, isEntityOnBoard } from './utils.js';
 import { GameEngine } from './index.js';
 
 function getStat(entity, statKey) {
@@ -336,6 +336,7 @@ function buildPlayAction(state, playerId, entity) {
 }
 
 function buildAttackAction(state, playerId, entity) {
+    if (!isEntityOnBoard(state, entity)) return null;
     if (entity.strength === undefined || entity.strength === null) return null;
     if (hasEngineFlag(state, entity, 'BLOCK_ATTACK')) return null;
     if (getStat(entity, 'readiness') < 1) return null;

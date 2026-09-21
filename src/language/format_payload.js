@@ -388,6 +388,9 @@ export function formatPayload(eff, formatCtx) {
                 effText += ` and ${combinedNested}${subTargetText}`;
             }
             break;
+        case 'CONDITIONAL':
+            effText = `if a condition is met, ${eff.nestedGroup?.payloads?.map(np => formatPayload(np, formatCtx).replace(/\{OMIT_TARGET\}/g, '')).filter(Boolean).join(' and ') || 'do nothing'}`;
+            break;
         default:
             let readableType = eff.type.replace(/_/g, ' ').toLowerCase();
             effText = `${readableType} {TARGET}`;

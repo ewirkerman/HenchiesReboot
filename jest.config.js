@@ -1,4 +1,5 @@
 export default {
+    silent: true,
     // Tells Jest not to transform .js files, letting Node handle the ES Modules natively
     transform: {},
     // Use the node environment for our tabletop engine tests

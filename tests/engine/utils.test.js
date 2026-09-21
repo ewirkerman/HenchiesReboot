@@ -370,4 +370,119 @@ describe('Engine Utilities (utils.js)', () => {
             expect(clone.tribeCatalog[0].id).toBe(3);
         });
     });
+
+    describe('Factory Functions (instantiateAbility, instantiateEntity)', () => {
+        let catalogAbs;
+
+        beforeEach(() => {
+            catalogAbs = [
+                { abilityId: 'ab_1', name: 'Fireball', trigger: 'ON_PLAY' },
+                { abilityId: 'ab_2', name: 'Shield', trigger: 'ON_DEFEND' }
+            ];
+        });
+
+        describe('instantiateAbility', () => {
+            it('should deeply clone and assign a UUID to a resolved ability', () => {
+                const inst = utils.instantiateAbility('ab_1', catalogAbs);
+                expect(inst.name).toBe('Fireball');
+                expect(inst.instanceId).toMatch(/^ab_inst_/);
+                
+                // Ensure it is a deep clone
+                inst.name = 'Changed';
+                expect(catalogAbs[0].name).toBe('Fireball');
+            });
+
+            it('should work with object references and parameter hydration', () => {
+                const inst = utils.instantiateAbility({ abilityId: 'ab_1', paramX: 3 }, catalogAbs);
+                expect(inst.name).toBe('Fireball (3)');
+                expect(inst.paramX).toBe(3);
+                expect(inst.instanceId).toMatch(/^ab_inst_/);
+            });
+
+            it('should create a fallback Unresolved Ability if it fails to resolve', () => {
+                const inst = utils.instantiateAbility('bogus_ab', catalogAbs);
+                expect(inst.abilityId).toBe('bogus_ab');
+                expect(inst.name).toBe('Unresolved: bogus_ab');
+                expect(inst.trigger).toBe('MANUAL');
+                expect(inst.instanceId).toMatch(/^ab_inst_/);
+            });
+
+            it('should accept engineState without crashing', () => {
+                const inst = utils.instantiateAbility('ab_1', catalogAbs, mockState);
+                expect(inst.instanceId).toMatch(/^ab_inst_/);
+            });
+        });
+
+        describe('instantiateEntity', () => {
+            it('should return null if no card data is provided', () => {
+                expect(utils.instantiateEntity(null)).toBeNull();
+                expect(utils.instantiateEntity(undefined)).toBeNull();
+            });
+
+            it('should deeply clone and assign correct prefixes based on entity type', () => {
+                const token = utils.instantiateEntity({ id: 't1', isToken: true }, catalogAbs);
+                expect(token.instanceId).toMatch(/^sum_/);
+
+                const unit = utils.instantiateEntity({ id: 'u1', type: 'unit' }, catalogAbs);
+                expect(unit.instanceId).toMatch(/^ent_/);
+
+                const avatar = utils.instantiateEntity({ id: 'a1', type: 'avatar' }, catalogAbs);
+                expect(avatar.instanceId).toMatch(/^ent_/);
+
+                const equip = utils.instantiateEntity({ id: 'e1', type: 'equipment' }, catalogAbs);
+                expect(equip.instanceId).toMatch(/^item_/);
+            });
+
+            it('should assign ownerId and originalOwnerId if provided', () => {
+                const inst = utils.instantiateEntity({ id: 'u1' }, catalogAbs, null, 'player1');
+                expect(inst.ownerId).toBe('player1');
+                expect(inst.originalOwnerId).toBe('player1');
+            });
+
+            it('should safely initialize default stats when properties are missing', () => {
+                const inst = utils.instantiateEntity({ id: 'u1' }, catalogAbs);
+                expect(inst.maxHealth).toBe(1);
+                expect(inst.health).toBe(1);
+                expect(inst.readiness).toBe(0);
+                expect(inst.acts).toBe(1);
+                expect(inst.originalPower).toBe(0);
+                expect(inst.originalStrength).toBeNull();
+            });
+
+            it('should preserve and normalize explicitly provided stats', () => {
+                const inst = utils.instantiateEntity({ 
+                    id: 'u1', maxHealth: 5, health: 3, maxActs: 2, power: 4, strength: 2 
+                }, catalogAbs);
+                
+                expect(inst.maxHealth).toBe(5);
+                expect(inst.health).toBe(3); // Preserves existing health if > 0
+                expect(inst.acts).toBe(2);
+                expect(inst.originalPower).toBe(4);
+                expect(inst.originalStrength).toBe(2);
+            });
+
+            it('should reset health to maxHealth if provided health is <= 0', () => {
+                const inst = utils.instantiateEntity({ id: 'u1', maxHealth: 4, health: -2 }, catalogAbs);
+                expect(inst.health).toBe(4);
+            });
+
+            it('should hydrate and instantiate all nested abilities', () => {
+                const inst = utils.instantiateEntity({ 
+                    id: 'u1', 
+                    abilities: ['ab_1', { abilityId: 'ab_2' }, 'bogus_ab'] 
+                }, catalogAbs);
+
+                expect(inst.abilities.length).toBe(3);
+                
+                expect(inst.abilities[0].name).toBe('Fireball');
+                expect(inst.abilities[0].instanceId).toMatch(/^ab_inst_/);
+                
+                expect(inst.abilities[1].name).toBe('Shield');
+                expect(inst.abilities[1].instanceId).toMatch(/^ab_inst_/);
+
+                expect(inst.abilities[2].name).toBe('Unresolved: bogus_ab');
+                expect(inst.abilities[2].instanceId).toMatch(/^ab_inst_/);
+            });
+        });
+    });
 });

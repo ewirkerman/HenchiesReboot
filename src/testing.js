@@ -1,5 +1,5 @@
 import { createGameRoom, fetchCustomAbilities, fetchCustomCards, fetchCustomTribes, fetchUserDecks } from './firebase.js';
-import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility, GameEngine, startTurn } from './engine/index.js';
+import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility, instantiateEntity, instantiateAbility, GameEngine, startTurn } from './engine/index.js';
 
 /*
  * =========================================================================================
@@ -18,23 +18,18 @@ import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility, GameEngine, startTurn
  * =========================================================================================
  */
 
-
 // ============================================================================
 // CONSTANTS & FALLBACK DATA
 // ============================================================================
-
 const FALLBACK_TAUNT_ABILITY = {"abilityId":"ability_taunting_call","name":"Taunting Call","trigger":"ON_BE_PLAYED","triggerScope":"PERSONAL","triggerLimit":"UNLIMITED","cost":{"readinessCost":"NONE"},"activation":{"method":"PLAYER_CHOICE","quickTargeting":{"zones":["FIELD"],"alignment":["FRIENDLY"],"entityType":["UNIT","AVATAR"],"ignoreBattlelines":true}},"effects":[{"targetMethod":"SAME_AS_ACTIVATION","targetCount":1,"payloads":[{"type":"CUSTOM_SCRIPT","script":"const oppId = target.ownerId === 'player1' ? 'player2' : 'player1'; const validEnemies = []; const opp = state.players[oppId]; for (const line of ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard']) { if (opp.lines[line]) { for (const u of opp.lines[line]) { const acts = engine.utils.getEntityAvailableActions(state, oppId, u.instanceId); if (acts.some(a => a.type === 'ATTACK')) { validEnemies.push(u); } } } } if (validEnemies.length > 0) { const enemy = validEnemies[engine.utils.randomInt(state, 0, validEnemies.length)]; enemy.readiness = Math.max(0, (enemy.readiness || 0) - 1); state.history_log.push(`🎯 ${enemy.name} was provoked into attacking ${target.name}!`); engine.executeAbility({ abilityId: 'temp_provoked_attack', name: 'Provoked Attack', effects: [{ targetMethod: 'EVENT_TARGET', payloads: [{ type: 'ATTACK' }] }] }, enemy, { target: target }); }","duration":"INSTANT"}]}]};
-
 const FALLBACK_DUMMY = {"id":"custom_1785272139394","name":"Target Dummy","tribe":"Carnie","type":"unit","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":1,"description":"","artUrl":"","abilities":[],"defaultLine":"mid"};
 const FALLBACK_SHOVEL = {"id":"card_1785786111173","name":"Skull Shovel","tribe":"Undead","type":"equipment","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[]};
 const FALLBACK_TAUNT_CARD = {"id":"card_taunting_call_test","name":"Taunting Call","tribe":"Carnie","type":"spell","genus":"Generic","cost":1,"health":1,"maxHealth":1,"strength":null,"description":"","artUrl":"","abilities":[FALLBACK_TAUNT_ABILITY]};
 const FALLBACK_ARRRMSMAN = {"id":"card_arrrmsman_test","name":"Arrrmsman","tribe":"tribe_pirate","type":"unit","genus":"Pirate","cost":2,"health":2,"maxHealth":2,"strength":2,"description":"","artUrl":"","abilities":[],"defaultLine":"mid"};
 
-
 // ============================================================================
 // HELPER: UI & NAVIGATION
 // ============================================================================
-
 /**
  * Opens a blank popup immediately to bypass browser popup blockers during async fetches.
  * @returns {Window} The opened popup window.
@@ -75,23 +70,19 @@ async function launchRoom(roomId, state, popup) {
     }
 }
 
-
 // ============================================================================
 // HELPER: DATA FETCHING & HYDRATION
 // ============================================================================
-
 /**
  * Fetches all necessary cloud data and cross-links abilities to cards.
  * @returns {Object} { abilities, cards, tribes }
  */
 async function fetchSandboxData() {
-    // Read from the persistent LocalStorage cache (0 reads). 
-    // Since saving in the studio synchronously updates LocalStorage, the cache is perfectly up-to-date!
     const abilities = await fetchCustomAbilities();
     const customTribes = await fetchCustomTribes();
     const rawCustomCards = await fetchCustomCards();
-
-    // Hydrate cards with full ability objects instead of string IDs
+    
+    // Hydrate catalog with display descriptions for the UI
     const hydratedCards = rawCustomCards.map(c => {
         if (c.abilities) {
             c.abilities = c.abilities.map(ab => {
@@ -106,7 +97,6 @@ async function fetchSandboxData() {
     });
 
     const cards = [...CARD_CATALOG, ...hydratedCards];
-
     return { abilities, cards, customTribes };
 }
 
@@ -149,22 +139,17 @@ function autoHealCard(card, targetLiveAbility) {
         }
         return a;
     });
-
+    
     if (!healed) {
         console.warn(`[SANDBOX] 🩹 Auto-healing broken ability link on '${card.name}'. Injecting live ability.`);
-        card.abilities = card.abilities.filter(a => typeof a === 'object'); // Clear dangling string references
+        card.abilities = card.abilities.filter(a => typeof a === 'object'); 
         card.abilities.push(JSON.parse(JSON.stringify(targetLiveAbility)));
     }
 }
 
-
 // ============================================================================
 // HELPER: STATE INITIALIZATION
 // ============================================================================
-
-/**
- * Generates the clean, baseline game state structure.
- */
 function createInitialState(username, tribes, mode = 'sandbox') {
     const p1Res = { 'Carnie': {current: 10, max: 10} };
     tribes.forEach(t => {
@@ -172,7 +157,7 @@ function createInitialState(username, tribes, mode = 'sandbox') {
             p1Res[t.id] = {current: 10, max: 10};
         }
     });
-
+    
     return {
         status: 'active',
         rules: { allowUndo: GLOBAL_UNDO_POLICY !== 'FORCED_OFF' },
@@ -205,23 +190,16 @@ function createInitialState(username, tribes, mode = 'sandbox') {
     };
 }
 
-
 // ============================================================================
 // HELPER: PLAYER DECK & HAND CONFIGURATION
 // ============================================================================
-
-/**
- * Maps the tested item (Card, Avatar, Deck, Ability) into the Player's state.
- * Automatically attempts to fetch the user's last saved deck to populate BOTH players.
- */
 async function configurePlayers(state, itemData, type, sandboxData) {
     const { cards, abilities } = sandboxData;
     const isAvatarTest = type === 'card' && itemData && itemData.type === 'avatar';
     
-    let targetCard = null;
-    let deckCards = [];
-    let deckAvatar = null;
-
+    let rawTargetCard = null;
+    let rawDeckCards = [];
+    let rawDeckAvatar = null;
     const dummyCard = getCatalogItem(cards, 'Target Dummy', FALLBACK_DUMMY);
     const shovelCard = getCatalogItem(cards, 'Skull Shovel', FALLBACK_SHOVEL);
     const butcherCard = getCatalogItem(cards, 'Butcher', FALLBACK_DUMMY);
@@ -237,18 +215,7 @@ async function configurePlayers(state, itemData, type, sandboxData) {
             const userDecks = await fetchUserDecks(usernameForFetch);
             if (userDecks && userDecks[lastDeckName] && userDecks[lastDeckName].deckData) {
                 const rawRefs = userDecks[lastDeckName].deckData;
-                loadedDeck = rawRefs.map(ref => {
-                    const cid = ref.id || ref;
-                    const found = cards.find(c => c.id === cid);
-                    if (found) {
-                        const clone = JSON.parse(JSON.stringify(found));
-                        if (clone.abilities) {
-                            clone.abilities = clone.abilities.map(ab => hydrateAbility(ab, abilities)).filter(Boolean);
-                        }
-                        return clone;
-                    }
-                    return null;
-                }).filter(Boolean);
+                loadedDeck = rawRefs.map(ref => cards.find(c => c.id === (ref.id || ref))).filter(Boolean);
             }
         }
     } catch(e) {
@@ -257,92 +224,74 @@ async function configurePlayers(state, itemData, type, sandboxData) {
 
     // 2. Process the specific item being tested for Player 1
     if (type === 'deck') {
-        const fullDeck = JSON.parse(JSON.stringify(itemData));
+        const fullDeck = [...itemData];
         const avatarIdx = fullDeck.findIndex(c => c.type === 'avatar');
-        if (avatarIdx > -1) deckAvatar = fullDeck.splice(avatarIdx, 1)[0];
-        deckCards = fullDeck;
-        targetCard = dummyCard;
+        if (avatarIdx > -1) rawDeckAvatar = fullDeck.splice(avatarIdx, 1)[0];
+        rawDeckCards = fullDeck;
+        rawTargetCard = dummyCard;
     } else if (isAvatarTest) {
-        deckAvatar = JSON.parse(JSON.stringify(itemData));
-        if (deckAvatar.abilities) {
-            deckAvatar.abilities = deckAvatar.abilities.map(ab => hydrateAbility(ab, abilities)).filter(Boolean);
-        }
-        targetCard = dummyCard; 
+        rawDeckAvatar = itemData;
+        rawTargetCard = dummyCard; 
     } else if (type === 'ability') {
-        targetCard = JSON.parse(JSON.stringify(dummyCard));
-        targetCard.id = 'test_card';
-        targetCard.name = 'Test Dummy';
-        targetCard.abilities = [itemData];
-        targetCard.description = itemData.name + ' test wrapper.';
+        rawTargetCard = { ...dummyCard, id: 'test_card', name: 'Test Dummy', abilities: [itemData], description: itemData.name + ' test wrapper.' };
     } else {
-        targetCard = JSON.parse(JSON.stringify(itemData));
-        if (targetCard.abilities) {
-            targetCard.abilities = targetCard.abilities.map(ab => hydrateAbility(ab, abilities)).filter(Boolean);
-        }
+        rawTargetCard = itemData;
     }
 
     if (type !== 'deck') {
         if (loadedDeck.length > 0) {
-            deckCards = JSON.parse(JSON.stringify(loadedDeck)).filter(c => c.type !== 'avatar');
-            if (!deckAvatar) deckAvatar = JSON.parse(JSON.stringify(loadedDeck)).find(c => c.type === 'avatar');
+            rawDeckCards = loadedDeck.filter(c => c.type !== 'avatar');
+            if (!rawDeckAvatar) rawDeckAvatar = loadedDeck.find(c => c.type === 'avatar');
         } else {
-            for (let i = 0; i < 15; i++) deckCards.push(JSON.parse(JSON.stringify(dummyCard)));
-            for (let i = 0; i < 5; i++) deckCards.push(JSON.parse(JSON.stringify(shovelCard)));
-            deckCards.push(JSON.parse(JSON.stringify(butcherCard)));
+            for (let i = 0; i < 15; i++) rawDeckCards.push(dummyCard);
+            for (let i = 0; i < 5; i++) rawDeckCards.push(shovelCard);
+            rawDeckCards.push(butcherCard);
         }
     }
 
     // 3. P1 DECK & HAND ASSEMBLY
-    for (let i = deckCards.length - 1; i > 0; i--) {
+    for (let i = rawDeckCards.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [deckCards[i], deckCards[j]] = [deckCards[j], deckCards[i]];
+        [rawDeckCards[i], rawDeckCards[j]] = [rawDeckCards[j], rawDeckCards[i]];
     }
 
-    deckCards.forEach((c, idx) => {
-        c.instanceId = 'deck_' + idx;
-        c.readiness = 0;
-        c.ownerId = 'player1';
-        c.originalOwnerId = 'player1';
-        state.players.player1.deck.push(c);
+    rawDeckCards.forEach(c => {
+        const inst = instantiateEntity(c, abilities, state, 'player1');
+        state.players.player1.deck.push(inst);
     });
 
     if (type === 'deck' || isAvatarTest) {
         for (let i = 0; i < 4; i++) {
-            if (state.players.player1.deck.length > 0) {
-                state.players.player1.hand.push(state.players.player1.deck.pop());
-            }
+            if (state.players.player1.deck.length > 0) state.players.player1.hand.push(state.players.player1.deck.pop());
         }
     } else {
-        // Guarantee 4 copies of the specific card being tested
         for(let i=0; i<4; i++) {
-            state.players.player1.hand.push({...JSON.parse(JSON.stringify(targetCard)), instanceId: 'h_'+i, readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
+            state.players.player1.hand.push(instantiateEntity(rawTargetCard, abilities, state, 'player1'));
         }
     }
 
     // Inject edge-case debugging cards into P1 hand
-    state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
-    state.players.player1.hand.push({...JSON.parse(JSON.stringify(butcherCard)), instanceId: 'h_butcher_2', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
+    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
+    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
     
     const riseAndServeCard = getCatalogItem(cards, 'Rise and Serve', FALLBACK_DUMMY);
-    state.players.player1.hand.push({...JSON.parse(JSON.stringify(riseAndServeCard)), instanceId: 'h_rise_1', readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
-
+    state.players.player1.hand.push(instantiateEntity(riseAndServeCard, abilities, state, 'player1'));
+    
     const liveTauntAbility = getCatalogItem(abilities, 'Taunting Call', FALLBACK_TAUNT_ABILITY, true);
     const tauntingCallCard = getCatalogItem(cards, 'Taunting Call', FALLBACK_TAUNT_CARD);
     autoHealCard(tauntingCallCard, liveTauntAbility);
     for(let i=0; i<3; i++) {
-        state.players.player1.hand.push({...JSON.parse(JSON.stringify(tauntingCallCard)), instanceId: 'h_taunt_' + i, readiness: 0, ownerId: 'player1', originalOwnerId: 'player1'});
+        state.players.player1.hand.push(instantiateEntity(tauntingCallCard, abilities, state, 'player1'));
     }
 
-    if (deckAvatar) {
-        deckAvatar.instanceId = 'p1_av';
-        deckAvatar.ownerId = 'player1';
-        deckAvatar.originalOwnerId = 'player1';
-        deckAvatar.readiness = 1;
-        deckAvatar.line = 'avatar';
-        deckAvatar.defaultLine = 'avatar';
-        state.players.player1.lines.avatar = [deckAvatar];
+    if (rawDeckAvatar) {
+        const av = instantiateEntity(rawDeckAvatar, abilities, state, 'player1');
+        av.readiness = 1; av.line = 'avatar'; av.defaultLine = 'avatar';
+        state.players.player1.lines.avatar = [av];
     } else {
-        state.players.player1.lines.avatar = [{ id: 'p1_avatar', instanceId: 'p1_av', type: 'avatar', name: 'Test Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player1', originalOwnerId: 'player1' }];
+        const av = instantiateEntity({ id: 'p1_avatar', type: 'avatar', name: 'Test Avatar', health: 30, maxHealth: 30 }, abilities, state, 'player1');
+        av.readiness = 1; av.line = 'avatar'; av.defaultLine = 'avatar';
+        state.players.player1.lines.avatar = [av];
     }
 
     // 4. P2 DECK & HAND ASSEMBLY
@@ -350,13 +299,13 @@ async function configurePlayers(state, itemData, type, sandboxData) {
     let p2Avatar = null;
 
     if (type === 'deck') {
-        p2DeckBase = JSON.parse(JSON.stringify(itemData)); 
+        p2DeckBase = [...itemData]; 
     } else if (loadedDeck.length > 0) {
-        p2DeckBase = JSON.parse(JSON.stringify(loadedDeck));
+        p2DeckBase = [...loadedDeck];
     } else {
-        for (let i = 0; i < 15; i++) p2DeckBase.push(JSON.parse(JSON.stringify(dummyCard)));
-        for (let i = 0; i < 5; i++) p2DeckBase.push(JSON.parse(JSON.stringify(shovelCard)));
-        p2DeckBase.push(JSON.parse(JSON.stringify(butcherCard)));
+        for (let i = 0; i < 15; i++) p2DeckBase.push(dummyCard);
+        for (let i = 0; i < 5; i++) p2DeckBase.push(shovelCard);
+        p2DeckBase.push(butcherCard);
     }
 
     const p2AvatarIdx = p2DeckBase.findIndex(c => c.type === 'avatar');
@@ -367,42 +316,26 @@ async function configurePlayers(state, itemData, type, sandboxData) {
         [p2DeckBase[i], p2DeckBase[j]] = [p2DeckBase[j], p2DeckBase[i]];
     }
 
-    p2DeckBase.forEach((c, idx) => {
-        c.instanceId = 'p2_deck_' + idx;
-        c.ownerId = 'player2';
-        c.originalOwnerId = 'player2';
-        c.readiness = 0;
-        state.players.player2.deck.push(c);
+    p2DeckBase.forEach(c => {
+        state.players.player2.deck.push(instantiateEntity(c, abilities, state, 'player2'));
     });
 
     for (let i = 0; i < 5; i++) {
-        if (state.players.player2.deck.length > 0) {
-            state.players.player2.hand.push(state.players.player2.deck.pop());
-        }
+        if (state.players.player2.deck.length > 0) state.players.player2.hand.push(state.players.player2.deck.pop());
     }
 
     if (p2Avatar) {
-        p2Avatar.instanceId = 'p2_av';
-        p2Avatar.ownerId = 'player2';
-        p2Avatar.originalOwnerId = 'player2';
-        p2Avatar.readiness = 1;
-        p2Avatar.line = 'avatar';
-        p2Avatar.defaultLine = 'avatar';
-        state.players.player2.lines.avatar = [p2Avatar];
+        const av = instantiateEntity(p2Avatar, abilities, state, 'player2');
+        av.readiness = 1; av.line = 'avatar'; av.defaultLine = 'avatar';
+        state.players.player2.lines.avatar = [av];
     }
 }
-
 
 // ============================================================================
 // HELPER: BOARD SETUP (DUMMIES & MODIFIERS)
 // ============================================================================
-
-/**
- * Populates the board with specific dummy configurations for robust testing scenarios.
- */
 function setupSandboxBoard(state, sandboxData, mode = 'sandbox') {
     if (mode === 'clean_ai') return; // Skip dummy injection for clean AI matches
-
     const { cards, abilities } = sandboxData;
     
     const dummyCard = getCatalogItem(cards, 'Target Dummy', FALLBACK_DUMMY);
@@ -410,54 +343,61 @@ function setupSandboxBoard(state, sandboxData, mode = 'sandbox') {
 
     // Only inject Dummy Avatar if P2 didn't load a real one from the deck context
     if (!state.players.player2.lines.avatar || state.players.player2.lines.avatar.length === 0) {
-        state.players.player2.lines.avatar = [{ id: 'p2_avatar', instanceId: 'p2_av', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30, line: 'avatar', defaultLine: 'avatar', readiness: 1, ownerId: 'player2', originalOwnerId: 'player2' }];
+        const av = instantiateEntity({ id: 'p2_avatar', type: 'avatar', name: 'Dummy Avatar', health: 30, maxHealth: 30 }, abilities, state, 'player2');
+        av.readiness = 1; av.line = 'avatar'; av.defaultLine = 'avatar';
+        state.players.player2.lines.avatar = [av];
     }
 
     const dLine = dummyCard.defaultLine || 'mid';
-
+    
     // Standard dummies
     for(let i=0; i<5; i++) {
-        state.players.player2.lines[dLine].push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_'+i, readiness: 1, line: dLine, defaultLine: dLine, ownerId: 'player2', originalOwnerId: 'player2'});
+        const dum = instantiateEntity(dummyCard, abilities, state, 'player2');
+        dum.readiness = 1; dum.line = dLine;
+        if (i===0) dum.tribe = "tribe_robot";
+        state.players.player2.lines[dLine].push(dum);
     }
-    state.players.player2.lines[dLine][0].tribe = "tribe_robot";
-    
+
     // Inject Arrrmsman to Player 2
     const arrrmsmanCard = getCatalogItem(cards, 'Arrrmsman', FALLBACK_ARRRMSMAN);
     const aLine = arrrmsmanCard.defaultLine || 'mid';
-    state.players.player2.lines[aLine].push({...JSON.parse(JSON.stringify(arrrmsmanCard)), instanceId: 'e_arrrmsman_1', readiness: 1, line: aLine, defaultLine: aLine, ownerId: 'player2', originalOwnerId: 'player2'});
-    state.players.player2.hand.push({...JSON.parse(JSON.stringify(arrrmsmanCard)), instanceId: 'e_arrrmsman_hand_1', readiness: 0, ownerId: 'player2', originalOwnerId: 'player2'});
+    const arr = instantiateEntity(arrrmsmanCard, abilities, state, 'player2');
+    arr.readiness = 1; arr.line = aLine;
+    state.players.player2.lines[aLine].push(arr);
+    
+    state.players.player2.hand.push(instantiateEntity(arrrmsmanCard, abilities, state, 'player2'));
 
     // Stealth dummy edge-case
-    const stealthDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Stealth Dummy', instanceId: 'e_dum_stealth', readiness: 1, line: dLine, defaultLine: dLine, ownerId: 'player2', originalOwnerId: 'player2'};
+    const stealthDummy = instantiateEntity(dummyCard, abilities, state, 'player2');
+    stealthDummy.name = 'Stealth Dummy'; stealthDummy.readiness = 1; stealthDummy.line = dLine;
     const realStealth = getCatalogItem(abilities, 'Stealth', { abilityId: 'stealth_trait', name: 'Stealth', trigger: 'UNTRIGGERABLE', description: 'This unit has Stealth.' }, true);
-    stealthDummy.abilities = [realStealth];
+    stealthDummy.abilities.push(instantiateAbility(realStealth, abilities, state));
     state.players.player2.lines[dLine].push(stealthDummy);
 
     // Big dummy edge-case
-    state.players.player2.lines[dLine].push({...JSON.parse(JSON.stringify(dummyCard)), instanceId: 'e_dum_10', health: 10, maxHealth: 10, strength: 10, name: 'Big Dummy', readiness: 1, line: dLine, defaultLine: dLine, ownerId: 'player2', originalOwnerId: 'player2'});
+    const bigDummy = instantiateEntity(dummyCard, abilities, state, 'player2');
+    bigDummy.health = 10; bigDummy.maxHealth = 10; bigDummy.strength = 10;
+    bigDummy.name = 'Big Dummy'; bigDummy.readiness = 1; bigDummy.line = dLine;
+    state.players.player2.lines[dLine].push(bigDummy);
 
     // Friendly dummy to test friendly-fire and attachments
-    const friendlyDummy = {...JSON.parse(JSON.stringify(dummyCard)), name: 'Dazed Ally', instanceId: 'f_dum_1', readiness: 1, line: 'back', defaultLine: 'back', ownerId: 'player1', originalOwnerId: 'player1'};
-    friendlyDummy.abilities = [{ abilityId: 'dazed_trait', name: 'Dazed', trigger: 'UNTRIGGERABLE', description: 'This unit is Dazed.' }];
+    const friendlyDummy = instantiateEntity(dummyCard, abilities, state, 'player1');
+    friendlyDummy.name = 'Dazed Ally'; friendlyDummy.readiness = 1; friendlyDummy.line = 'back';
+    friendlyDummy.abilities.push(instantiateAbility({ abilityId: 'dazed_trait', name: 'Dazed', trigger: 'UNTRIGGERABLE', description: 'This unit is Dazed.' }, abilities, state));
+    
     const shovelCard = getCatalogItem(cards, 'Skull Shovel', FALLBACK_SHOVEL);
-    const shovelInst = {...JSON.parse(JSON.stringify(shovelCard)), instanceId: 'f_shovel_1', ownerId: 'player1', readiness: 1};
+    const shovelInst = instantiateEntity(shovelCard, abilities, state, 'player1');
+    shovelInst.readiness = 1;
     friendlyDummy.attachments = [shovelInst];
     state.players.player1.lines.back.push(friendlyDummy);
 }
 
-/**
- * Modifies enemy units globally. Specifically ensures all enemies have Relentless
- * so they ignore block statuses (like Pacify) for specific testing constraints.
- */
 function applyRelentlessModifier(state, abilitiesCatalog, mode = 'sandbox') {
     if (mode === 'clean_ai') return; // Skip modifier injection for clean AI matches
-
+    
     const relentlessAbility = getCatalogItem(abilitiesCatalog, 'Relentless', {
-        abilityId: 'ability_relentless_native',
-        name: 'Relentless',
-        trigger: 'UNTRIGGERABLE',
-        passiveFlags: ['IGNORE_BLOCK_ATTACK'],
-        description: 'Ignores effects that prevent it from attacking.'
+        abilityId: 'ability_relentless_native', name: 'Relentless', trigger: 'UNTRIGGERABLE',
+        passiveFlags: ['IGNORE_BLOCK_ATTACK'], description: 'Ignores effects that prevent it from attacking.'
     }, true);
 
     for (const line in state.players.player2.lines) {
@@ -466,7 +406,7 @@ function applyRelentlessModifier(state, abilitiesCatalog, mode = 'sandbox') {
                 if (u.type === 'unit') {
                     if (!u.abilities) u.abilities = [];
                     if (!u.abilities.some(a => (a.abilityId || a) === relentlessAbility.abilityId || a.name === 'Relentless')) {
-                        u.abilities.push(JSON.parse(JSON.stringify(relentlessAbility)));
+                        u.abilities.push(instantiateAbility(relentlessAbility, abilitiesCatalog, state));
                     }
                 }
             });
@@ -474,47 +414,34 @@ function applyRelentlessModifier(state, abilitiesCatalog, mode = 'sandbox') {
     }
 }
 
-
 // ============================================================================
 // MAIN ENTRYPOINT
 // ============================================================================
-
-/**
- * Orchestrates the creation of a Sandbox match.
- * @param {Object} itemData - The Card, Avatar, Deck, or Ability being tested.
- * @param {string} type - Identifies the payload type ('card', 'deck', 'avatar', 'ability').
- */
 export async function launchSandboxMatch(itemData, type = 'card', mode = 'sandbox') {
     console.log(`[SANDBOX] Initiating launch for ${type}...`);
     const popup = openLoadingPopup();
     
     try {
-        // 1. Fetch live database context
         console.log("[SANDBOX] Fetching live database context...");
         const sandboxData = await fetchSandboxData();
-        console.log("[SANDBOX] Database context fetched successfully.");
         
-        // 2. Setup Player Context
         const username = localStorage.getItem('henchies_last_username') || 'Tester';
         const state = createInitialState(username, sandboxData.customTribes, mode);
         
         console.log("[SANDBOX] Configuring players...");
         await configurePlayers(state, itemData, type, sandboxData);
         
-        // 3. Setup Opponent Board & Global Rules
         console.log("[SANDBOX] Setting up opponent board...");
         setupSandboxBoard(state, sandboxData, mode);
         applyRelentlessModifier(state, sandboxData.abilities, mode);
-
-        // 4. Finalize
+        
         const roomId = 'TEST_' + Date.now();
         state.gameId = roomId;
-
+        
         const engine = new GameEngine(state);
         startTurn(state, engine);
-
         state.turn_start_state = JSON.stringify(state);
-
+        
         console.log(`[SANDBOX] Launching room ${roomId}...`);
         await launchRoom(roomId, state, popup);
     } catch (err) {
