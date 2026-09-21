@@ -1,7 +1,6 @@
 import { Action, ACTION_REGISTRY, registerEffect } from './core.js';
-import { findEntityLocation } from '../utils.js';
-import { moveEntity } from '../utils.js';
-import { generateId, shuffleArray } from '../prandom.js';
+import { findEntityLocation, moveEntity, instantiateEntity } from '../utils.js';
+import { shuffleArray } from '../prandom.js';
 
 export class SummonAction extends Action {
     execute(engine) {
@@ -22,29 +21,10 @@ export class SummonAction extends Action {
         const ownerId = fallbackOwner;
             
         const summonedInstances = [];
+        const cardToSummon = { ...card, isToken: true };
         
         for (let i = 0; i < (this.payload.amount || 1); i++) {
-            const instance = JSON.parse(JSON.stringify(card));
-            instance.instanceId = 'sum_' + generateId(engine.state, 8) + '_' + i;
-            instance.isToken = true;
-            
-            if (instance.abilities && engine.state.abilityCatalog) {
-                instance.abilities = instance.abilities.map(ab => {
-                    const abId = typeof ab === 'string' ? ab : (ab.abilityId || ab.id);
-                    const match = engine.state.abilityCatalog.find(a => a.abilityId === abId);
-                    return match ? JSON.parse(JSON.stringify(match)) : ab;
-                });
-            }
-
-            instance.maxHealth = instance.maxHealth || instance.health || 1;
-            if (instance.health === undefined || instance.health <= 0) instance.health = instance.maxHealth;
-            instance.readiness = 0; 
-            instance.acts = instance.maxActs !== undefined ? instance.maxActs : 1;
-            
-            instance.originalOwnerId = ownerId;
-            instance.ownerId = ownerId;
-            instance.originalPower = instance.power || 0;
-            instance.originalStrength = instance.strength !== undefined ? instance.strength : null;
+            const instance = instantiateEntity(cardToSummon, engine.state.abilityCatalog, engine.state, ownerId);
             
             let actualDest = destZone;
             if (actualDest === 'field' || actualDest === 'board') {

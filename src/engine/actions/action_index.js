@@ -1,7 +1,9 @@
-import { ACTION_MANIFEST, ACTION_REGISTRY, Action, registerEffect, revertEffect, sweepTurnEffects } from './core.js';
+import { ACTION_MANIFEST, EVENT_MANIFEST, ACTION_REGISTRY, Action, registerEffect, revertEffect, sweepTurnEffects } from './core.js';
 import { findEntityLocation } from '../utils.js';
 import { moveEntity } from '../utils.js';
 
+
+import { HitAction } from './hit.js';
 import { DealDamageAction } from './deal_damage.js';
 import { HealAction } from './heal.js';
 import { KillAction } from './kill.js';
@@ -30,6 +32,7 @@ import { UnfieldAction } from './unfield.js';
 import { RebelAction } from './rebel.js';
 import { DonateAction } from './donate.js';
 import { SummonAction } from './summon.js';
+import { ConditionalAction } from './conditional.js';
 import { BlockActAction } from './block_act.js';
 import { BlockAttackAction } from './block_attack.js';
 import { BlockRetaliateAction } from './block_retaliate.js';
@@ -41,6 +44,7 @@ import { ModifyEventAction } from './modify_event.js';
 import { TransformAction } from './transform.js';
 import { CustomScriptAction } from './custom_script.js';
 
+ACTION_REGISTRY['HIT'] = HitAction;
 ACTION_REGISTRY['DEAL_DAMAGE'] = DealDamageAction;
 ACTION_REGISTRY['HEAL'] = HealAction;
 ACTION_REGISTRY['KILL'] = KillAction;
@@ -70,6 +74,7 @@ ACTION_REGISTRY['UNFIELD'] = UnfieldAction;
 ACTION_REGISTRY['REBEL'] = RebelAction;
 ACTION_REGISTRY['DONATE'] = DonateAction;
 ACTION_REGISTRY['SUMMON'] = SummonAction;
+ACTION_REGISTRY['CONDITIONAL'] = ConditionalAction;
 ACTION_REGISTRY['BLOCK_ACT'] = BlockActAction;
 ACTION_REGISTRY['BLOCK_ATTACK'] = BlockAttackAction;
 ACTION_REGISTRY['BLOCK_RETALIATE'] = BlockRetaliateAction;
@@ -86,7 +91,11 @@ export const ACTION_CATEGORIES = {
     'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'REVIVE', 'TRASH', 'BANISH', 'CHANGE_DESTINATION'],
     'Field Presence': ['FIELD', 'UNFIELD'],
     'Attachments & Control': ['ATTACH', 'UNATTACH', 'REBEL', 'DONATE'],
-    'Meta & Utility': ['TOP_DECK', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM']
+    'Meta & Utility': ['TOP_DECK', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM', 'CONDITIONAL']
+};
+
+export const EVENT_CATEGORIES = {
+    'Combat': ['HIT']
 };
 
 export const EFFECT_TYPES = Object.keys(ACTION_MANIFEST);
@@ -108,12 +117,21 @@ export function getActionTriggers() {
     return triggers;
 }
 
+export function getEventTriggers() {
+    const triggers = [];
+    Object.entries(EVENT_MANIFEST).forEach(([event, manifest]) => {
+        (manifest.phases || ['ON']).forEach(phase => triggers.push(`${phase}_${event}`));
+        if (manifest.passiveType) triggers.push(manifest.passiveType);
+    });
+    return triggers;
+}
+
 export {
-    ACTION_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects,
-    DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
+    ACTION_MANIFEST, EVENT_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects,
+    HitAction, DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
     GrantAbilityAction, RemoveAbilityAction, DrawCardAction, TopDeckAction, PlayAction, AttackAction, HarvestAction,
     DiscardAction, ShuffleAction, ReturnAction, RecoverAction, TrashAction, BanishAction, FieldAction,
     ReviveAction, AttachAction, UnattachAction, UnfieldAction, RebelAction, DonateAction, SummonAction, BlockActAction,
     BlockAttackAction, BlockRetaliateAction, BlockTargetingAction, CancelEventAction, CleanseAction,
-    ChangeDestinationAction, ModifyEventAction, TransformAction, CustomScriptAction
+    ChangeDestinationAction, ModifyEventAction, TransformAction, CustomScriptAction, ConditionalAction
 };

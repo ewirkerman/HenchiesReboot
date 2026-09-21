@@ -4,7 +4,7 @@
  * Uses helper modules for tokenization and string formatting.
  */
 
-import { ACTION_MANIFEST } from '../engine/actions/index.js';
+import { ACTION_MANIFEST } from '../engine/actions/action_index.js';
 import { buildTargetDesc } from './targeting.js';
 import { groupPayloads, finalizeString } from './grouping.js';
 import anExclusions from './an_exclusions.js';

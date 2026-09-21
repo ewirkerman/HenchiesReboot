@@ -8,7 +8,7 @@
  */
 
 import fs from 'fs';
-import { ACTION_MANIFEST } from '../src/engine/actions/index.js';
+import { ACTION_MANIFEST } from '../src/engine/actions/action_index.js';
 import { generateAbilityDescription } from '../src/language_description.js';
 import { validateAbilityLogic } from '../src/ability_validation.js';
 

@@ -5,7 +5,7 @@
 
 import { GameEngine } from './index.js';
 import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG, hasEngineFlag, isEntityOnBoard, canAffordCost, payCost, findEntity, getAttackCost } from './utils.js';
-import { HarvestAction, PlayAction, sweepTurnEffects } from './actions/index.js';
+import { HarvestAction, PlayAction, sweepTurnEffects } from './actions/action_index.js';
 import { generateId, shuffleArray } from './prandom.js';
 
 export function endTurn(state) {
@@ -71,7 +71,7 @@ export function startTurn(state, engine) {
                 if (!player.resources[tTribe]) player.resources[tTribe] = { current: 0, max: 0 };
                 player.resources[tTribe].max += 1;
             } else if (tTribe === 'Carnie') {
-                player.resources['Carnie'].max += 2;
+                player.resources['Carnie'].max += 1;
             }
         }
         

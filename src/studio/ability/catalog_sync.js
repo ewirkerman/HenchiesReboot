@@ -10,7 +10,7 @@ import { launchSandboxMatch } from '../../testing.js';
 import { updateTriggerComposite, renderAdditionalTriggers, updateTargetingUI } from './triggers.js';
 import { renderLogicTrees } from './logic_tree.js';
 import { renderEffects } from './payloads.js';
-import { ACTION_MANIFEST } from '../../engine/actions/index.js';
+import { ACTION_MANIFEST } from '../../engine/actions/action_index.js';
 
 export function exportCurrentState(formData, uiState) {
     let activationData = {
