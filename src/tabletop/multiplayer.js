@@ -1,7 +1,7 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { createGameRoom, subscribeToGameRoom, pushActionToLog, findOpenQueueRoom, sendDirectInvite, updateInviteStatus } from '../firebase.js';
-import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, hydrateAbility, GameEngine, startTurn } from '../engine/index.js';
+import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, instantiateEntity, GameEngine, startTurn } from '../engine/index.js';
 import { showToast } from '../ui.js';
 import { checkTurnStateForNotification } from '../profile.js';
 
@@ -41,15 +41,13 @@ export async function validateAndGetDeck() {
               continue;
           }
           
-          const clone = JSON.parse(JSON.stringify(fresh));
+          const clone = instantiateEntity(fresh, rawAbs, null, null);
           if (clone.abilities) {
-              clone.abilities = clone.abilities.map(ab => {
-                  const hyd = hydrateAbility(ab, rawAbs);
+              clone.abilities.forEach(hyd => {
                   if (hyd) {
                       try { hyd.displayDescription = generateAbilityDescription(hyd, rawAbs, combinedCatalog, ClientState.customTribesList); } catch(e){}
                   }
-                  return hyd;
-              }).filter(Boolean);
+              });
           }
           hydratedDeck.push(clone);
       }

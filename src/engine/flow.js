@@ -71,7 +71,7 @@ export function startTurn(state, engine) {
                 if (!player.resources[tTribe]) player.resources[tTribe] = { current: 0, max: 0 };
                 player.resources[tTribe].max += 1;
             } else if (tTribe === 'Carnie') {
-                player.resources['Carnie'].max += 2;
+                player.resources['Carnie'].max += 1;
             }
         }
         

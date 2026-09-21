@@ -21,29 +21,7 @@ export class GameEngine {
         };
     }
 
-    _getCanonicalEventKey(eventType) {
-        if (!eventType) return eventType;
-        const base = eventType.replace(/^(WOULD_|MODIFY_|ON_)/, '');
-        const canonicalBase = (() => {
-            if (base === 'GET_HIT') return 'HIT';
-            if (base === 'BE_DAMAGED') return 'DEAL_DAMAGE';
-            if (base === 'BE_ATTACKED') return 'ATTACK';
-            if (base === 'BE_HEALED') return 'HEAL';
-            return base;
-        })();
-        return canonicalBase;
-    }
-
     emit(eventType, payload) {
-        const canonicalKey = this._getCanonicalEventKey(eventType);
-        if (payload && !payload._eventQueueKeys) payload._eventQueueKeys = new Set();
-
-        const alreadyQueued = payload && payload._eventQueueKeys.has(canonicalKey);
-        if (alreadyQueued) {
-            return { cancelled: !!(payload && payload.cancelled) };
-        }
-        if (payload) payload._eventQueueKeys.add(canonicalKey);
-
         // Log passive routing for debugging
         let isPassiveLog = false;
         let matchedPassiveType = null;
@@ -167,31 +145,20 @@ export class GameEngine {
 
     _triggerMatchesEvent(trigger, eventType, ownerId, payload) {
         if (!trigger || !eventType) return false;
+        
+        // 1. Exact Match (Handles all WOULD_, MODIFY_, ON_ events)
         if (trigger === eventType) return true;
 
-        const stripPrefix = (name) => name.replace(/^(WOULD_|MODIFY_|ON_)/, '');
-        const triggerRoot = stripPrefix(trigger);
-        const eventRoot = stripPrefix(eventType);
-
-        if (triggerRoot === eventRoot) return true;
-
-        const passiveAliasFor = (name) => {
-            if (!name) return null;
-            if (ACTION_MANIFEST[name]?.passiveType) return ACTION_MANIFEST[name].passiveType;
-            if (EVENT_MANIFEST[name]?.passiveType) return EVENT_MANIFEST[name].passiveType;
-            return null;
-        };
-
-        if (triggerRoot && passiveAliasFor(triggerRoot) === eventRoot) return true;
-        if (eventRoot && passiveAliasFor(eventRoot) === triggerRoot) return true;
-
+        // 2. Turn-Based Aliases
         if (!payload?.playerId) return false;
-        if (trigger?.startsWith('OWN_TURN_')) {
+        
+        if (trigger.startsWith('OWN_TURN_')) {
             return trigger.replace('OWN_', '') === eventType && payload.playerId === ownerId;
         }
-        if (trigger?.startsWith('OPP_TURN_')) {
+        if (trigger.startsWith('OPP_TURN_')) {
             return trigger.replace('OPP_', '') === eventType && payload.playerId !== ownerId;
         }
+        
         return false;
     }
 
@@ -213,7 +180,7 @@ export class GameEngine {
 
         for (const ability of abilitiesToCheck) {
             const allTriggers = [ability.trigger, ...(ability.additionalTriggers || [])];
-            const triggerDebug = eventType === 'GET_HIT' || eventType.endsWith('_GET_HIT');
+            const triggerDebug = false;
             const abilityLabel = `'${ability.name || ability.abilityId || 'Unnamed ability'}' (${ability.abilityId || 'no-id'})`;
             const matchedTrigger = allTriggers.find(trigger => this._triggerMatchesEvent(trigger, eventType, ownerId, payload));
             if (triggerDebug) {
@@ -227,11 +194,11 @@ export class GameEngine {
                 if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=no-trigger-match ability=${abilityLabel}`);
                 continue;
             }
-            if (this.activeChainAbilities.has(ability.abilityId)) {
+            if (this.activeChainAbilities.has(ability.instanceId)) {
                 if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=active-chain-loop ability=${abilityLabel}`);
                 continue;
             }
-            if (matchedTrigger && !this.activeChainAbilities.has(ability.abilityId)) {
+            if (matchedTrigger && !this.activeChainAbilities.has(ability.instanceId)) {
                 
                 let isValid = true;
                 const scope = ability.triggerScope || 'PERSONAL';
@@ -327,7 +294,7 @@ export class GameEngine {
                 continue; 
             }
             
-            this.activeChainAbilities.add(frame.ability.abilityId);
+            this.activeChainAbilities.add(frame.ability.instanceId);
             
             let livePayload = frame.payload;
             if (!livePayload) livePayload = {}; 
@@ -339,7 +306,7 @@ export class GameEngine {
             }
 
             this.executeAbility(frame.ability, frame.source, livePayload, frame.owner, originatingEvent);
-            this.activeChainAbilities.delete(frame.ability.abilityId);
+            this.activeChainAbilities.delete(frame.ability.instanceId);
             
             if (livePayload && (livePayload.cancelled || livePayload.eventContext?.cancelled)) {
                 rootEventCancelled = true;
@@ -359,6 +326,7 @@ export class GameEngine {
         if (ability === 'native_attack' || ability?.abilityId === 'native_attack') {
             ability = {
                 abilityId: 'native_attack',
+                instanceId: 'native_attack_inst', // Ensure cost tracker has a unique key 
                 name: 'Attack',
                 trigger: 'MANUAL',
                 cost: getAttackCost(this.state, source),
@@ -401,7 +369,7 @@ export class GameEngine {
     }
 
     _checkAndPayCost(ability, source, ownerId, eventPayload) {
-        const abilityKey = `${source.instanceId}_${ability.abilityId}`;
+        const abilityKey = ability.instanceId;
         const limit = ability.triggerLimit || 'UNLIMITED';
         
         const previousUses = this.state.abilityUses?.[abilityKey] || 0;
@@ -436,6 +404,7 @@ export class GameEngine {
             return false;
         }
         
+        // Note: Escalate costs correctly stay tied to abilityId so they accumulate per-power, not per-instance.
         const lifetimeUses = source.lifetimeAbilityUses?.[ability.abilityId] || 0;
         const escalateAmount = cost.escalates ? lifetimeUses : 0;
         
@@ -468,7 +437,7 @@ export class GameEngine {
         return true;
     }
 
-        _acquireTargets(ability, source, eventPayload, ownerId) {
+    _acquireTargets(ability, source, eventPayload, ownerId) {
         return ability.effects.map((group, index) => {
             if (!group) return [];
             let targets = [];

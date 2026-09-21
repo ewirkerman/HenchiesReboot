@@ -3,6 +3,7 @@
  * Shared utilities and helpers for the Henchies 2 Game Engine.
  */
 
+import { generateId } from './prandom.js';
 
 export const CARD_CATALOG = []; // Will be hydrated by deckbuilder/firebase
 
@@ -264,6 +265,62 @@ export function hydrateAbility(abRef, catalogAbs) {
         if (abRef.description) cloned.description = abRef.description;
     }
     return cloned;
+}
+
+export function instantiateAbility(abRef, catalogAbs, engineState = null) {
+    const hydrated = hydrateAbility(abRef, catalogAbs);
+    
+    if (!hydrated) {
+        // Fallback for completely unresolved abilities
+        const fallbackId = typeof abRef === 'string' ? abRef : (abRef.abilityId || 'Unknown');
+        const fallback = { abilityId: fallbackId, name: "Unresolved: " + fallbackId, trigger: 'MANUAL' };
+        const randStr = engineState ? generateId(engineState, 8) : Math.random().toString(36).substring(2, 11);
+        fallback.instanceId = 'ab_inst_' + randStr;
+        return fallback;
+    }
+    
+    // Deep clone to ensure unique instance references across duplicate abilities
+    const instance = JSON.parse(JSON.stringify(hydrated));
+    
+    // Assign UUID using deterministic engine PRNG if available, otherwise standard random
+    const randStr = engineState ? generateId(engineState, 8) : Math.random().toString(36).substring(2, 11);
+    instance.instanceId = 'ab_inst_' + randStr;
+    
+    return instance;
+}
+
+export function instantiateEntity(cardData, abilityCatalog, engineState = null, ownerId = null) {
+    if (!cardData) return null;
+    
+    // Deep clone the base card data
+    const instance = JSON.parse(JSON.stringify(cardData));
+    
+    // Assign UUID
+    const randStr = engineState ? generateId(engineState, 8) : Math.random().toString(36).substring(2, 11);
+    const prefix = instance.isToken ? 'sum_' : (instance.type === 'unit' || instance.type === 'avatar' ? 'ent_' : 'item_');
+    instance.instanceId = prefix + randStr;
+    
+    if (ownerId) {
+        instance.ownerId = ownerId;
+        instance.originalOwnerId = ownerId;
+    }
+
+    // Initialize Stats safely
+    instance.maxHealth = instance.maxHealth || instance.health || 1;
+    if (instance.health === undefined || instance.health <= 0) instance.health = instance.maxHealth;
+    instance.readiness = 0; 
+    instance.acts = instance.maxActs !== undefined ? instance.maxActs : 1;
+    instance.originalPower = instance.power || 0;
+    instance.originalStrength = instance.strength !== undefined ? instance.strength : null;
+
+    // Hydrate and assign UUIDs to all abilities
+    if (instance.abilities) {
+        instance.abilities = instance.abilities.map(ab => 
+            instantiateAbility(ab, abilityCatalog, engineState)
+        ).filter(Boolean);
+    }
+    
+    return instance;
 }
 
 export function cloneGameState(state) {
@@ -534,4 +591,3 @@ function searchAttachments(host, playerId, target) {
     }
     return null;
 }
-

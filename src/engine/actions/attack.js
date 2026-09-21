@@ -38,6 +38,8 @@ export class AttackAction extends Action {
             depth: this.getLogDepth(engine)
         });
         
+        // This prevents the emission of the ON_ATTACK, ON_BE_ATTACKED events so
+        // we can emit them with first phase of combat.
         this.payload.preventReaction = true;
 
         // READ speed without consuming flags

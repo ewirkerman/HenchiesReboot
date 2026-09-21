@@ -1,29 +1,16 @@
 import { Action, registerEffect } from './core.js';
-import { hydrateAbility } from '../utils.js';
+import { instantiateAbility } from '../utils.js';
 
 export class GrantAbilityAction extends Action {
     execute(engine) {
         if (this.payload.target && this.payload.grantedAbilityId) {
-            let fullAb = null;
             
+            const abRef = { abilityId: this.payload.grantedAbilityId };
             if (this.payload.grantedAbilityParamX !== undefined && this.payload.grantedAbilityParamX !== null) {
-                fullAb = hydrateAbility({
-                    abilityId: this.payload.grantedAbilityId,
-                    paramX: this.payload.grantedAbilityParamX
-                }, engine.state.abilityCatalog || []);
-            } else if (engine.state.abilityCatalog) {
-                fullAb = engine.state.abilityCatalog.find(a => 
-                    a.abilityId === this.payload.grantedAbilityId || 
-                    (a.name && a.name.toLowerCase() === String(this.payload.grantedAbilityId).toLowerCase())
-                );
+                abRef.paramX = this.payload.grantedAbilityParamX;
             }
             
-            if (!fullAb) fullAb = { 
-                abilityId: this.payload.grantedAbilityId,
-                name: "Unresolved Ability",
-                trigger: "MANUAL",
-                description: "Failed to load ability data from catalog."
-            };
+            let fullAb = instantiateAbility(abRef, engine.state.abilityCatalog || [], engine.state);
             
             if (this.payload.blockDuplicates) {
                 const hasAb = this.payload.target.abilities?.some(a => (a.abilityId || a) === fullAb.abilityId || (a.name && a.name === fullAb.name));
@@ -36,9 +23,8 @@ export class GrantAbilityAction extends Action {
             }
             
             if (!this.payload.target.abilities) this.payload.target.abilities = [];
-            let abilityToPush = this.payload.grantedAbilityParamX !== undefined && this.payload.grantedAbilityParamX !== null ? fullAb : JSON.parse(JSON.stringify(fullAb));
             
-            this.payload.target.abilities.push(abilityToPush);
+            this.payload.target.abilities.push(fullAb);
             registerEffect(engine, this.payload.target, this.payload);
         }
     }
