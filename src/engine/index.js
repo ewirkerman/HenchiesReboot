@@ -1,7 +1,7 @@
 import { randomInt, shuffleArray as prandomShuffle } from './prandom.js';
 import { ACTION_REGISTRY, ACTION_MANIFEST, EVENT_MANIFEST, findEntityLocation } from './actions/action_index.js';
 import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES, canAffordCost, payCost, getAttackCost, moveEntity } from './utils.js';
-import { getEntityAvailableActions, getValidAttackTargets } from './targeting.js';
+import { getEntityAvailableActions, getValidAttackTargets, acquireTargets, resolveTargetById } from './targeting.js';
 import { ATTRIBUTE_MANIFEST } from './attributes.js';
 
 export class GameEngine {
@@ -253,6 +253,14 @@ export class GameEngine {
                                 }
                             }
                         }
+                    } else if (scope === 'HOST') {
+                        if (!isPhaseEvent) {
+                            const loc = findEntityLocation(this, ent);
+                            if (!loc || loc.zone !== 'attachment' || !loc.host || !eventEntity || eventEntity.instanceId !== loc.host.instanceId) {
+                                isValid = false;
+                                if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=host-event-target-mismatch eventEntity=${eventEntity?.instanceId || 'none'} abilityEntity=${ent.instanceId} ability=${abilityLabel}`);
+                            }
+                        }
                     }
                 }
 
@@ -360,7 +368,7 @@ export class GameEngine {
                 }
             }
 
-            const lockedTargets = this._acquireTargets(ability, source, eventPayload, ownerId);
+            const lockedTargets = acquireTargets(this.state, ability, source, eventPayload, ownerId);
             this._resolvePayloads(ability, source, eventPayload, ownerId, lockedTargets, originatingEvent);
             
         } catch (error) {
@@ -437,64 +445,6 @@ export class GameEngine {
         return true;
     }
 
-    _acquireTargets(ability, source, eventPayload, ownerId) {
-        return ability.effects.map((group, index) => {
-            if (!group) return [];
-            let targets = [];
-            
-            if (group.targetMethod === 'SELF') targets = [source];
-            else if (group.targetMethod === 'EVENT_SOURCE') {
-                if (eventPayload?.source) targets = [eventPayload.source];
-                else if (eventPayload?.playerId) {
-                    const av = getAvatar(this.state, eventPayload.playerId);
-                    if (av) targets = [av];
-                }
-            }
-            else if (group.targetMethod === 'EVENT_TARGET') {
-                if (eventPayload?.target) targets = [eventPayload.target];
-                else if (eventPayload?.playerId) {
-                    const av = getAvatar(this.state, eventPayload.playerId);
-                    if (av) targets = [av];
-                }
-            }
-            else if (group.targetMethod === 'AVATAR') {
-                const av = getAvatar(this.state, ownerId);
-                targets = av ? [av] : [];
-            }
-            else if (group.targetMethod === 'ENEMY_AVATAR') {
-                const oppId = ownerId === 'player1' ? 'player2' : 'player1';
-                const av = getAvatar(this.state, oppId);
-                targets = av ? [av] : [];
-            }
-            else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
-                const tunneledTargetId = eventPayload?.abilityTargetId || eventPayload?.eventContext?.abilityTargetId;
-                if (tunneledTargetId) {
-                    const p1 = this.state.players.player1;
-                    const p2 = this.state.players.player2;
-                    const allEntities = [
-                        ...Object.values(p1.lines).flat(), ...Object.values(p2.lines).flat(),
-                        ...(this.state.equator || []),
-                        ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
-                        ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
-                    ].filter(Boolean);
-                    const resolvedTarget = allEntities.find(e => e.id === tunneledTargetId || e.instanceId === tunneledTargetId);
-                    targets = [resolvedTarget || eventPayload.target || source];
-                } else if (eventPayload) {
-                    if (eventPayload.target?.instanceId === source.instanceId && eventPayload.source) targets = [eventPayload.source];
-                    else targets = [eventPayload.target || source];
-                } else {
-                    targets = [source];
-                }
-            }
-            else if (group.targetMethod?.startsWith('AUTO_')) {
-                return []; 
-            }
-            
-            if (targets.length === 0 && group.targetMethod === 'SAME_AS_ACTIVATION' && eventPayload?.target) targets = [eventPayload.target];
-            return targets;
-        });
-    }
-
     _resolvePayloads(ability, source, eventPayload, ownerId, lockedTargets, originatingEvent) {
         ability.effects.forEach((group, index) => {
             if (!group || !Array.isArray(group.payloads)) return;
@@ -522,15 +472,7 @@ export class GameEngine {
                         
                         if (['ATTACH', 'ATTACH_TO'].includes(payload.type) && currentTarget.instanceId === source.instanceId) {
                             if (eventPayload?.abilityTargetId) {
-                                const p1 = this.state.players.player1;
-                                const p2 = this.state.players.player2;
-                                const allEntities = [
-                                    ...Object.values(p1.lines).flat(), ...Object.values(p2.lines).flat(),
-                                    ...(this.state.equator || []),
-                                    ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
-                                    ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
-                                ].filter(Boolean);
-                                const altTarget = allEntities.find(e => e.id === eventPayload.abilityTargetId || e.instanceId === eventPayload.abilityTargetId);
+                                const altTarget = resolveTargetById(this.state, eventPayload.abilityTargetId);
                                 if (altTarget) currentTarget = altTarget;
                             }
                             if (currentTarget.instanceId === source.instanceId) continue; 

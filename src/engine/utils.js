@@ -220,6 +220,10 @@ export function getAvatar(state, playerId) {
     return null;
 }
 
+export function isAutoCast(ability) {
+    return ability.trigger === 'ON_BE_PLAYED' && !ability.isSelectable && !(ability.activation && ability.activation.method == 'PLAYER_CHOICE');
+}
+
 export function hydrateAbility(abRef, catalogAbs) {
     const abId = typeof abRef === 'string' ? abRef : abRef.abilityId;
     const match = catalogAbs.find(a => 
@@ -230,6 +234,11 @@ export function hydrateAbility(abRef, catalogAbs) {
     
     let cloned = JSON.parse(JSON.stringify(match));
     if (typeof abRef === 'object') {
+        // Persist isSelectable to runtime engine objects
+        if (abRef.isSelectable !== undefined) {
+            cloned.isSelectable = abRef.isSelectable;
+        }
+
         if (abRef.paramX !== undefined && abRef.paramX !== null) {
             cloned.paramX = abRef.paramX;
             if (cloned.effects) {
@@ -268,6 +277,12 @@ export function hydrateAbility(abRef, catalogAbs) {
 }
 
 export function instantiateAbility(abRef, catalogAbs, engineState = null) {
+    // FAST-PATH: If it already has an instanceId, it is a loaded, living ability.
+    // Do NOT re-hydrate from the catalog. Preserve it exactly as saved.
+    if (typeof abRef === 'object' && abRef.instanceId) {
+        return JSON.parse(JSON.stringify(abRef));
+    }
+
     const hydrated = hydrateAbility(abRef, catalogAbs);
     
     if (!hydrated) {
@@ -291,6 +306,12 @@ export function instantiateAbility(abRef, catalogAbs, engineState = null) {
 
 export function instantiateEntity(cardData, abilityCatalog, engineState = null, ownerId = null) {
     if (!cardData) return null;
+
+        // FAST-PATH: If it already has an instanceId, it is a loaded, living ability.
+    // Do NOT re-hydrate from the catalog. Preserve it exactly as saved.
+    if (typeof cardData === 'object' && cardData.instanceId) {
+        return JSON.parse(JSON.stringify(cardData));
+    }
     
     // Deep clone the base card data
     const instance = JSON.parse(JSON.stringify(cardData));

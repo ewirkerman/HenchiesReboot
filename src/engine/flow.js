@@ -244,11 +244,23 @@ export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbi
     payCost(state, player, card, card.cost, 0, true);
 
     const engine = new GameEngine(state);
+    
+    // Setup event context
+    const eventContext = { chosenAbilityId, abilityTargetId, autocastAbilities: [] };
+
+    // Before creating the PlayAction, find all ON_BE_PLAYED triggers that are NOT selectable
+    // and store them in the context to be fired automatically during the event sequence.
+    if (card.abilities) {
+        eventContext.autocastAbilities = card.abilities.filter(ab => 
+            ab.trigger === 'ON_BE_PLAYED' && !ab.isSelectable && ab.activation.method != 'PLAYER_CHOICE'
+        );
+    }
+
     const action = new PlayAction({
         source: getAvatar(state, playerId),
         target: card,
         targetLine: targetLine,
-        eventContext: { chosenAbilityId, abilityTargetId }
+        eventContext: eventContext
     });
     action.run(engine);
     return { success: true };

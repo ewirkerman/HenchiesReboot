@@ -249,12 +249,12 @@ export function processTargetGroups(ability, ctx) {
         if (eStr) allEffectSentences.push(eStr);
     });
 
-    if (trigger.startsWith('WOULD_') && allEffectSentences.length > 0) {
+   /* if (trigger.startsWith('WOULD_') && allEffectSentences.length > 0) {
         if (!allEffectSentences[0].startsWith('Instead')) {
             const first = allEffectSentences[0];
             allEffectSentences[0] = 'Instead, ' + first.charAt(0).toLowerCase() + first.slice(1);
         }
-    } else if (trigger === 'PLAY_OPTIONAL') {
+    } else */if (trigger === 'PLAY_OPTIONAL') {
         if (allCostSentences.length > 0) {
             const first = allCostSentences[0];
             allCostSentences[0] = 'May ' + first.charAt(0).toLowerCase() + first.slice(1);
