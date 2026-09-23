@@ -1,10 +1,11 @@
 import { CardState } from './state.js';
-import { buildCardState, resetForm, toggleStatFields, populateGenuses } from './form.js';
+import { buildCardState, resetForm, toggleStatFields, populateGenuses, populateCardTypes } from './form.js';
 import { updatePreview } from './preview.js';
 import { renderAssignedAbilities } from './abilities.js';
 import { saveCardToCatalog, deleteCardFromCatalog } from '../../firebase.js';
 import { showToast } from '../../ui.js';
 import { launchSandboxMatch } from '../../testing.js';
+import { CARD_TYPES, CARD_TYPE_LABELS } from '../../engine/card_types.js';
 
 export async function saveCard() {
     const card = buildCardState();
@@ -12,7 +13,7 @@ export async function saveCard() {
         showToast('Please provide a name for the card.', 'error');
         return;
     }
-    if (card.type === 'unit' && !card.family) {
+    if (card.type === CARD_TYPES.UNIT && !card.family) {
         showToast('Units must have a Family assigned.', 'error');
         return;
     }
@@ -87,13 +88,14 @@ export function renderCatalog() {
     catalogEl.setItems(CardState.allCards, (c) => {
         const matchedTribe = CardState.customTribes.find(t => t.id === c.tribe || t.name === c.tribe);
         const tribeName = matchedTribe ? matchedTribe.name : c.tribe;
+        const typeLabel = CARD_TYPE_LABELS[c.type] || c.type;
         return `
         <div onclick="window.loadCard('${c.id}')" class="p-2 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex justify-between items-center cursor-pointer transition">
             <div class="flex items-center gap-2">
                 <span class="w-6 h-6 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[10px]">${c.cost || 0}</span>
                 <div class="flex flex-col">
                     <span class="font-bold text-amber-300">${c.name}</span>
-                    <span class="text-[9px] text-slate-400 capitalize">${tribeName} • ${c.type}</span>
+                    <span class="text-[9px] text-slate-400 capitalize">${tribeName} • ${typeLabel}</span>
                 </div>
             </div>
             ${c.abilities && c.abilities.length > 0 ? `<span class="text-[9px] bg-indigo-950 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-900">${c.abilities.length} Abil</span>` : ''}
@@ -122,7 +124,8 @@ export function loadCard(id) {
     document.getElementById('card-tribe').value = mappedTribe;
     populateGenuses(mappedTribe, card.genus || '');
 
-    document.getElementById('card-type').value = card.type || 'unit';
+    populateCardTypes();
+    document.getElementById('card-type').value = card.type || CARD_TYPES.UNIT;
     document.getElementById('card-default-line').value = card.defaultLine || 'mid';
     document.getElementById('card-genus').value = card.genus || '';
     document.getElementById('card-family').value = card.family || '';
@@ -158,8 +161,12 @@ export function loadCard(id) {
     if (hideDeckbuilderCheckbox) hideDeckbuilderCheckbox.checked = !!card.hideFromDeckBuilder;
     
     CardState.currentAbilities = (card.abilities || []).map(a => {
-        if (typeof a === 'string') return { id: a, paramX: null };
-        return { id: a.abilityId || a.id, paramX: a.paramX !== undefined ? a.paramX : null };
+        if (typeof a === 'string') return { id: a, paramX: null, isSelectable: false };
+        return { 
+            id: a.abilityId || a.id, 
+            paramX: a.paramX !== undefined ? a.paramX : null,
+            isSelectable: !!a.isSelectable
+        };
     });
     
     const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');

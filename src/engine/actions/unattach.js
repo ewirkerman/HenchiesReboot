@@ -1,6 +1,8 @@
 import { Action, revertEffect } from './core.js';
 import { findEntityLocation } from '../utils.js';
 import { moveEntity } from '../utils.js';
+import { CARD_TYPES } from '../../engine/card_types.js';
+
 
 export class UnattachAction extends Action {
     execute(engine) {
@@ -23,10 +25,10 @@ export class UnattachAction extends Action {
             const ownerId = target.originalOwnerId || target.ownerId || loc.playerId || engine.state.activePlayerId;
             target.ownerId = ownerId;
             
-            if (target.type === 'buff') {
+            if (target.type === CARD_TYPES.BUFF || target.type === CARD_TYPES.DEBUFF) {
                 moveEntity(engine, target, ownerId, 'discard');
                 engine.state.history_log.push({ text: `🔓 '${target.name}' unattached and was trashed to discard.`, depth: this.getLogDepth(engine) });
-            } else if (target.type === 'unit') {
+            } else if (target.type === CARD_TYPES.UNIT) {
                 const destLine = target.line || target.defaultLine || 'mid';
                 moveEntity(engine, target, ownerId, destLine);
                 engine.state.history_log.push({ text: `🔓 '${target.name}' unattached and fell to the ${destLine} line.`, depth: this.getLogDepth(engine) });
@@ -35,7 +37,7 @@ export class UnattachAction extends Action {
                 moveEntity(engine, target, ownerId, 'equator');
                 engine.state.history_log.push({ text: `🔓 '${target.name}' unattached and fell to the Equator.`, depth: this.getLogDepth(engine) });
             }
-        } else if (this.payload.target && ['equipment', 'artifact'].includes(this.payload.target.type)) {
+        } else if (this.payload.target && [CARD_TYPES.EQUIPMENT, CARD_TYPES.ARTIFACT].includes(this.payload.target.type)) {
             this.payload.target.readiness = 0;
             moveEntity(engine, this.payload.target, this.payload.target.ownerId || this.payload.target.originalOwnerId || engine.state.activePlayerId, 'equator');
         }

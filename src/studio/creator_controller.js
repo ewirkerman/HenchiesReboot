@@ -20,7 +20,7 @@ window.CardState = CardState;
 window.StudioState = StudioState;
 
 // Card logic
-import { populateGenuses, populateFamily, toggleStatFields, resetForm as resetCardForm, buildCardState } from './card/form.js';
+import { populateGenuses, populateFamily, toggleStatFields, resetForm as resetCardForm, buildCardState, populateCardTypes } from './card/form.js';
 import { renderAssignedAbilities, renderReferencedAbilities } from './card/abilities.js';
 import { updatePreview as updateCardPreview, initImagePanning } from './card/preview.js';
 import { loadCard } from './card/catalog_sync.js';
@@ -33,6 +33,7 @@ import { updateTargetingUI, updateTriggerComposite, populateBaseTriggers, render
 import { validateAbilityLogic } from '../ability_validation.js';
 import { handleDescriptionInput, handleDescriptionKeydown, closeMentionDropdown } from './ability/mentions.js';
 import { ATTRIBUTE_MANIFEST } from '../engine/attributes.js';
+import { CARD_TYPES } from '../engine/card_types.js';
 
 // Import Web Components
 import '../../components/main_nav.js';
@@ -72,6 +73,7 @@ window.CreatorController = {
         }
         tribeSelect.addEventListener('change', (e) => populateGenuses(e.target.value));
         
+        populateCardTypes();
         populateFamily('');
         populateBaseTriggers();
 
@@ -93,7 +95,7 @@ window.CreatorController = {
                 if (match) {
                     const abId = match.abilityId;
                     if (abId && !CardState.currentAbilities.some(a => a.id === abId)) {
-                        CardState.currentAbilities.push({ id: abId, paramX: null });
+                        CardState.currentAbilities.push({ id: abId, paramX: null, isSelectable: false });
                         renderAssignedAbilities();
                         window.updatePreview();
                         this.markDirty();
@@ -184,7 +186,7 @@ window.CreatorController = {
                     if (!hasAb) {
                         assignInput.disabled = true;
                         assignInput.value = 'Assigning...';
-                        match.abilities.push({ abilityId: CreatorState.activeId, paramX: null });
+                        match.abilities.push({ abilityId: CreatorState.activeId, paramX: null, isSelectable: false });
                         await saveCardToCatalog(match);
                         showToast(`Ability assigned to ${match.name}!`, 'success');
                         
@@ -657,7 +659,7 @@ window.CreatorController = {
                 const targetCard = CardState.allCards.find(c => c.id === CreatorState.returnContext.id);
                 if (targetCard) {
                     if (!targetCard.abilities) targetCard.abilities = [];
-                    targetCard.abilities.push({ abilityId: abObj.abilityId, paramX: null });
+                    targetCard.abilities.push({ abilityId: abObj.abilityId, paramX: null, isSelectable: false });
                     await saveCardToCatalog(targetCard);
                 }
                 const targetHash = CreatorState.returnContext.id;
@@ -733,7 +735,7 @@ window.CreatorController = {
                     isValid = false;
                     errorFields.push('card-name');
                 }
-                if (cardObj.type === 'unit' && !cardObj.family) {
+                if (cardObj.type === CARD_TYPES.UNIT && !cardObj.family) {
                     isValid = false;
                     errorFields.push('card-family');
                 }

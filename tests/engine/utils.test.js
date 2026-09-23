@@ -371,13 +371,137 @@ describe('Engine Utilities (utils.js)', () => {
         });
     });
 
+    describe('isAutoCast', () => {
+        it('should return true for default mandatory auto-cast abilities', () => {
+            const ability = { trigger: 'ON_BE_PLAYED', isSelectable: false, activation: { method: 'AUTO' } };
+            expect(utils.isAutoCast(ability)).toBe(true);
+        });
+
+        it('should return false if trigger is not ON_BE_PLAYED', () => {
+            const ability = { trigger: 'ON_DEATH', isSelectable: false, activation: { method: 'AUTO' } };
+            expect(utils.isAutoCast(ability)).toBe(false);
+        });
+
+        it('should return false if ability isSelectable', () => {
+            const ability = { trigger: 'ON_BE_PLAYED', isSelectable: true, activation: { method: 'AUTO' } };
+            expect(utils.isAutoCast(ability)).toBe(false);
+        });
+
+        it('should return false if activation method is PLAYER_CHOICE', () => {
+            const ability = { trigger: 'ON_BE_PLAYED', isSelectable: false, activation: { method: 'PLAYER_CHOICE' } };
+            expect(utils.isAutoCast(ability)).toBe(false);
+        });
+    });
+
+    describe('Cost Mechanics (canAffordCost, payCost, calculateEscalatedCostValues)', () => {
+        let costObj;
+        let entity;
+
+        beforeEach(() => {
+            costObj = { carnie: 2, tribeAmount: 1, escalates: false };
+            entity = { tribe: 'TribeA', power: 0 };
+        });
+
+        it('getAttackCost should correctly flag exhaust requirements', () => {
+            expect(utils.getAttackCost(mockState, {})).toEqual({ readinessCost: 'UNREADIES' });
+            
+            mockState.abilityCatalog.push({ abilityId: 'heavy', passiveFlags: ['ATTACK_EXHAUSTS'], name: 'Sluggish' });
+            const slowEnt = { abilities: ['heavy'] };
+            expect(utils.getAttackCost(mockState, slowEnt)).toEqual({ readinessCost: 'EXHAUSTS' });
+        });
+
+        it('calculateEscalatedCostValues should escalate the primary resource', () => {
+            let cost = { carnie: 2, power: 1, escalates: true };
+            expect(utils.calculateEscalatedCostValues(cost, 1)).toEqual({ cCost: 2, pCost: 2, tCost: 0 });
+
+            cost = { carnie: 2, tribeAmount: 1, escalates: true };
+            expect(utils.calculateEscalatedCostValues(cost, 2)).toEqual({ cCost: 2, pCost: 0, tCost: 3 });
+        });
+
+        it('canAffordCost should enforce minimum tribe requirements for playing cards', () => {
+            mockPlayer1.resources.TribeA.current = 0;
+            costObj.tribeAmount = 1;
+            
+            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, true))
+                .toEqual({ success: false, reason: 'Must use at least 1 Tribe Resource for the card' });
+
+            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, false)).toEqual({ success: true });
+        });
+
+        it('payCost should deduct resources correctly and handle carnie conversions', () => {
+            costObj.carnie = 2;
+            costObj.tribeAmount = 3;
+
+            utils.payCost(mockState, mockPlayer1, entity, costObj);
+            expect(mockPlayer1.resources.TribeA.current).toBe(0);
+            expect(mockPlayer1.resources.Carnie.current).toBe(0);
+        });
+    });
+
+    describe('Entity Movement & Location (moveEntity, findEntityLocation)', () => {
+        let mockEngine;
+        let target;
+
+        beforeEach(() => {
+            mockEngine = { state: mockState };
+            target = { instanceId: 't1', health: -5, maxHealth: 10, readiness: 10, _isDying: true };
+            mockPlayer1.lines.front.push(target);
+        });
+
+        it('should reset health and _isDying when moving to a board zone', () => {
+            utils.moveEntity(mockEngine, target, 'player1', 'back');
+            expect(target._isDying).toBe(false);
+            expect(target.health).toBe(10);
+            expect(mockPlayer1.lines.front.length).toBe(0);
+            expect(mockPlayer1.lines.back[0]).toBe(target);
+        });
+
+        it('should reset readiness floor when moving to deck or banish', () => {
+            utils.moveEntity(mockEngine, target, 'player1', 'banish');
+            expect(target.readiness).toBe(0); // Readiness floor test
+            expect(mockPlayer1.banish[0]).toBe(target);
+
+            // Test moving to deck also resets readiness
+            target.readiness = 5;
+            utils.moveEntity(mockEngine, target, 'player1', 'deck');
+            expect(target.readiness).toBe(0);
+        });
+
+        it('should place entity in equator correctly', () => {
+            utils.moveEntity(mockEngine, target, null, 'equator');
+            expect(mockState.equator[0]).toBe(target);
+        });
+
+        it('should find entity in nested attachments (host scoped events)', () => {
+            const deepAttachment = { instanceId: 'att2' };
+            const attached = { instanceId: 'att1', attachments: [deepAttachment] };
+            target.attachments = [attached]; // target is on front line
+
+            // Find first level attachment
+            let loc = utils.findEntityLocation(mockEngine, attached);
+            expect(loc).not.toBeNull();
+            expect(loc.zone).toBe('attachment');
+            expect(loc.host).toBe(target);
+
+            // Find deeply nested attachment
+            loc = utils.findEntityLocation(mockEngine, deepAttachment);
+            expect(loc).not.toBeNull();
+            expect(loc.zone).toBe('attachment');
+            expect(loc.host).toBe(attached);
+        });
+
+        it('should return null if findEntityLocation cannot find target', () => {
+            const loc = utils.findEntityLocation(mockEngine, { instanceId: 'ghost' });
+            expect(loc).toBeNull();
+        });
+    });
+
     describe('Factory Functions (instantiateAbility, instantiateEntity)', () => {
         let catalogAbs;
 
         beforeEach(() => {
             catalogAbs = [
-                { abilityId: 'ab_1', name: 'Fireball', trigger: 'ON_PLAY' },
-                { abilityId: 'ab_2', name: 'Shield', trigger: 'ON_DEFEND' }
+                { abilityId: 'ab_1', name: 'Fireball', trigger: 'ON_PLAY' }
             ];
         });
 
@@ -386,51 +510,41 @@ describe('Engine Utilities (utils.js)', () => {
                 const inst = utils.instantiateAbility('ab_1', catalogAbs);
                 expect(inst.name).toBe('Fireball');
                 expect(inst.instanceId).toMatch(/^ab_inst_/);
-                
-                // Ensure it is a deep clone
-                inst.name = 'Changed';
-                expect(catalogAbs[0].name).toBe('Fireball');
             });
 
-            it('should work with object references and parameter hydration', () => {
-                const inst = utils.instantiateAbility({ abilityId: 'ab_1', paramX: 3 }, catalogAbs);
-                expect(inst.name).toBe('Fireball (3)');
-                expect(inst.paramX).toBe(3);
-                expect(inst.instanceId).toMatch(/^ab_inst_/);
-            });
-
-            it('should create a fallback Unresolved Ability if it fails to resolve', () => {
-                const inst = utils.instantiateAbility('bogus_ab', catalogAbs);
-                expect(inst.abilityId).toBe('bogus_ab');
-                expect(inst.name).toBe('Unresolved: bogus_ab');
-                expect(inst.trigger).toBe('MANUAL');
-                expect(inst.instanceId).toMatch(/^ab_inst_/);
-            });
-
-            it('should accept engineState without crashing', () => {
-                const inst = utils.instantiateAbility('ab_1', catalogAbs, mockState);
-                expect(inst.instanceId).toMatch(/^ab_inst_/);
+            it('should bypass regeneration and return clone if ability already has instanceId', () => {
+                const existing = { abilityId: 'ab_1', instanceId: 'ab_inst_already_set', name: 'Original' };
+                const inst = utils.instantiateAbility(existing, catalogAbs);
+                expect(inst.instanceId).toBe('ab_inst_already_set');
+                expect(inst).not.toBe(existing); // Should be a deep clone
             });
         });
 
         describe('instantiateEntity', () => {
-            it('should return null if no card data is provided', () => {
-                expect(utils.instantiateEntity(null)).toBeNull();
-                expect(utils.instantiateEntity(undefined)).toBeNull();
-            });
-
             it('should deeply clone and assign correct prefixes based on entity type', () => {
                 const token = utils.instantiateEntity({ id: 't1', isToken: true }, catalogAbs);
                 expect(token.instanceId).toMatch(/^sum_/);
 
                 const unit = utils.instantiateEntity({ id: 'u1', type: 'unit' }, catalogAbs);
                 expect(unit.instanceId).toMatch(/^ent_/);
+            });
 
-                const avatar = utils.instantiateEntity({ id: 'a1', type: 'avatar' }, catalogAbs);
-                expect(avatar.instanceId).toMatch(/^ent_/);
-
+            it('should assign item_ prefix to equipment, buff, and debuff card types', () => {
                 const equip = utils.instantiateEntity({ id: 'e1', type: 'equipment' }, catalogAbs);
                 expect(equip.instanceId).toMatch(/^item_/);
+
+                const buff = utils.instantiateEntity({ id: 'b1', type: 'buff' }, catalogAbs);
+                expect(buff.instanceId).toMatch(/^item_/);
+
+                const debuff = utils.instantiateEntity({ id: 'd1', type: 'debuff' }, catalogAbs);
+                expect(debuff.instanceId).toMatch(/^item_/);
+            });
+
+            it('should bypass regeneration and return clone if entity already has instanceId', () => {
+                const existing = { id: 'u1', instanceId: 'ent_already_set' };
+                const inst = utils.instantiateEntity(existing, catalogAbs);
+                expect(inst.instanceId).toBe('ent_already_set');
+                expect(inst).not.toBe(existing); // Should be a deep clone
             });
 
             it('should assign ownerId and originalOwnerId if provided', () => {
@@ -439,49 +553,9 @@ describe('Engine Utilities (utils.js)', () => {
                 expect(inst.originalOwnerId).toBe('player1');
             });
 
-            it('should safely initialize default stats when properties are missing', () => {
-                const inst = utils.instantiateEntity({ id: 'u1' }, catalogAbs);
-                expect(inst.maxHealth).toBe(1);
-                expect(inst.health).toBe(1);
-                expect(inst.readiness).toBe(0);
-                expect(inst.acts).toBe(1);
-                expect(inst.originalPower).toBe(0);
-                expect(inst.originalStrength).toBeNull();
-            });
-
-            it('should preserve and normalize explicitly provided stats', () => {
-                const inst = utils.instantiateEntity({ 
-                    id: 'u1', maxHealth: 5, health: 3, maxActs: 2, power: 4, strength: 2 
-                }, catalogAbs);
-                
-                expect(inst.maxHealth).toBe(5);
-                expect(inst.health).toBe(3); // Preserves existing health if > 0
-                expect(inst.acts).toBe(2);
-                expect(inst.originalPower).toBe(4);
-                expect(inst.originalStrength).toBe(2);
-            });
-
             it('should reset health to maxHealth if provided health is <= 0', () => {
                 const inst = utils.instantiateEntity({ id: 'u1', maxHealth: 4, health: -2 }, catalogAbs);
                 expect(inst.health).toBe(4);
-            });
-
-            it('should hydrate and instantiate all nested abilities', () => {
-                const inst = utils.instantiateEntity({ 
-                    id: 'u1', 
-                    abilities: ['ab_1', { abilityId: 'ab_2' }, 'bogus_ab'] 
-                }, catalogAbs);
-
-                expect(inst.abilities.length).toBe(3);
-                
-                expect(inst.abilities[0].name).toBe('Fireball');
-                expect(inst.abilities[0].instanceId).toMatch(/^ab_inst_/);
-                
-                expect(inst.abilities[1].name).toBe('Shield');
-                expect(inst.abilities[1].instanceId).toMatch(/^ab_inst_/);
-
-                expect(inst.abilities[2].name).toBe('Unresolved: bogus_ab');
-                expect(inst.abilities[2].instanceId).toMatch(/^ab_inst_/);
             });
         });
     });

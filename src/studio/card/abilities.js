@@ -1,5 +1,3 @@
-// filepath: src/studio/card/abilities.js
-
 import { CardState } from './state.js';
 import { updatePreview } from './preview.js';
 import { buildCardState } from './form.js';
@@ -24,10 +22,18 @@ export function renderAssignedAbilities() {
         }
         
         const xInputHtml = hasX ? `
-            <div class="flex items-center gap-1 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-900/50 ml-2">
+            <div class="pointer-events-auto flex items-center gap-1 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-900/50 ml-2">
                 <span class="text-[10px] font-black text-amber-500">X =</span>
                 <input type="number" value="${obj.paramX !== null ? obj.paramX : 1}" onchange="window.updateAbilityParamX(${index}, this.value)" class="w-10 bg-slate-900 border border-slate-700 rounded text-[10px] text-white px-1 text-center font-bold outline-none focus:border-amber-500">
             </div>
+        ` : '';
+
+        // Only show the toggle if the ability is specifically ON_BE_PLAYED
+        const isPlayMandatory = ab.trigger === 'ON_BE_PLAYED';
+        const selectableHtml = isPlayMandatory ? `
+            <button onclick="window.toggleAbilitySelectable(${index})" title="${obj.isSelectable ? 'Selectable option in UI' : 'Auto-casts on play'}" class="pointer-events-auto ml-2 px-1.5 py-0.5 rounded border text-[9px] font-bold transition-colors ${obj.isSelectable ? 'bg-fuchsia-900/40 border-fuchsia-700/50 text-fuchsia-300' : 'bg-slate-800/50 border-slate-700 text-slate-500 hover:text-slate-300'}">
+                ${obj.isSelectable ? '☑ Selectable' : '☐ Auto-cast'}
+            </button>
         ` : '';
 
         const linkHref = window.CreatorController ? `#${ab.abilityId}` : `abilities.html#${ab.abilityId}`;
@@ -43,6 +49,7 @@ export function renderAssignedAbilities() {
                     <span class="text-indigo-500/50 text-[10px] shrink-0">☰</span>
                     <span class="font-bold text-indigo-300 truncate">${ab.name}</span>
                     ${xInputHtml}
+                    ${selectableHtml}
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition p-1 rounded bg-slate-900 border border-slate-700 text-[10px] flex items-center justify-center">📋</button>
@@ -146,6 +153,12 @@ export function removeAbility(index) {
     updatePreview();
 }
 
+export function toggleAbilitySelectable(index) {
+    CardState.currentAbilities[index].isSelectable = !CardState.currentAbilities[index].isSelectable;
+    renderAssignedAbilities();
+    updatePreview();
+}
+
 export function updateAbilityParamX(index, value) {
     CardState.currentAbilities[index].paramX = parseInt(value);
     updatePreview();
@@ -203,6 +216,7 @@ export async function createNewAbilityForCard() {
 
 // Bind to window
 window.removeAbility = removeAbility;
+window.toggleAbilitySelectable = toggleAbilitySelectable;
 window.copyAbilityJSON = copyAbilityJSON;
 window.handleDragStart = handleDragStart;
 window.handleDragOver = handleDragOver;

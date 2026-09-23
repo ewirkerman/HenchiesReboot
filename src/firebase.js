@@ -352,7 +352,8 @@ export async function saveCardToCatalog(cardData) {
       dbPayload.abilities = dbPayload.abilities.map(ab => {
           return {
               abilityId: ab.abilityId || ab.id || ab,
-              paramX: ab.paramX !== undefined ? ab.paramX : null
+              paramX: ab.paramX !== undefined ? ab.paramX : null,
+              isSelectable: !!ab.isSelectable // Included in Firestore mapping so it persists
           };
       });
   }

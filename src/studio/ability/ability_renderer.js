@@ -1,4 +1,5 @@
 import { CONTEXT_TYPES, ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
+import { CARD_TYPES, CARD_TYPE_LABELS } from '../../engine/card_types.js';
 
 export const OPERATORS = { '==': 'Is (==)', '!=': 'Is Not (!=)', '>': 'Greater Than (>)', '<': 'Less Than (<)', '>=': 'X or more (>=)', '<=': 'X or less (<=)' };
 
@@ -29,7 +30,12 @@ export function generateQuickMatrixHTML(context, targetState, index = null) {
           {label: 'Banish', value: 'BANISH'}, {label: 'Orig. Deck', value: 'ORIGINAL_DECK'}
       ];
       const alignmentOptions = [{label: 'Friendly', value: 'FRIENDLY'}, {label: 'Enemy', value: 'ENEMY'}];
-      const entityOptions = [{label: 'Unit', value: 'UNIT'}, {label: 'Avatar', value: 'AVATAR'}, {label: 'Equipment', value: 'EQUIPMENT'}, {label: 'Artifact', value: 'ARTIFACT'}, {label: 'Spell', value: 'SPELL'}, {label: 'Boon', value: 'BOON'}];
+      const entityOptions = Object.values(CARD_TYPES).map(type => ({
+          label: CARD_TYPE_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1),
+          value: type.toUpperCase()
+      }));
+      // Add non-card entities explicitly if needed
+      entityOptions.push({label: 'Buff', value: 'BUFF'}, {label: 'Debuff', value: 'DEBUFF'});
 
       const toggleBoolHandler = context === 'activation'
         ? `window.toggleQuickMatrixBoolean('activation', null, 'ignoreBattlelines')`
@@ -454,7 +460,7 @@ export function generateEffectsHTML(ctx) {
     return effectGroups.map((group, gIdx) => {
         const payloadsHtml = group.payloads.map((payload, pIdx) => renderPayload(payload, gIdx, pIdx, false, null, group)).join('');
 
-        group.quickTargeting = group.quickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+        group.quickTargeting = group.quickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: [CARD_TYPES.UNIT.toUpperCase(), CARD_TYPES.AVATAR.toUpperCase()], ignoreBattlelines: false };
 
         return `
           <div class="flex flex-col gap-3 bg-slate-900/80 p-4 rounded-xl border border-slate-700 relative shadow-inner">

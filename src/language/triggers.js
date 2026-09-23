@@ -37,6 +37,7 @@ export function getTriggerWord(t) {
     }
 
     if (t.startsWith('MODIFY_')) return `Before ${base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()}`;
+    if (t.startsWith('WOULD_')) return `Block ${base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()}`;
     return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
 }
 
