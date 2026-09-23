@@ -3,7 +3,7 @@
  * Top-level player actions and turn progression flow.
  */
 
-import { GameEngine } from './targeting.js';
+import { GameEngine } from './index.js';
 import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG, hasEngineFlag, isEntityOnBoard, canAffordCost, payCost, findEntity, getAttackCost } from './utils.js';
 import { HarvestAction, PlayAction, sweepTurnEffects } from './actions/action_index.js';
 import { generateId, shuffleArray } from './prandom.js';

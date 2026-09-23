@@ -3,7 +3,7 @@
  * Logic for determining valid targets and available actions.
  */
 
-import { hasEngineFlag, resolveResourceKey, LINES, isUndoable, findEntity, canAffordCost, getAttackCost, isEntityOnBoard, isAutoCast } from './utils.js';
+import { hasEngineFlag, resolveResourceKey, LINES, isUndoable, findEntity, canAffordCost, getAttackCost, isEntityOnBoard, isAutoCast, getAvatar } from './utils.js';
 import { GameEngine } from './index.js';
 
 function getStat(entity, statKey) {
@@ -15,8 +15,7 @@ function extractQuickTargeting(ability) {
     if (ability?.activation?.quickTargeting) {
         return ability.activation.quickTargeting;
     }
-    const explicitEffectQt = (ability?.effects || []).find(group => group?.quickTargeting)?.quickTargeting;
-    return explicitEffectQt || null;
+    return  null;
 }
 
 function deduplicateTargets(targets) {
@@ -254,6 +253,69 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     return deduplicateTargets(targets);
 }
 
+export function resolveTargetById(state, targetId) {
+    if (!targetId) return null;
+    const p1 = state.players.player1;
+    const p2 = state.players.player2;
+    const allEntities = [
+        ...Object.values(p1.lines).flat(), ...Object.values(p2.lines).flat(),
+        ...(state.equator || []),
+        ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
+        ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
+    ].filter(Boolean);
+    return allEntities.find(e => e.id === targetId || e.instanceId === targetId) || null;
+}
+
+export function acquireTargets(state, ability, source, eventPayload, ownerId) {
+    return ability.effects.map((group, index) => {
+        if (!group) return [];
+        let targets = [];
+        
+        if (group.targetMethod === 'SELF') targets = [source];
+        else if (group.targetMethod === 'EVENT_SOURCE') {
+            if (eventPayload?.source) targets = [eventPayload.source];
+            else if (eventPayload?.playerId) {
+                const av = getAvatar(state, eventPayload.playerId);
+                if (av) targets = [av];
+            }
+        }
+        else if (group.targetMethod === 'EVENT_TARGET') {
+            if (eventPayload?.target) targets = [eventPayload.target];
+            else if (eventPayload?.playerId) {
+                const av = getAvatar(state, eventPayload.playerId);
+                if (av) targets = [av];
+            }
+        }
+        else if (group.targetMethod === 'AVATAR') {
+            const av = getAvatar(state, ownerId);
+            targets = av ? [av] : [];
+        }
+        else if (group.targetMethod === 'ENEMY_AVATAR') {
+            const oppId = ownerId === 'player1' ? 'player2' : 'player1';
+            const av = getAvatar(state, oppId);
+            targets = av ? [av] : [];
+        }
+        else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
+            const tunneledTargetId = eventPayload?.abilityTargetId || eventPayload?.eventContext?.abilityTargetId;
+            if (tunneledTargetId) {
+                const resolvedTarget = resolveTargetById(state, tunneledTargetId);
+                targets = [resolvedTarget || eventPayload.target || source];
+            } else if (eventPayload) {
+                if (eventPayload.target?.instanceId === source.instanceId && eventPayload.source) targets = [eventPayload.source];
+                else targets = [eventPayload.target || source];
+            } else {
+                targets = [source];
+            }
+        }
+        else if (group.targetMethod?.startsWith('AUTO_')) {
+            return []; 
+        }
+        
+        if (targets.length === 0 && group.targetMethod === 'SAME_AS_ACTIVATION' && eventPayload?.target) targets = [eventPayload.target];
+        return targets;
+    });
+}
+
 function isEntityInHand(state, playerId, entity) {
     const p = state.players[playerId];
     if (!p) return false;
@@ -325,6 +387,40 @@ function checkStatCostValidity(entity, ability, targetMethod) {
     return true;
 }
 
+function hasValidEffectTargets(engine, state, playerId, entity, ability) {
+    if (!ability.effects || ability.effects.length === 0) return true;
+    
+    for (const group of ability.effects) {
+        if (!group) continue;
+        
+        // These target methods inherently have a valid resolution context
+        if (['SELF', 'AVATAR', 'ENEMY_AVATAR'].includes(group.targetMethod)) {
+            return true;
+        }
+        
+        // Player choice handles its own validation in getValidAbilityTargets
+        if (group.targetMethod === 'SAME_AS_ACTIVATION') {
+            return true; 
+        }
+        
+        // For automated targets, simulate the engine's targeting to ensure at least one entity is affected
+        if (group.targetMethod?.startsWith('AUTO_')) {
+            let pool = engine.findEntitiesInScope(group.quickTargeting, playerId);
+            pool = pool.filter(ent => engine.evaluateLogicTree(group.logicTree, ent, entity, null));
+            if (pool.length > 0) {
+                return true;
+            }
+        }
+        
+        // Event driven targets are valid assuming they only trigger on those events
+        if (['EVENT_SOURCE', 'EVENT_TARGET'].includes(group.targetMethod)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 function buildPlayAction(state, playerId, entity) {
     if (!isEntityInHand(state, playerId, entity)) return null;
 
@@ -391,6 +487,12 @@ function buildAbilityAction(state, playerId, entity, ability) {
     if (requiresTarget) {
         validTargets = getValidAbilityTargets(state, playerId, entity.instanceId, ability.abilityId);
         if (validTargets.length === 0) return null; 
+    }
+
+    // Ensure that at least one effect group will actually find a target when executed
+    const engine = new GameEngine(state);
+    if (!hasValidEffectTargets(engine, state, playerId, entity, ability)) {
+        return null;
     }
 
     return { 

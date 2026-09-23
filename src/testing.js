@@ -1,6 +1,5 @@
 import { createGameRoom, fetchCustomAbilities, fetchCustomCards, fetchCustomTribes, fetchUserDecks } from './firebase.js';
-import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility, instantiateEntity, instantiateAbility, startTurn } from './engine/index.js';
-import { GameEngine } from './engine/targeting.js';
+import { CARD_CATALOG, GLOBAL_UNDO_POLICY, hydrateAbility, instantiateEntity, instantiateAbility, GameEngine, startTurn } from './engine/index.js';
 
 /*
  * =========================================================================================

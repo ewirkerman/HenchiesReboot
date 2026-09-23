@@ -17,7 +17,8 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
 
 jest.unstable_mockModule('../../src/engine/index.js', () => ({
     GameEngine: jest.fn().mockImplementation(() => ({
-        evaluateLogicTree: jest.fn(() => true)
+        evaluateLogicTree: jest.fn(() => true),
+        findEntitiesInScope: jest.fn(() => [])
     }))
 }));
 
@@ -548,24 +549,6 @@ describe('targeting.js core logic', () => {
 
             let targetsE = getValidAbilityTargets(mockState, 'player1', 's_align', 'ab_e');
             expect(targetsE.some(t => t.id === 'friend')).toBe(false);
-        });
-
-        it('should extract quickTargeting from effects if missing in activation, or return [] if none exists', () => {
-            const weirdSpell = {
-                id: 'weird_spell', instanceId: 'weird_spell', type: 'spell', ownerId: 'player1',
-                abilities: [
-                    { abilityId: 'ab_effect_qt', trigger: 'ON_BE_PLAYED', activation: { method: 'PLAYER_CHOICE' }, effects: [{ quickTargeting: { zones: ['FIELD'] } }] },
-                    { abilityId: 'ab_no_qt', trigger: 'ON_BE_PLAYED', activation: { method: 'PLAYER_CHOICE' } } 
-                ]
-            };
-            mockState.players.player1.hand.push(weirdSpell);
-            mockState.players.player2.lines.mid.push({ id: 't1', instanceId: 't1', type: 'unit', ownerId: 'player2' });
-
-            const targetsWithEffectQt = getValidAbilityTargets(mockState, 'player1', 'weird_spell', 'ab_effect_qt');
-            expect(targetsWithEffectQt).toHaveLength(1);
-
-            const targetsWithNoQt = getValidAbilityTargets(mockState, 'player1', 'weird_spell', 'ab_no_qt');
-            expect(targetsWithNoQt).toHaveLength(0);
         });
 
         it('should properly escalate power and tribeAmount costs', () => {
