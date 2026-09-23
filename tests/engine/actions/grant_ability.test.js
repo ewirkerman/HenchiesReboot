@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import { GrantAbilityAction } from '../../../src/engine/actions/grant_ability.js';
-import { GameEngine } from '../../../src/engine/index.js';
+import { GameEngine } from '../../../src/engine/targeting.js';
 
 function createPlayer() {
     return {

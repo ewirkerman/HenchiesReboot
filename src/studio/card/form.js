@@ -4,6 +4,27 @@ import { renderAssignedAbilities } from './abilities.js';
 import { ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
 import { hydrateAbility } from '../../engine/utils.js';
 import { generateAbilityDescription } from '../../language_description.js';
+import { CARD_TYPES, CARD_TYPE_LABELS } from '../../engine/card_types.js';
+
+export function populateCardTypes() {
+    const typeSelect = document.getElementById('card-type');
+    if (!typeSelect) return;
+    
+    const currentVal = typeSelect.value;
+    let optionsHtml = '';
+    
+    for (const [key, value] of Object.entries(CARD_TYPES)) {
+        const label = CARD_TYPE_LABELS[value] || value.charAt(0).toUpperCase() + value.slice(1);
+        optionsHtml += `<option value="${value}">${label}</option>`;
+    }
+    
+    typeSelect.innerHTML = optionsHtml;
+    if (currentVal && typeSelect.querySelector(`option[value="${currentVal}"]`)) {
+        typeSelect.value = currentVal;
+    } else {
+        typeSelect.value = CARD_TYPES.UNIT;
+    }
+}
 
 export function populateGenuses(tribeId, currentGenus = '') {
     const genusSelect = document.getElementById('card-genus');
@@ -41,7 +62,8 @@ export function populateFamily(currentFamily = '') {
 }
 
 export function toggleStatFields() {
-    const type = document.getElementById('card-type').value.toUpperCase();
+    const type = document.getElementById('card-type').value;
+    const typeUpper = type.toUpperCase();
     
     const fieldMapping = {
         'health': 'stat-health-container',
@@ -54,11 +76,11 @@ export function toggleStatFields() {
     };
 
     const healthInput = document.getElementById('card-health');
-    if (type === 'AVATAR' && healthInput.value === '1') {
+    if (type === CARD_TYPES.AVATAR && healthInput.value === '1') {
         healthInput.value = '20';
-    } else if (type === 'UNIT' && healthInput.value === '20') {
+    } else if (type === CARD_TYPES.UNIT && healthInput.value === '20') {
         healthInput.value = '1';
-    } else if (type !== 'AVATAR' && type !== 'UNIT') {
+    } else if (type !== CARD_TYPES.AVATAR && type !== CARD_TYPES.UNIT) {
         if (healthInput.value === '1' || healthInput.value === '20') {
             healthInput.value = ''; // Clear it out to show it is optional
         }
@@ -71,7 +93,7 @@ export function toggleStatFields() {
         const inputEl = container.querySelector('input, select');
         const manifestDef = ATTRIBUTE_MANIFEST[attr];
         
-        if (manifestDef && (manifestDef.allowedTypes.includes('ALL') || manifestDef.allowedTypes.includes(type))) {
+        if (manifestDef && (manifestDef.allowedTypes.includes('ALL') || manifestDef.allowedTypes.includes(typeUpper))) {
             container.classList.remove('opacity-40', 'pointer-events-none', 'grayscale');
             if (inputEl) inputEl.disabled = false;
         } else {
@@ -80,10 +102,10 @@ export function toggleStatFields() {
         }
     }
 
-    if (type === 'EQUIPMENT') {
+    if (type === CARD_TYPES.EQUIPMENT) {
         const attachAb = CardState.allAbilities.find(a => a.name.toLowerCase() === 'attach to a unit' || a.name.toLowerCase() === 'attach');
         if (attachAb && !CardState.currentAbilities.some(a => a.id === attachAb.abilityId)) {
-            CardState.currentAbilities.push({ id: attachAb.abilityId, paramX: null });
+            CardState.currentAbilities.push({ id: attachAb.abilityId, paramX: null, isSelectable: false });
             renderAssignedAbilities();
             updatePreview();
         }
@@ -102,7 +124,7 @@ export function resetForm() {
     const tribeEl = document.getElementById('card-tribe');
     if (tribeEl && CardState.customTribes.length > 0) tribeEl.value = CardState.customTribes[0].id;
     
-    document.getElementById('card-type').value = 'unit';
+    document.getElementById('card-type').value = CARD_TYPES.UNIT;
     document.getElementById('card-default-line').value = 'mid';
     populateGenuses(tribeEl ? tribeEl.value : '', '');
     populateFamily('');
@@ -130,6 +152,7 @@ export function resetForm() {
     const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
     if (topbar) topbar.showButtons(false);
     
+    populateCardTypes();
     toggleStatFields();
     renderAssignedAbilities();
     updatePreview();
@@ -147,8 +170,8 @@ export function buildCardState(forceId = null) {
     
     const parsedHealth = parseInt(document.getElementById('card-health').value);
     let defaultHealth = null;
-    if (typeUpper === 'AVATAR') defaultHealth = 20;
-    else if (typeUpper === 'UNIT') defaultHealth = 1;
+    if (cardType === CARD_TYPES.AVATAR) defaultHealth = 20;
+    else if (cardType === CARD_TYPES.UNIT) defaultHealth = 1;
     
     const finalHealth = isAllowed('health') ? (!isNaN(parsedHealth) ? parsedHealth : defaultHealth) : null;
     
@@ -201,7 +224,7 @@ export function buildCardState(forceId = null) {
             let pX = obj.paramX;
             if (hasX && (pX === null || pX === undefined)) pX = 1;
             
-            let hydrated = hydrateAbility({ abilityId: obj.id, paramX: pX }, CardState.allAbilities);
+            let hydrated = hydrateAbility({ abilityId: obj.id, paramX: pX, isSelectable: obj.isSelectable }, CardState.allAbilities);
             if (!hydrated) return null;
             
             try {
@@ -218,9 +241,11 @@ export function buildCardState(forceId = null) {
         state.defaultLine = document.getElementById('card-default-line').value;
     }
     
+    populateCardTypes();
     return state;
 }
 
 // Bind for HTML calls
+window.populateCardTypes = populateCardTypes;
 window.populateGenuses = populateGenuses;
 window.populateFamily = populateFamily;

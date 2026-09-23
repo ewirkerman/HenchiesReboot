@@ -221,14 +221,22 @@ export function updateTargetingUI() {
     const scopeSelect = document.getElementById('ab-trigger-scope');
 
     const validScopes = getValidScopes(baseTrigger);
+    if (!validScopes.includes('HOST')) validScopes.push('HOST');
+    
+    const scopeLabels = {
+        'PERSONAL': 'Personal (Self only)',
+        'GLOBAL': 'Global (Board-wide)',
+        'HOST': 'Host (Attached Unit)'
+    };
+
     const scopeContainer = document.getElementById('trigger-scope-container');
     
     if (validScopes.length > 1) {
          scopeContainer.classList.remove('hidden');
-         scopeSelect.innerHTML = validScopes.map(s => `<option value="${s}" ${scopeSelect.value === s ? 'selected' : ''}>${s === 'PERSONAL' ? 'Personal (Self only)' : 'Global (Board-wide)'}</option>`).join('');
+         scopeSelect.innerHTML = validScopes.map(s => `<option value="${s}" ${scopeSelect.value === s ? 'selected' : ''}>${scopeLabels[s] || s}</option>`).join('');
     } else {
          scopeContainer.classList.add('hidden');
-         scopeSelect.innerHTML = `<option value="${validScopes[0]}" selected>${validScopes[0] === 'PERSONAL' ? 'Personal (Self only)' : 'Global (Board-wide)'}</option>`;
+         scopeSelect.innerHTML = `<option value="${validScopes[0]}" selected>${scopeLabels[validScopes[0]] || validScopes[0]}</option>`;
     }
     
     const scope = scopeSelect.value;

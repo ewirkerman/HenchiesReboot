@@ -5,7 +5,7 @@ export const STRICTLY_POSITIVE_ACTIONS = ['DEAL_DAMAGE', 'HEAL', 'DRAW_CARD', 'D
 
 export function getValidScopes(trigger) {
     if (['MANUAL', 'UNTRIGGERABLE', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) return ['PERSONAL'];
-    return ['PERSONAL', 'GLOBAL'];
+    return ['PERSONAL', 'HOST', 'GLOBAL'];
 }
 
 export function getValidActivationMethods(trigger, scope) {

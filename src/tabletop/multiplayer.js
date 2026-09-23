@@ -1,7 +1,8 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { createGameRoom, subscribeToGameRoom, pushActionToLog, findOpenQueueRoom, sendDirectInvite, updateInviteStatus } from '../firebase.js';
-import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, instantiateEntity, GameEngine, startTurn } from '../engine/index.js';
+import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, instantiateEntity, startTurn } from '../engine/index.js';
+import { GameEngine } from '../engine/targeting.js';
 import { showToast } from '../ui.js';
 import { checkTurnStateForNotification } from '../profile.js';
 

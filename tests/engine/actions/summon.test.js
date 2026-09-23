@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import { SummonAction } from '../../../src/engine/actions/summon.js';
-import { GameEngine } from '../../../src/engine/index.js';
+import { GameEngine } from '../../../src/engine/targeting.js';
 import { ACTION_REGISTRY, Action } from '../../../src/engine/actions/core.js';
 
 function createPlayer() {

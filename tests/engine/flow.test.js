@@ -3,7 +3,10 @@ import * as actualUtils from '../../src/engine/utils.js';
 
 jest.unstable_mockModule('../../src/engine/index.js', () => ({
     GameEngine: class MockEngine {
-        constructor() { this.emit = jest.fn(); }
+        constructor() { 
+            this.emit = jest.fn(); 
+            this.executeAbility = jest.fn(); // Add this line
+        }
     }
 }));
 
@@ -14,7 +17,9 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
     hasEngineFlag: jest.fn((state, entity, flag) => {
         if (entity.id === 'unique_card' && flag === 'UNIQUE_ENTITY') return true;
         return actualUtils.hasEngineFlag(state, entity, flag);
-    })
+    }),
+    findEntity: jest.fn((entity) => entity),
+    getAttackCost: jest.fn(() => ({ freeAction: false }))
 }));
 
 jest.unstable_mockModule('../../src/engine/actions/action_index.js', () => ({
@@ -138,6 +143,134 @@ describe('flow.js core mechanics', () => {
             flow.executeSacrificeDecision(mockState, 'SKIP', null);
             
             expect(mockState.turnPhase).toBe('ACTION_PHASE');
+        });
+    });
+
+    describe('Start Turn Coverage (Readiness Floors, InstanceIds, Card Types)', () => {
+        it('should generate instanceIds for deck cards missing them and preserve existing ones[cite: 2]', () => {
+            mockState.players.player1.setupComplete = false;
+            mockState.players.player1.unplayedDeck = [
+                { id: 'c1' }, 
+                { id: 'c2', instanceId: 'kept_id' }
+            ];
+            
+            flow.startTurn(mockState, null);
+            
+            const allCards = [...mockState.players.player1.deck, ...mockState.players.player1.hand];
+            const c1 = allCards.find(c => c.id === 'c1');
+            const c2 = allCards.find(c => c.id === 'c2');
+            
+            expect(c1.instanceId).toBeDefined();
+            expect(c1.instanceId).toContain('player1_c_');
+            expect(c2.instanceId).toBe('kept_id');
+        });
+
+        it('should floor NaN readiness values to 1 and handle attachment readiness[cite: 2]', () => {
+            const unit = { 
+                id: 'u1', 
+                ownerId: 'player1', 
+                readiness: 'invalid', 
+                acts: 0, 
+                attachments: [{ id: 'a1', readiness: NaN, ownerId: 'player1' }] 
+            };
+            mockState.players.player1.lines.mid.push(unit);
+            
+            flow.startTurn(mockState, null);
+            
+            expect(unit.readiness).toBe(1);
+            expect(unit.attachments[0].readiness).toBe(1);
+        });
+
+        it('should handle discard acts resetting, ignoring unhandled types like buff/debuff[cite: 2]', () => {
+             const unitCard = { id: 'discard1', type: 'unit' };
+             const buffCard = { id: 'discard2', type: 'buff' };
+             mockState.players.player1.discard.push(unitCard, buffCard);
+             
+             flow.startTurn(mockState, null);
+             
+             expect(unitCard.acts).toBe(1);
+             expect(buffCard.acts).toBeUndefined();
+        });
+    });
+
+    describe('Card Play Constraints (Mandatory Targets & Autocasting)', () => {
+        it('should block play if no valid targets exist for mandatory target ability[cite: 2]', () => {
+            const spellCard = {
+                id: 'spell1',
+                cost: 1,
+                tribe: 'Carnie',
+                abilities: [{
+                    trigger: 'PLAY',
+                    activation: {
+                        method: 'PLAYER_CHOICE',
+                        quickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'] }
+                    }
+                }]
+            };
+            mockState.players.player1.hand.push(spellCard);
+            
+            const result = flow.canPlayCard(mockState, 'player1', spellCard);
+            
+            expect(result.success).toBe(false);
+            expect(result.reason).toContain('No valid targets on the board for mandatory ability.');
+        });
+
+        it('should allow play if valid targets exist for mandatory target ability[cite: 2]', () => {
+            const spellCard = {
+                id: 'spell1',
+                cost: 1,
+                tribe: 'Carnie',
+                abilities: [{
+                    trigger: 'PLAY',
+                    activation: {
+                        method: 'PLAYER_CHOICE',
+                        quickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'] }
+                    }
+                }]
+            };
+            mockState.players.player1.hand.push(spellCard);
+            mockState.players.player2.lines.mid.push({ id: 'u1' });
+            
+            const result = flow.canPlayCard(mockState, 'player1', spellCard);
+            
+            expect(result.success).toBe(true);
+        });
+
+        it('should execute playCard and successfully filter ON_BE_PLAYED abilities for autocast context[cite: 2]', () => {
+            const autoCard = {
+                id: 'auto_card',
+                instanceId: 'inst_auto',
+                cost: 0,
+                tribe: 'Carnie',
+                abilities: [
+                    { trigger: 'ON_BE_PLAYED', isSelectable: false, activation: { method: 'AUTO' } },
+                    { trigger: 'ON_BE_PLAYED', isSelectable: true, activation: { method: 'PLAYER_CHOICE' } }
+                ]
+            };
+            mockState.players.player1.hand.push(autoCard);
+            
+            const result = flow.playCard(mockState, 'player1', 'inst_auto');
+            
+            expect(result.success).toBe(true);
+        });
+    });
+
+    describe('Entity Action Execution (executeEntityAction)', () => {
+        it('should fallback to generated native_attack ability if abilityId is native_attack[cite: 2]', () => {
+            const entity = { id: 'u1', instanceId: 'u1_inst', ownerId: 'player1', acts: 1, abilities: [] };
+            mockState.players.player1.lines.mid.push(entity);
+
+            const result = flow.executeEntityAction(mockState, 'player1', 'u1', 'ATTACK', 'native_attack', null, null);
+            
+            expect(result.success).toBe(true);
+            expect(entity.acts).toBe(1);
+        });
+
+        it('should block execution for unknown action types[cite: 2]', () => {
+            const result = flow.executeEntityAction(mockState, 'player1', 'u1', 'INVALID_ACTION', 'ab1', null, null);
+            
+            expect(result.success).toBe(false);
+            expect(result.reason).toBe('Unknown action');
         });
     });
 });

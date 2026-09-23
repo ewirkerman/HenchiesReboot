@@ -25,7 +25,7 @@ export const ATTRIBUTE_MANIFEST = {
     'strength': { label: 'Strength', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT'] },
     'armor': { label: 'Armor', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT'] },
     'power': { label: 'Power', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'BOON'] },
-    'cost': { label: 'Cost', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] },
+    'cost': { label: 'Cost', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON', 'BUFF', 'DEBUFF'] },
     'readiness': { label: 'Readiness', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT'] },
     'acts': { label: 'Available Acts', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT'] },
     'maxActs': { label: 'Max Acts', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT'] },

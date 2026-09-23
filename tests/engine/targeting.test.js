@@ -3,9 +3,16 @@ import * as actualUtils from '../../src/engine/utils.js';
 
 jest.unstable_mockModule('../../src/engine/utils.js', () => ({
     ...actualUtils,
-    hasEngineFlag: jest.fn(),
-    resolveResourceKey: jest.fn((state, p, key) => key ? key : 'Generic'), 
-    isUndoable: jest.fn(() => true)
+    log: jest.fn(),
+    warn: jest.fn(),
+    hasEngineFlag: jest.fn((state, ent, flag) => {
+        if (ent.flags?.includes(flag)) return true;
+        return actualUtils.hasEngineFlag(state, ent, flag);
+    }),
+    getOwnerId: jest.fn((state, ent) => ent.ownerId),
+    getAvatar: jest.fn((state, playerId) => state.players[playerId]?.lines.avatar?.find(unit => unit.type === 'avatar') || null),
+    resolveResourceKey: jest.fn((state, p, t) => t || 'Carnie'),
+    isAutoCast: jest.fn((ab) => !!ab.autoCast) // Add this line
 }));
 
 jest.unstable_mockModule('../../src/engine/index.js', () => ({
@@ -487,7 +494,7 @@ describe('targeting.js core logic', () => {
         it('should remove native_play if a mandatory PLAY trigger ability exists', () => {
             const card = {
                 id: 'c1', instanceId: 'c1', type: 'unit', ownerId: 'player1', cost: 0,
-                abilities: [{ abilityId: 'custom_play', name: 'Enter the Fray', trigger: 'PLAY', cost: { carnie: 0 } }]
+                abilities: [{ abilityId: 'custom_play', name: 'Enter the Fray', trigger: 'ON_BE_PLAYED', cost: { carnie: 0 } }]
             };
             mockState.players.player1.hand.push(card);
 
@@ -655,4 +662,177 @@ describe('targeting.js core logic', () => {
             expect(targets).toHaveLength(0); // Should be completely empty because Logic Tree rejected it
         });
     });
+
+    describe('New Features & Branch Coverage', () => {
+        describe('Buff and Debuff Card Types (CARD_TYPES enum)', () => {
+            it('should correctly filter targets when BUFF and DEBUFF are specified in entityType', () => {
+                const buffTarget = { id: 'buff_1', instanceId: 'buff_1', type: 'buff', line: 'mid', ownerId: 'player2' };
+                const debuffTarget = { id: 'debuff_1', instanceId: 'debuff_1', type: 'debuff', line: 'mid', ownerId: 'player2' };
+                const unitTarget = { id: 'unit_1', instanceId: 'unit_1', type: 'unit', line: 'mid', ownerId: 'player2' };
+                
+                mockState.players.player2.lines.mid.push(buffTarget, debuffTarget, unitTarget);
+
+                const spell = {
+                    id: 'spell_types', instanceId: 'spell_types', type: 'spell', ownerId: 'player1',
+                    abilities: [{
+                        abilityId: 'ab_types', trigger: 'MANUAL',
+                        activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], entityType: ['BUFF', 'DEBUFF'] } }
+                    }]
+                };
+                mockState.players.player1.lines.mid.push(spell);
+
+                const targets = getValidAbilityTargets(mockState, 'player1', 'spell_types', 'ab_types');
+                
+                expect(targets).toHaveLength(2);
+                expect(targets.some(t => t.id === 'buff_1')).toBe(true);
+                expect(targets.some(t => t.id === 'debuff_1')).toBe(true);
+                expect(targets.some(t => t.id === 'unit_1')).toBe(false);
+            });
+        });
+
+        describe('AutoCasting and Selectable Play Actions', () => {
+            it('should retain native_play if all ON_BE_PLAYED abilities are auto-cast', async () => {
+                // Assuming utils.isAutoCast returns true for abilities with autoCast: true
+                const utilsModule = await import('../../src/engine/utils.js');
+                if (!jest.isMockFunction(utilsModule.isAutoCast)) {
+                    utilsModule.isAutoCast = jest.fn((ab) => !!ab.autoCast);
+                } else {
+                    utilsModule.isAutoCast.mockImplementation((ab) => !!ab.autoCast);
+                }
+
+                const autoCard = {
+                    id: 'auto_c1', instanceId: 'auto_c1', type: 'unit', ownerId: 'player1', cost: 0,
+                    abilities: [{ abilityId: 'auto_ab', trigger: 'ON_BE_PLAYED', autoCast: true, cost: 0 }]
+                };
+                mockState.players.player1.hand.push(autoCard);
+
+                const actions = getEntityAvailableActions(mockState, 'player1', 'auto_c1');
+                
+                // native_play should remain because there are no selectable ON_BE_PLAYED replacements
+                expect(actions.some(a => a.abilityId === 'native_play')).toBe(true);
+            });
+
+            it('should remove native_play if at least one ON_BE_PLAYED ability is selectable (not auto-cast)', async () => {
+                const utilsModule = await import('../../src/engine/utils.js');
+                if (jest.isMockFunction(utilsModule.isAutoCast)) {
+                    utilsModule.isAutoCast.mockImplementation((ab) => !!ab.autoCast);
+                }
+
+                const selectableCard = {
+                    id: 'sel_c1', instanceId: 'sel_c1', type: 'unit', ownerId: 'player1', cost: 0,
+                    abilities: [
+                        { abilityId: 'auto_ab', trigger: 'ON_BE_PLAYED', autoCast: true, cost: 0 },
+                        { abilityId: 'sel_ab', trigger: 'ON_BE_PLAYED', autoCast: false, cost: 0, activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'] } } }
+                    ]
+                };
+                mockState.players.player1.hand.push(selectableCard);
+                mockState.players.player2.lines.mid.push({ id: 't1', instanceId: 't1', ownerId: 'player2' }); // Provide valid target
+
+                const actions = getEntityAvailableActions(mockState, 'player1', 'sel_c1');
+                
+                expect(actions.some(a => a.abilityId === 'sel_ab')).toBe(true);
+                expect(actions.some(a => a.abilityId === 'native_play')).toBe(false);
+            });
+        });
+
+        describe('Readiness Floors & Stat Costs', () => {
+            it('should block abilities that would SET readiness to a cost amount where current readiness is already <= amount', () => {
+                const setStatSpell = {
+                    id: 'set_spell', instanceId: 'set_spell', type: 'spell', ownerId: 'player1',
+                    abilities: [{
+                        abilityId: 'ab_set', trigger: 'ON_BE_PLAYED',
+                        activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], entityType: ['UNIT'] } },
+                        effects: [{ targetMethod: 'SAME_AS_ACTIVATION', payloads: [{ isCost: true, type: 'SET_STAT', stat: 'readiness', amount: 0 }] }]
+                    }]
+                };
+                mockState.players.player1.hand.push(setStatSpell);
+
+                // Valid target has readiness 1 (can be reduced to 0). Invalid has readiness 0 (already <= 0).
+                const validTarget = { id: 't_readiness_1', instanceId: 't_readiness_1', type: 'unit', line: 'mid', ownerId: 'player1', readiness: 1 };
+                const invalidTarget = { id: 't_readiness_0', instanceId: 't_readiness_0', type: 'unit', line: 'mid', ownerId: 'player1', readiness: 0 };
+                
+                mockState.players.player1.lines.mid.push(validTarget, invalidTarget);
+
+                const targets = getValidAbilityTargets(mockState, 'player1', 'set_spell', 'ab_set');
+                
+                expect(targets).toHaveLength(1);
+                expect(targets[0].id).toBe('t_readiness_1');
+            });
+        });
+
+        describe('Event Blocking & Missing Valid Targets', () => {
+            it('should allow actions without available acts if the cost specifies freeAction', () => {
+                const freeActionUnit = {
+                    id: 'u_free', instanceId: 'u_free', type: 'unit', readiness: 1, acts: 0, ownerId: 'player1',
+                    abilities: [{ abilityId: 'ab_free', trigger: 'MANUAL', cost: { freeAction: true } }]
+                };
+                mockState.players.player1.lines.mid.push(freeActionUnit);
+
+                const actions = getEntityAvailableActions(mockState, 'player1', 'u_free');
+                expect(actions.some(a => a.abilityId === 'ab_free')).toBe(true);
+            });
+
+            it('should block manual ability events completely if it requires targets but no valid targets exist', () => {
+                const targetingUnit = {
+                    id: 'u_target', instanceId: 'u_target', type: 'unit', readiness: 1, acts: 1, ownerId: 'player1',
+                    abilities: [{
+                        abilityId: 'ab_requires_target', trigger: 'MANUAL',
+                        activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'] } }
+                    }]
+                };
+                mockState.players.player1.lines.mid.push(targetingUnit);
+                
+                // Player 2 field is empty, so no valid enemy targets exist
+                mockState.players.player2.lines.mid = [];
+
+                const actions = getEntityAvailableActions(mockState, 'player1', 'u_target');
+                expect(actions.some(a => a.abilityId === 'ab_requires_target')).toBe(false);
+            });
+
+            
+
+            it('should block manual ability events completely if it requires targets but no valid AUTO targets exist', () => {
+                const targetingUnit = {
+                    id: 'u_target', instanceId: 'u_target', type: 'unit', readiness: 1, acts: 1, ownerId: 'player1',
+                    abilities: [{
+                        abilityId: 'ab_requires_target', trigger: 'MANUAL',
+                        activation: { method: 'NONE' },
+                        effects: [
+                            {
+                                "payloads": [
+                                    {
+                                    "isCost": true,
+                                    "duration": "INSTANT",
+                                    "type": "DISCARD"
+                                    }
+                                ],
+                                "targetMethod": "AUTO_FIRST",
+                                "quickTargeting": {
+                                    "alignment": [
+                                    "FRIENDLY"
+                                    ],
+                                    "zones": [
+                                    "DECK"
+                                    ],
+                                    "entityType": [
+                                    "UNIT"
+                                    ],
+                                    "ignoreBattlelines": false
+                                },
+                                "targetCount": 1
+                            }
+                        ]
+                    }]
+                };
+                mockState.players.player1.lines.mid.push(targetingUnit);
+                
+                // Player 2 field is empty, so no valid enemy targets exist
+                mockState.players.player2.lines.mid = [];
+
+                const actions = getEntityAvailableActions(mockState, 'player1', 'u_target');
+                expect(actions.some(a => a.abilityId === 'ab_requires_target')).toBe(false);
+            });
+        });
+    });
 });
+
