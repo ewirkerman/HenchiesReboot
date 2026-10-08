@@ -19,8 +19,8 @@ export class AttachAction extends Action {
         if (!host.attachments) host.attachments = [];
         host.attachments.push(attachment);
 
-        const hostLoc = findEntityLocation(engine, host);
-        if (hostLoc && hostLoc.playerId) attachment.ownerId = hostLoc.playerId;
+        //const hostLoc = findEntityLocation(engine, host);
+        //if (hostLoc && hostLoc.playerId) attachment.ownerId = hostLoc.playerId;
 
         registerEffect(engine, host, this.payload, { sourceId: attachment.instanceId });
         

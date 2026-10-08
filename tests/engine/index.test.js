@@ -2,6 +2,8 @@ import { jest } from '@jest/globals';
 import * as actualUtils from '../../src/engine/utils.js';
 import { createTestUnit, createTestState, spawnUnit } from '../test_utils.js';
 
+const sharedFindEntityLocationMock = jest.fn(() => ({ zone: 'mid' }));
+
 jest.unstable_mockModule('../../src/engine/prandom.js', () => ({
     randomInt: jest.fn(() => 0),
     shuffleArray: jest.fn((state, arr) => arr),
@@ -19,7 +21,7 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
     getOwnerId: jest.fn((state, ent) => ent.ownerId),
     getAvatar: jest.fn((state, playerId) => state.players[playerId]?.lines.avatar?.find(unit => unit.type === 'avatar') || null),
     resolveResourceKey: jest.fn((state, p, t) => t || 'Carnie'),
-    findEntityLocation: jest.fn(() => ({ zone: 'mid' }))
+    findEntityLocation: sharedFindEntityLocationMock
 }));
 
 jest.unstable_mockModule('../../src/engine/actions/action_index.js', () => ({
@@ -43,17 +45,22 @@ ACTION_REGISTRY: {
         'MODIFY_STATS': class { run = jest.fn(); }
     },
     EVENT_MANIFEST: {},
-    ACTION_MANIFEST: { DAMAGE: { passiveType: 'TAKE_DAMAGE' } },
-    findEntityLocation: jest.fn(() => ({ zone: 'mid' })),
+    ACTION_MANIFEST: { 
+        DAMAGE: { passiveType: 'TAKE_DAMAGE' },
+        ATTACK: { passiveType: 'BE_ATTACKED' }
+    },
+    findEntityLocation: sharedFindEntityLocationMock,
     HarvestAction: class { run = jest.fn(); },
     PlayAction: class { run = jest.fn(); },
     sweepTurnEffects: jest.fn()
 }));
 
-jest.unstable_mockModule('../../src/engine/targeting.js', () => ({
-    getEntityAvailableActions: jest.fn(),
-    getValidAttackTargets: jest.fn()
-}));
+// jest.unstable_mockModule('../../src/engine/targeting.js', () => ({
+//     getEntityAvailableActions: jest.fn(),
+//     getValidAttackTargets: jest.fn(),
+//     acquireTargets: jest.fn(() => []), // Added to satisfy script.js import
+//     resolveTargetById: jest.fn() // Added to satisfy script.js import
+// }));
 
 jest.unstable_mockModule('../../src/engine/attributes.js', () => ({
     ATTRIBUTE_MANIFEST: {
@@ -108,9 +115,43 @@ describe('index.js GameEngine', () => {
                 ]
             });
 
-            expect(engine.queueTriggers('TURN_STARTED', { playerId: 'player1' })).toBe(3);
+            expect(engine.queueTriggers('TURN_STARTED', { playerId: 'player1' })).toBe(4);
             engine.stack = [];
-            expect(engine.queueTriggers('TURN_STARTED', { playerId: 'player2' })).toBe(3);
+            expect(engine.queueTriggers('TURN_STARTED', { playerId: 'player2' })).toBe(4);
+        });
+
+        it('should correctly trigger turn events for non-avatar units sharing the avatar line', () => {
+            const engine = new GameEngine(mockState);
+            
+            spawnUnit(mockState, 'player1', 'avatar', {
+                type: 'unit', // Not an avatar
+                abilities: [
+                    { abilityId: 'wither-effect', trigger: 'OWN_TURN_STARTED', triggerScope: 'PERSONAL', effects: [] }
+                ]
+            });
+
+            const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
+            
+            expect(triggersQueued).toBe(1);
+            expect(engine.stack[0].ability.abilityId).toBe('wither-effect');
+        });
+
+        it('should correctly trigger turn events for global entities residing in the equator', () => {
+            const engine = new GameEngine(mockState);
+            
+            mockState.equator = [{
+                instanceId: 'eq1',
+                ownerId: 'player1',
+                type: 'artifact',
+                abilities: [
+                    { abilityId: 'weather-effect', trigger: 'TURN_STARTED', triggerScope: 'GLOBAL', effects: [] }
+                ]
+            }];
+
+            const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
+            
+            expect(triggersQueued).toBe(1);
+            expect(engine.stack[0].ability.abilityId).toBe('weather-effect');
         });
 
         it('should cancel the root event if a WOULD_ interceptor cancels the payload', () => {
@@ -154,11 +195,73 @@ describe('index.js GameEngine', () => {
             };
             hostEntity.attachments = [attachment];
 
-            findEntityLocationMock.mockReturnValueOnce({ zone: 'attachment', host: hostEntity });
+            findEntityLocationMock.mockImplementation((eng, ent) => {
+                if (ent && ent.instanceId === 'att1') return { zone: 'attachment', host: hostEntity };
+                return { zone: 'mid' };
+            });
 
             engine.queueTriggers('TAKE_DAMAGE', { target: hostEntity });
             
             const queued = engine.stack.find(f => f.ability.abilityId === 'host-buff');
+            expect(queued).toBeDefined();
+        });
+
+        it('should evaluate logic tree conditions against the host entity, not the attachment, for HOST scoped triggers', () => {
+            const engine = new GameEngine(mockState);
+            const hostEntity = spawnUnit(mockState, 'player1', 'mid', { tribe: 'Squirrel' }); // Host is a Squirrel
+            const attachment = {
+                instanceId: 'att2', ownerId: 'player1', tribe: 'Artifact', // Attachment is an Artifact
+                abilities: [{
+                    abilityId: 'host-buff-2',
+                    trigger: 'TAKE_DAMAGE',
+                    triggerScope: 'HOST',
+                    activation: {
+                        method: 'NONE',
+                        logicTree: { type: 'condition', attribute: 'tribe', operator: '==', value: 'Squirrel' }
+                    },
+                    effects: [{ targetMethod: 'NONE', payloads: [] }]
+                }]
+            };
+            hostEntity.attachments = [attachment];
+
+            findEntityLocationMock.mockImplementation((eng, ent) => {
+                if (ent && ent.instanceId === 'att2') return { zone: 'attachment', host: hostEntity };
+                return { zone: 'mid' };
+            });
+
+            engine.queueTriggers('TAKE_DAMAGE', { target: hostEntity });
+            
+            const queued = engine.stack.find(f => f.ability.abilityId === 'host-buff-2');
+            expect(queued).toBeDefined(); // Will only be defined if logic tree evaluated the Host (Squirrel)
+        });
+
+        it('should correctly evaluate ENEMY alignment for an attachment force-equipped onto an opponent unit', () => {
+            const engine = new GameEngine(mockState);
+            mockState.activePlayerId = 'player2';
+            
+            const sourceEntity = spawnUnit(mockState, 'player2', 'mid');
+            const hostEntity = spawnUnit(mockState, 'player2', 'mid'); // P2's unit
+            
+            const attachment = {
+                instanceId: 'att_acorn', ownerId: 'player1', // Owned by P1
+                abilities: [{
+                    abilityId: 'nutholder',
+                    trigger: 'MODIFY_BE_ATTACKED',
+                    triggerScope: 'HOST',
+                    activation: {
+                        method: 'NONE',
+                        logicTree: { type: 'condition', attribute: 'alignment', operator: '==', value: 'ENEMY' }
+                    },
+                    effects: [{ targetMethod: 'NONE', payloads: [] }]
+                }]
+            };
+            hostEntity.attachments = [attachment];
+            
+            sharedFindEntityLocationMock.mockReturnValueOnce({ zone: 'attachment', host: hostEntity });
+
+            engine.queueTriggers('MODIFY_BE_ATTACKED', { target: hostEntity, source: sourceEntity });
+            
+            const queued = engine.stack.find(f => f.ability.abilityId === 'nutholder');
             expect(queued).toBeDefined();
         });
 
@@ -208,11 +311,12 @@ describe('index.js GameEngine', () => {
     });
 
     describe('Ability Execution', () => {
-        it('should abort silently if ability requires targets but none are found', () => {
+        it('should pay cost but resolve zero payloads if ability requires targets but none are found', () => {
             const engine = new GameEngine(mockState);
             const source = { instanceId: 's1', ownerId: 'player1' };
             const ability = {
                 abilityId: 'ab_no_target',
+                cost: { carnie: 0 },
                 effects: [{
                     targetMethod: 'AUTO_ALL',
                     logicTree: { type: 'condition', attribute: 'health', operator: '>', value: 999 },
@@ -221,9 +325,11 @@ describe('index.js GameEngine', () => {
             };
 
             const spyCheckCost = jest.spyOn(engine, '_checkAndPayCost');
+            const spyResolve = jest.spyOn(engine, '_resolvePayloads');
             engine.executeAbility(ability, source, {}, 'player1');
             
-            expect(spyCheckCost).not.toHaveBeenCalled();
+            expect(spyCheckCost).toHaveBeenCalled();
+            expect(spyResolve).toHaveBeenCalled();
         });
 
         it('should proceed if ability has NONE targetMethod or successfully finds targets', () => {
@@ -487,4 +593,45 @@ describe('index.js GameEngine', () => {
             });
         });
     });
+
+    it('should correctly trigger turn events for non-avatar units sharing the avatar line', () => {
+            const engine = new GameEngine(mockState);
+            
+            // Spawn a standard unit (like Wither) into the avatar line
+            spawnUnit(mockState, 'player1', 'avatar', {
+                type: 'unit', // Not an avatar
+                abilities: [
+                    { abilityId: 'wither-effect', trigger: 'OWN_TURN_STARTED', triggerScope: 'PERSONAL', effects: [] }
+                ]
+            });
+
+            // Trigger the phase
+            const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
+            
+            // Under the old system, this would be 0 because the loop skipped the rest of the avatar line.
+            expect(triggersQueued).toBe(1);
+            expect(engine.stack[0].ability.abilityId).toBe('wither-effect');
+        });
+
+        it('should correctly trigger turn events for global entities residing in the equator', () => {
+            const engine = new GameEngine(mockState);
+            
+            // Add an entity directly to the equator
+            mockState.equator = [{
+                instanceId: 'eq1',
+                ownerId: 'player1',
+                type: 'artifact',
+                abilities: [
+                    // Equator entities act globally, so they are allowed to use generic TURN_ events
+                    { abilityId: 'weather-effect', trigger: 'TURN_STARTED', triggerScope: 'GLOBAL', effects: [] }
+                ]
+            }];
+
+            // Trigger the phase
+            const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
+            
+            // Under the old system, this would be 0 because queueTriggers explicitly skipped the equator on turn events.
+            expect(triggersQueued).toBe(1);
+            expect(engine.stack[0].ability.abilityId).toBe('weather-effect');
+        });
 });

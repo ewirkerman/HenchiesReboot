@@ -4,29 +4,28 @@ export class DealDamageAction extends Action {
     execute(engine) {
         const { target, source, isCombat } = this.payload;
         let amount = this.payload.amount;
+        
         if (target && amount !== undefined) {
-            if (isCombat && target.armor && target.armor > 0 && amount > 0) {
-                const blocked = Math.min(target.armor, amount);
-                target.armor -= blocked;
-                amount -= blocked;
-                engine.state.history_log.push({ text: `🛡️ ${target.name}'s Armor absorbed ${blocked} combat damage!`, depth: this.getLogDepth(engine) });
-            }
+            const currentHealth = target.health || 0;
             
-            target.health = Math.max(0, (target.health || 0) - amount);
+            // Record any excess damage directly onto the payload before clamping
+            if (amount > currentHealth && target.type !== 'avatar') {
+                this.payload.excessDamage = amount - currentHealth;
+            } else {
+                this.payload.excessDamage = 0;
+            }
+
+            target.health = Math.max(0, currentHealth - amount);
             engine.state.history_log.push({ text: `💥 ${target.name || 'Target'} took ${amount} damage.`, depth: this.getLogDepth(engine) });
 
             if (target.type === 'avatar' && target.health <= 0) {
-                // Determine location locally without deep lookup
                 let loserId = engine.state.activePlayerId === 'player1' ? 'player2' : 'player1';
                 engine.state.status = 'finished';
                 engine.state.winner = loserId === 'player1' ? 'player2' : 'player1';
                 engine.state.history_log.push({ text: `☠️ Avatar ${target.name} has fallen! Match finished.`, depth: this.getLogDepth(engine) });
             }
             
-            // Defer death if explicitly requested by the payload OR if a combat state is active
-            const shouldDeferDeath = this.payload.deferDeath || engine.state.activeCombatState;
-
-            if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && !shouldDeferDeath) {
+            if (target.health <= 0 && target.type !== 'avatar' && !target._isDying) {
                 const atkLKI = source && source.abilities ? [...source.abilities] : [];
                 const defLKI = target.abilities ? [...target.abilities] : [];
                 const KillAction = ACTION_REGISTRY['KILL'];

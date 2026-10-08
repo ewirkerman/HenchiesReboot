@@ -142,8 +142,6 @@ export class AttackAction extends Action {
             }
         };
 
-        this._combatHitTargets.add(target.instanceId || target);
-
         new HitAction(hitPayload).run(engine);
     }
 
@@ -151,10 +149,9 @@ export class AttackAction extends Action {
         const KillAction = ACTION_REGISTRY['KILL'];
         if (!KillAction) return;
 
-        const targetKey = target.instanceId || target;
-        const wasHitThisCombat = this._combatHitTargets.has(targetKey);
-
-        if (target.health <= 0 && target.type !== 'avatar' && !target._isDying && wasHitThisCombat) {
+        // Clean up units that were explicitly marked as deferred death.
+        // This gracefully ignores 0 HP units that haven't been issued a kill order.
+        if (target._deathDeferred && !target._isDying) {
             const sourceLKI = source.abilities ? [...source.abilities] : [];
             const targetLKI = target.abilities ? [...target.abilities] : [];
 
@@ -164,6 +161,7 @@ export class AttackAction extends Action {
                 _lkiSourceAbilities: sourceLKI,
                 _lkiTargetAbilities: targetLKI,
                 isCombat: true,
+                forceKill: true, // Tell KillAction to bypass deferral rules
                 eventContext: {
                     isCombat: true,
                     combatAttackerId: combatAttacker.instanceId,

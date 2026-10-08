@@ -9,12 +9,12 @@ import { LINES } from '../engine/utils.js';
 function isCostFree(cost) {
     if (!cost) return true;
     if (cost.freeAction) return true;
-    
+
     const noReadiness = !cost.readinessCost || cost.readinessCost === 'NONE';
     const noCarnie = !(cost.carnie > 0) && !(cost.tent > 0);
     const noTribe = !(cost.tribeAmount > 0);
     const noPower = !(cost.power > 0);
-    
+
     return noReadiness && noCarnie && noTribe && noPower;
 }
 
@@ -63,11 +63,11 @@ export class BaseAIEngine {
 
         const processEntityActions = (entity) => {
             const available = getEntityAvailableActions(state, this.playerId, entity.instanceId || entity.id);
-            
+
             available.forEach(act => {
                 const isFree = isCostFree(act.cost);
                 const actionKey = `${entity.instanceId || entity.id}_${act.abilityId}`;
-                
+
                 if (isFree && this.usedFreeActions.has(actionKey)) return;
 
                 let validTargets = [];
@@ -141,8 +141,19 @@ export class BaseAIEngine {
     executeNextMove(state) {
         if (state.turnPhase === 'SACRIFICE_DECISION') {
             const decision = this.determineSacrifice(state);
+            console.info('[HARVEST_TRACE] Applying AI sacrifice locally', {
+                playerId: this.playerId,
+                option: decision.action,
+                cardId: decision.cardId,
+                detail: decision.detail
+            });
             executeSacrificeDecision(state, decision.action, decision.cardId);
-            return { executed: true, type: decision.action === 'SKIP' ? 'SACRIFICE_SKIP' : 'SACRIFICE', detail: decision.detail };
+            return {
+                executed: true,
+                type: decision.action === 'SKIP' ? 'SACRIFICE_SKIP' : 'SACRIFICE',
+                action: { action: decision.action, cardId: decision.cardId },
+                detail: decision.detail
+            };
         }
 
         const legalActions = this.computeAllLegalActions(state);
@@ -160,7 +171,7 @@ export class BaseAIEngine {
         if (action.type === 'PLAY_CARD') {
             const res = playCard(state, this.playerId, action.cardId, 'back', action.abilityId, targetId);
             return { executed: res.success, type: 'PLAY_CARD', detail: action.cardName, result: res };
-        } 
+        }
         else if (action.type === 'ENTITY_ACTION') {
             const res = executeEntityAction(state, this.playerId, action.entityId, action.actionType, action.abilityId, targetId, targetLine);
             if (res.success && action.isFree) this.usedFreeActions.add(action.actionKey);

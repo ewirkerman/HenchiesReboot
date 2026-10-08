@@ -34,7 +34,7 @@ export const ACTION_MANIFEST = {
     'RETURN': { passiveType: 'BE_RETURNED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['HAND'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'RECOVER': { passiveType: 'BE_RECOVERED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['HAND'], validDurations: ['INSTANT'] },
     'REVIVE': { passiveType: 'BE_REVIVED', canInvert: true, canBeCost: false, requiresAmount: false, validZones: ['DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
-    'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['WHILE_ATTACHED', 'INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
+    'ATTACH': { passiveType: 'BE_ATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD', 'EQUATOR'], validDurations: ['WHILE_ATTACHED', 'INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'BRIEF', 'INDEFINITE'] },
     'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: false },
     'UNFIELD': { passiveType: 'BE_UNFIELDED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -182,6 +182,14 @@ export class Action {
 
         const target = this.payload.target;
         if (this.isDeferringToUnfield(engine, target)) return;
+
+        // Ensure that if the entity leaving play is currently attached to something,
+        // we formally unattach it so the host's WHILE_ATTACHED effects are reverted.
+        const loc = findEntityLocation(engine, target);
+        if (loc && loc.zone === 'attachment' && this.type !== 'UNATTACH') {
+            const UnattachClass = ACTION_REGISTRY['UNATTACH'];
+            if (UnattachClass) new UnattachClass({ target: target }).run(engine);
+        }
 
         this.unattachChildren(engine, target);
         this.revertTemporaryEffects(engine, target);
