@@ -273,8 +273,7 @@ export function generateEffectsHTML(ctx) {
 
         if (manifest.requiresResource) {
             let resourceOptions = `
-                <option value="Carnie" ${payload.resource === 'Carnie' ? 'selected' : ''}>Carnie (Current)</option>
-                <option value="maxCarnie" ${payload.resource === 'maxCarnie' ? 'selected' : ''}>Max Carnie</option>
+                <option value="Carnie" ${(payload.resource === 'Carnie' || payload.resource === 'maxCarnie') ? 'selected' : ''}>Carnie</option>
             `;
             if (customTribesList) {
                 customTribesList.forEach(t => {
@@ -284,6 +283,23 @@ export function generateEffectsHTML(ctx) {
                 });
             }
             fieldsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[9px] font-bold text-amber-400 mb-0.5 uppercase tracking-wider">Resource Type</label><select onchange="${upd('resource', 'this.value')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]">${resourceOptions}</select></div>`;
+            
+            if (payload.type === 'MODIFY_RESOURCE') {
+                const poolValue = payload.targetPool || (payload.resource === 'maxCarnie' ? 'MAX' : 'CURRENT');
+                fieldsHtml += `<div class="flex-1 min-w-[100px] pb-0.5"><label class="block text-[9px] font-bold text-amber-400 mb-0.5 uppercase tracking-wider">Target Pool</label>
+                <select onchange="${upd('targetPool', 'this.value')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]">
+                    <option value="CURRENT" ${poolValue === 'CURRENT' ? 'selected' : ''}>Current</option>
+                    <option value="MAX" ${poolValue === 'MAX' ? 'selected' : ''}>Max</option>
+                </select></div>`;
+
+                if (poolValue === 'CURRENT') {
+                    const respectMaxChecked = payload.respectMax ? 'checked' : '';
+                    fieldsHtml += `<div class="flex-1 min-w-[110px] pb-0.5 flex flex-col justify-end"><label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition whitespace-nowrap bg-slate-900/50 px-2 rounded border border-transparent hover:border-slate-700 h-[27px]" title="Prevent the current amount from exceeding the max">
+                        <input type="checkbox" ${respectMaxChecked} onchange="${upd('respectMax', 'this.checked')}" class="accent-amber-500 w-3 h-3" />
+                        <span class="text-[9px] font-black text-amber-400 uppercase tracking-wider">Respect Max</span>
+                    </label></div>`;
+                }
+            }
         }
 
         if (manifest.requiresGrantedAbility) {
@@ -388,7 +404,7 @@ export function generateEffectsHTML(ctx) {
                 ${!manifest.hasLogicTree ? `<div class="flex flex-wrap gap-3 mb-3 w-full">
                     <div class="flex-1 min-w-[200px]">
                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Target Scope</label>
-                        <select onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white text-[10px] w-full">
+                        <select onchange="window.updateNestedGroup(${gIdx},${pIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white text-[10px] w-full">
                             <option value="AUTO_ALL" ${ng.targetMethod === 'AUTO_ALL' ? 'selected' : ''}>Apply to ALL Summoned Units</option>
                             <option value="AUTO_RANDOM" ${ng.targetMethod === 'AUTO_RANDOM' ? 'selected' : ''}>Apply to RANDOM N Summoned Units</option>
                             <option value="AUTO_FIRST" ${ng.targetMethod === 'AUTO_FIRST' ? 'selected' : ''}>Apply to FIRST N Summoned Units</option>
@@ -459,15 +475,17 @@ export function generateEffectsHTML(ctx) {
 
     return effectGroups.map((group, gIdx) => {
         const payloadsHtml = group.payloads.map((payload, pIdx) => renderPayload(payload, gIdx, pIdx, false, null, group)).join('');
-
         group.quickTargeting = group.quickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: [CARD_TYPES.UNIT.toUpperCase(), CARD_TYPES.AVATAR.toUpperCase()], ignoreBattlelines: false };
+
+        const moveUpDisabled = gIdx === 0 ? 'opacity-30 cursor-not-allowed' : '';
+        const moveDownDisabled = gIdx === effectGroups.length - 1 ? 'opacity-30 cursor-not-allowed' : '';
 
         return `
           <div class="flex flex-col gap-3 bg-slate-900/80 p-4 rounded-xl border border-slate-700 relative shadow-inner">
             <button type="button" onclick="window.removeEffectGroup(${gIdx})" class="absolute top-2 right-2 text-slate-500 hover:text-red-400 font-black px-1.5 bg-slate-950 rounded">&times; Remove Target Group</button>
             <div class="absolute top-2 right-40 flex gap-1">
-                <button type="button" onclick="window.moveEffectGroup(${gIdx}, -1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${gIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}">↑ Move Up</button>
-                <button type="button" onclick="window.moveEffectGroup(${gIdx}, 1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${gIdx === effectGroups.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}">↓ Move Down</button>
+                <button type="button" onclick="window.moveEffectGroup(${gIdx}, -1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${moveUpDisabled}">↑ Move Up</button>
+                <button type="button" onclick="window.moveEffectGroup(${gIdx}, 1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${moveDownDisabled}">↓ Move Down</button>
             </div>
             
             <div class="flex flex-col gap-2">

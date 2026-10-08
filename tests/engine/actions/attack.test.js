@@ -238,7 +238,7 @@ describe('AttackAction Combat Logic', () => {
             expect(attacker.health).toBe(3);
         });
 
-        it('should not deal damage if a unit\'s strength is null', () => {
+it('should not deal damage if a unit\'s strength is null', () => {
             attacker.strength = null;
             defender.strength = null;
 
@@ -248,6 +248,86 @@ describe('AttackAction Combat Logic', () => {
             expect(getEntityZone(engine, attacker)).toBe('mid');
             expect(attacker.health).toBe(3);
             expect(defender.health).toBe(3);
+        });
+    });
+
+    describe('Deferred Deaths & Complex Triggers', () => {
+        let originalKill;
+        let mockKillPayloads;
+
+        beforeEach(() => {
+            // Safely intercept KillAction payloads to verify execution without breaking functionality
+            originalKill = ACTION_REGISTRY['KILL'];
+            mockKillPayloads = [];
+            ACTION_REGISTRY['KILL'] = class MockKill extends originalKill {
+                run(engine) {
+                    mockKillPayloads.push(this.payload);
+                    return super.run(engine);
+                }
+            };
+        });
+
+        afterEach(() => {
+            ACTION_REGISTRY['KILL'] = originalKill;
+        });
+
+        it('should clean up deferred deaths exactly once at the end of the strike phase', () => {
+            attacker.health = 1;
+            defender.health = 1;
+
+            // Simulate an ON_ATTACK ability (like Spark) causing lethal damage and tagging a deferred kill
+            const emitSpy = jest.spyOn(engine, 'emit').mockImplementation((event, payload) => {
+                if (event === 'ON_ATTACK') attacker._deathDeferred = true;
+                return { cancelled: false };
+            });
+
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+
+            // The attacker should have been force-killed exactly once during the sweep
+            const forcedKills = mockKillPayloads.filter(p => p.forceKill && p.target.instanceId === attacker.instanceId);
+            expect(forcedKills.length).toBe(1);
+
+            emitSpy.mockRestore();
+        });
+
+        it('should not double-kill if tagged for deferred death multiple times before the sweep', () => {
+            attacker.health = 1;
+            defender.health = 1;
+
+            // 1st Tag: From an ON_ATTACK trigger
+            const emitSpy = jest.spyOn(engine, 'emit').mockImplementation((event, payload) => {
+                if (event === 'ON_ATTACK') attacker._deathDeferred = true;
+                return { cancelled: false };
+            });
+
+            // 2nd Tag: Simulate taking Retaliation damage that also attempts a deferred kill
+            const executeStrikeSpy = jest.spyOn(AttackAction.prototype, 'executeStrike').mockImplementation(() => {
+                attacker._deathDeferred = true; 
+            });
+
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+
+            // Even with multiple lethal blows queuing up tags, it only gets cleaned up once
+            const forcedKills = mockKillPayloads.filter(p => p.forceKill && p.target.instanceId === attacker.instanceId);
+            expect(forcedKills.length).toBe(1);
+
+            emitSpy.mockRestore();
+            executeStrikeSpy.mockRestore();
+        });
+
+        it('should ignore 0 HP units if they were never tagged for death during combat', () => {
+            // A unit enters combat already at 0 HP, but takes 0 damage and has no ON_ATTACK triggers
+            attacker.health = 0;
+            attacker.strength = null; // Doesn't hit
+            defender.health = 1;
+            defender.strength = null; // Doesn't hit
+
+            new AttackAction({ source: attacker, target: defender }).run(engine);
+
+            // Because no lethal damage action fired during combat to defer death, the sweeper ignores it
+            const attackerKills = mockKillPayloads.filter(p => p.target.instanceId === attacker.instanceId);
+            expect(attackerKills.length).toBe(0);
+            expect(attacker.health).toBe(0);
         });
     });
 });

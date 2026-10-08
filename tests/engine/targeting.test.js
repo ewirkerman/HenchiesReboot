@@ -12,7 +12,7 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
     getOwnerId: jest.fn((state, ent) => ent.ownerId),
     getAvatar: jest.fn((state, playerId) => state.players[playerId]?.lines.avatar?.find(unit => unit.type === 'avatar') || null),
     resolveResourceKey: jest.fn((state, p, t) => t || 'Carnie'),
-    isAutoCast: jest.fn((ab) => !!ab.autoCast) // Add this line
+    isAutoCast: jest.fn((ab) => !!ab.autoCast)
 }));
 
 jest.unstable_mockModule('../../src/engine/index.js', () => ({
@@ -26,6 +26,7 @@ describe('targeting.js core logic', () => {
     let mockState;
     let getValidAttackTargets;
     let getEntityAvailableActions;
+    let acquireTargets;
     let getValidAbilityTargets;
     let hasEngineFlagMock;
 
@@ -34,6 +35,7 @@ describe('targeting.js core logic', () => {
         getValidAttackTargets = targetingModule.getValidAttackTargets;
         getEntityAvailableActions = targetingModule.getEntityAvailableActions;
         getValidAbilityTargets = targetingModule.getValidAbilityTargets;
+        acquireTargets = targetingModule.acquireTargets;
 
         const utilsModule = await import('../../src/engine/utils.js');
         hasEngineFlagMock = utilsModule.hasEngineFlag;
@@ -43,15 +45,15 @@ describe('targeting.js core logic', () => {
         jest.clearAllMocks();
         mockState = {
             players: {
-                player1: { 
-                    lines: { front: [], taunt: [], mid: [], bodyguard: [], avatar: [], sheltered: [], sideline: [], back: [] }, 
+                player1: {
+                    lines: { front: [], taunt: [], mid: [], bodyguard: [], avatar: [], sheltered: [], sideline: [], back: [] },
                     hand: [], discard: [], deck: [], banish: [],
-                    resources: { 'Carnie': { current: 2, max: 2 } } 
+                    resources: { 'Carnie': { current: 2, max: 2 } }
                 },
-                player2: { 
-                    lines: { front: [], taunt: [], mid: [], bodyguard: [], avatar: [], sheltered: [], sideline: [], back: [] }, 
+                player2: {
+                    lines: { front: [], taunt: [], mid: [], bodyguard: [], avatar: [], sheltered: [], sideline: [], back: [] },
                     hand: [], discard: [], deck: [], banish: [],
-                    resources: { 'Carnie': { current: 2, max: 2 } } 
+                    resources: { 'Carnie': { current: 2, max: 2 } }
                 }
             },
             equator: []
@@ -93,10 +95,10 @@ describe('targeting.js core logic', () => {
     describe('Battleline Enforcement', () => {
         it('should target Bodyguard or Avatar if Front/Mid/Back/Sheltered are empty', () => {
             const attacker = { id: 'a1', ownerId: 'player1', type: 'unit', strength: 1, readiness: 1 };
-            
+
             const oppAvatar = { id: 'opp_avatar', instanceId: 'opp_avatar', type: 'avatar' };
             mockState.players.player2.lines.avatar = [oppAvatar];
-            
+
             let targets = getValidAttackTargets(mockState, 'player1', attacker);
             expect(targets).toHaveLength(1);
             expect(targets[0].id).toBe('opp_avatar');
@@ -111,15 +113,15 @@ describe('targeting.js core logic', () => {
 
         it('should allow targeting Sideline concurrently with main lines, unprotected unless Taunt is present', () => {
             const attacker = { id: 'a1', ownerId: 'player1', type: 'unit', strength: 2 };
-            
+
             const midUnit = { id: 'mid1', instanceId: 'mid1', line: 'mid' };
             const sideUnit = { id: 'side1', instanceId: 'side1', line: 'sideline' };
-            
+
             mockState.players.player2.lines.mid.push(midUnit);
             mockState.players.player2.lines.sideline.push(sideUnit);
 
             const targets = getValidAttackTargets(mockState, 'player1', attacker);
-            
+
             expect(targets).toHaveLength(2);
             expect(targets.some(t => t.id === 'mid1')).toBe(true);
             expect(targets.some(t => t.id === 'side1')).toBe(true);
@@ -127,15 +129,15 @@ describe('targeting.js core logic', () => {
 
         it('should protect Sideline if Taunt is present', () => {
             const attacker = { id: 'a1', ownerId: 'player1', type: 'unit', strength: 2 };
-            
+
             const tauntUnit = { id: 'taunt1', instanceId: 'taunt1', line: 'taunt' };
             const sideUnit = { id: 'side1', instanceId: 'side1', line: 'sideline' };
-            
+
             mockState.players.player2.lines.taunt.push(tauntUnit);
             mockState.players.player2.lines.sideline.push(sideUnit);
 
             const targets = getValidAttackTargets(mockState, 'player1', attacker);
-            
+
             expect(targets).toHaveLength(2);
             expect(targets.some(t => t.id === 'taunt1')).toBe(true);
             expect(targets.some(t => t.id === 'side1')).toBe(true);
@@ -144,7 +146,7 @@ describe('targeting.js core logic', () => {
         it('should block attacks against avatars if the attacker is timid (BLOCK_TARGET_AVATAR)', () => {
             const timidAttacker = { id: 'a1', ownerId: 'player1', type: 'unit', strength: 1, readiness: 1 };
             const oppAvatar = { id: 'opp_avatar', instanceId: 'opp_avatar', type: 'avatar' };
-            
+
             mockState.players.player2.lines.avatar = [oppAvatar];
 
             hasEngineFlagMock.mockImplementation((state, ent, flag) => {
@@ -165,14 +167,14 @@ describe('targeting.js core logic', () => {
                 }]
             };
             mockState.players.player1.lines.mid.push(playSpell);
-            
+
             mockState.players.player2.lines.mid.push({ id: 'mid1', instanceId: 'mid1', type: 'unit', ownerId: 'player2' });
             mockState.players.player2.lines.taunt.push({ id: 'taunt1', instanceId: 'taunt1', type: 'unit', ownerId: 'player2' });
 
             const targets = getValidAbilityTargets(mockState, 'player1', 'spell_1', 'ab_1');
 
             expect(targets).toHaveLength(1);
-            expect(targets[0].id).toBe('taunt1'); 
+            expect(targets[0].id).toBe('taunt1');
         });
     });
 
@@ -186,7 +188,7 @@ describe('targeting.js core logic', () => {
                 }]
             };
             mockState.players.player1.lines.mid.push(playSpell);
-            
+
             const equatorItem = { id: 'eq_item', instanceId: 'eq_item', type: 'equipment', ownerId: 'player2' };
             mockState.equator.push(equatorItem);
 
@@ -197,8 +199,8 @@ describe('targeting.js core logic', () => {
             const targets = getValidAbilityTargets(mockState, 'player1', 'spell_1', 'ab_1');
 
             expect(targets).toHaveLength(1);
-            expect(targets.some(t => t.id === 'eq_item')).toBe(true); 
-            expect(targets.some(t => t.id === 'att_item')).toBe(false); 
+            expect(targets.some(t => t.id === 'eq_item')).toBe(true);
+            expect(targets.some(t => t.id === 'att_item')).toBe(false);
         });
     });
 
@@ -206,7 +208,7 @@ describe('targeting.js core logic', () => {
         it('should allow targeting a boon ONLY if the ability explicitly includes BOON in entityType', () => {
             const boonTarget = { id: 'b1', instanceId: 'b1', type: 'boon', line: 'mid', ownerId: 'player2' };
             const unitTarget = { id: 'u1', instanceId: 'u1', type: 'unit', line: 'mid', ownerId: 'player2' };
-            
+
             mockState.players.player2.lines.mid.push(boonTarget, unitTarget);
 
             const spellExplicit = {
@@ -295,8 +297,8 @@ describe('targeting.js core logic', () => {
                 abilities: [{ abilityId: 'ab_tribe', trigger: 'MANUAL', cost: { tribeAmount: 1 } }]
             };
             mockState.players.player1.lines.mid.push(unit);
-            mockState.players.player1.resources['Pirate'] = { current: 0, max: 0 }; 
-            mockState.players.player1.resources['Carnie'].current = 3; 
+            mockState.players.player1.resources['Pirate'] = { current: 0, max: 0 };
+            mockState.players.player1.resources['Carnie'].current = 3;
 
             const actions = getEntityAvailableActions(mockState, 'player1', 'u1');
             expect(actions.some(a => a.abilityId === 'ab_tribe')).toBe(true);
@@ -305,25 +307,25 @@ describe('targeting.js core logic', () => {
         it('should calculate escalating costs correctly', () => {
             const unit = {
                 id: 'u1', instanceId: 'u1', type: 'unit', readiness: 1, acts: 1, ownerId: 'player1',
-                lifetimeAbilityUses: { 'ab_esc': 1 }, 
+                lifetimeAbilityUses: { 'ab_esc': 1 },
                 abilities: [{ abilityId: 'ab_esc', trigger: 'MANUAL', cost: { carnie: 1, escalates: 1 } }]
             };
             mockState.players.player1.lines.mid.push(unit);
-            
+
             mockState.players.player1.resources['Carnie'].current = 1;
             let actions = getEntityAvailableActions(mockState, 'player1', 'u1');
-            expect(actions.some(a => a.abilityId === 'ab_esc')).toBe(false); 
+            expect(actions.some(a => a.abilityId === 'ab_esc')).toBe(false);
 
             mockState.players.player1.resources['Carnie'].current = 2;
             actions = getEntityAvailableActions(mockState, 'player1', 'u1');
-            expect(actions.some(a => a.abilityId === 'ab_esc')).toBe(true); 
+            expect(actions.some(a => a.abilityId === 'ab_esc')).toBe(true);
         });
 
         it('should block abilities that would reduce readiness below -1', () => {
             const heavyEquip = {
                 id: 'heavy_eq', instanceId: 'heavy_eq', type: 'equipment', ownerId: 'player1',
                 abilities: [{
-                    abilityId: 'ab_equip', trigger: 'ON_BE_PLAYED', 
+                    abilityId: 'ab_equip', trigger: 'ON_BE_PLAYED',
                     activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], entityType: ['UNIT'] } },
                     effects: [{ targetMethod: 'SAME_AS_ACTIVATION', payloads: [{ isCost: true, type: 'MODIFY_STAT', stat: 'readiness', amount: -1 }] }]
                 }]
@@ -332,11 +334,11 @@ describe('targeting.js core logic', () => {
 
             const validTarget = { id: 't_valid', instanceId: 't_valid', type: 'unit', line: 'mid', ownerId: 'player1', readiness: 0 };
             const invalidTarget = { id: 't_invalid', instanceId: 't_invalid', type: 'unit', line: 'mid', ownerId: 'player1', readiness: -1 };
-            
+
             mockState.players.player1.lines.mid.push(validTarget, invalidTarget);
 
             const targets = getValidAbilityTargets(mockState, 'player1', 'heavy_eq', 'ab_equip');
-            
+
             expect(targets).toHaveLength(1);
             expect(targets[0].id).toBe('t_valid');
         });
@@ -347,29 +349,29 @@ describe('targeting.js core logic', () => {
                 abilities: [{ abilityId: 'ab_reuse', trigger: 'MANUAL', cost: { readinessCost: 'UNREADIES', reuseIgnoresReadiness: true } }]
             };
             mockState.players.player1.lines.mid.push(unit);
-            
+
             let actions = getEntityAvailableActions(mockState, 'player1', 'u1');
-            expect(actions.some(a => a.abilityId === 'ab_reuse')).toBe(false); 
+            expect(actions.some(a => a.abilityId === 'ab_reuse')).toBe(false);
 
             mockState.abilityUses = { 'u1_ab_reuse': 1 };
             actions = getEntityAvailableActions(mockState, 'player1', 'u1');
-            expect(actions.some(a => a.abilityId === 'ab_reuse')).toBe(true); 
+            expect(actions.some(a => a.abilityId === 'ab_reuse')).toBe(true);
         });
     });
 
     describe('Attack Blocks & Edge Cases', () => {
         it('should filter out native_attack if strength is missing or undefined', () => {
-            const item = { id: 'item1', instanceId: 'item1', type: 'equipment', readiness: 1, ownerId: 'player1' }; 
+            const item = { id: 'item1', instanceId: 'item1', type: 'equipment', readiness: 1, ownerId: 'player1' };
             mockState.players.player1.lines.mid.push(item);
-            
+
             const actions = getEntityAvailableActions(mockState, 'player1', 'item1');
             expect(actions.some(a => a.type === 'ATTACK')).toBe(false);
         });
 
         it('should ALLOW native_attack if strength is exactly 0', () => {
-            const pacifist = { id: 'paci', instanceId: 'paci', type: 'unit', readiness: 1, acts: 1, strength: 0, ownerId: 'player1' }; 
+            const pacifist = { id: 'paci', instanceId: 'paci', type: 'unit', readiness: 1, acts: 1, strength: 0, ownerId: 'player1' };
             mockState.players.player1.lines.mid.push(pacifist);
-            
+
             mockState.players.player2.lines.mid.push({ id: 'target', instanceId: 'target', line: 'mid' });
 
             const actions = getEntityAvailableActions(mockState, 'player1', 'paci');
@@ -424,10 +426,10 @@ describe('targeting.js core logic', () => {
             });
 
             const actions = getEntityAvailableActions(mockState, 'player1', 'c_block');
-            
+
             // The ON_PLAY or PLAY ability should still be fully available.
             expect(actions.some(a => a.abilityId === 'ab_play')).toBe(true);
-            
+
             // The MANUAL ability activated from hand should be explicitly restricted.
             expect(actions.some(a => a.abilityId === 'ab_manual_hand')).toBe(false);
         });
@@ -445,7 +447,7 @@ describe('targeting.js core logic', () => {
             mockState.players.player1.hand.push(unit);
 
             const actions = getEntityAvailableActions(mockState, 'player1', 'u1');
-            
+
             expect(actions.some(a => a.abilityId === 'ab_normal')).toBe(false);
             expect(actions.some(a => a.abilityId === 'ab_hand')).toBe(true);
         });
@@ -459,7 +461,7 @@ describe('targeting.js core logic', () => {
                 }]
             };
             mockState.players.player1.lines.mid.push(unit);
-            
+
             const actions = getEntityAvailableActions(mockState, 'player1', 'u1');
             expect(actions.some(a => a.abilityId === 'ab_target')).toBe(false);
         });
@@ -485,7 +487,7 @@ describe('targeting.js core logic', () => {
             mockState.players.player1.lines.mid.push(unit);
 
             const actions = getEntityAvailableActions(mockState, 'player1', 'board_unit');
-            
+
             // This should be false, as Play triggers are only relevant when cast from the hand
             expect(actions.some(a => a.abilityId === 'ab_on_play')).toBe(false);
         });
@@ -500,9 +502,64 @@ describe('targeting.js core logic', () => {
             mockState.players.player1.hand.push(card);
 
             const actions = getEntityAvailableActions(mockState, 'player1', 'c1');
-            
+
             expect(actions.some(a => a.abilityId === 'custom_play')).toBe(true);
-            expect(actions.some(a => a.abilityId === 'native_play')).toBe(false); 
+            expect(actions.some(a => a.abilityId === 'native_play')).toBe(false);
+        });
+
+        it('should completely suppress native_play if a mandatory targeted ON_BE_PLAYED ability has no valid targets', () => {
+            const strictTargetingCard = {
+                id: 'c_strict', instanceId: 'c_strict', type: 'spell', ownerId: 'player1', cost: 0,
+                abilities: [{
+                    abilityId: 'strict_play', name: 'Targeted Destroy', trigger: 'ON_BE_PLAYED', cost: { carnie: 0 },
+                    activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'] } }
+                }]
+            };
+            mockState.players.player1.hand.push(strictTargetingCard);
+
+            // Ensure enemy field is empty
+            mockState.players.player2.lines.mid = [];
+
+            const actions = getEntityAvailableActions(mockState, 'player1', 'c_strict');
+
+            // The ability itself shouldn't be available because there are no targets
+            expect(actions.some(a => a.abilityId === 'strict_play')).toBe(false);
+
+            // CRITICAL BUG FIX TEST: native_play should NOT be available as a fallback!
+            expect(actions.some(a => a.abilityId === 'native_play')).toBe(false);
+
+            // Thus, actions array should be completely empty (card is unplayable)
+            expect(actions).toHaveLength(0);
+        });
+
+        it('should completely suppress native_play if a mandatory AUTO_ALL ON_BE_PLAYED ability has no valid targets', async () => {
+            // Mock the engine so findEntitiesInScope returns an empty array (simulating no Gnomes on the board)
+            const engineModule = await import('../../src/engine/index.js');
+            engineModule.GameEngine.mockImplementationOnce(() => ({
+                evaluateLogicTree: jest.fn(() => true),
+                findEntitiesInScope: jest.fn(() => []) // Simulates finding 0 valid targets for the AUTO_ALL effect
+            }));
+
+            const autoTargetingCard = {
+                id: 'c_auto_strict', instanceId: 'c_auto_strict', type: 'spell', ownerId: 'player1', cost: 0,
+                abilities: [{
+                    abilityId: 'strict_auto_play', name: 'Check Their Sleeves', trigger: 'ON_BE_PLAYED', cost: { carnie: 0 },
+                    activation: { method: 'NONE' },
+                    effects: [{
+                        targetMethod: 'AUTO_ALL',
+                        quickTargeting: { zones: ['FIELD'], entityType: ['UNIT'] },
+                        logicTree: { type: 'group' }
+                    }]
+                }]
+            };
+            mockState.players.player1.hand.push(autoTargetingCard);
+
+            const actions = getEntityAvailableActions(mockState, 'player1', 'c_auto_strict');
+
+            // Neither the ability nor native_play should be available, freezing the card in hand
+            expect(actions.some(a => a.abilityId === 'strict_auto_play')).toBe(false);
+            expect(actions.some(a => a.abilityId === 'native_play')).toBe(false);
+            expect(actions).toHaveLength(0);
         });
     });
 
@@ -590,7 +647,7 @@ describe('targeting.js core logic', () => {
 
             const discardUnit = { id: 'd_unit', instanceId: 'd_unit', ownerId: 'player1' };
             const deckUnit = { id: 'deck_unit', instanceId: 'deck_unit', ownerId: 'player1' };
-            
+
             mockState.players.player1.discard.push(discardUnit);
             mockState.players.player1.deck.push(deckUnit);
 
@@ -612,13 +669,13 @@ describe('targeting.js core logic', () => {
 
             // Taunt is blocking the backline
             mockState.players.player2.lines.taunt.push({ id: 'taunt_u', instanceId: 'taunt_u', type: 'unit', ownerId: 'player2' });
-            
+
             // Unit in backline should be blocked, but Boon in backline should be targetable!
             mockState.players.player2.lines.back.push({ id: 'back_u', instanceId: 'back_u', type: 'unit', ownerId: 'player2' });
             mockState.players.player2.lines.back.push({ id: 'back_boon', instanceId: 'back_boon', type: 'boon', ownerId: 'player2' });
 
             const targets = getValidAbilityTargets(mockState, 'player1', 'boon_spell', 'ab_boon_target');
-            
+
             expect(targets.some(t => t.id === 'taunt_u')).toBe(true); // Taunt is valid
             expect(targets.some(t => t.id === 'back_boon')).toBe(true); // Boon bypasses battlelines
             expect(targets.some(t => t.id === 'back_u')).toBe(false); // Normal unit is blocked
@@ -652,7 +709,7 @@ describe('targeting.js core logic', () => {
                 const buffTarget = { id: 'buff_1', instanceId: 'buff_1', type: 'buff', line: 'mid', ownerId: 'player2' };
                 const debuffTarget = { id: 'debuff_1', instanceId: 'debuff_1', type: 'debuff', line: 'mid', ownerId: 'player2' };
                 const unitTarget = { id: 'unit_1', instanceId: 'unit_1', type: 'unit', line: 'mid', ownerId: 'player2' };
-                
+
                 mockState.players.player2.lines.mid.push(buffTarget, debuffTarget, unitTarget);
 
                 const spell = {
@@ -665,7 +722,7 @@ describe('targeting.js core logic', () => {
                 mockState.players.player1.lines.mid.push(spell);
 
                 const targets = getValidAbilityTargets(mockState, 'player1', 'spell_types', 'ab_types');
-                
+
                 expect(targets).toHaveLength(2);
                 expect(targets.some(t => t.id === 'buff_1')).toBe(true);
                 expect(targets.some(t => t.id === 'debuff_1')).toBe(true);
@@ -690,7 +747,7 @@ describe('targeting.js core logic', () => {
                 mockState.players.player1.hand.push(autoCard);
 
                 const actions = getEntityAvailableActions(mockState, 'player1', 'auto_c1');
-                
+
                 // native_play should remain because there are no selectable ON_BE_PLAYED replacements
                 expect(actions.some(a => a.abilityId === 'native_play')).toBe(true);
             });
@@ -712,7 +769,7 @@ describe('targeting.js core logic', () => {
                 mockState.players.player2.lines.mid.push({ id: 't1', instanceId: 't1', ownerId: 'player2' }); // Provide valid target
 
                 const actions = getEntityAvailableActions(mockState, 'player1', 'sel_c1');
-                
+
                 expect(actions.some(a => a.abilityId === 'sel_ab')).toBe(true);
                 expect(actions.some(a => a.abilityId === 'native_play')).toBe(false);
             });
@@ -733,11 +790,11 @@ describe('targeting.js core logic', () => {
                 // Valid target has readiness 1 (can be reduced to 0). Invalid has readiness 0 (already <= 0).
                 const validTarget = { id: 't_readiness_1', instanceId: 't_readiness_1', type: 'unit', line: 'mid', ownerId: 'player1', readiness: 1 };
                 const invalidTarget = { id: 't_readiness_0', instanceId: 't_readiness_0', type: 'unit', line: 'mid', ownerId: 'player1', readiness: 0 };
-                
+
                 mockState.players.player1.lines.mid.push(validTarget, invalidTarget);
 
                 const targets = getValidAbilityTargets(mockState, 'player1', 'set_spell', 'ab_set');
-                
+
                 expect(targets).toHaveLength(1);
                 expect(targets[0].id).toBe('t_readiness_1');
             });
@@ -764,15 +821,13 @@ describe('targeting.js core logic', () => {
                     }]
                 };
                 mockState.players.player1.lines.mid.push(targetingUnit);
-                
+
                 // Player 2 field is empty, so no valid enemy targets exist
                 mockState.players.player2.lines.mid = [];
 
                 const actions = getEntityAvailableActions(mockState, 'player1', 'u_target');
                 expect(actions.some(a => a.abilityId === 'ab_requires_target')).toBe(false);
             });
-
-            
 
             it('should block manual ability events completely if it requires targets but no valid AUTO targets exist', () => {
                 const targetingUnit = {
@@ -784,21 +839,21 @@ describe('targeting.js core logic', () => {
                             {
                                 "payloads": [
                                     {
-                                    "isCost": true,
-                                    "duration": "INSTANT",
-                                    "type": "DISCARD"
+                                        "isCost": true,
+                                        "duration": "INSTANT",
+                                        "type": "DISCARD"
                                     }
                                 ],
                                 "targetMethod": "AUTO_FIRST",
                                 "quickTargeting": {
                                     "alignment": [
-                                    "FRIENDLY"
+                                        "FRIENDLY"
                                     ],
                                     "zones": [
-                                    "DECK"
+                                        "DECK"
                                     ],
                                     "entityType": [
-                                    "UNIT"
+                                        "UNIT"
                                     ],
                                     "ignoreBattlelines": false
                                 },
@@ -808,14 +863,48 @@ describe('targeting.js core logic', () => {
                     }]
                 };
                 mockState.players.player1.lines.mid.push(targetingUnit);
-                
-                // Player 2 field is empty, so no valid enemy targets exist
-                mockState.players.player2.lines.mid = [];
+
+                // Player 1 deck is empty, so no valid friendly auto targets exist
+                mockState.players.player1.deck = [];
 
                 const actions = getEntityAvailableActions(mockState, 'player1', 'u_target');
                 expect(actions.some(a => a.abilityId === 'ab_requires_target')).toBe(false);
             });
+
+            it('should block manual abilities with activation method NONE if the activation logic tree fails', async () => {
+                // We need to mock evaluateLogicTree to return false when evaluating the activation logic tree
+                const engineModule = await import('../../src/engine/index.js');
+                engineModule.GameEngine.mockImplementationOnce(() => ({
+                    evaluateLogicTree: jest.fn((tree) => {
+                        // Return false specifically for the activation condition check
+                        if (tree && tree.isActivationCondition) return false;
+                        return true;
+                    }),
+                    findEntitiesInScope: jest.fn(() => [{ id: 'auto_target' }]) // ensure target is found so it doesn't fail on target checks
+                }));
+
+                const condUnit = {
+                    id: 'u_cond', instanceId: 'u_cond', type: 'unit', readiness: 1, acts: 1, ownerId: 'player1',
+                    abilities: [{
+                        abilityId: 'ab_requires_cond', trigger: 'MANUAL',
+                        activation: {
+                            method: 'NONE',
+                            logicTree: { type: 'group', isActivationCondition: true } // Marker for the mock
+                        },
+                        effects: [{
+                            targetMethod: 'AUTO_FIRST',
+                            quickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'] }
+                        }]
+                    }]
+                };
+
+                mockState.players.player1.lines.mid.push(condUnit);
+                mockState.players.player2.lines.mid.push({ id: 'enemy', instanceId: 'enemy', ownerId: 'player2' }); // valid target
+
+                const actions = getEntityAvailableActions(mockState, 'player1', 'u_cond');
+                // The action should not be available because the activation logic tree evaluated to false
+                expect(actions.some(a => a.abilityId === 'ab_requires_cond')).toBe(false);
+            });
         });
     });
 });
-

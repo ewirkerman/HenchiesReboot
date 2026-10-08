@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { GameEngine } from '../../../src/engine/targeting.js';
+import { GameEngine } from '../../../src/engine/index.js';
 import { ACTION_REGISTRY } from '../../../src/engine/actions/action_index.js';
 
 function createPlayer() {
@@ -137,5 +137,65 @@ describe('HIT event', () => {
         runAttack();
 
         expect(emitSpy.mock.calls.some(([eventType]) => eventType === 'MODIFY_HIT')).toBe(false);
+    });
+
+    // --- NEW ARMOR TESTS ---
+
+    it('reduces combat damage by 1 and decreases armor count by 1', () => {
+        defender.armor = 2;
+        attacker.strength = 3;
+        
+        runAttack();
+
+        // 3 incoming damage - 1 blocked by armor = 2 actual damage taken
+        expect(defender.health).toBe(8); 
+        expect(defender.armor).toBe(1); 
+    });
+
+    it('completely blocks 1 combat damage, consuming 1 armor', () => {
+        defender.armor = 1;
+        attacker.strength = 1;
+        
+        runAttack();
+
+        // 1 incoming damage - 1 blocked by armor = 0 actual damage taken
+        expect(defender.health).toBe(10);
+        expect(defender.armor).toBe(0);
+    });
+
+    it('does not mitigate non-combat damage or reduce armor count', () => {
+        defender.armor = 1;
+        
+        new ACTION_REGISTRY.DEAL_DAMAGE({
+            source: attacker,
+            target: defender,
+            amount: 3
+        }).run(engine);
+        
+        // 3 non-combat damage bypasses armor completely
+        expect(defender.health).toBe(7);
+        expect(defender.armor).toBe(1);
+    });
+
+    it('does not reduce armor count if incoming combat damage is 0', () => {
+        defender.armor = 1;
+        attacker.strength = 0;
+        
+        runAttack();
+        
+        // 0 incoming damage triggers a hit but does not consume armor
+        expect(defender.health).toBe(10);
+        expect(defender.armor).toBe(1);
+    });
+
+     it('does not reduce armor if there is no armor', () => {
+        defender.armor = 0;
+        attacker.strength = 1;
+        
+        runAttack();
+        
+        // 0 incoming damage triggers a hit but does not consume armor
+        expect(defender.health).toBe(9);
+        expect(defender.armor).toBe(0);
     });
 });

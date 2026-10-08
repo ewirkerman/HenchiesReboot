@@ -11,6 +11,8 @@ export class GameEngine {
         this.processingDepth = 0;
         this.activeChainAbilities = new Set(); 
         
+        this.debugConfig = state.debugConfig || { enableNearMisses: true };
+        
         this.utils = {
             randomInt,
             shuffleArray: prandomShuffle,
@@ -21,8 +23,20 @@ export class GameEngine {
         };
     }
 
+    _isWatched(abilityId, entityId) {
+        if (!this.debugConfig) return false;
+        if (this.debugConfig.watchAbilities?.includes(abilityId)) return true;
+        if (this.debugConfig.watchEntities?.includes(entityId)) return true;
+        return false;
+    }
+
+    _logNearMiss(ability, entity, reason) {
+        const aName = ability.name || ability.abilityId || 'Unnamed';
+        const eName = entity.name || entity.instanceId || 'Entity';
+        log(this.state, `[DEBUG] 🔍 '${aName}' on '${eName}' matched event, but failed: ${reason}`);
+    }
+
     emit(eventType, payload) {
-        // Log passive routing for debugging
         let isPassiveLog = false;
         let matchedPassiveType = null;
         for (const manifest of [...Object.values(ACTION_MANIFEST), ...Object.values(EVENT_MANIFEST)]) {
@@ -37,7 +51,6 @@ export class GameEngine {
             log(this.state, `[EVENT BUS] 🛡️ Routing object-side passive event: ${eventType} [Type: ${matchedPassiveType}] (Target: ${payload?.target?.name || 'None'})`);
         }
 
-        // 1. Interceptors (WOULD_)
         if (!eventType.startsWith('WOULD_') && !eventType.startsWith('MODIFY_') && !eventType.startsWith('ON_')) {
             const wouldEvent = `WOULD_${eventType}`;
             const addedTriggers = this.queueTriggers(wouldEvent, payload);
@@ -70,7 +83,6 @@ export class GameEngine {
             }
         }
         
-        // 2. Exact Event Triggers
         const addedTriggers = this.queueTriggers(eventType, payload);
         let rootEventCancelled = false;
 
@@ -89,7 +101,6 @@ export class GameEngine {
     queueTriggers(eventType, payload) {
         const triggers = [];
         const checkedEntities = new Set();
-        const isTurnEvent = ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED'].includes(eventType);
 
         if (payload) {
             if (payload.source) this._evaluateTriggerMatch(payload.source, getOwnerId(this.state, payload.source), eventType, payload, checkedEntities, triggers);
@@ -98,17 +109,6 @@ export class GameEngine {
         
         for (const pId of ['player1', 'player2']) {
             const player = this.state.players[pId];
-            if (isTurnEvent) {
-                const avatar = getAvatar(this.state, pId);
-                if (avatar) this._evaluateTriggerMatch(avatar, pId, eventType, payload, checkedEntities, triggers);
-                for (const line of LINES) {
-                    if (line === 'avatar' || !player.lines[line]) continue;
-                    for (const unit of player.lines[line]) {
-                        this._evaluateTriggerMatch(unit, pId, eventType, payload, checkedEntities, triggers, { personalTurnAliasesOnly: true });
-                    }
-                }
-                continue;
-            }
             for (const line of LINES) {
                 if (!player.lines[line]) continue;
                 for (const unit of player.lines[line]) {
@@ -120,7 +120,7 @@ export class GameEngine {
             }
         }
         
-        if (!isTurnEvent && this.state.equator) {
+        if (this.state.equator) {
             for (const item of this.state.equator) {
                 this._evaluateTriggerMatch(item, item.ownerId || this.state.activePlayerId, eventType, payload, checkedEntities, triggers);
             }
@@ -146,10 +146,8 @@ export class GameEngine {
     _triggerMatchesEvent(trigger, eventType, ownerId, payload) {
         if (!trigger || !eventType) return false;
         
-        // 1. Exact Match (Handles all WOULD_, MODIFY_, ON_ events)
         if (trigger === eventType) return true;
 
-        // 2. Turn-Based Aliases
         if (!payload?.playerId) return false;
         
         if (trigger.startsWith('OWN_TURN_')) {
@@ -162,7 +160,7 @@ export class GameEngine {
         return false;
     }
 
-    _evaluateTriggerMatch(ent, ownerId, eventType, payload, checkedEntities, triggers, options = {}) {
+    _evaluateTriggerMatch(ent, ownerId, eventType, payload, checkedEntities, triggers) {
         if (!ent || !ent.instanceId || checkedEntities.has(ent.instanceId)) return;
         checkedEntities.add(ent.instanceId);
         
@@ -180,111 +178,121 @@ export class GameEngine {
 
         for (const ability of abilitiesToCheck) {
             const allTriggers = [ability.trigger, ...(ability.additionalTriggers || [])];
-            const triggerDebug = false;
-            const abilityLabel = `'${ability.name || ability.abilityId || 'Unnamed ability'}' (${ability.abilityId || 'no-id'})`;
+            
             const matchedTrigger = allTriggers.find(trigger => this._triggerMatchesEvent(trigger, eventType, ownerId, payload));
-            if (triggerDebug) {
-                log(this.state, `[TRIGGER DEBUG] event=${eventType} entity=${ent.name || ent.instanceId} ability=${abilityLabel} configured=[${allTriggers.filter(Boolean).join(', ') || 'none'}] match=${matchedTrigger || 'none'}`);
-            }
-            if (options.personalTurnAliasesOnly && (!ability.triggerScope || ability.triggerScope !== 'PERSONAL' || !matchedTrigger?.match(/^(OWN|OPP)_TURN_/))) {
-                if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=turn-alias-filter ability=${abilityLabel}`);
-                continue;
-            }
-            if (!matchedTrigger) {
-                if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=no-trigger-match ability=${abilityLabel}`);
-                continue;
-            }
+            if (!matchedTrigger) continue;
+
+            const isWatched = this._isWatched(ability.abilityId, ent.instanceId);
+            const shouldLog = (this.debugConfig?.enableNearMisses || isWatched) && !this.debugConfig?.suppressAll;
+            
             if (this.activeChainAbilities.has(ability.instanceId)) {
-                if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=active-chain-loop ability=${abilityLabel}`);
+                if (shouldLog) this._logNearMiss(ability, ent, 'Active chain loop prevented execution');
                 continue;
             }
-            if (matchedTrigger && !this.activeChainAbilities.has(ability.instanceId)) {
-                
-                let isValid = true;
-                const scope = ability.triggerScope || 'PERSONAL';
-                
-                let isPassive = false;
-                let isPhaseEvent = eventType.includes('TURN_');
-                let foundPassiveType = null;
+            
+            let isValid = true;
+            let rejectReason = '';
+            const scope = ability.triggerScope || 'PERSONAL';
+            
+            let isPassive = false;
+            let isPhaseEvent = eventType.includes('TURN_');
+            let foundPassiveType = null;
 
-                for (const manifest of [
-                    ...Object.values(ACTION_MANIFEST),
-                    ...Object.values(EVENT_MANIFEST)
-                ]) {
-                    if (manifest.passiveType && (eventType === manifest.passiveType || eventType.endsWith(`_${manifest.passiveType}`))) {
-                        isPassive = true;
-                        foundPassiveType = manifest.passiveType;
-                        break;
-                    }
-                }
-                
-                let eventEntity = null;
-                if (payload && !isPhaseEvent) {
-                    eventEntity = isPassive ? payload.target : payload.source;
-                }
-
-                if (payload) {
-                    if (scope === 'PERSONAL') {
-                        if (isPhaseEvent) {
-                            if (matchedTrigger?.startsWith('OWN_TURN_')) {
-                                if (payload.playerId !== ownerId) isValid = false;
-                            } else if (matchedTrigger?.startsWith('OPP_TURN_')) {
-                                if (payload.playerId === ownerId) isValid = false;
-                            } else if (payload.playerId && payload.playerId !== ownerId) {
-                                isValid = false;
-                            }
-                        } else {
-                            if (!eventEntity || eventEntity.instanceId !== ent.instanceId) {
-                                isValid = false;
-                                if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=personal-event-target-mismatch eventEntity=${eventEntity?.instanceId || 'none'} abilityEntity=${ent.instanceId} ability=${abilityLabel}`);
-                            }
-                        }
-                    } else if (scope === 'GLOBAL') {
-                        if (!isPhaseEvent) {
-                            if (!eventEntity) {
-                                isValid = false;
-                                if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=global-event-entity-missing ability=${abilityLabel}`);
-                            } else {
-                                const qt = ability.activation?.quickTargeting;
-                                const pool = this.findEntitiesInScope(qt, ownerId);
-                                if (!pool.some(p => p.instanceId === eventEntity?.instanceId)) {
-                                    isValid = false;
-                                    if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=global-target-out-of-scope eventEntity=${eventEntity.instanceId} ability=${abilityLabel}`);
-                                }
-                            }
-                        }
-                    } else if (scope === 'HOST') {
-                        if (!isPhaseEvent) {
-                            const loc = findEntityLocation(this, ent);
-                            if (!loc || loc.zone !== 'attachment' || !loc.host || !eventEntity || eventEntity.instanceId !== loc.host.instanceId) {
-                                isValid = false;
-                                if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=host-event-target-mismatch eventEntity=${eventEntity?.instanceId || 'none'} abilityEntity=${ent.instanceId} ability=${abilityLabel}`);
-                            }
-                        }
-                    }
-                }
-
-                if (isValid && ability.activation?.logicTree && ability.activation?.method !== 'PLAYER_CHOICE') {
-                    const evalEntity = (scope === 'GLOBAL' && eventEntity) ? eventEntity : ent;
-                    let evalLKI = null;
-                    if (payload) {
-                         if (payload.source?.instanceId === evalEntity.instanceId) evalLKI = payload._lkiSourceAbilities;
-                         if (payload.target?.instanceId === evalEntity.instanceId) evalLKI = payload._lkiTargetAbilities;
-                    }
-                    if (!this.evaluateLogicTree(ability.activation.logicTree, evalEntity, ent, payload, evalLKI)) {
-                        isValid = false;
-                        if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=REJECT reason=logic-tree-false ability=${abilityLabel}`);
-                    }
-                }
-
-                if (isValid) {
-                    const eId = ent.instanceId || ent.id || 'none';
-                    const sideLabel = isPassive ? `[Passive/Target Side: ${foundPassiveType}]` : `[Active/Source Side]`;
-                    log(this.state, `    ↳ 🎯 Triggered '${ability.name}' on '${ent.name} (${eId})' for ${eventType} ${sideLabel}`);
-                    if (triggerDebug) log(this.state, `[TRIGGER DEBUG] result=QUEUED ability=${abilityLabel} scope=${scope} matched=${matchedTrigger}`);
-                    triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload });
+            for (const manifest of [
+                ...Object.values(ACTION_MANIFEST),
+                ...Object.values(EVENT_MANIFEST)
+            ]) {
+                if (manifest.passiveType && (eventType === manifest.passiveType || eventType.endsWith(`_${manifest.passiveType}`))) {
+                    isPassive = true;
+                    foundPassiveType = manifest.passiveType;
+                    break;
                 }
             }
+            
+            let eventEntity = null;
+            if (payload && !isPhaseEvent) {
+                eventEntity = isPassive ? payload.target : payload.source;
+            }
+
+            if (eventType === 'ON_BE_PLAYED' && (ent.type === 'spell' || ent.type === 'boon')) {
+                const playAbilities = abilitiesToCheck.filter(a => 
+                    a.trigger === 'ON_BE_PLAYED' || a.additionalTriggers?.includes('ON_BE_PLAYED')
+                );
+                
+                if (playAbilities.length > 1 && payload?.eventContext?.chosenAbilityId !== ability.abilityId) {
+                    if (shouldLog) this._logNearMiss(ability, ent, `Ability was not the selected option for this spell/boon.`);
+                    continue;
+                }
+            }
+
+            if (payload) {
+                if (scope === 'PERSONAL') {
+                    if (isPhaseEvent) {
+                        if (matchedTrigger?.startsWith('OWN_TURN_')) {
+                            if (payload.playerId !== ownerId) { isValid = false; rejectReason = 'Not own turn'; }
+                        } else if (matchedTrigger?.startsWith('OPP_TURN_')) {
+                            if (payload.playerId === ownerId) { isValid = false; rejectReason = 'Not opponent turn'; }
+                        } else if (payload.playerId && payload.playerId !== ownerId) {
+                            { isValid = false; rejectReason = 'Player ID mismatch for turn event'; }
+                        }
+                    } else {
+                        if (!eventEntity || eventEntity.instanceId !== ent.instanceId) {
+                            isValid = false;
+                            rejectReason = `Personal scope mismatch (Event Entity: ${eventEntity?.name || eventEntity?.instanceId || 'None'})`;
+                        }
+                    }
+                } else if (scope === 'GLOBAL') {
+                    if (!isPhaseEvent) {
+                        if (!eventEntity) {
+                            isValid = false;
+                            rejectReason = 'Global scope requires an event entity, none found';
+                        } else {
+                            const qt = ability.activation?.quickTargeting;
+                            const pool = this.findEntitiesInScope(qt, ownerId);
+                            if (!pool.some(p => p.instanceId === eventEntity?.instanceId)) {
+                                isValid = false;
+                                rejectReason = `Event entity '${eventEntity.name}' not in Global QuickTargeting scope`;
+                            }
+                        }
+                    }
+                } else if (scope === 'HOST') {
+                    if (!isPhaseEvent) {
+                        const loc = findEntityLocation(this, ent);
+                        if (!loc || loc.zone !== 'attachment' || !loc.host || !eventEntity || eventEntity.instanceId !== loc.host.instanceId) {
+                            isValid = false;
+                            rejectReason = `Host scope mismatch (Host: ${loc?.host?.name}, Event Entity: ${eventEntity?.name})`;
+                        }
+                    }
+                }
+            }
+
+            if (isValid && ability.activation?.logicTree && ability.activation?.method !== 'PLAYER_CHOICE') {
+                let evalEntity = ent;
+                if ((scope === 'GLOBAL' || scope === 'HOST') && eventEntity) {
+                    evalEntity = eventEntity;
+                }
+                
+                let evalLKI = null;
+                if (payload) {
+                     if (payload.source?.instanceId === evalEntity.instanceId) evalLKI = payload._lkiSourceAbilities;
+                     if (payload.target?.instanceId === evalEntity.instanceId) evalLKI = payload._lkiTargetAbilities;
+                }
+                if (!this.evaluateLogicTree(ability.activation.logicTree, evalEntity, ent, payload, evalLKI)) {
+                    isValid = false;
+                    rejectReason = 'LogicTree evaluated to false';
+                }
+            }
+
+            if (!isValid) {
+                if (shouldLog) this._logNearMiss(ability, ent, rejectReason);
+                continue;
+            }
+
+            const eId = ent.instanceId || ent.id || 'none';
+            const sideLabel = isPassive ? `[Passive/Target Side: ${foundPassiveType}]` : `[Active/Source Side]`;
+            log(this.state, `    ↳ 🎯 Triggered '${ability.name}' on '${ent.name} (${eId})' for ${eventType} ${sideLabel}`);
+            
+            triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload });
         }
     }
 
@@ -334,7 +342,7 @@ export class GameEngine {
         if (ability === 'native_attack' || ability?.abilityId === 'native_attack') {
             ability = {
                 abilityId: 'native_attack',
-                instanceId: 'native_attack_inst', // Ensure cost tracker has a unique key 
+                instanceId: 'native_attack_inst',
                 name: 'Attack',
                 trigger: 'MANUAL',
                 cost: getAttackCost(this.state, source),
@@ -357,7 +365,6 @@ export class GameEngine {
             ownerId = ownerId || this.state.activePlayerId;
             if (!eventPayload) eventPayload = {}; 
             if (!this._checkAndPayCost(ability, source, ownerId, eventPayload)) {
-                log(this.state, `[ABILITY DEBUG] result=REJECT reason=cost-or-limit ability='${ability.name || ability.abilityId}' source=${sId}`);
                 return;
             }
 
@@ -382,12 +389,15 @@ export class GameEngine {
         
         const previousUses = this.state.abilityUses?.[abilityKey] || 0;
         
+        const isWatched = this._isWatched(ability.abilityId, source.instanceId);
+        const shouldLog = (this.debugConfig?.enableNearMisses || isWatched) && !this.debugConfig?.suppressAll;
+
         if (limit === 'ONCE_PER_ROUND' && previousUses >= 1) {
-            log(this.state, `[ABILITY DEBUG] result=REJECT reason=trigger-limit limit=${limit} uses=${previousUses} ability='${ability.name || ability.abilityId}' source=${source.instanceId}`);
+            if (shouldLog) this._logNearMiss(ability, source, `Limit reached (${limit})`);
             return false;
         }
         if (limit === 'TWICE_PER_ROUND' && previousUses >= 2) {
-            log(this.state, `[ABILITY DEBUG] result=REJECT reason=trigger-limit limit=${limit} uses=${previousUses} ability='${ability.name || ability.abilityId}' source=${source.instanceId}`);
+            if (shouldLog) this._logNearMiss(ability, source, `Limit reached (${limit})`);
             return false;
         }
 
@@ -408,17 +418,16 @@ export class GameEngine {
         }
         
         if (ability.trigger === 'MANUAL' && requiresReadiness && currentReadiness < 1) {
-            log(this.state, `[ABILITY DEBUG] result=REJECT reason=readiness-required readiness=${currentReadiness} ability='${ability.name || ability.abilityId}' source=${source.instanceId}`);
+            if (shouldLog) this._logNearMiss(ability, source, `Insufficient readiness (${currentReadiness})`);
             return false;
         }
         
-        // Note: Escalate costs correctly stay tied to abilityId so they accumulate per-power, not per-instance.
         const lifetimeUses = source.lifetimeAbilityUses?.[ability.abilityId] || 0;
         const escalateAmount = cost.escalates ? lifetimeUses : 0;
         
         const affordCheck = canAffordCost(this.state, p, source, cost, escalateAmount, false);
         if (!affordCheck.success) {
-            log(this.state, `[Engine] Could not afford trigger cost for '${ability.name}'.`);
+            if (shouldLog) this._logNearMiss(ability, source, `Could not afford trigger cost`);
             if (ability.trigger !== 'MANUAL') this.state.history_log.push({ text: `⚠️ ${source.name} tried to trigger '${ability.name}', but lacked resources.`, depth: this.state._actionDepth || this.processingDepth || 0 });
             return false;
         }
@@ -439,8 +448,6 @@ export class GameEngine {
         }
         
         payCost(this.state, p, source, cost, escalateAmount, false);
-
-        log(this.state, `[ABILITY DEBUG] result=PAID ability='${ability.name || ability.abilityId}' source=${source.instanceId} uses=${this.state.abilityUses[abilityKey]}`);
 
         return true;
     }
@@ -696,8 +703,17 @@ export class GameEngine {
             else if (checkAttr === 'customScript') {
                 try {
                     const cleanScript = String(node.value).replace(/\\\[/g, '[').replace(/\\\]/g, ']').replace(/\\_/g, '_');
-                    const fn = new Function('target', 'source', 'state', 'eventPayload', 'engine', '"use strict";\n' + cleanScript);
-                    const result = fn(targetEnt, source, this.state, eventPayload, this);
+                    
+                    let manualTarget = null;
+                    const tunneledTargetId = eventPayload?.abilityTargetId || eventPayload?.eventContext?.abilityTargetId;
+                    if (tunneledTargetId) {
+                        manualTarget = resolveTargetById(this.state, tunneledTargetId);
+                    } else if (eventPayload?.target) {
+                        manualTarget = eventPayload.target;
+                    }
+
+                    const fn = new Function('target', 'source', 'manualTarget', 'state', 'eventPayload', 'engine', '"use strict";\n' + cleanScript);
+                    const result = fn(targetEnt, source, manualTarget, this.state, eventPayload, this);
                     return node.operator === '==' ? !!result : !result;
                 } catch (e) {
                     console.error(`[Engine] Custom script condition error:`, e);
