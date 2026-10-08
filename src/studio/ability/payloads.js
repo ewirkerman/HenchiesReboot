@@ -1,5 +1,3 @@
-// filepath: src/studio/ability/payloads.js
-
 import { StudioState } from './state.js';
 import { updateJSONPreview } from './catalog_sync.js';
 import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from '../../engine/actions/action_index.js';
@@ -147,6 +145,10 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
   }
 
   payload[field] = value;
+
+  if (field === 'targetPool' && value === 'MAX') {
+      payload.respectMax = false;
+  }
   
   if (field === 'type') {
       const manifest = ACTION_MANIFEST[value];
@@ -165,8 +167,17 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
       
       if (requiresResource) {
           payload.resource = value === 'HARVEST' ? 'default' : 'Carnie'; 
+          if (value === 'MODIFY_RESOURCE') {
+              payload.targetPool = 'CURRENT';
+              payload.respectMax = false;
+          } else {
+              delete payload.targetPool;
+              delete payload.respectMax;
+          }
       } else {
           delete payload.resource;
+          delete payload.targetPool;
+          delete payload.respectMax;
       }
       
       if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
@@ -237,6 +248,10 @@ export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
   }
 
   payload[field] = value;
+
+  if (field === 'targetPool' && value === 'MAX') {
+      payload.respectMax = false;
+  }
   
   if (field === 'type') {
       const manifest = ACTION_MANIFEST[value];
@@ -255,8 +270,17 @@ export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
       
       if (requiresResource) {
           payload.resource = value === 'HARVEST' ? 'default' : 'Carnie'; 
+          if (value === 'MODIFY_RESOURCE') {
+              payload.targetPool = 'CURRENT';
+              payload.respectMax = false;
+          } else {
+              delete payload.targetPool;
+              delete payload.respectMax;
+          }
       } else {
           delete payload.resource;
+          delete payload.targetPool;
+          delete payload.respectMax;
       }
 
       if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
@@ -317,7 +341,21 @@ export function revalidatePayloadTypes() {
                     const requiresResource = manifest.requiresResource || fallback === 'HARVEST';
 
                     if (requiresAmount) payload.amount = 1; else delete payload.amount;
-                    if (requiresResource) payload.resource = fallback === 'HARVEST' ? 'default' : 'Carnie'; else delete payload.resource;
+                    
+                    if (requiresResource) {
+                        payload.resource = fallback === 'HARVEST' ? 'default' : 'Carnie';
+                        if (fallback === 'MODIFY_RESOURCE') {
+                            payload.targetPool = 'CURRENT';
+                            payload.respectMax = false;
+                        } else {
+                            delete payload.targetPool;
+                            delete payload.respectMax;
+                        }
+                    } else {
+                        delete payload.resource;
+                        delete payload.targetPool;
+                        delete payload.respectMax;
+                    }
                     
                     if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
                     if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;

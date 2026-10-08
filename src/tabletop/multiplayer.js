@@ -14,70 +14,70 @@ export async function validateAndGetDeck() {
 
     const deckOption = document.getElementById('setup-deck-select').value;
     if (!deckOption) {
-      showToast('You must construct and select a valid 41-card deck to play!', 'error');
-      return null;
+        showToast('You must construct and select a valid 41-card deck to play!', 'error');
+        return null;
     }
-    
+
     const loadedData = ClientState.loadedUserDecks[deckOption]?.deckData;
 
     if (!loadedData || loadedData.length !== 41) {
-      showToast('The selected deck is invalid or corrupted!', 'error');
-      return null;
+        showToast('The selected deck is invalid or corrupted!', 'error');
+        return null;
     }
 
     try {
-      const combinedCatalog = ClientState.allCardsRegistry;
-      const rawAbs = ClientState.allAbilitiesRegistry;
+        const combinedCatalog = ClientState.allCardsRegistry;
+        const rawAbs = ClientState.allAbilitiesRegistry;
 
-      const hydratedDeck = [];
-      let missingCards = 0;
+        const hydratedDeck = [];
+        let missingCards = 0;
 
-      for (const savedCard of loadedData) {
-          const cardId = savedCard.id || savedCard;
-          const fresh = combinedCatalog.find(c => c.id === cardId);
-          
-          if (!fresh) {
-              missingCards++;
-              continue;
-          }
-          
-          const clone = instantiateEntity(fresh, rawAbs, null, null);
-          if (clone.abilities) {
-              clone.abilities.forEach(hyd => {
-                  if (hyd) {
-                      try { hyd.displayDescription = generateAbilityDescription(hyd, rawAbs, combinedCatalog, ClientState.customTribesList); } catch(e){}
-                  }
-              });
-          }
-          hydratedDeck.push(clone);
-      }
+        for (const savedCard of loadedData) {
+            const cardId = savedCard.id || savedCard;
+            const fresh = combinedCatalog.find(c => c.id === cardId);
 
-      if (missingCards > 0) {
-          showToast(`Error: Deck is missing ${missingCards} cards that were deleted from the studio. Please edit your deck.`, 'error');
-          return null;
-      }
+            if (!fresh) {
+                missingCards++;
+                continue;
+            }
 
-      const avatars = hydratedDeck.filter(c => c.type === 'avatar');
-      const standardCards = hydratedDeck.filter(c => c.type !== 'avatar');
-      
-      if (avatars.length !== 1 || standardCards.length !== 40) {
-          showToast(`Invalid Deck! Must contain exactly 1 Avatar and 40 cards.`, 'error');
-          return null;
-      }
-      
-      const counts = {};
-      standardCards.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
-      const overFour = Object.values(counts).filter(cnt => cnt > 4);
-      const exactlyFour = Object.values(counts).filter(cnt => cnt === 4);
-      
-      if (overFour.length > 0 || exactlyFour.length > 1) {
-          showToast('Invalid Deck! Violates copy limits.', 'error');
-          return null;
-      }
+            const clone = instantiateEntity(fresh, rawAbs, null, null);
+            if (clone.abilities) {
+                clone.abilities.forEach(hyd => {
+                    if (hyd) {
+                        try { hyd.displayDescription = generateAbilityDescription(hyd, rawAbs, combinedCatalog, ClientState.customTribesList); } catch (e) { }
+                    }
+                });
+            }
+            hydratedDeck.push(clone);
+        }
 
-      ClientState.activeBattleDeck = hydratedDeck;
-      return username;
-    } catch(e) {
+        if (missingCards > 0) {
+            showToast(`Error: Deck is missing ${missingCards} cards that were deleted from the studio. Please edit your deck.`, 'error');
+            return null;
+        }
+
+        const avatars = hydratedDeck.filter(c => c.type === 'avatar');
+        const standardCards = hydratedDeck.filter(c => c.type !== 'avatar');
+
+        if (avatars.length !== 1 || standardCards.length !== 40) {
+            showToast(`Invalid Deck! Must contain exactly 1 Avatar and 40 cards.`, 'error');
+            return null;
+        }
+
+        const counts = {};
+        standardCards.forEach(c => counts[c.id] = (counts[c.id] || 0) + 1);
+        const overFour = Object.values(counts).filter(cnt => cnt > 4);
+        const exactlyFour = Object.values(counts).filter(cnt => cnt === 4);
+
+        if (overFour.length > 0 || exactlyFour.length > 1) {
+            showToast('Invalid Deck! Violates copy limits.', 'error');
+            return null;
+        }
+
+        ClientState.activeBattleDeck = hydratedDeck;
+        return username;
+    } catch (e) {
         console.warn("[LAUNCH] Failed to hydrate deck:", e);
         return null;
     }
@@ -86,42 +86,43 @@ export async function validateAndGetDeck() {
 export async function handleQueueMatch(btn) {
     const username = await validateAndGetDeck();
     if (!username) return;
-    
+
     btn.innerHTML = '⏳ Finding Match...';
     btn.disabled = true;
-    
+
     const gameId = await findOpenQueueRoom(username);
     ClientState.roomCode = gameId;
     history.pushState(null, null, '#' + gameId);
-    
+
     connectToMatch(gameId, username);
 }
 
 export async function handleAIMatch(btn) {
     const username = await validateAndGetDeck();
     if (!username) return;
-    
+
     btn.innerHTML = '⏳ Loading...';
     btn.disabled = true;
-    
+
     const gameId = 'TEST_AI_' + Date.now();
     ClientState.roomCode = gameId;
     history.pushState(null, null, '#' + gameId);
-    
+
     ClientState.localPlayerRole = 'player1';
     ClientState.gameState = initGame(gameId, username, ClientState.activeBattleDeck, ClientState.allAbilitiesRegistry, ClientState.allCardsRegistry, ClientState.customTribesList);
-    
+    ClientState.gameState.players.player1.startingDeck = [...ClientState.activeBattleDeck];
+
     ClientState.gameState = joinGame(ClientState.gameState, "AI Opponent", ClientState.activeBattleDeck);
     ClientState.gameState.players.player2.isAI = true;
-    
+
     const allowUndoChk = document.getElementById('setup-allow-undo');
     if (allowUndoChk) ClientState.gameState.rules.allowUndo = allowUndoChk.checked;
-    
+
     const engine = new GameEngine(ClientState.gameState);
     startTurn(ClientState.gameState, engine);
-    
+
     await createGameRoom(gameId, ClientState.gameState);
-    
+
     subscribeToGameRoom(gameId, (data) => {
         if (data && data.turn_start_state) {
             reconstructStateFromLog(data);
@@ -135,19 +136,19 @@ export async function handleAIMatch(btn) {
 export async function handleSendChallenge(btn) {
     const username = await validateAndGetDeck();
     if (!username) return;
-    
+
     const toUser = document.getElementById('challenge-username').value.trim();
     if (!toUser) {
         showToast("Enter a friend's username to challenge them.", "error");
         return;
     }
-    
+
     btn.innerHTML = '⏳...';
     btn.disabled = true;
-    
+
     const gameId = 'ROOM_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const success = await sendDirectInvite(username, toUser, gameId);
-    
+
     if (success) {
         ClientState.roomCode = gameId;
         history.pushState(null, null, '#' + gameId);
@@ -163,9 +164,9 @@ export async function handleSendChallenge(btn) {
 export async function handleAcceptInvite(inviteId, gameId) {
     const username = await validateAndGetDeck();
     if (!username) return;
-    
+
     await updateInviteStatus(inviteId, 'accepted');
-    
+
     ClientState.roomCode = gameId;
     history.pushState(null, null, '#' + gameId);
     connectToMatch(gameId, username);
@@ -174,7 +175,7 @@ export async function handleAcceptInvite(inviteId, gameId) {
 export async function handleResumeMatch(gameId) {
     const username = await validateAndGetDeck();
     if (!username) return;
-    
+
     ClientState.roomCode = gameId;
     history.pushState(null, null, '#' + gameId);
     connectToMatch(gameId, username);
@@ -189,118 +190,120 @@ export async function connectToMatch(gameId, username) {
     }
 
     let isJoining = true;
-    
+
     const connectionTimeout = setTimeout(() => {
-      if (isJoining) {
-        isJoining = false;
-        showToast('Connection timed out. Firebase may be unavailable or blocked.', 'error');
-        const qBtn = document.getElementById('queue-match-btn');
-        if(qBtn) { qBtn.innerHTML = '🎲 Queue for Random Match'; qBtn.disabled = false; }
-      }
+        if (isJoining) {
+            isJoining = false;
+            showToast('Connection timed out. Firebase may be unavailable or blocked.', 'error');
+            const qBtn = document.getElementById('queue-match-btn');
+            if (qBtn) { qBtn.innerHTML = '🎲 Queue for Random Match'; qBtn.disabled = false; }
+        }
     }, 8000);
 
     try {
-      await subscribeToGameRoom(gameId, async (data) => {
-        try {
-          if (isJoining) {
-            clearTimeout(connectionTimeout);
-            isJoining = false;
-            
-            if (!data || !data.turn_start_state) {
-              if (!ClientState.activeBattleDeck) {
-                  showToast("Cannot initialize match: No deck selected. Returning to lobby.", "error");
-                  document.getElementById('match-setup-screen')?.classList.remove('hidden');
-                  history.pushState(null, null, ' '); 
-                  isJoining = true;
-                  return;
-              }
-              ClientState.localPlayerRole = 'player1';
-              ClientState.gameState = initGame(gameId, username, ClientState.activeBattleDeck, ClientState.allAbilitiesRegistry, ClientState.allCardsRegistry, ClientState.customTribesList);
-              
-              const allowUndoChk = document.getElementById('setup-allow-undo');
-              if (allowUndoChk) ClientState.gameState.rules.allowUndo = allowUndoChk.checked;
-              
-              const engine = new GameEngine(ClientState.gameState);
-              startTurn(ClientState.gameState, engine);
+        await subscribeToGameRoom(gameId, async (data) => {
+            try {
+                if (isJoining) {
+                    clearTimeout(connectionTimeout);
+                    isJoining = false;
 
-              const createTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
-              await Promise.race([createGameRoom(gameId, ClientState.gameState), createTimeout]);
-              
-              enterTabletop();
-            } else {
-              const parsedState = JSON.parse(data.turn_start_state);
-              if (parsedState.players.player1.name === username) {
-                  ClientState.localPlayerRole = 'player1';
-                  reconstructStateFromLog(data);
-                  enterTabletop();
-              } else if (parsedState.players.player2.name === username) {
-                  ClientState.localPlayerRole = 'player2';
-                  reconstructStateFromLog(data);
-                  enterTabletop();
-              } else if (parsedState.players.player2.isDummy) {
-                  if (!ClientState.activeBattleDeck) {
-                      showToast("Cannot join match: No deck selected. Returning to lobby.", "error");
-                      document.getElementById('match-setup-screen')?.classList.remove('hidden');
-                      history.pushState(null, null, ' ');
-                      isJoining = true;
-                      return;
-                  }
-                  ClientState.localPlayerRole = 'player2';
-                  reconstructStateFromLog(data);
-                  ClientState.gameState = joinGame(ClientState.gameState, username, ClientState.activeBattleDeck);
-                  Object.defineProperty(ClientState.gameState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
-                  Object.defineProperty(ClientState.gameState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
-                  Object.defineProperty(ClientState.gameState, 'tribeCatalog', { value: ClientState.customTribesList, enumerable: false, configurable: true });
-                  
-                  if (ClientState.gameState.activePlayerId === 'player2' && !ClientState.gameState.players.player2.setupComplete) {
-                      const engine = new GameEngine(ClientState.gameState);
-                      startTurn(ClientState.gameState, engine);
-                  }
+                    if (!data || !data.turn_start_state) {
+                        if (!ClientState.activeBattleDeck) {
+                            showToast("Cannot initialize match: No deck selected. Returning to lobby.", "error");
+                            document.getElementById('match-setup-screen')?.classList.remove('hidden');
+                            history.pushState(null, null, ' ');
+                            isJoining = true;
+                            return;
+                        }
+                        ClientState.localPlayerRole = 'player1';
+                        ClientState.gameState = initGame(gameId, username, ClientState.activeBattleDeck, ClientState.allAbilitiesRegistry, ClientState.allCardsRegistry, ClientState.customTribesList);
+                        ClientState.gameState.players.player1.startingDeck = [...ClientState.activeBattleDeck];
 
-                  ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
-                  const actionPayload = { type: 'PLAYER_JOINED', actionIndex: ClientState.gameState.actionIndex, playerName: username };
-                  
-                  const joinTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
-                  await Promise.race([pushActionToLog(gameId, actionPayload, JSON.stringify(ClientState.gameState), ClientState.gameState.history_log), joinTimeout]);
-                  
-                  enterTabletop();
-              } else {
-                  showToast("Room is already full!", "error");
-                  const qBtn = document.getElementById('queue-match-btn');
-                  if(qBtn) { qBtn.innerHTML = '🎲 Queue for Random Match'; qBtn.disabled = false; }
-              }
+                        const allowUndoChk = document.getElementById('setup-allow-undo');
+                        if (allowUndoChk) ClientState.gameState.rules.allowUndo = allowUndoChk.checked;
+
+                        const engine = new GameEngine(ClientState.gameState);
+                        startTurn(ClientState.gameState, engine);
+
+                        const createTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
+                        await Promise.race([createGameRoom(gameId, ClientState.gameState), createTimeout]);
+
+                        enterTabletop();
+                    } else {
+                        const parsedState = JSON.parse(data.turn_start_state);
+                        if (parsedState.players.player1.name === username) {
+                            ClientState.localPlayerRole = 'player1';
+                            reconstructStateFromLog(data);
+                            enterTabletop();
+                        } else if (parsedState.players.player2.name === username) {
+                            ClientState.localPlayerRole = 'player2';
+                            reconstructStateFromLog(data);
+                            enterTabletop();
+                        } else if (parsedState.players.player2.isDummy) {
+                            if (!ClientState.activeBattleDeck) {
+                                showToast("Cannot join match: No deck selected. Returning to lobby.", "error");
+                                document.getElementById('match-setup-screen')?.classList.remove('hidden');
+                                history.pushState(null, null, ' ');
+                                isJoining = true;
+                                return;
+                            }
+                            ClientState.localPlayerRole = 'player2';
+                            reconstructStateFromLog(data);
+                            ClientState.gameState = joinGame(ClientState.gameState, username, ClientState.activeBattleDeck);
+                            ClientState.gameState.players.player2.startingDeck = [...ClientState.activeBattleDeck];
+                            Object.defineProperty(ClientState.gameState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
+                            Object.defineProperty(ClientState.gameState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
+                            Object.defineProperty(ClientState.gameState, 'tribeCatalog', { value: ClientState.customTribesList, enumerable: false, configurable: true });
+
+                            if (ClientState.gameState.activePlayerId === 'player2' && !ClientState.gameState.players.player2.setupComplete) {
+                                const engine = new GameEngine(ClientState.gameState);
+                                startTurn(ClientState.gameState, engine);
+                            }
+
+                            ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
+                            const actionPayload = { type: 'PLAYER_JOINED', actionIndex: ClientState.gameState.actionIndex, playerName: username };
+
+                            const joinTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Database write timeout")), 5000));
+                            await Promise.race([pushActionToLog(gameId, actionPayload, JSON.stringify(ClientState.gameState), ClientState.gameState.history_log), joinTimeout]);
+
+                            enterTabletop();
+                        } else {
+                            showToast("Room is already full!", "error");
+                            const qBtn = document.getElementById('queue-match-btn');
+                            if (qBtn) { qBtn.innerHTML = '🎲 Queue for Random Match'; qBtn.disabled = false; }
+                        }
+                    }
+                } else {
+                    if (data && data.turn_start_state) {
+                        console.warn(`[DIAGNOSTIC-SYNC] Incoming Data Sync from Firebase. Action Log size: ${data.action_log ? data.action_log.length : 'none'}`);
+                        reconstructStateFromLog(data);
+                        // checkTurnStateForNotification(ClientState.gameState, username); Removed local notification hook
+                    }
+                }
+            } catch (innerErr) {
+                console.error("Full match join error:", innerErr);
+                showToast("Error joining match: " + (innerErr.message || "Unknown error"), "error");
+                isJoining = true;
+                const qBtn = document.getElementById('queue-match-btn');
+                if (qBtn) { qBtn.innerHTML = '🎲 Queue for Random Match'; qBtn.disabled = false; }
             }
-          } else {
-            if (data && data.turn_start_state) {
-              console.warn(`[DIAGNOSTIC-SYNC] Incoming Data Sync from Firebase. Action Log size: ${data.action_log ? data.action_log.length : 'none'}`);
-              reconstructStateFromLog(data);
-              // checkTurnStateForNotification(ClientState.gameState, username); Removed local notification hook
-            }
-          }
-        } catch (innerErr) {
-          console.error("Full match join error:", innerErr);
-          showToast("Error joining match: " + (innerErr.message || "Unknown error"), "error");
-          isJoining = true; 
-          const qBtn = document.getElementById('queue-match-btn');
-          if(qBtn) { qBtn.innerHTML = '🎲 Queue for Random Match'; qBtn.disabled = false; }
-        }
-      });
+        });
     } catch (outerErr) {
-      clearTimeout(connectionTimeout);
-      showToast("Failed to connect to game servers: " + outerErr.message, "error");
-      const qBtn = document.getElementById('queue-match-btn');
-      if(qBtn) { qBtn.innerHTML = '🎲 Queue for Random Match'; qBtn.disabled = false; }
+        clearTimeout(connectionTimeout);
+        showToast("Failed to connect to game servers: " + outerErr.message, "error");
+        const qBtn = document.getElementById('queue-match-btn');
+        if (qBtn) { qBtn.innerHTML = '🎲 Queue for Random Match'; qBtn.disabled = false; }
     }
 }
 
 export function enterTabletop() {
     document.getElementById('header-room-badge').innerText = `Lobby: ${ClientState.roomCode}`;
-    
+
     // Safely hide lobby and anchor elements
     document.getElementById('match-setup-screen')?.classList.add('hidden');
     const anchor = document.getElementById('lobby-anchor');
     if (anchor) anchor.style.display = 'none';
-    
+
     document.getElementById('match-tabletop-screen').classList.remove('hidden');
     showToast(`Entered match tabletop as ${ClientState.localPlayerRole.toUpperCase()}!`, 'success');
     updateUI();
@@ -308,102 +311,123 @@ export function enterTabletop() {
 
 export function reconstructStateFromLog(data) {
     if (!data.turn_start_state) return;
-    
+
     //console.warn(`[DIAGNOSTIC-RECONSTRUCT] --- RECONSTRUCTION START ---`);
-    
+
     try {
-      const baseState = JSON.parse(data.turn_start_state);
-      //console.warn(`[DIAGNOSTIC-RECONSTRUCT] Base State Active Player: ${baseState.activePlayerId}, Action Index: ${baseState.actionIndex}`);
-      
-      Object.defineProperty(baseState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
-      Object.defineProperty(baseState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
-      Object.defineProperty(baseState, 'tribeCatalog', { value: ClientState.customTribesList, enumerable: false, configurable: true });
-      
-      ClientState.localReplayStates = [cloneGameState(baseState)];
-      let liveState = cloneGameState(baseState);
-      liveState.isReconstructing = true;
-      
-      ClientState.lastSafeUndoIndex = 0;
-      let lastRealActionIndex = 0;
-      
-      if (data.action_log && data.action_log.length > 0) {
-        //console.warn(`[DIAGNOSTIC-RECONSTRUCT] Action Log Length: ${data.action_log.length}`);
-        const validActions = [];
-        for (const action of data.action_log) {
-            if (action.type === 'UNDO') {
-                const idx = validActions.findIndex(a => a.actionIndex === action.targetIndex);
-                if (idx !== -1) validActions.splice(idx, 1);
-                validActions.push(action); // Keep the UNDO marker to safely advance the sequence clock
-            } else {
-                validActions.push(action);
+        const baseState = JSON.parse(data.turn_start_state);
+        //console.warn(`[DIAGNOSTIC-RECONSTRUCT] Base State Active Player: ${baseState.activePlayerId}, Action Index: ${baseState.actionIndex}`);
+
+        Object.defineProperty(baseState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
+        Object.defineProperty(baseState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
+        Object.defineProperty(baseState, 'tribeCatalog', { value: ClientState.customTribesList, enumerable: false, configurable: true });
+
+        ClientState.localReplayStates = [cloneGameState(baseState)];
+        let liveState = cloneGameState(baseState);
+        liveState.isReconstructing = true;
+
+        ClientState.lastSafeUndoIndex = 0;
+        let lastRealActionIndex = 0;
+
+        if (data.action_log && data.action_log.length > 0) {
+            //console.warn(`[DIAGNOSTIC-RECONSTRUCT] Action Log Length: ${data.action_log.length}`);
+            const validActions = [];
+            for (const action of data.action_log) {
+                if (action.type === 'UNDO') {
+                    const idx = validActions.findIndex(a => a.actionIndex === action.targetIndex);
+                    if (idx !== -1) validActions.splice(idx, 1);
+                    validActions.push(action); // Keep the UNDO marker to safely advance the sequence clock
+                } else {
+                    validActions.push(action);
+                }
+            }
+
+            for (const action of validActions) {
+                if (action.actionIndex && action.actionIndex <= (liveState.actionIndex || 0)) {
+                    //console.warn(`[DIAGNOSTIC-RECONSTRUCT] SKIPPING action ${action.type} (Index ${action.actionIndex} <= ${liveState.actionIndex})`);
+                    continue;
+                }
+
+                //console.warn(`[DIAGNOSTIC-RECONSTRUCT] EXECUTING action ${action.type} (Index ${action.actionIndex})`);
+
+                if (action.type === 'UNDO') {
+                    console.log(`[REPLAY] Processed UNDO marker. Fast-forwarding clock to ${action.actionIndex}`);
+                    liveState.actionIndex = action.actionIndex;
+                    liveState.history_log.push({ text: `⏪ Previous Action Undone.`, depth: 0 });
+                    continue;
+                }
+
+                if (action.type === 'SACRIFICE_DECISION') {
+                    const replayPlayer = liveState.players[liveState.activePlayerId];
+                    const handCountBefore = replayPlayer?.hand?.length ?? null;
+                    const resourceTotalsBefore = Object.fromEntries(
+                        Object.entries(replayPlayer?.resources || {}).map(([key, value]) => [key, value.current])
+                    );
+                    console.info('[HARVEST_TRACE] Replaying sacrifice action', {
+                        option: action.option,
+                        cardId: action.cardId ?? null,
+                        handCountBefore,
+                        turnPhase: liveState.turnPhase
+                    });
+                    executeSacrificeDecision(liveState, action.option, action.cardId);
+                    console.info('[HARVEST_TRACE] Replayed sacrifice result', {
+                        option: action.option,
+                        cardId: action.cardId ?? null,
+                        handCountAfter: replayPlayer?.hand?.length ?? null,
+                        resourceTotalsBefore,
+                        resourceTotalsAfter: Object.fromEntries(
+                            Object.entries(replayPlayer?.resources || {}).map(([key, value]) => [key, value.current])
+                        ),
+                        turnPhase: liveState.turnPhase
+                    });
+                } else if (action.type === 'PLAY_CARD') {
+                    playCard(liveState, action.playerId, action.cardId, action.targetLine, action.chosenAbilityId, action.abilityTargetId);
+                } else if (action.type === 'ENTITY_ACTION') {
+                    executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
+                } else if (action.type === 'END_TURN') {
+                    endTurn(liveState);
+                    const engine = new GameEngine(liveState);
+                    startTurn(liveState, engine);
+                } else if (action.type === 'FORFEIT') {
+                    liveState.status = 'finished';
+                    let forfeitingPlayerId = action.playerId;
+                    if (!forfeitingPlayerId) {
+                        if (liveState.players.player1.name === action.playerName) forfeitingPlayerId = 'player1';
+                        else if (liveState.players.player2.name === action.playerName) forfeitingPlayerId = 'player2';
+                    }
+                    if (forfeitingPlayerId) {
+                        liveState.winner = forfeitingPlayerId === 'player1' ? 'player2' : 'player1';
+                        liveState.history_log.push({ text: `🏳️ ${action.playerName} forfeited the match.`, depth: 0 });
+                    }
+                }
+                liveState.actionIndex = action.actionIndex;
+                if (action.type !== 'UNDO') lastRealActionIndex = action.actionIndex;
+
+                if (action.isUnsafe || action.type === 'END_TURN' || action.type === 'PLAYER_JOINED') {
+                    ClientState.lastSafeUndoIndex = action.actionIndex;
+                }
+
+                ClientState.localReplayStates.push(cloneGameState(liveState));
             }
         }
-        
-        for (const action of validActions) {
-          if (action.actionIndex && action.actionIndex <= (liveState.actionIndex || 0)) {
-            //console.warn(`[DIAGNOSTIC-RECONSTRUCT] SKIPPING action ${action.type} (Index ${action.actionIndex} <= ${liveState.actionIndex})`);
-            continue;
-          }
-          
-          //console.warn(`[DIAGNOSTIC-RECONSTRUCT] EXECUTING action ${action.type} (Index ${action.actionIndex})`);
 
-          if (action.type === 'UNDO') {
-              console.log(`[REPLAY] Processed UNDO marker. Fast-forwarding clock to ${action.actionIndex}`);
-              liveState.actionIndex = action.actionIndex;
-              liveState.history_log.push({ text: `⏪ Previous Action Undone.`, depth: 0 });
-              continue;
-          }
-          
-          if (action.type === 'SACRIFICE_DECISION') {
-            executeSacrificeDecision(liveState, action.option, action.cardId);
-          } else if (action.type === 'PLAY_CARD') {
-            playCard(liveState, action.playerId, action.cardId, action.targetLine, action.chosenAbilityId, action.abilityTargetId);
-          } else if (action.type === 'ENTITY_ACTION') {
-            executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
-          } else if (action.type === 'END_TURN') {
-            endTurn(liveState);
-            const engine = new GameEngine(liveState);
-            startTurn(liveState, engine);
-          } else if (action.type === 'FORFEIT') {
-              liveState.status = 'finished';
-              let forfeitingPlayerId = action.playerId;
-              if (!forfeitingPlayerId) {
-                  if (liveState.players.player1.name === action.playerName) forfeitingPlayerId = 'player1';
-                  else if (liveState.players.player2.name === action.playerName) forfeitingPlayerId = 'player2';
-              }
-              if (forfeitingPlayerId) {
-                  liveState.winner = forfeitingPlayerId === 'player1' ? 'player2' : 'player1';
-                  liveState.history_log.push({ text: `🏳️ ${action.playerName} forfeited the match.`, depth: 0 });
-              }
-          }
-          liveState.actionIndex = action.actionIndex;
-          if (action.type !== 'UNDO') lastRealActionIndex = action.actionIndex;
-          
-          if (action.isUnsafe || action.type === 'END_TURN' || action.type === 'PLAYER_JOINED') {
-              ClientState.lastSafeUndoIndex = action.actionIndex;
-          }
-          
-          ClientState.localReplayStates.push(cloneGameState(liveState));
-        }
-      }
-      
-      liveState.lastRealActionIndex = lastRealActionIndex;
-      liveState.isReconstructing = false;
-      ClientState.gameState = liveState;
-      
-      //console.warn(`[DIAGNOSTIC-RECONSTRUCT] FINAL STATE Active Player: ${ClientState.gameState.activePlayerId}`);
-      
-      Object.defineProperty(ClientState.gameState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
-      Object.defineProperty(ClientState.gameState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
-      Object.defineProperty(ClientState.gameState, 'tribeCatalog', { value: ClientState.customTribesList, enumerable: false, configurable: true });
-      ClientState.replayStepIndex = Math.max(0, ClientState.localReplayStates.length - 1);
-      updateUI();
-      
-      const localUsername = document.getElementById('setup-username')?.value.trim() || localStorage.getItem('henchies_last_username');
-      checkTurnStateForNotification(ClientState.gameState, localUsername);
-      
+        liveState.lastRealActionIndex = lastRealActionIndex;
+        liveState.isReconstructing = false;
+        ClientState.gameState = liveState;
+
+        //console.warn(`[DIAGNOSTIC-RECONSTRUCT] FINAL STATE Active Player: ${ClientState.gameState.activePlayerId}`);
+
+        Object.defineProperty(ClientState.gameState, 'abilityCatalog', { value: ClientState.allAbilitiesRegistry, enumerable: false, configurable: true });
+        Object.defineProperty(ClientState.gameState, 'catalog', { value: ClientState.allCardsRegistry, enumerable: false, configurable: true });
+        Object.defineProperty(ClientState.gameState, 'tribeCatalog', { value: ClientState.customTribesList, enumerable: false, configurable: true });
+        ClientState.replayStepIndex = Math.max(0, ClientState.localReplayStates.length - 1);
+        updateUI();
+
+        const localUsername = document.getElementById('setup-username')?.value.trim() || localStorage.getItem('henchies_last_username');
+        checkTurnStateForNotification(ClientState.gameState, localUsername);
+
     } catch (err) {
-      console.error("Error reconstructing game state from log:", err);
-      showToast("Error loading game state. Data may be out of sync.", "error");
+        console.error("Error reconstructing game state from log:", err);
+        showToast("Error loading game state. Data may be out of sync.", "error");
     }
 }

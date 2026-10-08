@@ -260,6 +260,9 @@ async function configurePlayers(state, itemData, type, sandboxData) {
         state.players.player1.deck.push(inst);
     });
 
+    // Capture the starting deck of instantiated, live entities BEFORE drawing the hand!
+    state.players.player1.startingDeck = [...state.players.player1.deck];
+
     if (type === 'deck' || isAvatarTest) {
         for (let i = 0; i < 4; i++) {
             if (state.players.player1.deck.length > 0) state.players.player1.hand.push(state.players.player1.deck.pop());
@@ -271,6 +274,7 @@ async function configurePlayers(state, itemData, type, sandboxData) {
     }
 
     // Inject edge-case debugging cards into P1 hand
+    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
     state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
     state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
     
@@ -319,6 +323,9 @@ async function configurePlayers(state, itemData, type, sandboxData) {
     p2DeckBase.forEach(c => {
         state.players.player2.deck.push(instantiateEntity(c, abilities, state, 'player2'));
     });
+
+    // Capture P2's starting deck of instantiated, live entities BEFORE drawing the hand!
+    state.players.player2.startingDeck = [...state.players.player2.deck];
 
     for (let i = 0; i < 5; i++) {
         if (state.players.player2.deck.length > 0) state.players.player2.hand.push(state.players.player2.deck.pop());

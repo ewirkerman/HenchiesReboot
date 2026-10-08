@@ -5,6 +5,7 @@ import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getVa
 import { showToast } from '../ui.js';
 import { reconstructStateFromLog } from './multiplayer.js';
 import { RandomAI } from '../ai/random.js';
+import { MinimaxAI } from '../ai/minimax_ai.js';
 import { PassAI } from '../ai/pass.js';
 
 function findClientEntity(entityId) {
@@ -46,18 +47,18 @@ function checkDefaultPlaySafety(card) {
 export async function dispatchAbility(entityId, abilityId, targetId, targetLine) {
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
-    
+
     const entity = findClientEntity(entityId);
     const ability = entity?.abilities?.find(a => a.abilityId === abilityId);
     const isAttack = abilityId === 'native_attack' || ability?.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
     const actionType = isAttack ? 'ATTACK' : 'ABILITY';
-    
+
     ClientState.gameState._irreversibleActionOccurred = false;
     const result = executeEntityAction(ClientState.gameState, ClientState.localPlayerRole, entityId, actionType, abilityId, targetId, targetLine);
     const isUnsafe = (ability ? !isUndoable(ClientState.gameState, ability) : false) || ClientState.gameState._irreversibleActionOccurred;
 
     const payload = { type: 'ENTITY_ACTION', actionIndex: ClientState.gameState.actionIndex, playerId: ClientState.localPlayerRole, entityId, actionType, abilityId, targetId, targetLine, isUnsafe };
-    
+
     if (result && result.success) {
         showToast('Ability Activated!', 'success');
         await pushActionToLog(ClientState.roomCode, payload, null, ClientState.gameState.history_log);
@@ -72,10 +73,10 @@ export async function dispatchSacrificeDecision(option, cardId = null) {
     if (!ClientState.isMyTurn()) return;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
-    
+
     executeSacrificeDecision(ClientState.gameState, option, cardId);
     const payload = { type: 'SACRIFICE_DECISION', option, cardId, actionIndex: ClientState.gameState.actionIndex, isUnsafe: false };
-    
+
     ClientState.selectedCardId = null;
     await pushActionToLog(ClientState.roomCode, payload, null, ClientState.gameState.history_log);
     updateUI();
@@ -83,15 +84,15 @@ export async function dispatchSacrificeDecision(option, cardId = null) {
 
 export async function handleEndTurn() {
     if (!ClientState.isMyTurn()) return;
-    
+
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
-    
+
     endTurn(ClientState.gameState);
 
     const payload = { type: 'END_TURN', actionIndex: ClientState.gameState.actionIndex, isUnsafe: true };
     const snapshot = JSON.stringify(ClientState.gameState);
-    
+
     await pushActionToLog(ClientState.roomCode, payload, snapshot, ClientState.gameState.history_log);
     updateUI();
 }
@@ -100,12 +101,12 @@ export async function executeNormalPlay(cardId, chosenAbilityId = null, abilityT
     closeUnitActionModal();
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
-    
+
     const card = findClientEntity(cardId);
     ClientState.gameState._irreversibleActionOccurred = false;
-    
+
     const result = playCard(ClientState.gameState, ClientState.localPlayerRole, cardId, 'back', chosenAbilityId, abilityTargetId);
-    
+
     const ability = chosenAbilityId ? card?.abilities?.find(a => a.abilityId === chosenAbilityId) : null;
     const isUnsafe = (ability ? !isUndoable(ClientState.gameState, ability) : checkDefaultPlaySafety(card)) || ClientState.gameState._irreversibleActionOccurred;
 
@@ -127,7 +128,7 @@ let isProcessingUndo = false;
 export async function handleUndo() {
     if (!ClientState.isMyTurn() || isProcessingUndo) return;
     if (ClientState.gameState.rules && ClientState.gameState.rules?.allowUndo === false) return;
-    
+
     const targetIdx = ClientState.gameState.lastRealActionIndex;
     if (!targetIdx || targetIdx <= ClientState.lastSafeUndoIndex) {
         showToast('No safe actions to undo.', 'error');
@@ -137,7 +138,7 @@ export async function handleUndo() {
     isProcessingUndo = true;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     const payload = { type: 'UNDO', targetIndex: targetIdx, actionIndex: ClientState.gameState.actionIndex };
-    
+
     window._isDragging = false;
     showToast('Rewinding action...', 'info');
     await pushActionToLog(ClientState.roomCode, payload, null, ClientState.gameState.history_log);
@@ -159,13 +160,13 @@ export async function handleRestartMatch() {
         turn_start_state: JSON.stringify(pristine), action_log: [], history_log: pristine.history_log || ['Test match restarted.'],
         updatedAt: Date.now()
     };
-    
+
     localStorage.setItem(`henchies_game_${ClientState.roomCode}`, JSON.stringify(payload));
     ClientState.selectedCardId = null;
     ClientState.pendingAbility = null;
     ClientState.validTargets = [];
     ClientState.replayStepIndex = 0;
-    
+
     reconstructStateFromLog(payload);
     showToast('Match restarted!', 'success');
 }
@@ -174,7 +175,7 @@ export async function handleForfeitInGame() {
     if (!confirm("Are you sure you want to forfeit this match?")) return;
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
-    
+
     const payload = { type: 'FORFEIT', playerId: ClientState.localPlayerRole, playerName: ClientState.gameState.players[ClientState.localPlayerRole].name, actionIndex: ClientState.gameState.actionIndex };
     await pushActionToLog(ClientState.roomCode, payload, null, ClientState.gameState.history_log);
     showToast("You have forfeited the match.", "info");
@@ -195,37 +196,37 @@ export const handleSacrificeConfirm = async () => {
 export function getCardPlayState(cardId, card) {
     const baseCheck = canPlayCard(ClientState.gameState, ClientState.localPlayerRole, card);
     const legalActions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId) || [];
-    
+
     // Filter out only native card play if the base card cost cannot be met.
     // Hand abilities are separate actions and may have their own costs.
     const validActions = legalActions.filter(a => {
         if (a.type === 'PLAY') return baseCheck && baseCheck.success;
-        return true; 
+        return true;
     });
 
     if (validActions.length === 0) {
         return { playable: false, reason: baseCheck?.reason || "No valid targets available.", mode: 'none', actions: [] };
     }
-    
+
     if (validActions.length === 1) {
-        return { 
+        return {
             playable: true,
-            mode: 'single', 
+            mode: 'single',
             actionType: validActions[0].type,
             requiresTarget: validActions[0].requiresTarget,
             isPlayAbility: validActions[0].isPlayAbility,
-            abilityId: validActions[0].abilityId, 
-            validTargets: validActions[0].validTargets, 
+            abilityId: validActions[0].abilityId,
+            validTargets: validActions[0].validTargets,
             action: validActions[0],
             actions: validActions
         };
     }
-    
-    return { 
+
+    return {
         playable: true,
-        mode: 'multi', 
-        actions: validActions, 
-        validTargets: [...new Set(validActions.flatMap(a => a.validTargets || []))] 
+        mode: 'multi',
+        actions: validActions,
+        validTargets: [...new Set(validActions.flatMap(a => a.validTargets || []))]
     };
 }
 window.getCardPlayState = getCardPlayState;
@@ -291,7 +292,7 @@ window.handleLineClick = async (clickedPrefix, line) => {
 window.handleEntityClick = async (prefix, line, entityId) => {
     if (window._isDragging || window._blockClick) return;
     if (typeof event !== 'undefined' && event) event.stopPropagation();
-    
+
     if (!ClientState.isMyTurn()) {
         const entity = findClientEntity(entityId);
         if (entity) window.inspectCard(encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27"));
@@ -304,21 +305,21 @@ window.handleEntityClick = async (prefix, line, entityId) => {
     }
 
     if (prefix === 'player' || prefix === 'equator') {
-      if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
-        const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
-        if (actions.length === 1) {
-            window.activateAbility(entityId, actions[0].abilityId);
-        } else if (actions.length > 1) {
-          const entity = findClientEntity(entityId);
-          window.openActionModal(entityId, entity?.name || "Unknown", actions, false);
-        } else {
-          const entity = findClientEntity(entityId);
-          if (entity) window.inspectCard(encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27"));
+        if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
+            const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
+            if (actions.length === 1) {
+                window.activateAbility(entityId, actions[0].abilityId);
+            } else if (actions.length > 1) {
+                const entity = findClientEntity(entityId);
+                window.openActionModal(entityId, entity?.name || "Unknown", actions, false);
+            } else {
+                const entity = findClientEntity(entityId);
+                if (entity) window.inspectCard(encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27"));
+            }
         }
-      }
     } else if (prefix === 'opp') {
-      const entity = findClientEntity(entityId);
-      if (entity) window.inspectCard(encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27"));
+        const entity = findClientEntity(entityId);
+        if (entity) window.inspectCard(encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27"));
     }
 };
 
@@ -344,7 +345,7 @@ window.handleHandCardClick = async (cardId) => {
 
         // UNIFIED GATEKEEPER: Handles base cost, actions, and targeting in one clean pass
         const playState = getCardPlayState(cardId, card);
-        
+
         if (!playState.playable) {
             showToast(playState.reason, "error");
             return;
@@ -398,14 +399,14 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
     if (action.requiresTarget) {
         closeUnitActionModal();
         ClientState.validTargets = action.validTargets;
-        
-        ClientState.pendingAbility = { 
-            entityId: cardId, 
-            abilityId: action.abilityId, 
-            isHandCard: true, 
-            isHandActivate: !action.isPlayAbility 
+
+        ClientState.pendingAbility = {
+            entityId: cardId,
+            abilityId: action.abilityId,
+            isHandCard: true,
+            isHandActivate: !action.isPlayAbility
         };
-        
+
         showToast(`Select a target for ${ability?.name || action.name}`, 'info');
         updateUI();
         maybeOpenZoneModal();
@@ -413,7 +414,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
     }
 
     closeUnitActionModal();
-    
+
     if (action.isPlayAbility) {
         await window.executeNormalPlay(cardId, action.abilityId === 'native_play' ? null : action.abilityId);
     } else {
@@ -424,7 +425,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
 window.activateAbility = async (entityId, abilityId) => {
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     if (!ClientState.isMyTurn()) return;
-    
+
     const entity = findClientEntity(entityId);
     if (!entity) return;
 
@@ -447,13 +448,13 @@ window.activateAbility = async (entityId, abilityId) => {
         maybeOpenZoneModal();
         return;
     }
-    
+
     closeUnitActionModal();
     dispatchAbility(entityId, abilityId, null, null);
 };
 
 let gestureState = {
-    phase: 'IDLE', 
+    phase: 'IDLE',
     source: null,
     actionType: null,
     cardId: null,
@@ -476,12 +477,12 @@ const DRAG_START_THRESHOLD = 8;
 
 let longPressTimer = null;
 let longPressFired = false;
-const LONG_PRESS_DURATION = 400; 
-const LONG_PRESS_TOLERANCE = 10; 
+const LONG_PRESS_DURATION = 400;
+const LONG_PRESS_TOLERANCE = 10;
 
 function hardResetGestureState(e) {
     if (e && e.target && e.target.releasePointerCapture && gestureState.pointerId) {
-        try { e.target.releasePointerCapture(gestureState.pointerId); } catch(err) {}
+        try { e.target.releasePointerCapture(gestureState.pointerId); } catch (err) { }
     }
     if (e && e.target && e.target.style) e.target.style.touchAction = '';
 
@@ -499,23 +500,23 @@ function hardResetGestureState(e) {
 function executeLongPress(cardId, e) {
     if (window.HoverManager) {
         window.HoverManager.stopScrub();
-        window.HoverManager.handHoverId = null; 
+        window.HoverManager.handHoverId = null;
         if (window.HoverManager.handHoverFrame) {
             cancelAnimationFrame(window.HoverManager.handHoverFrame);
             window.HoverManager.handHoverFrame = null;
         }
-        window.HoverManager.refreshAllHandCards(); 
+        window.HoverManager.refreshAllHandCards();
     }
-    
+
     window._forceHoverCardId = null;
     hideDragTether();
     clearTargetHighlights(gestureState?.targets);
-    
+
     const entity = findClientEntity(cardId);
     if (entity && window.inspectCard) {
         window.inspectCard(encodeURIComponent(JSON.stringify(entity)).replace(/'/g, "%27"));
     }
-    
+
     hardResetGestureState(e);
     if (typeof updateUI === 'function') updateUI();
 }
@@ -569,7 +570,7 @@ function setDragTether(clientX, clientY) {
     }
 
     rect = rect || { left: clientX, top: clientY + 50, width: 0, height: 0 };
-    
+
     const startX = rect.left + rect.width / 2;
     const startY = rect.top + rect.height / 2;
     const ctrlY = startY + (clientY - startY) / 2;
@@ -657,7 +658,7 @@ function initiateDrag(pt, rectOverride = null) {
     }
 
     gestureState.phase = 'DRAGGING';
-    
+
     if (rectOverride) {
         gestureState.rect = rectOverride;
     } else if (!gestureState.rect && gestureState.gc) {
@@ -669,7 +670,7 @@ function initiateDrag(pt, rectOverride = null) {
     window._dragTargets = gestureState.targets;
 
     if (ClientState.pendingAbility) clearPendingAbility();
-    updateUI(); 
+    updateUI();
 
     document.getElementById('drag-tether-overlay')?.classList.remove('hidden');
 
@@ -689,25 +690,25 @@ function initiateDrag(pt, rectOverride = null) {
 function cancelDragToScrub(clientX, clientY) {
     const prevCardId = gestureState.cardId;
     const ptType = gestureState.pointerType;
-    
+
     hideDragTether();
     clearTargetHighlights(gestureState.targets);
-    
-    gestureState = { 
-        ...gestureState, 
-        phase: ptType === 'touch' ? 'SCRUBBING' : 'IDLE', 
+
+    gestureState = {
+        ...gestureState,
+        phase: ptType === 'touch' ? 'SCRUBBING' : 'IDLE',
         actionType: null, targets: [], abilityId: null, hoveredTarget: null, requiresTarget: false, isPlayAbility: false,
-        actions: [], modalShown: false 
+        actions: [], modalShown: false
     };
-    
+
     window._isDragging = false;
     window._dragCardId = null;
     window._dragTargets = [];
-    
+
     window._forceHoverCardId = null;
     if (window.HoverManager) window.HoverManager.unfocusHandCard();
     if (typeof updateUI === 'function') updateUI();
-    
+
     setTimeout(() => {
         if (window.HoverManager && ptType === 'touch') {
             window.HoverManager.startScrub(clientX, clientY);
@@ -730,9 +731,9 @@ function updateDragTether(clientX, clientY) {
 
 function resolveDragDrop(clientX, clientY) {
     let executed = false;
-    
+
     const isBoardPlay = gestureState.actionType === 'PLAY' && !gestureState.requiresTarget;
-    
+
     if (isBoardPlay) {
         const card = gestureState.card || findClientEntity(gestureState.cardId);
         if (card && !boardPlayHasSingleDefaultAction(card)) {
@@ -785,7 +786,7 @@ function handlePointerDown(e) {
 
     if (!gc) return;
 
-    try { target.setPointerCapture(e.pointerId); } catch(err) {}
+    try { target.setPointerCapture(e.pointerId); } catch (err) { }
     target.style.touchAction = 'none';
 
     const cardId = gc.getAttribute('data-instance-id');
@@ -801,7 +802,7 @@ function handlePointerDown(e) {
         source: isHand ? 'hand' : 'board', actionType: null, abilityId: null,
         targets: [], actions: [], modalShown: false, requiresTarget: false, isPlayAbility: false
     };
-    
+
     longPressFired = false;
     clearTimeout(longPressTimer);
     if (pt.type === 'touch') {
@@ -856,7 +857,7 @@ function handlePointerDown(e) {
 
 function handlePointerMove(e) {
     const pt = getEventPoint(e);
-    
+
     if (longPressFired) {
         e.preventDefault();
         return;
@@ -872,7 +873,7 @@ function handlePointerMove(e) {
     }
 
     if (pt.type === 'touch' && (gestureState.phase === 'SCRUBBING' || gestureState.phase === 'DRAGGING' || gestureState.phase === 'DOWN')) {
-         e.preventDefault(); 
+        e.preventDefault();
     }
 
     if (gestureState.phase === 'IDLE' && ClientState.pendingAbility && pt.type === 'mouse') {
@@ -885,12 +886,12 @@ function handlePointerMove(e) {
             document.getElementById('drag-tether-head')?.setAttribute('cy', pt.y);
 
             ClientState.validTargets.forEach(t => {
-               const inner = document.querySelector(`[data-instance-id="${t.id}"]`)?.tagName.toLowerCase() === 'game-card' ? document.querySelector(`[data-instance-id="${t.id}"]`).firstElementChild : document.querySelector(`[data-instance-id="${t.id}"]`);
-               if (inner) {
-                   const tr = inner.getBoundingClientRect();
-                   if (pt.x >= tr.left && pt.x <= tr.right && pt.y >= tr.top && pt.y <= tr.bottom) inner.classList.replace('ring-cyan-400', 'ring-amber-400');
-                   else inner.classList.replace('ring-amber-400', 'ring-cyan-400');
-               }
+                const inner = document.querySelector(`[data-instance-id="${t.id}"]`)?.tagName.toLowerCase() === 'game-card' ? document.querySelector(`[data-instance-id="${t.id}"]`).firstElementChild : document.querySelector(`[data-instance-id="${t.id}"]`);
+                if (inner) {
+                    const tr = inner.getBoundingClientRect();
+                    if (pt.x >= tr.left && pt.x <= tr.right && pt.y >= tr.top && pt.y <= tr.bottom) inner.classList.replace('ring-cyan-400', 'ring-amber-400');
+                    else inner.classList.replace('ring-amber-400', 'ring-cyan-400');
+                }
             });
         }
         return;
@@ -899,14 +900,14 @@ function handlePointerMove(e) {
     if (gestureState.phase === 'IDLE') return;
 
     if (pt.type === 'touch' && (gestureState.phase === 'SCRUBBING' || gestureState.phase === 'DRAGGING')) {
-         e.preventDefault(); 
+        e.preventDefault();
     }
 
     if (gestureState.phase === 'DOWN') {
         if (gestureState.source === 'hand') {
             const handContainer = document.getElementById('player-hand-container');
             const dragThresholdY = handContainer ? (handContainer.getBoundingClientRect().top - 60) : (gestureState.rect?.top || 0);
-            
+
             if (pt.y < dragThresholdY) initiateDrag(pt);
         } else {
             const isBoardDragStart = (pt.x < gestureState.rect.left || pt.x > gestureState.rect.right || pt.y < gestureState.rect.top || pt.y > gestureState.rect.bottom);
@@ -918,46 +919,46 @@ function handlePointerMove(e) {
             window.HoverManager.markScrubMoved();
         }
         if (!window.HoverManager.getScrubHasMoved()) return;
-            if (window.HoverManager.evaluateDragStart(pt.y)) {
-                if (window._forceHoverCardId) {
-                    const activeGc = document.querySelector(`game-card[data-instance-id="${window._forceHoverCardId}"]`);
-                    const handWrapper = document.getElementById('player-hand-container');
-                    const rectToUse = activeGc ? activeGc.firstElementChild.getBoundingClientRect() : (handWrapper ? handWrapper.getBoundingClientRect() : null);
-                    
-                    const scrubCard = findClientEntity(window._forceHoverCardId);
-                    
-                    if (scrubCard && rectToUse) {
-                        gestureState.cardId = window._forceHoverCardId;
-                        gestureState.card = scrubCard;
-                        gestureState.rect = rectToUse;
-                        
-                        const intent = getCardPlayState(gestureState.cardId, scrubCard);
-                        if (intent.playable) {
-                             gestureState.actionType = intent.mode === 'single' ? intent.actionType : 'MULTI_ACTION';
-                             gestureState.abilityId = intent.mode === 'single' ? intent.abilityId : null;
-                             gestureState.requiresTarget = intent.mode === 'single' ? intent.requiresTarget : false;
-                             gestureState.isPlayAbility = intent.mode === 'single' ? intent.isPlayAbility : false;
-                             gestureState.targets = (intent.validTargets || []).map(t => t.id);
-                             gestureState.actions = intent.actions || [];
-                             
-                             initiateDrag(pt, rectToUse);
-                             window.HoverManager.stopScrub();
-                             window.HoverManager.unfocusHandCard();
-                             return;
-                        }
+        if (window.HoverManager.evaluateDragStart(pt.y)) {
+            if (window._forceHoverCardId) {
+                const activeGc = document.querySelector(`game-card[data-instance-id="${window._forceHoverCardId}"]`);
+                const handWrapper = document.getElementById('player-hand-container');
+                const rectToUse = activeGc ? activeGc.firstElementChild.getBoundingClientRect() : (handWrapper ? handWrapper.getBoundingClientRect() : null);
+
+                const scrubCard = findClientEntity(window._forceHoverCardId);
+
+                if (scrubCard && rectToUse) {
+                    gestureState.cardId = window._forceHoverCardId;
+                    gestureState.card = scrubCard;
+                    gestureState.rect = rectToUse;
+
+                    const intent = getCardPlayState(gestureState.cardId, scrubCard);
+                    if (intent.playable) {
+                        gestureState.actionType = intent.mode === 'single' ? intent.actionType : 'MULTI_ACTION';
+                        gestureState.abilityId = intent.mode === 'single' ? intent.abilityId : null;
+                        gestureState.requiresTarget = intent.mode === 'single' ? intent.requiresTarget : false;
+                        gestureState.isPlayAbility = intent.mode === 'single' ? intent.isPlayAbility : false;
+                        gestureState.targets = (intent.validTargets || []).map(t => t.id);
+                        gestureState.actions = intent.actions || [];
+
+                        initiateDrag(pt, rectToUse);
+                        window.HoverManager.stopScrub();
+                        window.HoverManager.unfocusHandCard();
+                        return;
                     }
                 }
-
-                if (gestureState.gc?.firstElementChild) {
-                    gestureState.gc.firstElementChild.classList.add('animate-error-flash');
-                    setTimeout(() => gestureState.gc.firstElementChild.classList.remove('animate-error-flash'), 500);
-                }
-                window.HoverManager.stopScrub();
-                window._forceHoverCardId = null;
-                window.HoverManager.unfocusHandCard();
-                gestureState.phase = 'IDLE';
-                return;
             }
+
+            if (gestureState.gc?.firstElementChild) {
+                gestureState.gc.firstElementChild.classList.add('animate-error-flash');
+                setTimeout(() => gestureState.gc.firstElementChild.classList.remove('animate-error-flash'), 500);
+            }
+            window.HoverManager.stopScrub();
+            window._forceHoverCardId = null;
+            window.HoverManager.unfocusHandCard();
+            gestureState.phase = 'IDLE';
+            return;
+        }
 
         const foundId = window.HoverManager.findHoveredHandCardId(pt.x);
         if (foundId && foundId !== window._forceHoverCardId) {
@@ -981,16 +982,16 @@ function handlePointerMove(e) {
 
 function handlePointerUp(e) {
     const pt = getEventPoint(e);
-    
+
     clearTimeout(longPressTimer);
     longPressTimer = null;
-    
+
     if (longPressFired) {
         hardResetGestureState(e);
         return;
     }
 
-    try { e.target.releasePointerCapture(e.pointerId); } catch(err) {}
+    try { e.target.releasePointerCapture(e.pointerId); } catch (err) { }
     if (e.target.style) e.target.style.touchAction = '';
 
     if (gestureState.phase === 'DRAGGING') {
@@ -1030,7 +1031,7 @@ function handlePointerUp(e) {
         }
     }
     else if (gestureState.phase === 'DOWN') {
-        if (gestureState.actionType === 'OPTIONAL' && gestureState.cardId) { 
+        if (gestureState.actionType === 'OPTIONAL' && gestureState.cardId) {
             window.handleHandCardClick(gestureState.cardId);
         } else if (pt.type === 'mouse' && gestureState.cardId && gestureState.source === 'hand') {
             window.handleHandCardClick(gestureState.cardId);
@@ -1046,11 +1047,11 @@ function handleContextMenu(e) {
         window.HoverManager.stopScrub();
         window.HoverManager.unfocusHandCard();
     }
-    
+
     window._forceHoverCardId = null;
     hideDragTether();
     clearTargetHighlights(gestureState?.targets);
-    
+
     hardResetGestureState(e);
     if (typeof updateUI === 'function') updateUI();
 }
@@ -1064,20 +1065,20 @@ window.addEventListener('contextmenu', handleContextMenu, { capture: true, passi
 let isAIRunning = false;
 export async function triggerAILoop() {
     if (isAIRunning) return;
-    
+
     let state = ClientState.gameState;
     if (!state || state.status === 'finished') return;
-    
+
     const activePlayer = state.players[state.activePlayerId];
     if (!activePlayer || (!activePlayer.isAI && !activePlayer.isPassOnlyAI) || ClientState.localPlayerRole !== 'player1') return;
-    
+
     isAIRunning = true;
     try {
         await new Promise(r => setTimeout(r, 1500));
         state = ClientState.gameState;
         if (!state || state.status === 'finished' || state.activePlayerId !== activePlayer.id) return;
 
-        const AIClass = activePlayer.isPassOnlyAI ? PassAI : RandomAI;
+        const AIClass = activePlayer.isPassOnlyAI ? PassAI : MinimaxAI;
         if (!ClientState.aiInstance || ClientState.aiInstance.playerId !== state.activePlayerId || !(ClientState.aiInstance instanceof AIClass)) {
             ClientState.aiInstance = new AIClass(state.activePlayerId);
         }
@@ -1093,15 +1094,23 @@ export async function triggerAILoop() {
         if (move.type === 'SACRIFICE' || move.type === 'SACRIFICE_SKIP') {
             const option = move.action?.action || (move.type === 'SACRIFICE_SKIP' ? 'SKIP' : 'OPTION_A');
             const cardId = move.action?.cardId || null;
-            const actionPayload = { 
-                type: 'SACRIFICE_DECISION', 
-                option, 
-                cardId, 
-                actionIndex: state.actionIndex, 
-                isUnsafe: false 
+            console.info('[HARVEST_TRACE] Creating AI sacrifice action log', {
+                moveType: move.type,
+                moveCardId: move.action?.cardId ?? null,
+                option,
+                loggedCardId: cardId,
+                detail: move.detail
+            });
+            const actionPayload = {
+                type: 'SACRIFICE_DECISION',
+                option,
+                cardId,
+                actionIndex: state.actionIndex,
+                isUnsafe: false
             };
+
             await pushActionToLog(ClientState.roomCode, actionPayload, null, state.history_log);
-            
+
         } else if (move.type === 'PASS' || move.type === 'NO_MOVES') {
             endTurn(state);
             await pushActionToLog(ClientState.roomCode, { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true }, JSON.stringify(state), state.history_log);
@@ -1110,30 +1119,30 @@ export async function triggerAILoop() {
             let payload = null;
 
             if (move.type === 'PLAY_CARD' || actionData.type === 'PLAY_CARD') {
-                payload = { 
-                    type: 'PLAY_CARD', 
-                    actionIndex: state.actionIndex, 
-                    playerId: state.activePlayerId, 
-                    cardId: actionData.cardId || actionData.entityId, 
-                    targetLine: actionData.targetLine || 'back', 
-                    chosenAbilityId: actionData.abilityId, 
-                    abilityTargetId: actionData.targetId || actionData.abilityTargetId, 
-                    isUnsafe: true 
+                payload = {
+                    type: 'PLAY_CARD',
+                    actionIndex: state.actionIndex,
+                    playerId: state.activePlayerId,
+                    cardId: actionData.cardId || actionData.entityId,
+                    targetLine: actionData.targetLine || 'back',
+                    chosenAbilityId: actionData.abilityId,
+                    abilityTargetId: actionData.targetId || actionData.abilityTargetId,
+                    isUnsafe: true
                 };
             } else if (move.type === 'ABILITY' || move.type === 'ATTACK' || actionData.type === 'ENTITY_ACTION') {
-                payload = { 
-                    type: 'ENTITY_ACTION', 
-                    actionIndex: state.actionIndex, 
-                    playerId: state.activePlayerId, 
-                    entityId: actionData.entityId || actionData.cardId, 
-                    actionType: (move.type === 'ABILITY' || move.type === 'ATTACK') ? move.type : actionData.actionType, 
-                    abilityId: actionData.abilityId, 
-                    targetId: actionData.targetId, 
-                    targetLine: actionData.targetLine, 
-                    isUnsafe: true 
+                payload = {
+                    type: 'ENTITY_ACTION',
+                    actionIndex: state.actionIndex,
+                    playerId: state.activePlayerId,
+                    entityId: actionData.entityId || actionData.cardId,
+                    actionType: (move.type === 'ABILITY' || move.type === 'ATTACK') ? move.type : actionData.actionType,
+                    abilityId: actionData.abilityId,
+                    targetId: actionData.targetId,
+                    targetLine: actionData.targetLine,
+                    isUnsafe: true
                 };
             }
-            
+
             if (payload) {
                 await pushActionToLog(ClientState.roomCode, payload, JSON.stringify(state), state.history_log);
             }
@@ -1142,12 +1151,12 @@ export async function triggerAILoop() {
             endTurn(state);
             await pushActionToLog(ClientState.roomCode, { type: 'END_TURN', actionIndex: state.actionIndex, isUnsafe: true }, JSON.stringify(state), state.history_log);
         }
-        
+
         updateUI();
-    } catch(e) { 
-        console.error("AI Loop Error:", e); 
-    } finally { 
-        isAIRunning = false; 
+    } catch (e) {
+        console.error("AI Loop Error:", e);
+    } finally {
+        isAIRunning = false;
     }
 }
 window.triggerAILoop = triggerAILoop;
