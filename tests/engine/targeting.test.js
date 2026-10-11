@@ -138,9 +138,10 @@ describe('targeting.js core logic', () => {
 
             const targets = getValidAttackTargets(mockState, 'player1', attacker);
 
-            expect(targets).toHaveLength(2);
+            // Taunt strictly shields ALL lines, including the sideline
+            expect(targets).toHaveLength(1);
             expect(targets.some(t => t.id === 'taunt1')).toBe(true);
-            expect(targets.some(t => t.id === 'side1')).toBe(true);
+            expect(targets.some(t => t.id === 'side1')).toBe(false);
         });
 
         it('should block attacks against avatars if the attacker is timid (BLOCK_TARGET_AVATAR)', () => {
@@ -905,6 +906,124 @@ describe('targeting.js core logic', () => {
                 // The action should not be available because the activation logic tree evaluated to false
                 expect(actions.some(a => a.abilityId === 'ab_requires_cond')).toBe(false);
             });
+        });
+    });
+
+    describe('targeting.js core logic: Battleline Enforcement (getBattlelineTargets)', () => {
+        let mockState;
+        let attacker;
+
+        beforeEach(() => {
+            attacker = { id: 'attacker_1', instanceId: 'a1', type: 'unit' };
+            mockState = {
+                players: {
+                    player1: { id: 'player1', lines: { front: [attacker] } },
+                    player2: {
+                        id: 'player2',
+                        lines: {
+                            taunt: [], sideline: [], front: [], mid: [], back: [], sheltered: [], bodyguard: [],
+                            avatar: [{ id: 'p2_avatar', instanceId: 'av2', type: 'avatar' }]
+                        }
+                    }
+                },
+                equator: []
+            };
+        });
+
+        it('should target the avatar if no other defenders exist', () => {
+            const targets = getValidAttackTargets(mockState, 'player1', attacker);
+            expect(targets).toHaveLength(1);
+            expect(targets[0].id).toBe('av2');
+        });
+
+        it('should allow Taunt to strictly shield ALL lines, including the Sideline', () => {
+            mockState.players.player2.lines.taunt.push({ id: 'taunt_unit', instanceId: 't1' });
+            mockState.players.player2.lines.front.push({ id: 'front_unit', instanceId: 'f1' });
+            mockState.players.player2.lines.sideline.push({ id: 'side_unit', instanceId: 's1' });
+
+            const targets = getValidAttackTargets(mockState, 'player1', attacker);
+
+            // Taunt is a hard shield. ONLY the taunt unit should be targetable.
+            expect(targets).toHaveLength(1);
+            expect(targets.some(t => t.id === 't1')).toBe(true);
+
+            // Both front and sideline MUST be shielded
+            expect(targets.some(t => t.id === 's1')).toBe(false);
+            expect(targets.some(t => t.id === 'f1')).toBe(false);
+        });
+
+        it('should target Front line and shield Mid/Back/Sheltered', () => {
+            mockState.players.player2.lines.front.push({ id: 'front_unit', instanceId: 'f1' });
+            mockState.players.player2.lines.mid.push({ id: 'mid_unit', instanceId: 'm1' });
+            mockState.players.player2.lines.back.push({ id: 'back_unit', instanceId: 'b1' });
+
+            const targets = getValidAttackTargets(mockState, 'player1', attacker);
+
+            // Front and Sideline are both valid if Sideline exists, let's test without Sideline first
+            expect(targets).toHaveLength(2); // Front unit + Avatar
+            expect(targets.some(t => t.id === 'f1')).toBe(true);
+            expect(targets.some(t => t.id === 'av2')).toBe(true);
+            expect(targets.some(t => t.id === 'm1')).toBe(false); // Shielded
+        });
+
+        it('should use Bodyguard to shield the Avatar', () => {
+            mockState.players.player2.lines.back.push({ id: 'back_unit', instanceId: 'b1' });
+            mockState.players.player2.lines.bodyguard.push({ id: 'guard_unit', instanceId: 'g1' });
+
+            const targets = getValidAttackTargets(mockState, 'player1', attacker);
+
+            // Breaks on 'back'. Then checks bodyguard. Bodyguard shields avatar.
+            expect(targets).toHaveLength(2);
+            expect(targets.some(t => t.id === 'b1')).toBe(true);
+            expect(targets.some(t => t.id === 'g1')).toBe(true);
+            expect(targets.some(t => t.id === 'av2')).toBe(false); // Avatar is successfully shielded!
+        });
+
+        it('should always allow Sideline units to be targeted alongside the active frontline', () => {
+            mockState.players.player2.lines.mid.push({ id: 'mid_unit', instanceId: 'm1' });
+            mockState.players.player2.lines.sideline.push({ id: 'side_unit', instanceId: 's1' });
+
+            const targets = getValidAttackTargets(mockState, 'player1', attacker);
+
+            // Mid is the active line. Sideline is always appended. Avatar is also appended.
+            expect(targets).toHaveLength(3);
+            expect(targets.some(t => t.id === 'm1')).toBe(true);
+            expect(targets.some(t => t.id === 's1')).toBe(true);
+            expect(targets.some(t => t.id === 'av2')).toBe(true);
+        });
+
+        it('should allow Perception (IGNORE_BLOCK_TARGETING) to target hidden units without bypassing physical battlelines like Taunt', () => {
+            // Setup 1: Stealth in front, Normal in mid
+            mockState.players.player2.lines.front.push({ id: 'hidden_front', instanceId: 'h1' });
+            mockState.players.player2.lines.mid.push({ id: 'normal_mid', instanceId: 'm1' });
+
+            // Give attacker Perception
+            attacker.abilities = [{ passiveFlags: ['IGNORE_BLOCK_TARGETING'] }];
+
+            // We need to properly mock hasEngineFlag for this specific test
+            hasEngineFlagMock.mockImplementation((state, ent, flag) => {
+                if (ent.id === 'hidden_front' && flag === 'BLOCK_TARGETING') return true;
+                if (ent.id === 'attacker_1' && flag === 'IGNORE_BLOCK_TARGETING') return true;
+                return false;
+            });
+
+            let targets = getValidAttackTargets(mockState, 'player1', attacker);
+
+            // Without perception: 'hidden_front' is invisible, so 'normal_mid' is exposed.
+            // With perception: 'hidden_front' is visible, shielding 'normal_mid'.
+            // Merging them means the attacker can validly strike BOTH!
+            expect(targets).toHaveLength(3); // +1 for the Avatar
+            expect(targets.some(t => t.id === 'h1')).toBe(true);
+            expect(targets.some(t => t.id === 'm1')).toBe(true);
+            expect(targets.some(t => t.id === 'av2')).toBe(true);
+
+            // Setup 2: Add a Taunt
+            mockState.players.player2.lines.taunt.push({ id: 'taunt_unit', instanceId: 't1' });
+            targets = getValidAttackTargets(mockState, 'player1', attacker);
+
+            // Taunt is a physical barrier. Perception only counters stealth, so Taunt blocks everything!
+            expect(targets).toHaveLength(1);
+            expect(targets[0].id).toBe('t1');
         });
     });
 });

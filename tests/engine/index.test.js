@@ -25,12 +25,12 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
 }));
 
 jest.unstable_mockModule('../../src/engine/actions/action_index.js', () => ({
-ACTION_REGISTRY: {
+    ACTION_REGISTRY: {
         'MOCK_ACT': class { run = jest.fn(); },
         'DAMAGE': class { run = jest.fn(); },
         'ACT': class { run = jest.fn(); },
         // Add mock implementations for the actions used in the new tests
-        'KILL': class { 
+        'KILL': class {
             constructor(payload) { this.payload = payload; }
             run(state) {
                 const target = this.payload.target;
@@ -45,7 +45,7 @@ ACTION_REGISTRY: {
         'MODIFY_STATS': class { run = jest.fn(); }
     },
     EVENT_MANIFEST: {},
-    ACTION_MANIFEST: { 
+    ACTION_MANIFEST: {
         DAMAGE: { passiveType: 'TAKE_DAMAGE' },
         ATTACK: { passiveType: 'BE_ATTACKED' }
     },
@@ -78,7 +78,7 @@ describe('index.js GameEngine', () => {
     beforeAll(async () => {
         const module = await import('../../src/engine/index.js');
         GameEngine = module.GameEngine;
-        
+
         const actions = await import('../../src/engine/actions/action_index.js');
         ACTION_REGISTRY = actions.ACTION_REGISTRY;
         ACTION_MANIFEST = actions.ACTION_MANIFEST;
@@ -93,7 +93,7 @@ describe('index.js GameEngine', () => {
     describe('Event Bus & Interceptors', () => {
         it('should register own and opponent turn aliases against generic turn events', () => {
             const engine = new GameEngine(mockState);
-            
+
             spawnUnit(mockState, 'player1', 'avatar', {
                 type: 'avatar',
                 abilities: [
@@ -102,11 +102,11 @@ describe('index.js GameEngine', () => {
                     { abilityId: 'global-turn', trigger: 'TURN_STARTED', triggerScope: 'GLOBAL', effects: [] }
                 ]
             });
-            
+
             spawnUnit(mockState, 'player2', 'avatar', {
                 type: 'avatar', abilities: []
             });
-            
+
             spawnUnit(mockState, 'player1', 'mid', {
                 abilities: [
                     { abilityId: 'unit-turn', trigger: 'TURN_STARTED', triggerScope: 'GLOBAL', effects: [] },
@@ -122,7 +122,7 @@ describe('index.js GameEngine', () => {
 
         it('should correctly trigger turn events for non-avatar units sharing the avatar line', () => {
             const engine = new GameEngine(mockState);
-            
+
             spawnUnit(mockState, 'player1', 'avatar', {
                 type: 'unit', // Not an avatar
                 abilities: [
@@ -131,14 +131,14 @@ describe('index.js GameEngine', () => {
             });
 
             const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
-            
+
             expect(triggersQueued).toBe(1);
             expect(engine.stack[0].ability.abilityId).toBe('wither-effect');
         });
 
         it('should correctly trigger turn events for global entities residing in the equator', () => {
             const engine = new GameEngine(mockState);
-            
+
             mockState.equator = [{
                 instanceId: 'eq1',
                 ownerId: 'player1',
@@ -149,7 +149,7 @@ describe('index.js GameEngine', () => {
             }];
 
             const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
-            
+
             expect(triggersQueued).toBe(1);
             expect(engine.stack[0].ability.abilityId).toBe('weather-effect');
         });
@@ -159,7 +159,7 @@ describe('index.js GameEngine', () => {
             const targetUnit = spawnUnit(mockState, 'player1', 'mid', {
                 abilities: [{
                     abilityId: 'shield',
-                    trigger: 'WOULD_TAKE_DAMAGE', 
+                    trigger: 'WOULD_TAKE_DAMAGE',
                     effects: [{
                         targetMethod: 'EVENT_TARGET',
                         payloads: [{ type: 'CUSTOM_CANCEL_SCRIPT' }]
@@ -171,7 +171,7 @@ describe('index.js GameEngine', () => {
 
             ACTION_REGISTRY['CUSTOM_CANCEL_SCRIPT'] = class {
                 constructor(payload) { this.p = payload; }
-                run() { this.p.eventContext.cancelled = true; } 
+                run() { this.p.eventContext.cancelled = true; }
             };
 
             const payload = { target: targetUnit, amount: 5, cancelled: false };
@@ -201,7 +201,7 @@ describe('index.js GameEngine', () => {
             });
 
             engine.queueTriggers('TAKE_DAMAGE', { target: hostEntity });
-            
+
             const queued = engine.stack.find(f => f.ability.abilityId === 'host-buff');
             expect(queued).toBeDefined();
         });
@@ -230,7 +230,7 @@ describe('index.js GameEngine', () => {
             });
 
             engine.queueTriggers('TAKE_DAMAGE', { target: hostEntity });
-            
+
             const queued = engine.stack.find(f => f.ability.abilityId === 'host-buff-2');
             expect(queued).toBeDefined(); // Will only be defined if logic tree evaluated the Host (Squirrel)
         });
@@ -238,10 +238,10 @@ describe('index.js GameEngine', () => {
         it('should correctly evaluate ENEMY alignment for an attachment force-equipped onto an opponent unit', () => {
             const engine = new GameEngine(mockState);
             mockState.activePlayerId = 'player2';
-            
+
             const sourceEntity = spawnUnit(mockState, 'player2', 'mid');
             const hostEntity = spawnUnit(mockState, 'player2', 'mid'); // P2's unit
-            
+
             const attachment = {
                 instanceId: 'att_acorn', ownerId: 'player1', // Owned by P1
                 abilities: [{
@@ -256,11 +256,11 @@ describe('index.js GameEngine', () => {
                 }]
             };
             hostEntity.attachments = [attachment];
-            
+
             sharedFindEntityLocationMock.mockReturnValueOnce({ zone: 'attachment', host: hostEntity });
 
             engine.queueTriggers('MODIFY_BE_ATTACKED', { target: hostEntity, source: sourceEntity });
-            
+
             const queued = engine.stack.find(f => f.ability.abilityId === 'nutholder');
             expect(queued).toBeDefined();
         });
@@ -268,7 +268,7 @@ describe('index.js GameEngine', () => {
         it('should exact match Block X event names (e.g. ON_, WOULD_) without prepending WOULD_ again', () => {
             const engine = new GameEngine(mockState);
             const spy = jest.spyOn(engine, 'queueTriggers');
-            
+
             engine.emit('ON_DEATH', {});
             expect(spy).toHaveBeenCalledWith('ON_DEATH', expect.anything());
             expect(spy).not.toHaveBeenCalledWith('WOULD_ON_DEATH', expect.anything());
@@ -297,7 +297,7 @@ describe('index.js GameEngine', () => {
             const ability = { abilityId: 'ab2', trigger: 'MANUAL', cost: { readinessCost: 'EXHAUSTS', carnie: 0 } };
 
             expect(engine._checkAndPayCost(ability, source, 'player1', {})).toBe(true);
-            expect(source.readiness).toBe(0); 
+            expect(source.readiness).toBe(0);
         });
 
         it('should floor readiness at -1 when exhausted', () => {
@@ -306,7 +306,7 @@ describe('index.js GameEngine', () => {
             const ability = { abilityId: 'ab3', trigger: 'MANUAL', cost: { readinessCost: 'EXHAUSTS', carnie: 0 } };
 
             expect(engine._checkAndPayCost(ability, source, 'player1', {})).toBe(false);
-            expect(source.readiness).toBe(0); 
+            expect(source.readiness).toBe(0);
         });
     });
 
@@ -327,7 +327,7 @@ describe('index.js GameEngine', () => {
             const spyCheckCost = jest.spyOn(engine, '_checkAndPayCost');
             const spyResolve = jest.spyOn(engine, '_resolvePayloads');
             engine.executeAbility(ability, source, {}, 'player1');
-            
+
             expect(spyCheckCost).toHaveBeenCalled();
             expect(spyResolve).toHaveBeenCalled();
         });
@@ -345,7 +345,7 @@ describe('index.js GameEngine', () => {
 
             const spyCheckCost = jest.spyOn(engine, '_checkAndPayCost');
             engine.executeAbility(ability, source, {}, 'player1');
-            
+
             expect(spyCheckCost).toHaveBeenCalled();
         });
     });
@@ -360,7 +360,7 @@ describe('index.js GameEngine', () => {
 
         it('should evaluate numeric comparisons correctly (>=, <=, ==)', () => {
             const entity = { health: 5 };
-            
+
             const nodeGTE = { type: 'condition', attribute: 'health', operator: '>=', value: 5 };
             const nodeLT = { type: 'condition', attribute: 'health', operator: '<', value: 3 };
 
@@ -370,16 +370,18 @@ describe('index.js GameEngine', () => {
 
         it('should correctly evaluate AND/OR logical groups', () => {
             const entity = { tribe: 'Pirate', power: 3 };
-            
+
             const groupNode = {
                 type: 'group',
                 logicalOperator: 'AND',
                 children: [
                     { type: 'condition', attribute: 'tribe', operator: '==', value: 'Pirate' },
-                    { type: 'group', logicalOperator: 'OR', children: [
-                        { type: 'condition', attribute: 'power', operator: '>', value: 5 }, 
-                        { type: 'condition', attribute: 'power', operator: '==', value: 3 } 
-                    ]}
+                    {
+                        type: 'group', logicalOperator: 'OR', children: [
+                            { type: 'condition', attribute: 'power', operator: '>', value: 5 },
+                            { type: 'condition', attribute: 'power', operator: '==', value: 3 }
+                        ]
+                    }
                 ]
             };
 
@@ -455,7 +457,7 @@ describe('index.js GameEngine', () => {
             it('SHOULD activate if the isCost payload HAS valid targets', () => {
                 const triggerUnit = spawnUnit(mockState, 'player1', 'mid', {
                     name: 'Trigger Unit',
-                    tribe: 'Undead', 
+                    tribe: 'Undead',
                     health: 1,
                     abilities: [
                         {
@@ -472,7 +474,7 @@ describe('index.js GameEngine', () => {
                                         type: 'condition', attribute: 'tribe', value: 'Undead', operator: '=='
                                     },
                                     payloads: [
-                                        { type: 'KILL', isCost: true } 
+                                        { type: 'KILL', isCost: true }
                                     ]
                                 },
                                 {
@@ -490,19 +492,19 @@ describe('index.js GameEngine', () => {
 
                 expect(player.lines.mid.length).toBe(0);
                 expect(player.discard.length).toBe(1);
-                
+
                 const actionLogs = mockState.history_log.filter(l => l.text.includes("activated 'Sacrificial Trigger'"));
                 expect(actionLogs.length).toBe(1);
             });
         });
 
         describe('Manual Abilities (MANUAL triggers)', () => {
-             it('should NOT activate if an isCost payload (DISCARD) has no valid targets', () => {
+            it('should NOT activate if an isCost payload (DISCARD) has no valid targets', () => {
                 const manualUnit = spawnUnit(mockState, 'player1', 'mid', {
                     name: 'Manual Unit',
                     tribe: 'Generic',
                     health: 1,
-                    readiness: 1, 
+                    readiness: 1,
                     abilities: [
                         {
                             abilityId: 'ab_manual_cost',
@@ -514,7 +516,7 @@ describe('index.js GameEngine', () => {
                                 {
                                     targetMethod: 'AUTO_RANDOM',
                                     targetCount: 1,
-                                    quickTargeting: { zones: ['HAND'], alignment: ['FRIENDLY'] }, 
+                                    quickTargeting: { zones: ['HAND'], alignment: ['FRIENDLY'] },
                                     payloads: [
                                         { type: 'DISCARD_CARD', isCost: true }
                                     ]
@@ -534,17 +536,17 @@ describe('index.js GameEngine', () => {
                 engine.executeAbility(ability, manualUnit, {}, 'player1');
 
                 expect(manualUnit.attack || 0).toBe(0);
-                
+
                 const abilityKey = `${manualUnit.instanceId}`;
                 expect(mockState.abilityUses[abilityKey]).toBeUndefined();
             });
 
-             it('should activate if an isCost payload (DISCARD) has valid targets', () => {
+            it('should activate if an isCost payload (DISCARD) has valid targets', () => {
                 const unitOverrides = {
                     name: 'Manual Unit2',
                     tribe: 'Generic',
                     health: 1,
-                    readiness: 1, 
+                    readiness: 1,
                     abilities: []
                 };
                 const unit = createTestUnit({ ownerId: 'player1', ...unitOverrides }).ACT
@@ -553,7 +555,7 @@ describe('index.js GameEngine', () => {
                     name: 'Manual Unit',
                     tribe: 'Generic',
                     health: 1,
-                    readiness: 1, 
+                    readiness: 1,
                     abilities: [
                         {
                             abilityId: 'ab_manual_cost',
@@ -565,7 +567,7 @@ describe('index.js GameEngine', () => {
                                 {
                                     targetMethod: 'AUTO_RANDOM',
                                     targetCount: 1,
-                                    quickTargeting: { zones: ['HAND'], alignment: ['FRIENDLY'] }, 
+                                    quickTargeting: { zones: ['HAND'], alignment: ['FRIENDLY'] },
                                     payloads: [
                                         { type: 'DISCARD_CARD', isCost: true }
                                     ]
@@ -587,7 +589,7 @@ describe('index.js GameEngine', () => {
                 engine.executeAbility(ability, manualUnit, {}, 'player1');
 
                 expect(manualUnit.attack || 0).toBe(0);
-                
+
                 const abilityKey = `${manualUnit.instanceId}`;
                 expect(mockState.abilityUses[abilityKey]).toBeUndefined();
             });
@@ -595,43 +597,43 @@ describe('index.js GameEngine', () => {
     });
 
     it('should correctly trigger turn events for non-avatar units sharing the avatar line', () => {
-            const engine = new GameEngine(mockState);
-            
-            // Spawn a standard unit (like Wither) into the avatar line
-            spawnUnit(mockState, 'player1', 'avatar', {
-                type: 'unit', // Not an avatar
-                abilities: [
-                    { abilityId: 'wither-effect', trigger: 'OWN_TURN_STARTED', triggerScope: 'PERSONAL', effects: [] }
-                ]
-            });
+        const engine = new GameEngine(mockState);
 
-            // Trigger the phase
-            const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
-            
-            // Under the old system, this would be 0 because the loop skipped the rest of the avatar line.
-            expect(triggersQueued).toBe(1);
-            expect(engine.stack[0].ability.abilityId).toBe('wither-effect');
+        // Spawn a standard unit (like Wither) into the avatar line
+        spawnUnit(mockState, 'player1', 'avatar', {
+            type: 'unit', // Not an avatar
+            abilities: [
+                { abilityId: 'wither-effect', trigger: 'OWN_TURN_STARTED', triggerScope: 'PERSONAL', effects: [] }
+            ]
         });
 
-        it('should correctly trigger turn events for global entities residing in the equator', () => {
-            const engine = new GameEngine(mockState);
-            
-            // Add an entity directly to the equator
-            mockState.equator = [{
-                instanceId: 'eq1',
-                ownerId: 'player1',
-                type: 'artifact',
-                abilities: [
-                    // Equator entities act globally, so they are allowed to use generic TURN_ events
-                    { abilityId: 'weather-effect', trigger: 'TURN_STARTED', triggerScope: 'GLOBAL', effects: [] }
-                ]
-            }];
+        // Trigger the phase
+        const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
 
-            // Trigger the phase
-            const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
-            
-            // Under the old system, this would be 0 because queueTriggers explicitly skipped the equator on turn events.
-            expect(triggersQueued).toBe(1);
-            expect(engine.stack[0].ability.abilityId).toBe('weather-effect');
-        });
+        // Under the old system, this would be 0 because the loop skipped the rest of the avatar line.
+        expect(triggersQueued).toBe(1);
+        expect(engine.stack[0].ability.abilityId).toBe('wither-effect');
+    });
+
+    it('should correctly trigger turn events for global entities residing in the equator', () => {
+        const engine = new GameEngine(mockState);
+
+        // Add an entity directly to the equator
+        mockState.equator = [{
+            instanceId: 'eq1',
+            ownerId: 'player1',
+            type: 'artifact',
+            abilities: [
+                // Equator entities act globally, so they are allowed to use generic TURN_ events
+                { abilityId: 'weather-effect', trigger: 'TURN_STARTED', triggerScope: 'GLOBAL', effects: [] }
+            ]
+        }];
+
+        // Trigger the phase
+        const triggersQueued = engine.queueTriggers('TURN_STARTED', { playerId: 'player1' });
+
+        // Under the old system, this would be 0 because queueTriggers explicitly skipped the equator on turn events.
+        expect(triggersQueued).toBe(1);
+        expect(engine.stack[0].ability.abilityId).toBe('weather-effect');
+    });
 });
