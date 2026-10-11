@@ -8,7 +8,7 @@ describe('Engine Utilities (utils.js)', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        
+
         // Setup pristine state for each test
         mockPlayer1 = {
             id: 'player1',
@@ -116,7 +116,7 @@ describe('Engine Utilities (utils.js)', () => {
         it('resolveResourceKey should fallback through state catalog and player resources', () => {
             // Match via player resources (priority)
             expect(utils.resolveResourceKey(mockState, mockPlayer1, 'Tribe A')).toBe('TribeA');
-            
+
             // Match via state catalog (fallback when player doesn't have it)
             const emptyPlayer = { resources: {} };
             expect(utils.resolveResourceKey(mockState, emptyPlayer, 'Tribe A')).toBe('tribe_a');
@@ -126,9 +126,9 @@ describe('Engine Utilities (utils.js)', () => {
         });
 
         it('should suppress logs and warnings when state is reconstructing', () => {
-            const consoleSpyLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-            const consoleSpyWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-            
+            const consoleSpyLog = jest.spyOn(console, 'log').mockImplementation(() => { });
+            const consoleSpyWarn = jest.spyOn(console, 'warn').mockImplementation(() => { });
+
             mockState.isReconstructing = true;
             utils.log(mockState, 'test');
             utils.warn(mockState, 'test');
@@ -140,7 +140,7 @@ describe('Engine Utilities (utils.js)', () => {
             utils.warn(mockState, 'test');
             expect(consoleSpyLog).toHaveBeenCalled();
             expect(consoleSpyWarn).toHaveBeenCalled();
-            
+
             consoleSpyLog.mockRestore();
             consoleSpyWarn.mockRestore();
         });
@@ -185,13 +185,110 @@ describe('Engine Utilities (utils.js)', () => {
         it('should parse passive flags and limit consumption', () => {
             const ability = { passiveFlags: ['BLOCK_TARGETING'], triggerLimit: 'ONCE_PER_ROUND', abilityId: 'ab1' };
             entity.abilities.push(ability);
-            
+
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(true); // Check only
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING', true)).toBe(true); // Consume 1st time
             expect(mockState.abilityUses['u1_ab1_0']).toBe(1);
-            
+
             // Second time should return false because limit is hit
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(false);
+        });
+    });
+
+    describe('General Purpose State Locator (queryState)', () => {
+        let p1Unit, p2Unit, p1EquipOnP1, p1EquipOnP2, p1Spell, p2Spell, eqNeutral, eqP1;
+
+        beforeEach(() => {
+            // Set up a complex board state
+            p1Unit = { instanceId: 'uA', id: 'unit_a' };
+            p1EquipOnP1 = { instanceId: 'e1', id: 'equip_1' }; // Implicitly owned by P1 due to zone
+            p1Unit.attachments = [p1EquipOnP1];
+            mockPlayer1.lines.front.push(p1Unit);
+
+            p2Unit = { instanceId: 'uB', id: 'unit_b' };
+            p1EquipOnP2 = { instanceId: 'e2', id: 'equip_2', ownerId: 'player1' }; // Explicit P1 owner, physically on P2's board!
+            p2Unit.attachments = [p1EquipOnP2];
+            mockPlayer2.lines.front.push(p2Unit);
+
+            p1Spell = { instanceId: 's1', id: 'fireball' };
+            mockPlayer1.hand.push(p1Spell);
+
+            p2Spell = { instanceId: 's2', id: 'fireball' };
+            mockPlayer2.hand.push(p2Spell);
+
+            eqNeutral = { instanceId: 'eq1', id: 'token' };
+            eqP1 = { instanceId: 'eq2', id: 'token', ownerId: 'player1' };
+            mockState.equator.push(eqNeutral, eqP1);
+        });
+
+        it('should expand zone aliases and find entities in specific zones', () => {
+            // BOARD alias includes front line
+            let loc = utils.queryState(mockState, { zones: ['BOARD'], target: { instanceId: 'uA' } });
+            expect(loc).not.toBeNull();
+            expect(loc.zone).toBe('front');
+
+            // PILES alias includes hand, but not front line
+            loc = utils.queryState(mockState, { zones: ['PILES'], target: { instanceId: 'uA' } });
+            expect(loc).toBeNull();
+
+            // PILES finds the spell in hand
+            loc = utils.queryState(mockState, { zones: ['PILES'], target: { instanceId: 's1' } });
+            expect(loc).not.toBeNull();
+            expect(loc.zone).toBe('hand');
+        });
+
+        it('should traverse attachments to find entities and return their host', () => {
+            const loc = utils.queryState(mockState, { zones: ['BOARD'], target: { instanceId: 'e1' } });
+            expect(loc).not.toBeNull();
+            expect(loc.zone).toBe('attachment');
+            expect(loc.host).toBe(p1Unit);
+        });
+
+        it('should skip attachments if ignoreAttachments is true', () => {
+            const loc = utils.queryState(mockState, { zones: ['BOARD'], target: { instanceId: 'e1' }, ignoreAttachments: true });
+            expect(loc).toBeNull();
+        });
+
+        it('should support findAll to return an array of all matches', () => {
+            // Find all fireballs anywhere (no zones specified defaults to ALL)
+            const locs = utils.queryState(mockState, { target: { id: 'fireball' }, findAll: true });
+            expect(locs.length).toBe(2);
+            expect(locs[0].array[locs[0].index]).toBe(p1Spell);
+            expect(locs[1].array[locs[1].index]).toBe(p2Spell);
+        });
+
+        it('should distinguish between spatial (players) and logical (ownedBy) queries', () => {
+            // Spatial: Search ONLY Player 2's board lines.
+            // Logical: Filter ONLY for items owned by Player 1.
+            const locs = utils.queryState(mockState, {
+                players: ['player2'],
+                zones: ['LINES'],
+                ownedBy: 'player1',
+                target: c => true, // Predicate function matches anything that passes the ownership check
+                findAll: true
+            });
+
+            expect(locs.length).toBe(1);
+            expect(locs[0].array[locs[0].index]).toBe(p1EquipOnP2); // Found the cross-board attachment!
+            expect(locs[0].host).toBe(p2Unit);
+            expect(locs[0].playerId).toBe('player2'); // It correctly reports its spatial physical location
+        });
+
+        it('should evaluate implicit and explicit ownership correctly on the Equator', () => {
+            // Equator tokens. P1 explicitly owns eq2, nobody owns eq1.
+            let locs = utils.queryState(mockState, { zones: ['equator'], ownedBy: 'player1', target: c => true, findAll: true });
+            expect(locs.length).toBe(1);
+            expect(locs[0].array[locs[0].index]).toBe(eqP1);
+
+            // Searching for targets with no owner restrictions
+            locs = utils.queryState(mockState, { zones: ['equator'], target: { id: 'token' }, findAll: true });
+            expect(locs.length).toBe(2);
+        });
+
+        it('should accept custom predicate functions for complex target matching', () => {
+            const loc = utils.queryState(mockState, { target: c => c.id === 'unit_b' });
+            expect(loc).not.toBeNull();
+            expect(loc.array[loc.index]).toBe(p2Unit);
         });
     });
 
@@ -210,7 +307,7 @@ describe('Engine Utilities (utils.js)', () => {
         it('getOwnerId should fallback to physical state search', () => {
             const unit = { instanceId: 'u1' };
             mockPlayer2.lines.mid.push(unit);
-            
+
             expect(utils.getOwnerId(mockState, { instanceId: 'u1' })).toBe('player2');
 
             const spell = { instanceId: 'sp1' };
@@ -233,7 +330,7 @@ describe('Engine Utilities (utils.js)', () => {
         });
 
         it('isEntityOnBoard should return true only for board zones and equator', () => {
-            const unit = { id: 'card1' };
+            const unit = { id: 'card1', instanceId: 'u1' };
             expect(utils.isEntityOnBoard(mockState, unit)).toBe(false);
 
             mockPlayer1.lines.mid.push(unit);
@@ -246,6 +343,57 @@ describe('Engine Utilities (utils.js)', () => {
             mockState.equator = [];
             mockPlayer1.hand.push(unit);
             expect(utils.isEntityOnBoard(mockState, unit)).toBe(false); // Hand is not board
+        });
+
+        it('isNameOrIdOnBoard should check generic id and name for uniqueness, ignoring attachments and opponent cards', () => {
+            const cardInHand = { id: 'unique_hero', instanceId: 'hand_inst_1', name: 'Original Name' };
+            const myBoardCard = { id: 'unique_hero', instanceId: 'board_inst_2', name: 'Original Name' };
+            const oppBoardCard = { id: 'unique_hero', instanceId: 'board_inst_3', name: 'Original Name' };
+            const altArtCard = { id: 'alt_hero_id', instanceId: 'board_inst_4', name: 'Original Name' };
+
+            // 1. Not on board
+            expect(utils.isNameOrIdOnBoard(mockState, 'player1', cardInHand)).toBe(false);
+
+            // 2. Opponent has it (should still be false for player 1)
+            mockPlayer2.lines.front.push(oppBoardCard);
+            expect(utils.isNameOrIdOnBoard(mockState, 'player1', cardInHand)).toBe(false);
+
+            // 3. Player 1 has it on board (different instance, same generic ID)
+            mockPlayer1.lines.front.push(myBoardCard);
+            expect(utils.isNameOrIdOnBoard(mockState, 'player1', cardInHand)).toBe(true);
+
+            // 4. On board (different ID entirely, but exact same name)
+            mockPlayer1.lines.front = [];
+            mockPlayer1.lines.front.push(altArtCard);
+            expect(utils.isNameOrIdOnBoard(mockState, 'player1', cardInHand)).toBe(true);
+
+            // 5. Ignore attachments
+            mockPlayer1.lines.front = []; // clear board
+            const hostUnit = { id: 'some_guy', instanceId: 'host_1', attachments: [myBoardCard] };
+            mockPlayer1.lines.front.push(hostUnit);
+
+            // Should be false because uniqueness checks do not search inside attachments
+            expect(utils.isNameOrIdOnBoard(mockState, 'player1', cardInHand)).toBe(false);
+        });
+
+        // The specific regression test for the Debbie Downer bug
+        it('should strictly match instanceId to prevent cross-player collisions (Debbie Downer bug)', () => {
+            // Player 1 has a card on board
+            const p1Card = { id: 'debbie_downer', instanceId: 'p1_dd_123' };
+            mockPlayer1.lines.front.push(p1Card);
+
+            // Player 2 has the exact same generic card in hand
+            const p2Card = { id: 'debbie_downer', instanceId: 'p2_dd_456' };
+            mockPlayer2.hand.push(p2Card);
+
+            // If we search for Player 2's specific instance, it MUST NOT return Player 1's card
+            // even though Player 1's card is evaluated first in the loops and has the same generic 'id'.
+            const loc = utils.findEntityLocation(mockState, p2Card);
+
+            expect(loc).not.toBeNull();
+            expect(loc.playerId).toBe('player2');
+            expect(loc.zone).toBe('hand');
+            expect(loc.array[loc.index]).toBe(p2Card);
         });
     });
 
@@ -260,7 +408,7 @@ describe('Engine Utilities (utils.js)', () => {
 
         it('getAttackCost should correctly flag exhaust requirements', () => {
             expect(utils.getAttackCost(mockState, {})).toEqual({ readinessCost: 'UNREADIES' });
-            
+
             mockState.abilityCatalog.push({ abilityId: 'heavy', passiveFlags: ['ATTACK_EXHAUSTS'], name: 'Sluggish' });
             const slowEnt = { abilities: ['heavy'] };
             expect(utils.getAttackCost(mockState, slowEnt)).toEqual({ readinessCost: 'EXHAUSTS' });
@@ -284,7 +432,7 @@ describe('Engine Utilities (utils.js)', () => {
             // Player 1 has 5 Carnie, 2 TribeA
             expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj)).toEqual({ success: true });
 
-            // Player 1 fails if it costs 3 TribeA (Since 2 TribeA + floor((5-2)/3)=1 == 3) Wait, math:
+            // Player 1 fails if it costs 3 TribeA (Since 2 TribeA + floor((5-2)/3)=1 == 3)
             // Need 3. Has 2 Tribe. Remainder Carnie = 5-2 = 3. 3/3 = 1 conversion. Total = 3. Should succeed!
             costObj.tribeAmount = 3;
             expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj)).toEqual({ success: true });
@@ -298,7 +446,7 @@ describe('Engine Utilities (utils.js)', () => {
             // Player has 5 Carnie, 0 TribeA
             mockPlayer1.resources.TribeA.current = 0;
             costObj.tribeAmount = 1;
-            
+
             // Fails specifically because isCardPlay = true enforces at least 1 true tribe resource
             expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, true))
                 .toEqual({ success: false, reason: 'Must use at least 1 Tribe Resource for the card' });
@@ -319,6 +467,25 @@ describe('Engine Utilities (utils.js)', () => {
             // Carnie goes from 5 -> 3 (paying base cost) -> 0 (paying the 3 converted for the last TribeA).
             expect(mockPlayer1.resources.TribeA.current).toBe(0);
             expect(mockPlayer1.resources.Carnie.current).toBe(0);
+        });
+
+        it('evaluatePayment should calculate exact deduction values and fallbacks without modifying state', () => {
+            const cost = { carnie: 2, tribeAmount: 3, escalates: false };
+            const testEntity = { tribe: 'TribeA', power: 0 };
+
+            // Give player 5 Carnie, 2 TribeA. 
+            // Expected Cost: 2 Base Carnie + 2 TribeA + 1 Missing TribeA converted to 3 Carnie.
+            // Expected Deductions: 5 Carnie, 2 TribeA
+            const result = utils.evaluatePayment(mockState, mockPlayer1, testEntity, cost);
+
+            expect(result.success).toBe(true);
+            expect(result.entityTribe).toBe('TribeA');
+            expect(result.carnieDeduct).toBe(5); // 2 base + 3 converted
+            expect(result.tribeDeduct).toBe(2);  // Used all 2 available
+
+            // Verify it was a PURE function (no state actually modified yet)
+            expect(mockPlayer1.resources.TribeA.current).toBe(2);
+            expect(mockPlayer1.resources.Carnie.current).toBe(5);
         });
     });
 
@@ -360,10 +527,10 @@ describe('Engine Utilities (utils.js)', () => {
             mockState.tribeCatalog = [{ id: 3 }];
 
             const clone = utils.cloneGameState(mockState);
-            
+
             // Verify deep clone of physical state
             expect(clone.players.player1.id).toBe('player1');
-            
+
             // Verify non-enumerable preservation
             expect(clone.abilityCatalog[0].id).toBe(1);
             expect(clone.catalog[0].id).toBe(2);
@@ -390,51 +557,6 @@ describe('Engine Utilities (utils.js)', () => {
         it('should return false if activation method is PLAYER_CHOICE', () => {
             const ability = { trigger: 'ON_BE_PLAYED', isSelectable: false, activation: { method: 'PLAYER_CHOICE' } };
             expect(utils.isAutoCast(ability)).toBe(false);
-        });
-    });
-
-    describe('Cost Mechanics (canAffordCost, payCost, calculateEscalatedCostValues)', () => {
-        let costObj;
-        let entity;
-
-        beforeEach(() => {
-            costObj = { carnie: 2, tribeAmount: 1, escalates: false };
-            entity = { tribe: 'TribeA', power: 0 };
-        });
-
-        it('getAttackCost should correctly flag exhaust requirements', () => {
-            expect(utils.getAttackCost(mockState, {})).toEqual({ readinessCost: 'UNREADIES' });
-            
-            mockState.abilityCatalog.push({ abilityId: 'heavy', passiveFlags: ['ATTACK_EXHAUSTS'], name: 'Sluggish' });
-            const slowEnt = { abilities: ['heavy'] };
-            expect(utils.getAttackCost(mockState, slowEnt)).toEqual({ readinessCost: 'EXHAUSTS' });
-        });
-
-        it('calculateEscalatedCostValues should escalate the primary resource', () => {
-            let cost = { carnie: 2, power: 1, escalates: true };
-            expect(utils.calculateEscalatedCostValues(cost, 1)).toEqual({ cCost: 2, pCost: 2, tCost: 0 });
-
-            cost = { carnie: 2, tribeAmount: 1, escalates: true };
-            expect(utils.calculateEscalatedCostValues(cost, 2)).toEqual({ cCost: 2, pCost: 0, tCost: 3 });
-        });
-
-        it('canAffordCost should enforce minimum tribe requirements for playing cards', () => {
-            mockPlayer1.resources.TribeA.current = 0;
-            costObj.tribeAmount = 1;
-            
-            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, true))
-                .toEqual({ success: false, reason: 'Must use at least 1 Tribe Resource for the card' });
-
-            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, false)).toEqual({ success: true });
-        });
-
-        it('payCost should deduct resources correctly and handle carnie conversions', () => {
-            costObj.carnie = 2;
-            costObj.tribeAmount = 3;
-
-            utils.payCost(mockState, mockPlayer1, entity, costObj);
-            expect(mockPlayer1.resources.TribeA.current).toBe(0);
-            expect(mockPlayer1.resources.Carnie.current).toBe(0);
         });
     });
 
@@ -493,6 +615,24 @@ describe('Engine Utilities (utils.js)', () => {
         it('should return null if findEntityLocation cannot find target', () => {
             const loc = utils.findEntityLocation(mockEngine, { instanceId: 'ghost' });
             expect(loc).toBeNull();
+        });
+
+        it('findEntityLocation should normalize arguments, accepting either an Engine or a State object', () => {
+            const unit = { instanceId: 'norm1' };
+            mockPlayer1.lines.front.push(unit);
+
+            // 1. Test passing the engine (legacy support)
+            const engineResult = utils.findEntityLocation(mockEngine, unit);
+            expect(engineResult).not.toBeNull();
+            expect(engineResult.zone).toBe('front');
+
+            // 2. Test passing the raw state (new support for utils)
+            const stateResult = utils.findEntityLocation(mockState, unit);
+            expect(stateResult).not.toBeNull();
+            expect(stateResult.zone).toBe('front');
+
+            // Ensure both methods yield the exact same internal reference
+            expect(engineResult.array[engineResult.index]).toBe(stateResult.array[stateResult.index]);
         });
     });
 

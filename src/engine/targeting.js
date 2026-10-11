@@ -3,7 +3,7 @@
  * Logic for determining valid targets and available actions.
  */
 
-import { hasEngineFlag, resolveResourceKey, LINES, isUndoable, findEntity, canAffordCost, getAttackCost, isEntityOnBoard, isAutoCast, getAvatar, findEntityLocation } from './utils.js';
+import { hasEngineFlag, resolveResourceKey, isUndoable, findEntity, canAffordCost, getAttackCost, isEntityOnBoard, isAutoCast, getAvatar, findEntityLocation, queryState } from './utils.js';
 import { GameEngine } from './index.js';
 
 function getStat(entity, statKey) {
@@ -65,20 +65,24 @@ function checkAttackTargetValidity(state, attacker, target, usePerception) {
 }
 
 function getFieldTargets(state, targetPlayerId, isValidTarget, enforceBattlelines = false) {
-    const player = state.players[targetPlayerId];
     const logicalLines = { taunt: [], bodyguard: [], avatar: [], front: [], mid: [], back: [], sheltered: [], sideline: [] };
     let allValidTargets = [];
 
-    for (const line of Object.keys(logicalLines)) {
-        if (player.lines[line]) {
-            player.lines[line].forEach(u => {
-                if (isValidTarget(u)) {
-                    const targetObj = { id: u.instanceId || u.id, line: u.line || line, playerId: targetPlayerId };
-                    allValidTargets.push(targetObj);
-                    logicalLines[u.line || line].push(targetObj);
-                }
-            });
-        }
+    const locs = queryState(state, {
+        players: [targetPlayerId],
+        zones: ['LINES'],
+        findAll: true,
+        ignoreAttachments: true,
+        target: isValidTarget
+    });
+
+    if (locs) {
+        locs.forEach(loc => {
+            const ent = loc.array[loc.index];
+            const targetObj = { id: ent.instanceId || ent.id, line: loc.zone, playerId: targetPlayerId };
+            allValidTargets.push(targetObj);
+            logicalLines[loc.zone].push(targetObj);
+        });
     }
 
     if (!enforceBattlelines) return allValidTargets;
@@ -87,7 +91,6 @@ function getFieldTargets(state, targetPlayerId, isValidTarget, enforceBattleline
 
 function getBattlelineTargets(logicalLines) {
     if (logicalLines['taunt'].length > 0) {
-        if (logicalLines['sideline'].length > 0) return [...logicalLines['taunt'], ...logicalLines['sideline']];
         return logicalLines['taunt'];
     }
 
@@ -140,54 +143,6 @@ function checkQuickTargetingValidity(state, target, targetOwnerId, source, sourc
     return true;
 }
 
-function collectFieldTargets(state, pId, source, sourceId, qt, isPlay) {
-    const targets = [];
-    const p = state.players[pId];
-
-    const addIfValid = (ent, line) => {
-        if (checkQuickTargetingValidity(state, ent, pId, source, sourceId, qt, isPlay)) {
-            targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
-        }
-    };
-
-    for (const line of LINES) {
-        if (!p.lines[line]) continue;
-        p.lines[line].forEach(u => {
-            // Skip boons unless the ability explicitly requests BOON in its entityType filter
-            if (u.type === 'boon' && (!qt.entityType || !qt.entityType.includes('BOON'))) return;
-
-            addIfValid(u, u.line || line);
-        });
-    }
-
-    if (state.equator) {
-        state.equator.forEach(item => {
-            if ((item.ownerId || sourceId) === pId) addIfValid(item, 'equator');
-        });
-    }
-    return targets;
-}
-
-function collectZoneTargets(state, pId, source, sourceId, qt, isPlay) {
-    const targets = [];
-    const p = state.players[pId];
-    if (!p) return targets;
-
-    const addIfValid = (ent, line) => {
-        if (checkQuickTargetingValidity(state, ent, pId, source, sourceId, qt, isPlay)) {
-            targets.push({ id: ent.instanceId || ent.id, line: line, playerId: pId });
-        }
-    };
-
-    ['hand', 'discard', 'deck', 'banish'].forEach(z => {
-        if (qt.zones.includes(z.toUpperCase()) && p[z]) {
-            p[z].forEach(c => addIfValid(c, z));
-        }
-    });
-
-    return targets;
-}
-
 function enforceBattlelinesOnTargets(state, targets, playerId, entity) {
     const defenderId = playerId === 'player1' ? 'player2' : 'player1';
 
@@ -231,19 +186,40 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     const qt = extractQuickTargeting(ability);
     if (!qt) return [];
 
-    const oppId = playerId === 'player1' ? 'player2' : 'player1';
     const isPlay = isPlayTrigger(ability.trigger);
-    let targets = [];
 
-    if (qt.zones.includes('FIELD')) {
-        targets.push(...collectFieldTargets(state, playerId, entity, playerId, qt, isPlay));
-        targets.push(...collectFieldTargets(state, oppId, entity, playerId, qt, isPlay));
+    // Map abstract QuickTargeting zones to structural queryState aliases safely
+    const qtZones = qt.zones || [];
+    const mappedZones = qtZones.map(z => z.toUpperCase() === 'FIELD' ? 'BOARD' : z.toLowerCase());
+
+    // Perform a single, massive structural sweep of BOTH players simultaneously
+    const locs = queryState(state, {
+        players: ['player1', 'player2'],
+        zones: mappedZones,
+        findAll: true,
+        ignoreAttachments: true,
+        target: () => true // CRITICAL FIX: Match every entity in these zones, we will filter tactically below
+    });
+
+    let targets = [];
+    if (locs) {
+        locs.forEach(loc => {
+            const ent = loc.array[loc.index];
+
+            // Skip boons unless explicitly requested in the entityType filter
+            if (ent.type === 'boon' && (!qt.entityType || !qt.entityType.includes('BOON'))) return;
+
+            // Resolve owner for alignment checks (Equator items without explicit owners default to acting player)
+            const targetOwnerId = loc.zone === 'equator' ? (ent.ownerId || playerId) : loc.playerId;
+
+            // Validate tactical eligibility (alignment, type, perception, etc)
+            if (checkQuickTargetingValidity(state, ent, targetOwnerId, entity, playerId, qt, isPlay)) {
+                targets.push({ id: ent.instanceId || ent.id, line: loc.zone, playerId: targetOwnerId });
+            }
+        });
     }
 
-    targets.push(...collectZoneTargets(state, playerId, entity, playerId, qt, isPlay));
-    targets.push(...collectZoneTargets(state, oppId, entity, playerId, qt, isPlay));
-
-    if (qt.zones.includes('FIELD') && !qt.ignoreBattlelines && !isPlay) {
+    if (qtZones.includes('FIELD') && !qt.ignoreBattlelines && !isPlay) {
         targets = enforceBattlelinesOnTargets(state, targets, playerId, entity);
     }
 
@@ -255,15 +231,8 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
 
 export function resolveTargetById(state, targetId) {
     if (!targetId) return null;
-    const p1 = state.players.player1;
-    const p2 = state.players.player2;
-    const allEntities = [
-        ...Object.values(p1.lines).flat(), ...Object.values(p2.lines).flat(),
-        ...(state.equator || []),
-        ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
-        ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
-    ].filter(Boolean);
-    return allEntities.find(e => e.id === targetId || e.instanceId === targetId) || null;
+    const loc = queryState(state, { target: { _fuzzyId: targetId } });
+    return loc ? loc.array[loc.index] : null;
 }
 
 export function acquireTargets(state, ability, source, eventPayload, ownerId) {
@@ -323,10 +292,12 @@ export function acquireTargets(state, ability, source, eventPayload, ownerId) {
 }
 
 function isEntityInHand(state, playerId, entity) {
-    const p = state.players[playerId];
-    if (!p) return false;
     const refId = entity.instanceId || entity.id;
-    return ['hand', 'discard', 'deck'].some(z => p[z]?.some(c => (c.instanceId || c.id) === refId));
+    return !!queryState(state, {
+        players: [playerId],
+        zones: ['hand', 'discard', 'deck'],
+        target: { _fuzzyId: refId }
+    });
 }
 
 function checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct) {
@@ -411,7 +382,7 @@ function hasValidEffectTargets(engine, state, playerId, entity, ability) {
 
         // For automated targets, simulate the engine's targeting to ensure at least one entity is affected
         if (group.targetMethod?.startsWith('AUTO_')) {
-            let pool = engine.findEntitiesInScope(group.quickTargeting, playerId);
+            let pool = engine.findEntitiesInScope(group.quickTargeting, playerId, false);
             pool = pool.filter(ent => engine.evaluateLogicTree(group.logicTree, ent, entity, null));
             if (pool.length > 0) {
                 return true;
@@ -468,7 +439,6 @@ function buildAttackAction(state, playerId, entity) {
 
 function buildAbilityAction(state, playerId, entity, ability) {
     // Hide non-selectable ON_BE_PLAYED actions from the manual selection list.
-    // Loosely check truthiness to prevent issues with strict boolean mismatches.
     if (isAutoCast(ability)) return null;
 
     const validTriggers = ['MANUAL', 'PLAY', 'PLAY_OPTIONAL', 'ON_PLAY', 'ON_BE_PLAYED', 'ON_PLAY_OPTIONAL', 'MODIFY_PLAY', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'WOULD_PLAY_OPTIONAL'];
@@ -523,6 +493,12 @@ export function getEntityAvailableActions(state, playerId, entityId) {
     const entity = findEntity(state, playerId, entityId);
     if (!entity) return [];
 
+    // Add this check to prevent attached units from generating actions
+    const loc = findEntityLocation({ state }, entity);
+    if (loc && loc.zone === 'attachment') {
+        return [];
+    }
+
     const actions = [];
 
     const nativePlay = buildPlayAction(state, playerId, entity);
@@ -541,7 +517,6 @@ export function getEntityAvailableActions(state, playerId, entityId) {
     if (entity.abilities) {
         // Pre-scan for mandatory abilities that require targets but fail to build
         entity.abilities.forEach(ab => {
-            // CRITICAL FIX: Removed !isAutoCast(ab) so we validate BOTH manual and automated triggers!
             if (inHand && ['ON_BE_PLAYED', 'PLAY'].includes(ab.trigger)) {
                 if (ab.activation?.method === 'PLAYER_CHOICE') {
                     const targets = getValidAbilityTargets(state, playerId, entityId, ab.abilityId);

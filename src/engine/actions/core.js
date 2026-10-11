@@ -28,7 +28,7 @@ export const ACTION_MANIFEST = {
     'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'TRANSFORM': { passiveType: 'BE_TRANSFORMED', canInvert: false, canBeCost: true, requiresCardId: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
-//    'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
+    //    'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'MILL': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'SHUFFLE': { passiveType: 'BE_SHUFFLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT'], isLeavesPlay: true },
     'RETURN': { passiveType: 'BE_RETURNED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['HAND'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -54,11 +54,11 @@ export class Action {
     constructor(payload) {
         this.type = payload.type || this.resolveActionType();
         if (!this.type) console.warn(`[Action] Could not determine action type for constructor!`, this);
-        
+
         const manifest = ACTION_MANIFEST[this.type];
         this.passiveType = manifest ? manifest.passiveType : null;
-        this.payload = payload; 
-        this.payload.type = this.type; 
+        this.payload = payload;
+        this.payload.type = this.type;
     }
 
     resolveActionType() {
@@ -79,7 +79,7 @@ export class Action {
             console.log(`[Action] ${this.type} executing...`, this.payload);
 
             if (this.emitWouldEvents(engine)) return false;
-            
+
             this.emitModifyEvents(engine);
             this.processLeavesPlay(engine);
 
@@ -127,7 +127,7 @@ export class Action {
     checkAbilityUndoSafety(engine, abilityId) {
         let catAb = engine.state.abilityCatalog?.find(ca => ca.abilityId === abilityId);
         if (!catAb && this.payload.source?.abilities) {
-             catAb = this.payload.source.abilities.find(a => a.abilityId === abilityId);
+            catAb = this.payload.source.abilities.find(a => a.abilityId === abilityId);
         }
         if (catAb && !isUndoable(engine.state, catAb)) {
             engine.state._irreversibleActionOccurred = true;
@@ -227,7 +227,7 @@ export class Action {
     }
 
     resetBaseStats(target) {
-        target.lifetimeAbilityUses = {}; 
+        target.lifetimeAbilityUses = {};
         if (target.originalOwnerId && target.ownerId !== target.originalOwnerId) target.ownerId = target.originalOwnerId;
         if (target.maxHealth !== undefined && target.maxHealth !== null) target.health = target.maxHealth;
         if (target.originalPower !== undefined && target.originalPower !== null) target.power = target.originalPower;
@@ -274,9 +274,9 @@ export class Action {
     executeZoneMovement(engine, defaultDestination) {
         const loc = findEntityLocation(engine, this.payload.target);
         if (!loc) return;
-         // FIX: Check this.payload.destination first (injected by interceptors) before falling back!
+        // FIX: Check this.payload.destination first (injected by interceptors) before falling back!
         const dest = this.payload.destination || this.payload.eventContext?.destination || defaultDestination;
-        
+
         if (['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) {
             const UnfieldAction = ACTION_REGISTRY['UNFIELD'];
             if (UnfieldAction) new UnfieldAction({ target: this.payload.target, destination: dest, eventContext: this.payload.eventContext }).run(engine);
@@ -289,11 +289,11 @@ export class Action {
 export function registerEffect(engine, target, payload, extraData = {}) {
     const { duration, type, source } = payload;
     if (!duration || duration === 'INSTANT' || duration === 'PERMANENT') return;
-    
+
     initializeActiveEffects(target);
     const expiresAt = calculateExpiration(engine, duration);
     const safePayload = createSafePayload(payload);
-    
+
     appendEffect(engine, target, type, duration, expiresAt, source, safePayload, extraData);
 }
 
@@ -363,7 +363,16 @@ function revertModifyResource(engine, target, effect) {
 
 function revertSetStat(engine, target, effect, isLeavingPlay) {
     if (effect.stat === 'health') {
-        target.health = Math.min(target.health, effect.originalValue);
+        // If a delta was recorded, restore it dynamically
+        if (effect.delta !== undefined) {
+            target.health -= effect.delta; // Subtracting a negative delta restores health
+            if (target.maxHealth !== undefined && target.maxHealth !== null) {
+                target.health = Math.min(target.health, target.maxHealth);
+            }
+        } else {
+            // Fallback for older engine logs
+            target.health = Math.min(target.health, effect.originalValue);
+        }
     } else if (effect.stat === 'line') {
         revertLineChange(engine, target, effect, isLeavingPlay);
     } else if (typeof effect.originalValue === 'number' && typeof effect.delta === 'number') {
@@ -377,7 +386,7 @@ function revertLineChange(engine, target, effect, isLeavingPlay) {
     let remainingEffect = findRemainingSetStatEffect(target, effect);
     const defaultLine = target.defaultLine || 'mid';
     const dest = remainingEffect ? remainingEffect.amount : (effect.originalValue || defaultLine);
-    
+
     if (target.line !== dest) {
         target.line = dest;
         if (!isLeavingPlay) {
@@ -405,7 +414,7 @@ function revertGenericSetStat(target, effect) {
     let remainingEffect = findRemainingSetStatEffect(target, effect);
     const oldVal = target[effect.stat];
     target[effect.stat] = remainingEffect ? remainingEffect.amount : effect.originalValue;
-    
+
     if (effect.stat === 'maxHealth') {
         const revertedDelta = target[effect.stat] - oldVal;
         if (revertedDelta > 0) {
@@ -486,12 +495,12 @@ export function sweepTurnEffects(engine, endingPlayerId) {
     if (engine.state.equator) {
         engine.state.equator.forEach(u => cleanseRecursive(engine, u, endingPlayerId));
     }
-    
+
 }
 
 function cleanseRecursive(engine, ent, endingPlayerId) {
     if (!ent) return;
-    
+
     if (ent.attachments && ent.attachments.length > 0) {
         [...ent.attachments].forEach(att => cleanseRecursive(engine, att, endingPlayerId));
     }

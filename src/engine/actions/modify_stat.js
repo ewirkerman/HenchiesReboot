@@ -4,16 +4,21 @@ export class ModifyStatAction extends Action {
     execute(engine) {
         const { target, stat, amount, sourceAbilityId, maxStacks } = this.payload;
         if (!target || !stat || amount === undefined || amount === 0) return;
-        
+
+        // Prevent adding/removing strength if the target has no strength or a strength < 0
+        if (stat === 'strength' && (typeof target.strength !== 'number' || target.strength < 0)) {
+            return;
+        }
+
         let actualDelta = amount;
 
         if (amount > 0 && sourceAbilityId && maxStacks && maxStacks > 0) {
             if (!target.statSources) target.statSources = {};
             if (!target.statSources[stat]) target.statSources[stat] = [];
-            
+
             const currentStacks = target.statSources[stat].filter(id => id === sourceAbilityId).length;
             actualDelta = Math.min(amount, maxStacks - currentStacks);
-            if (actualDelta <= 0) return; 
+            if (actualDelta <= 0) return;
         }
 
         target[stat] = (target[stat] || 0) + actualDelta;
@@ -34,11 +39,11 @@ export class ModifyStatAction extends Action {
             if (!target.statSources) target.statSources = {};
             if (!target.statSources[stat]) target.statSources[stat] = [];
             for (let i = 0; i < actualDelta; i++) target.statSources[stat].push(sourceAbilityId);
-        } 
+        }
         else if (actualDelta < 0 && target.statSources && target.statSources[stat]) {
-            for(let i = 0; i < Math.abs(actualDelta); i++) {
+            for (let i = 0; i < Math.abs(actualDelta); i++) {
                 if (target.statSources[stat].length > 0) {
-                    target.statSources[stat].shift(); 
+                    target.statSources[stat].shift();
                 }
             }
         }

@@ -65,6 +65,11 @@ export class BaseAIEngine {
             const available = getEntityAvailableActions(state, this.playerId, entity.instanceId || entity.id);
 
             available.forEach(act => {
+                // If it's a native play, skip wrapping it in an ENTITY_ACTION. 
+                // The explicit canPlayCard block directly above this loop already 
+                // correctly creates the PLAY_CARD action for the AI to simulate.
+                if (act.type === 'PLAY') return;
+
                 const isFree = isCostFree(act.cost);
                 const actionKey = `${entity.instanceId || entity.id}_${act.abilityId}`;
 
