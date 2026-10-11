@@ -13,7 +13,10 @@ jest.unstable_mockModule('../../src/engine/index.js', () => ({
     LINES: ['taunt', 'bodyguard', 'avatar', 'front', 'mid', 'back', 'sheltered', 'sideline'],
     isUndoable: jest.fn(),
     GameEngine: jest.fn(),
-    startTurn: jest.fn()
+    startTurn: jest.fn(),
+    cloneGameState: jest.fn(),
+    queryState: jest.fn(),
+    resolveResourceKey: jest.fn()
 }));
 
 // 2. Mock UI and Network dependencies to prevent crashes
@@ -22,8 +25,8 @@ jest.unstable_mockModule('../../src/tabletop/renderer.js', () => ({ updateUI: je
 jest.unstable_mockModule('../../src/firebase.js', () => ({ pushActionToLog: jest.fn() }));
 jest.unstable_mockModule('../../src/ui.js', () => ({ showToast: jest.fn() }));
 jest.unstable_mockModule('../../src/tabletop/multiplayer.js', () => ({ reconstructStateFromLog: jest.fn() }));
-jest.unstable_mockModule('../../src/ai/random.js', () => ({ RandomAI: class {} }));
-jest.unstable_mockModule('../../src/ai/pass.js', () => ({ PassAI: class {} }));
+jest.unstable_mockModule('../../src/ai/random.js', () => ({ RandomAI: class { } }));
+jest.unstable_mockModule('../../src/ai/pass.js', () => ({ PassAI: class { } }));
 
 describe('Interactions - Card Play Affordability & Cost Enforcement', () => {
     let mockState;
@@ -42,15 +45,15 @@ describe('Interactions - Card Play Affordability & Cost Enforcement', () => {
 
     test('getCardPlayState keeps hand abilities available when base card cost fails', () => {
         const expensiveCard = { id: 'expensive_dragon', cost: 10, instanceId: 'inst_1' };
-        
+
         engineModule.canPlayCard.mockReturnValue({ success: false, reason: 'Not enough Carnie' });
         engineModule.getEntityAvailableActions.mockReturnValue([
             { type: 'PLAY', abilityId: 'native_play' },
             { type: 'HARVEST', abilityId: 'harvest_ability', isPlayAbility: false }
         ]);
-        
+
         const result = interactionsModule.getCardPlayState('inst_1', expensiveCard);
-        
+
         expect(result.playable).toBe(true);
         expect(result.mode).toBe('single');
         expect(result.actionType).toBe('HARVEST');
@@ -101,24 +104,24 @@ describe('Interactions - Card Play Affordability & Cost Enforcement', () => {
 
     test('getCardPlayState blocks play if affordable but has no valid actions (e.g. missing targets)', () => {
         const spellCard = { id: 'spell_smite', cost: 2, instanceId: 'inst_2' };
-        
+
         engineModule.canPlayCard.mockReturnValue({ success: true });
         engineModule.getEntityAvailableActions.mockReturnValue([]);
-        
+
         const result = interactionsModule.getCardPlayState('inst_2', spellCard);
-        
+
         expect(result.playable).toBe(false);
         expect(result.reason).toBe('No valid targets available.');
     });
 
     test('getCardPlayState allows play if base cost is affordable AND actions are available', () => {
         const unitCard = { id: 'standard_unit', cost: 1, instanceId: 'inst_3' };
-        
+
         engineModule.canPlayCard.mockReturnValue({ success: true });
         engineModule.getEntityAvailableActions.mockReturnValue([{ type: 'PLAY', abilityId: 'native_play' }]);
-        
+
         const result = interactionsModule.getCardPlayState('inst_3', unitCard);
-        
+
         expect(result.playable).toBe(true);
     });
 });

@@ -11,7 +11,7 @@ import { generateId, shuffleArray } from './prandom.js';
 export function endTurn(state) {
     const engine = new GameEngine(state);
     const prevPlayer = state.activePlayerId;
-    
+
     engine.emit('TURN_ENDING', { playerId: prevPlayer });
     state.history_log.push({ text: `🏁 ${state.players[prevPlayer].name} ended their turn.`, depth: 0 });
 
@@ -28,9 +28,9 @@ export function endTurn(state) {
 export function startTurn(state, engine) {
     const pId = state.activePlayerId;
     const player = state.players[pId];
-    
-    state.abilityUses = {}; 
-    
+
+    state.abilityUses = {};
+
     if (!player.setupComplete) {
         player.setupComplete = true;
 
@@ -42,7 +42,7 @@ export function startTurn(state, engine) {
         if (player.unplayedDeck) {
             player.deck = player.unplayedDeck;
             delete player.unplayedDeck;
-            
+
             player.deck.forEach((c, i) => {
                 if (!c.instanceId) {
                     c.instanceId = `${pId}_c_${generateId(state, 6)}_${i}`;
@@ -50,9 +50,9 @@ export function startTurn(state, engine) {
                     c.originalOwnerId = pId;
                 }
             });
-            
+
             shuffleArray(state, player.deck);
-            
+
             const initialDrawCount = pId === 'player1' ? 4 : 5;
             for (let i = 0; i < initialDrawCount; i++) {
                 if (player.deck.length > 0) {
@@ -74,7 +74,7 @@ export function startTurn(state, engine) {
                 player.resources['Carnie'].max += 1;
             }
         }
-        
+
         if (pId === 'player2') {
             const catalogDummy = state.catalog?.find(c => c.id === 'target_dummy' || c.name === 'Target Dummy') || CARD_CATALOG.find(c => c.id === 'target_dummy' || c.name === 'Target Dummy');
             let dummy = catalogDummy ? JSON.parse(JSON.stringify(catalogDummy)) : {
@@ -85,12 +85,12 @@ export function startTurn(state, engine) {
             dummy.originalOwnerId = pId;
             dummy.readiness = 0;
             if (dummy.health === undefined) dummy.health = dummy.maxHealth || 1;
-            
+
             if (!player.isAI) {
                 if (!player.lines['front']) player.lines['front'] = [];
                 player.lines['front'].push(dummy);
             }
-            
+
             if (player.isAI) {
                 state.history_log.push({ text: `🤖 AI opponent deployed Avatar.`, depth: 0 });
             } else if (player.isDummy) {
@@ -108,9 +108,18 @@ export function startTurn(state, engine) {
             player.resources[tribe].current = player.resources[tribe].max;
         }
     }
-    
+
     for (const pIdAll of ['player1', 'player2']) {
         const pScan = state.players[pIdAll];
+
+        // Ensure avatar is directly referenced on the player object at the start of every turn
+        if (!pScan.avatar) {
+            const av = getAvatar(state, pIdAll);
+            if (av) {
+                pScan.avatar = av;
+            }
+        }
+
         for (const line of LINES) {
             if (pScan.lines[line]) {
                 pScan.lines[line].forEach(u => {
@@ -148,7 +157,7 @@ export function startTurn(state, engine) {
             }
         });
     }
-    
+
     if (player.discard) {
         player.discard.forEach(card => {
             if (card.type === 'unit' || card.type === 'equipment' || card.type === 'artifact') {
@@ -158,8 +167,8 @@ export function startTurn(state, engine) {
     }
 
     let drawn = 0;
-    
-    for(let i=0; i<2; i++) {
+
+    for (let i = 0; i < 2; i++) {
         if (player.deck.length > 0) {
             const card = player.deck.pop();
             card.readiness = 0;
@@ -170,17 +179,17 @@ export function startTurn(state, engine) {
 
     state.turnPhase = 'SACRIFICE_DECISION';
     state.history_log.push({ text: `🌅 Turn ${state.turnNumber} begins for ${player.name}. Drew ${drawn} cards.`, depth: 0 });
-    
+
     // src/engine/flow.js
     if (engine) {
-        console.trace('Emitting TURN_STARTING'); // <-- Add this!
+        console.trace('Emitting TURN_STARTING');
         engine.emit('TURN_STARTING', { playerId: pId });
         engine.emit('TURN_STARTED', { playerId: pId });
     }
 }
 
 export function executeSacrificeDecision(state, option, cardId) {
-    state._actionDepth = 0; 
+    state._actionDepth = 0;
     if (state.turnPhase !== 'SACRIFICE_DECISION') return;
     const player = state.players[state.activePlayerId];
 
@@ -228,7 +237,7 @@ export function canPlayCard(state, playerId, card) {
 }
 
 export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbilityId = null, abilityTargetId = null) {
-    state._actionDepth = 0; 
+    state._actionDepth = 0;
     const player = state.players[playerId];
     const cardIdx = player.hand.findIndex(c => c.instanceId === cardId || c.id === cardId);
     if (cardIdx === -1) return { success: false, reason: "Card not in hand" };
@@ -244,14 +253,14 @@ export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbi
     payCost(state, player, card, card.cost, 0, true);
 
     const engine = new GameEngine(state);
-    
+
     // Setup event context
     const eventContext = { chosenAbilityId, abilityTargetId, autocastAbilities: [] };
 
     // Before creating the PlayAction, find all ON_BE_PLAYED triggers that are NOT selectable
     // and store them in the context to be fired automatically during the event sequence.
     if (card.abilities) {
-        eventContext.autocastAbilities = card.abilities.filter(ab => 
+        eventContext.autocastAbilities = card.abilities.filter(ab =>
             ab.trigger === 'ON_BE_PLAYED' && !ab.isSelectable && ab.activation.method != 'PLAYER_CHOICE'
         );
     }
@@ -267,11 +276,11 @@ export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbi
 }
 
 export function executeEntityAction(state, playerId, entityId, actionType, abilityId, targetId, targetLine) {
-    state._actionDepth = 0; 
+    state._actionDepth = 0;
     if (actionType === 'ABILITY' || actionType === 'ATTACK') {
         let entity = findEntity(state, playerId, entityId);
         if (!entity) return { success: false, reason: "Entity not found" };
-        
+
         let ability = entity.abilities?.find(a => a.abilityId === abilityId);
         if (abilityId === 'native_attack') {
             ability = {
