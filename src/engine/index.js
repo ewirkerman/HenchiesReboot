@@ -4,6 +4,10 @@ import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LI
 import { getEntityAvailableActions, getValidAttackTargets, acquireTargets, resolveTargetById } from './targeting.js';
 import { ATTRIBUTE_MANIFEST } from './attributes.js';
 
+function cloneConditionContext(context) {
+    return structuredClone(context);
+}
+
 export class GameEngine {
     constructor(state) {
         this.state = state;
@@ -499,6 +503,8 @@ export class GameEngine {
                         actionPayload.actingPlayerId = ownerId;
                         actionPayload.eventContext = eventPayload;
                         actionPayload.sourceAbilityId = ability.abilityId;
+                        actionPayload.sourceAbilityOrigin = ability.origin;
+                        actionPayload.targetMethod = group.targetMethod;
 
                         const action = new ActionClass(actionPayload);
                         action.run(this);
@@ -717,8 +723,28 @@ export class GameEngine {
                         manualTarget = eventPayload.target;
                     }
 
+                    const sandbox = cloneConditionContext({
+                        state: this.state,
+                        target: targetEnt,
+                        source,
+                        manualTarget,
+                        eventPayload,
+                        lkiAbilities,
+                        abilityCatalog: this.state.abilityCatalog || [],
+                        catalog: this.state.catalog || [],
+                        tribeCatalog: this.state.tribeCatalog || []
+                    });
+
+                    for (const catalogName of ['abilityCatalog', 'catalog', 'tribeCatalog']) {
+                        Object.defineProperty(sandbox.state, catalogName, {
+                            value: sandbox[catalogName],
+                            configurable: true
+                        });
+                    }
+
+                    const sandboxEngine = new GameEngine(sandbox.state);
                     const fn = new Function('target', 'source', 'manualTarget', 'state', 'eventPayload', 'engine', '"use strict";\n' + cleanScript);
-                    const result = fn(targetEnt, source, manualTarget, this.state, eventPayload, this);
+                    const result = fn(sandbox.target, sandbox.source, sandbox.manualTarget, sandbox.state, sandbox.eventPayload, sandboxEngine);
                     return node.operator === '==' ? !!result : !result;
                 } catch (e) {
                     console.error(`[Engine] Custom script condition error:`, e);

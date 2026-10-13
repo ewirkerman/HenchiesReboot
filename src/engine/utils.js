@@ -17,51 +17,64 @@ export class Avatar { }
 
 export function isUndoable(state, ability) {
     if (state && state.status === 'finished') return false;
-    if (!ability || !ability.effects) return true;
+    if (!ability) return true;
 
-    for (const group of ability.effects) {
-        if (group.targetMethod === 'AUTO_RANDOM') return false;
+    const logicTreeIsUndoable = (node) => {
+        if (!node) return true;
+        if (node.type === 'condition' && node.attribute === 'customScript' && node.undoSafe === false) return false;
+        return !Array.isArray(node.children) || node.children.every(logicTreeIsUndoable);
+    };
 
-        if (group.payloads) {
-            for (const payload of group.payloads) {
-                if (['SHUFFLE', 'MILL', 'CUSTOM_SCRIPT', 'TOP_DECK'].includes(payload.type)) {
-                    return false;
+    const payloadsAreUndoable = (payloads, group) => {
+        for (const payload of payloads || []) {
+            if (['SHUFFLE', 'MILL', 'TOP_DECK'].includes(payload.type)) return false;
+            if (payload.type === 'CUSTOM_SCRIPT' && payload.undoSafe !== true) return false;
+            if (!logicTreeIsUndoable(payload.logicTree)) return false;
+
+            if (['DISCARD', 'DISCARD_CARD'].includes(payload.type)) {
+                let qt = group.quickTargeting;
+                if (group.targetMethod === 'SAME_AS_ACTIVATION' && ability.activation) {
+                    qt = ability.activation.quickTargeting || qt;
                 }
 
-                if (['DISCARD', 'DISCARD_CARD'].includes(payload.type)) {
-                    let qt = group.quickTargeting;
-                    if (group.targetMethod === 'SAME_AS_ACTIVATION' && ability.activation) {
-                        qt = ability.activation.quickTargeting || qt;
-                    }
+                if (qt) {
+                    const aligns = qt.alignment || [];
+                    const zones = qt.zones || [];
+                    const targetsEnemy = aligns.includes('ENEMY') || aligns.includes('ANY');
+                    const targetsHand = zones.includes('HAND') || zones.includes('ANY');
 
-                    if (qt) {
-                        const aligns = qt.alignment || [];
-                        const zones = qt.zones || [];
-                        const targetsEnemy = aligns.includes('ENEMY') || aligns.includes('ANY');
-                        const targetsHand = zones.includes('HAND') || zones.includes('ANY');
-
-                        if (targetsEnemy && targetsHand) {
-                            return false;
-                        }
-                    }
-                }
-
-                if (payload.type === 'DRAW_CARD') {
-                    let method = payload.targetMethod || 'NONE';
-                    if (method === 'NONE') method = group.targetMethod || 'NONE';
-                    if (method === 'SAME_AS_ACTIVATION' && ability.activation) {
-                        method = ability.activation.method || 'NONE';
-                    }
-                    if (method === 'NONE') method = payload.drawMethod || 'NONE';
-
-                    if (method !== 'PLAYER_CHOICE') {
-                        return false;
-                    }
+                    if (targetsEnemy && targetsHand) return false;
                 }
             }
+
+            if (payload.type === 'DRAW_CARD') {
+                let method = payload.targetMethod || 'NONE';
+                if (method === 'NONE') method = group.targetMethod || 'NONE';
+                if (method === 'SAME_AS_ACTIVATION' && ability.activation) {
+                    method = ability.activation.method || 'NONE';
+                }
+                if (method === 'NONE') method = payload.drawMethod || 'NONE';
+                if (method !== 'PLAYER_CHOICE') return false;
+            }
+
+            const nestedGroup = payload.nestedGroup;
+            if (nestedGroup) {
+                if (nestedGroup.targetMethod === 'AUTO_RANDOM') return false;
+                if (!logicTreeIsUndoable(nestedGroup.logicTree)) return false;
+                if (!payloadsAreUndoable(nestedGroup.payloads, nestedGroup)) return false;
+            } else if (Array.isArray(payload.payloads) && !payloadsAreUndoable(payload.payloads, group)) {
+                return false;
+            }
         }
+        return true;
+    };
+
+    for (const group of ability.effects || []) {
+        if (group.targetMethod === 'AUTO_RANDOM') return false;
+        if (!logicTreeIsUndoable(group.logicTree)) return false;
+        if (!payloadsAreUndoable(group.payloads, group)) return false;
     }
-    return true;
+    return logicTreeIsUndoable(ability.activation?.logicTree);
 }
 
 export function getResKey(tribeStr) {
@@ -112,11 +125,6 @@ export function warn(state, msg) {
 
 export function hasEngineFlag(state, entity, flagName, consume = false) {
     if (!entity) return false;
-
-    // Catch native entity properties that might denote uniqueness directly
-    if (flagName === 'UNIQUE_ENTITY' && (entity.isUnique || entity.unique || entity.traits?.includes('Unique'))) {
-        return true;
-    }
 
     if (flagName.startsWith('BLOCK_')) {
         const overrideFlag = `IGNORE_${flagName}`;
@@ -295,7 +303,7 @@ export function instantiateEntity(cardData, abilityCatalog, engineState = null, 
 
     if (instance.abilities) {
         instance.abilities = instance.abilities.map(ab =>
-            instantiateAbility(ab, abilityCatalog, engineState)
+            ({ ...instantiateAbility(ab, abilityCatalog, engineState), origin: 'innate' })
         ).filter(Boolean);
     }
 

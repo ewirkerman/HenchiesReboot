@@ -5,15 +5,15 @@ import { renderCardHTML, showToast, openInspectionModal } from '../ui.js';
 window.openZoneModal = (playerId, zone) => {
     const player = ClientState.gameState.players[playerId];
     if (!player || !player[zone]) return;
-    
+
     // Core Rule: You cannot view the opponent's deck
     if (zone === 'deck' && playerId !== ClientState.localPlayerRole) {
         showToast("You cannot view the opponent's deck.", "error");
         return;
     }
-    
+
     let cards = [...player[zone]];
-    
+
     // Core Rule: Deck contents are displayed in alphabetical order, not draw order
     if (zone === 'deck') {
         cards.sort((a, b) => a.name.localeCompare(b.name));
@@ -25,9 +25,9 @@ window.openZoneModal = (playerId, zone) => {
     const container = document.getElementById('zone-modal-cards');
     const title = document.getElementById('zone-modal-title');
     const subtitle = document.getElementById('zone-modal-subtitle');
-    
+
     title.innerText = `${player.name}'s ${zone.toUpperCase()}`;
-    
+
     if (ClientState.pendingAbility && ClientState.validTargets.some(t => t.line === zone && t.playerId === playerId)) {
         subtitle.innerText = "Select a target for your pending ability.";
         subtitle.classList.add('text-amber-400', 'font-bold', 'animate-pulse');
@@ -35,7 +35,7 @@ window.openZoneModal = (playerId, zone) => {
         subtitle.innerText = `${cards.length} cards in ${zone}.`;
         subtitle.classList.remove('text-amber-400', 'font-bold', 'animate-pulse');
     }
-    
+
     const prefix = playerId === ClientState.localPlayerRole ? 'player' : 'opp';
 
     if (cards.length === 0) {
@@ -44,17 +44,18 @@ window.openZoneModal = (playerId, zone) => {
         container.innerHTML = cards.map(c => {
             const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
             const isTargetable = ClientState.pendingAbility && ClientState.validTargets.some(t => t.id === (c.instanceId || c.id));
-            
+
             return renderCardHTML(c, {
                 isHand: zone !== 'discard',
                 isTargetable: isTargetable,
                 onClick: `if(event) event.stopPropagation(); window.handleZoneCardClick('${prefix}', '${zone}', '${c.instanceId || c.id}')`,
                 onInspect: `window.inspectCard('${json}', ${zone !== 'discard'})`,
-                abilityUses: ClientState.gameState?.abilityUses || {}
+                abilityUses: ClientState.gameState?.abilityUses || {},
+                readiness: c.readiness
             });
         }).join('');
     }
-    
+
     document.getElementById('zone-viewer-modal').classList.remove('hidden');
     document.getElementById('zone-viewer-modal').classList.add('flex');
 };

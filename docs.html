@@ -49,8 +49,9 @@
             <p class="mb-4 text-sm">Used in <code>Advanced Target Filtering</code>. This script must <strong>return a boolean</strong> (`true` or `false`) to determine if the target is valid.</p>
             <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 font-mono text-sm text-amber-200">
                 <strong>Signature:</strong> <br/>
-                <code>function (target, source, state, eventPayload, engine) { ... }</code>
+                <code>function (target, source, manualTarget, state, eventPayload, engine) { ... }</code>
             </div>
+            <p class="mt-4 text-sm text-slate-400">Conditions receive detached game data and an engine backed by a detached state. Mutations to those values are discarded; this is not a security sandbox against global side effects. Custom-script conditions are undo-safe by default; uncheck <code>Undo Safe</code> when a condition depends on randomness or hidden information.</p>
             <p class="mt-4 text-sm text-slate-400">Example: <br/><code>return target.strength < source.strength;</code></p>
         </section>
 
@@ -61,6 +62,7 @@
                 <strong>Signature:</strong> <br/>
                 <code>function (state, target, params, engine, actionDepth) { ... }</code>
             </div>
+            <p class="mt-4 text-sm text-slate-400">The <code>Undo Safe</code> option is a developer assertion for this script only. Leave it off unless the script is deterministic and its effects are safe to replay; any other unsafe effect still makes the enclosing game action non-undoable.</p>
             <p class="mt-4 text-sm text-slate-400">Example: <br/><code>target.health += 1; <br/>state.history_log.push(`✨ ${target.name} gained 1 health.`);</code></p>
         </section>
 

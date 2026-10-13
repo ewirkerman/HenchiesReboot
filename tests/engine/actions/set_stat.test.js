@@ -5,7 +5,7 @@ import { ACTION_REGISTRY } from '../../../src/engine/actions/action_index.js';
 function createPlayer() {
   return {
     resources: { Carnie: { current: 5, max: 5 } },
-    lines: { front: [], mid: [], back: [], sideline: [] },
+    lines: { avatar: [], taunt: [], bodyguard: [], front: [], mid: [], back: [], sheltered: [], sideline: [] },
     hand: [], deck: [], discard: [], banish: []
   };
 }
@@ -98,6 +98,105 @@ describe('SET_STAT Action', () => {
 
     expect(targetEntity.line).toBe('sideline');
     expect(engine.state.players.player1.lines.front).not.toContain(targetEntity);
+  });
+
+  it('allows innate SELF effects to move from any battleline to any line', () => {
+    const sourceLines = ['avatar', 'taunt', 'bodyguard', 'front', 'mid', 'back', 'sheltered', 'sideline'];
+    for (const fromLine of sourceLines) {
+      for (const destination of ['taunt', 'bodyguard', 'avatar', 'front', 'mid', 'back', 'sheltered', 'sideline']) {
+        for (const line of Object.keys(engine.state.players.player1.lines)) {
+          engine.state.players.player1.lines[line] = [];
+        }
+        targetEntity.line = fromLine;
+        engine.state.players.player1.lines[fromLine].push(targetEntity);
+
+        new ACTION_REGISTRY.SET_STAT({
+          target: targetEntity,
+          stat: 'line',
+          amount: destination,
+          targetMethod: 'SELF',
+          sourceAbilityOrigin: 'innate',
+          duration: 'INSTANT'
+        }).run(engine);
+
+        expect(targetEntity.line).toBe(destination);
+        expect(engine.state.players.player1.lines[destination]).toContain(targetEntity);
+      }
+    }
+  });
+
+  it('restricts non-innate effects from bodyguard to taunt or sideline', () => {
+    targetEntity.line = 'bodyguard';
+    engine.state.players.player1.lines.mid = [];
+    engine.state.players.player1.lines.bodyguard.push(targetEntity);
+
+    new ACTION_REGISTRY.SET_STAT({
+      target: targetEntity,
+      stat: 'line',
+      amount: 'front',
+      duration: 'INSTANT'
+    }).run(engine);
+
+    expect(targetEntity.line).toBe('bodyguard');
+    expect(engine.state.players.player1.lines.bodyguard).toContain(targetEntity);
+
+    new ACTION_REGISTRY.SET_STAT({
+      target: targetEntity,
+      stat: 'line',
+      amount: 'sideline',
+      duration: 'INSTANT'
+    }).run(engine);
+
+    expect(targetEntity.line).toBe('sideline');
+    expect(engine.state.players.player1.lines.sideline).toContain(targetEntity);
+    engine.state.players.player1.lines.sideline = [];
+    targetEntity.line = 'bodyguard';
+    engine.state.players.player1.lines.bodyguard.push(targetEntity);
+
+    new ACTION_REGISTRY.SET_STAT({
+      target: targetEntity,
+      stat: 'line',
+      amount: 'taunt',
+      duration: 'INSTANT'
+    }).run(engine);
+
+    expect(targetEntity.line).toBe('taunt');
+    expect(engine.state.players.player1.lines.taunt).toContain(targetEntity);
+  });
+
+  it('does not allow non-innate effects to move out of sideline', () => {
+    targetEntity.line = 'sideline';
+    engine.state.players.player1.lines.mid = [];
+    engine.state.players.player1.lines.sideline.push(targetEntity);
+
+    new ACTION_REGISTRY.SET_STAT({
+      target: targetEntity,
+      stat: 'line',
+      amount: 'front',
+      duration: 'INSTANT'
+    }).run(engine);
+
+    expect(targetEntity.line).toBe('sideline');
+    expect(engine.state.players.player1.lines.front).not.toContain(targetEntity);
+  });
+
+  it('allows Patrol to move an innate SELF unit from sideline to taunt', () => {
+    targetEntity.line = 'sideline';
+    engine.state.players.player1.lines.mid = [];
+    engine.state.players.player1.lines.sideline.push(targetEntity);
+
+    new ACTION_REGISTRY.SET_STAT({
+      target: targetEntity,
+      stat: 'line',
+      amount: 'taunt',
+      targetMethod: 'SELF',
+      sourceAbilityOrigin: 'innate',
+      duration: 'TEMPORARY'
+    }).run(engine);
+
+    expect(targetEntity.line).toBe('taunt');
+    expect(engine.state.players.player1.lines.taunt).toContain(targetEntity);
+    expect(engine.state.players.player1.lines.sideline).not.toContain(targetEntity);
   });
 
   it('treats positive health sets as dynamic deltas for damage and cleanse', () => {

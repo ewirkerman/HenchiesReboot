@@ -4,7 +4,7 @@
  */
 
 import { GameEngine } from './index.js';
-import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG, hasEngineFlag, isEntityOnBoard, canAffordCost, payCost, findEntity, getAttackCost } from './utils.js';
+import { getAvatar, resolveResourceKey, LINES, CARD_CATALOG, hasEngineFlag, isNameOrIdOnBoard, canAffordCost, payCost, findEntity, getAttackCost, queryState } from './utils.js';
 import { HarvestAction, PlayAction, sweepTurnEffects } from './actions/action_index.js';
 import { generateId, shuffleArray } from './prandom.js';
 
@@ -194,9 +194,9 @@ export function executeSacrificeDecision(state, option, cardId) {
     const player = state.players[state.activePlayerId];
 
     if (option === 'OPTION_A' && cardId) {
-        const cardIndex = player.hand.findIndex(c => c.instanceId === cardId || c.id === cardId);
-        if (cardIndex > -1) {
-            const sacCard = player.hand[cardIndex];
+        const loc = queryState(state, { players: [state.activePlayerId], zones: ['hand'], target: { _fuzzyId: cardId } });
+        if (loc) {
+            const sacCard = loc.array[loc.index];
             const engine = new GameEngine(state);
             const avatar = getAvatar(state, state.activePlayerId);
             const harvest = new HarvestAction({ source: avatar, target: sacCard });
@@ -213,7 +213,7 @@ export function canPlayCard(state, playerId, card) {
     if (!player) return { success: false, reason: "Player not found" };
 
     if (hasEngineFlag(state, card, 'UNIQUE_ENTITY')) {
-        if (isEntityOnBoard(state, card)) return { success: false, reason: "A unique copy of this entity is already on the board" };
+        if (isNameOrIdOnBoard(state, playerId, card)) return { success: false, reason: "A unique copy of this entity is already on the board" };
     }
 
     const affordCheck = canAffordCost(state, player, card, card.cost, 0, true);
@@ -226,8 +226,11 @@ export function canPlayCard(state, playerId, card) {
                 if (qt && qt.zones && qt.zones.includes('FIELD')) {
                     const oppId = playerId === 'player1' ? 'player2' : 'player1';
                     let targetFound = false;
-                    if (qt.alignment?.includes('FRIENDLY') && LINES.some(l => state.players[playerId].lines[l]?.length > 0)) targetFound = true;
-                    if (qt.alignment?.includes('ENEMY') && !targetFound && LINES.some(l => state.players[oppId].lines[l]?.length > 0)) targetFound = true;
+
+                    // Use queryState with a catch-all predicate to find ANY entity in the BOARD zones
+                    if (qt.alignment?.includes('FRIENDLY') && queryState(state, { players: [playerId], zones: ['BOARD'], target: () => true })) targetFound = true;
+                    if (qt.alignment?.includes('ENEMY') && !targetFound && queryState(state, { players: [oppId], zones: ['BOARD'], target: () => true })) targetFound = true;
+
                     if (!targetFound) return { success: false, reason: "No valid targets on the board for mandatory ability." };
                 }
             }
@@ -239,16 +242,13 @@ export function canPlayCard(state, playerId, card) {
 export function playCard(state, playerId, cardId, targetLine = 'back', chosenAbilityId = null, abilityTargetId = null) {
     state._actionDepth = 0;
     const player = state.players[playerId];
-    const cardIdx = player.hand.findIndex(c => c.instanceId === cardId || c.id === cardId);
-    if (cardIdx === -1) return { success: false, reason: "Card not in hand" };
-    const card = player.hand[cardIdx];
 
-    if (hasEngineFlag(state, card, 'UNIQUE_ENTITY')) {
-        if (isEntityOnBoard(state, card)) return { success: false, reason: "A unique copy of this entity is already on the board" };
-    }
+    const loc = queryState(state, { players: [playerId], zones: ['hand'], target: { _fuzzyId: cardId } });
+    if (!loc) return { success: false, reason: "Card not in hand" };
+    const card = loc.array[loc.index];
 
-    const affordCheck = canAffordCost(state, player, card, card.cost, 0, true);
-    if (!affordCheck.success) return affordCheck;
+    const playCheck = canPlayCard(state, playerId, card);
+    if (!playCheck.success) return playCheck;
 
     payCost(state, player, card, card.cost, 0, true);
 
@@ -293,7 +293,7 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
         }
         if (!ability) return { success: false, reason: "Ability not found" };
 
-        const isHandAct = ability.passiveFlags?.includes('ACTIVATE_FROM_HAND') && ['hand', 'discard', 'deck'].some(z => state.players[playerId][z]?.some(c => c.instanceId === entity.instanceId));
+        const isHandAct = ability.passiveFlags?.includes('ACTIVATE_FROM_HAND') && !!queryState(state, { players: [playerId], zones: ['PILES'], target: entity });
 
         if (actionType === 'ABILITY' && !ability.cost?.freeAction && !isHandAct) {
             let currentActs = Number(entity.acts);
@@ -303,14 +303,8 @@ export function executeEntityAction(state, playerId, entityId, actionType, abili
 
         let targetEntity = null;
         if (targetId) {
-            const p1 = state.players.player1;
-            const p2 = state.players.player2;
-            const allEntities = [
-                ...Object.values(p1.lines).flat(), ...Object.values(p2.lines).flat(), ...(state.equator || []),
-                ...p1.hand, ...p1.deck, ...p1.discard, ...p1.banish,
-                ...p2.hand, ...p2.deck, ...p2.discard, ...p2.banish
-            ].filter(Boolean);
-            targetEntity = allEntities.find(e => e.id === targetId || e.instanceId === targetId);
+            const loc = queryState(state, { target: { _fuzzyId: targetId } });
+            if (loc) targetEntity = loc.array[loc.index];
         }
 
         const engine = new GameEngine(state);

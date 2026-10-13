@@ -12,11 +12,11 @@ export function generateQuickMatrixHTML(context, targetState, index = null) {
         return options.map(opt => {
             const isActive = arr.includes(opt.value);
             const baseClass = "px-3 py-1.5 text-[10px] font-bold rounded-md cursor-pointer transition-all border whitespace-nowrap";
-            const activeClass = isActive 
-            ? `${activeBg} text-white shadow-md` 
-            : `bg-slate-800 border-slate-700 text-slate-400 ${hoverBg}`;
-            
-            const clickHandler = context === 'activation' 
+            const activeClass = isActive
+                ? `${activeBg} text-white shadow-md`
+                : `bg-slate-800 border-slate-700 text-slate-400 ${hoverBg}`;
+
+            const clickHandler = context === 'activation'
                 ? `window.toggleQuickMatrixArray('activation', null, '${field}', '${opt.value}')`
                 : `window.toggleQuickMatrixArray('effect', ${index}, '${field}', '${opt.value}')`;
 
@@ -24,23 +24,23 @@ export function generateQuickMatrixHTML(context, targetState, index = null) {
         }).join('');
     };
 
-      const zoneOptions = [
-          {label: 'Field', value: 'FIELD'}, {label: 'Equator', value: 'EQUATOR'}, {label: 'Hand', value: 'HAND'}, 
-          {label: 'Deck', value: 'DECK'}, {label: 'Discard', value: 'DISCARD'},
-          {label: 'Banish', value: 'BANISH'}, {label: 'Orig. Deck', value: 'ORIGINAL_DECK'}
-      ];
-      const alignmentOptions = [{label: 'Friendly', value: 'FRIENDLY'}, {label: 'Enemy', value: 'ENEMY'}];
-      const entityOptions = Object.values(CARD_TYPES).map(type => ({
-          label: CARD_TYPE_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1),
-          value: type.toUpperCase()
-      }));
-      // Add non-card entities explicitly if needed
-      entityOptions.push({label: 'Buff', value: 'BUFF'}, {label: 'Debuff', value: 'DEBUFF'});
+    const zoneOptions = [
+        { label: 'Field', value: 'FIELD' }, { label: 'Equator', value: 'EQUATOR' }, { label: 'Hand', value: 'HAND' },
+        { label: 'Deck', value: 'DECK' }, { label: 'Discard', value: 'DISCARD' },
+        { label: 'Banish', value: 'BANISH' }, { label: 'Orig. Deck', value: 'ORIGINAL_DECK' }
+    ];
+    const alignmentOptions = [{ label: 'Friendly', value: 'FRIENDLY' }, { label: 'Enemy', value: 'ENEMY' }];
+    const entityOptions = Object.values(CARD_TYPES).map(type => ({
+        label: CARD_TYPE_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1),
+        value: type.toUpperCase()
+    }));
+    // Add non-card entities explicitly if needed
+    entityOptions.push({ label: 'Buff', value: 'BUFF' }, { label: 'Debuff', value: 'DEBUFF' });
 
-      const toggleBoolHandler = context === 'activation'
+    const toggleBoolHandler = context === 'activation'
         ? `window.toggleQuickMatrixBoolean('activation', null, 'ignoreBattlelines')`
         : `window.toggleQuickMatrixBoolean('effect', ${index}, 'ignoreBattlelines')`;
-        
+
     const isIgnoreLines = targetState.ignoreBattlelines;
     const boolActiveClass = isIgnoreLines ? `${activeBg} text-white shadow-md` : `bg-slate-800 border-slate-700 text-slate-400 ${hoverBg}`;
 
@@ -84,13 +84,13 @@ export function generateConditionHTML(treeType, cond, path, parentBorderClass) {
         .filter(([key, def]) => def.evaluable && def.domain === currentDomain)
         .map(([key, def]) => `<option value="${key}" ${cond.attribute === key ? 'selected' : ''}>${def.label}</option>`)
         .join('');
-        
+
     const typeDef = ATTRIBUTE_MANIFEST[cond.attribute] || Object.values(ATTRIBUTE_MANIFEST).find(t => t.evaluable && t.domain === currentDomain);
     const opOptions = Object.entries(OPERATORS).map(([val, label]) => `<option value="${val}" ${cond.operator === val ? 'selected' : ''}>${label}</option>`).join('');
 
     let valueInputHTML = '';
     let customScriptExtra = '';
-    
+
     if (cond.attribute === 'customScript') {
         valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="return target.strength < source.strength;" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-amber-300 font-mono flex-1 min-w-[80px]" />`;
         customScriptExtra = `
@@ -99,6 +99,10 @@ export function generateConditionHTML(treeType, cond, path, parentBorderClass) {
                 <span>Vars: (target, source, state, eventPayload, engine)</span>
                 <a href="../docs.html" target="_blank" class="text-sky-400 hover:text-sky-300 hover:underline">📚 API Docs</a>
             </div>
+            <label class="flex items-center gap-2 cursor-pointer text-[10px] text-amber-300" title="Uncheck when this condition depends on randomness or hidden information.">
+                <input type="checkbox" ${cond.undoSafe !== false ? 'checked' : ''} onchange="window.updateNodeField('${treeType}', '${pathStr}', 'undoSafe', this.checked)" class="accent-amber-500 w-3 h-3" />
+                <span class="font-bold uppercase tracking-wider">Undo Safe</span>
+            </label>
             <input type="text" value="${cond.description || ''}" placeholder="Language desc (e.g. whose strength is less than this card)" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'description', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 w-full" />
         </div>`;
     } else if (typeDef.type === 'select') {
@@ -140,22 +144,22 @@ export function generateGroupHTML(treeType, group, path) {
     const isAnd = group.logicalOperator === 'AND';
     const borderClass = isAnd ? 'border-and' : 'border-or';
     const isActivation = treeType === 'activation';
-    const bgClass = isActivation 
-    ? (isAnd ? 'bg-indigo-950/40' : 'bg-amber-950/40') 
-    : (isAnd ? 'bg-fuchsia-950/40' : 'bg-amber-950/40');
+    const bgClass = isActivation
+        ? (isAnd ? 'bg-indigo-950/40' : 'bg-amber-950/40')
+        : (isAnd ? 'bg-fuchsia-950/40' : 'bg-amber-950/40');
     const textClass = isActivation
-    ? (isAnd ? 'text-indigo-400' : 'text-amber-400')
-    : (isAnd ? 'text-fuchsia-400' : 'text-amber-400');
-    
+        ? (isAnd ? 'text-indigo-400' : 'text-amber-400')
+        : (isAnd ? 'text-fuchsia-400' : 'text-amber-400');
+
     let childrenHTML = '';
     if (group.children && group.children.length > 0) {
-    childrenHTML = group.children.map((child, index) => {
-        const childPath = [...path, index];
-        if (child.type === 'group') return generateGroupHTML(treeType, child, childPath);
-        else return generateConditionHTML(treeType, child, childPath, borderClass);
-    }).join('');
+        childrenHTML = group.children.map((child, index) => {
+            const childPath = [...path, index];
+            if (child.type === 'group') return generateGroupHTML(treeType, child, childPath);
+            else return generateConditionHTML(treeType, child, childPath, borderClass);
+        }).join('');
     } else {
-    childrenHTML = `<div class="text-[10px] text-slate-500 italic p-2 ml-4">Empty Group. (Always evaluates to true)</div>`;
+        childrenHTML = `<div class="text-[10px] text-slate-500 italic p-2 ml-4">Empty Group. (Always evaluates to true)</div>`;
     }
 
     return `
@@ -189,10 +193,10 @@ export function generateEffectsHTML(ctx) {
     // Unified payload renderer to handle BOTH root actions and nested actions (dynamic sizes)
     function renderPayload(payload, gIdx, pIdx, isNested = false, nIdx = null, group = null) {
         const manifest = ACTION_MANIFEST[payload.type] || { canInvert: true, canBeCost: true, validDurations: ['INSTANT'] };
-        
+
         // Setup Update Generators Based on Context
-        const upd = (field, valStr) => isNested 
-            ? `window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, '${field}', ${valStr})` 
+        const upd = (field, valStr) => isNested
+            ? `window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, '${field}', ${valStr})`
             : `window.updatePayload(${gIdx}, ${pIdx}, '${field}', ${valStr})`;
 
         const updAbil = (valStr) => isNested
@@ -208,15 +212,15 @@ export function generateEffectsHTML(ctx) {
         if (!isNested) {
             let baseZones = group.quickTargeting?.zones || ['FIELD'];
             if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = activationQuickTargeting?.zones || ['FIELD'];
-                
+
             let effectiveZones = calculateEffectiveZones(baseZones, group.payloads, pIdx);
 
-            const baseValidEffectTypes = typeof getValidActionsForZones !== 'undefined' 
+            const baseValidEffectTypes = typeof getValidActionsForZones !== 'undefined'
                 ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones))
                 : EFFECT_TYPES;
 
             validEffectTypes = getValidEffectTypes(baseTrigger, baseValidEffectTypes);
-            
+
             if (!validEffectTypes.includes(payload.type)) {
                 payload.type = validEffectTypes.includes('DEAL_DAMAGE') ? 'DEAL_DAMAGE' : (validEffectTypes.length > 0 ? validEffectTypes[0] : 'CUSTOM_SCRIPT');
             }
@@ -232,7 +236,7 @@ export function generateEffectsHTML(ctx) {
             const parentPayload = group.payloads[pIdx];
             const parentManifest = ACTION_MANIFEST[parentPayload.type] || {};
             if (parentManifest.hasLogicTree) {
-                 typeOptions = typeOptions.replace(/<option value="(?:SUMMON|CONDITIONAL)"[^>]*>[^<]*<\/option>/g, '');
+                typeOptions = typeOptions.replace(/<option value="(?:SUMMON|CONDITIONAL)"[^>]*>[^<]*<\/option>/g, '');
             }
         }
 
@@ -243,9 +247,9 @@ export function generateEffectsHTML(ctx) {
             let amtValue = payload.amount !== undefined ? payload.amount : 1;
             let xChecked = payload.amountIsX ? 'checked' : '';
             let inputDisabled = payload.amountIsX ? 'disabled opacity-50' : '';
-            
+
             if (payload.type === 'SET_STAT' && payload.stat === 'line') {
-              fieldsHtml += `<div class="flex-1 min-w-[100px] pb-0.5"><label class="block text-[9px] font-bold text-slate-400 mb-0.5 uppercase tracking-wider">Line</label><select onchange="${upd('amount', 'this.value')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full text-[10px]">
+                fieldsHtml += `<div class="flex-1 min-w-[100px] pb-0.5"><label class="block text-[9px] font-bold text-slate-400 mb-0.5 uppercase tracking-wider">Line</label><select onchange="${upd('amount', 'this.value')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full text-[10px]">
                   <option value="front" ${payload.amount === 'front' ? 'selected' : ''}>Front</option>
                   <option value="mid" ${payload.amount === 'mid' ? 'selected' : ''}>Mid</option>
                   <option value="back" ${payload.amount === 'back' ? 'selected' : ''}>Back</option>
@@ -255,20 +259,20 @@ export function generateEffectsHTML(ctx) {
                   <option value="bodyguard" ${payload.amount === 'bodyguard' ? 'selected' : ''}>Bodyguard</option>
               </select></div>`;
             } else {
-              fieldsHtml += `<div class="flex-1 min-w-[120px] pb-0.5 flex flex-col"><label class="flex justify-between items-center text-[9px] font-bold text-slate-400 mb-0.5 uppercase tracking-wider"><span>Magnitude</span><label class="flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 ml-1"><input type="checkbox" onchange="${upd('amountIsX', 'this.checked')}" ${xChecked} class="w-2.5 h-2.5 accent-amber-500">Var X</label></label><input type="number" value="${amtValue}" onchange="${upd('amount', 'parseInt(this.value)')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full text-[10px] ${inputDisabled}" /></div>`;
+                fieldsHtml += `<div class="flex-1 min-w-[120px] pb-0.5 flex flex-col"><label class="flex justify-between items-center text-[9px] font-bold text-slate-400 mb-0.5 uppercase tracking-wider"><span>Magnitude</span><label class="flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 ml-1"><input type="checkbox" onchange="${upd('amountIsX', 'this.checked')}" ${xChecked} class="w-2.5 h-2.5 accent-amber-500">Var X</label></label><input type="number" value="${amtValue}" onchange="${upd('amount', 'parseInt(this.value)')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-black w-full text-[10px] ${inputDisabled}" /></div>`;
             }
         }
 
         if (manifest.requiresStat) {
-          let validStats = Object.entries(ATTRIBUTE_MANIFEST).filter(([key, def]) => {
-              if (payload.type === 'SET_STAT') return def.settable;
-              if (payload.type === 'MODIFY_STAT') return def.modifiable;
-              if (payload.type === 'MODIFY_EVENT') return def.modifiable || key === 'amount';
-              return false;
-          });
-          let statOptions = validStats.map(([key, def]) => `<option value="${key}" ${payload.stat === key ? 'selected' : ''}>${def.label}</option>`).join('');
-          
-          fieldsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[9px] font-bold text-amber-400 mb-0.5 uppercase tracking-wider">Target Stat</label><select onchange="${upd('stat', 'this.value')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]">${statOptions}</select></div>`;
+            let validStats = Object.entries(ATTRIBUTE_MANIFEST).filter(([key, def]) => {
+                if (payload.type === 'SET_STAT') return def.settable;
+                if (payload.type === 'MODIFY_STAT') return def.modifiable;
+                if (payload.type === 'MODIFY_EVENT') return def.modifiable || key === 'amount';
+                return false;
+            });
+            let statOptions = validStats.map(([key, def]) => `<option value="${key}" ${payload.stat === key ? 'selected' : ''}>${def.label}</option>`).join('');
+
+            fieldsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[9px] font-bold text-amber-400 mb-0.5 uppercase tracking-wider">Target Stat</label><select onchange="${upd('stat', 'this.value')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]">${statOptions}</select></div>`;
         }
 
         if (manifest.requiresResource) {
@@ -283,7 +287,7 @@ export function generateEffectsHTML(ctx) {
                 });
             }
             fieldsHtml += `<div class="flex-1 min-w-[120px] pb-0.5"><label class="block text-[9px] font-bold text-amber-400 mb-0.5 uppercase tracking-wider">Resource Type</label><select onchange="${upd('resource', 'this.value')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]">${resourceOptions}</select></div>`;
-            
+
             if (payload.type === 'MODIFY_RESOURCE') {
                 const poolValue = payload.targetPool || (payload.resource === 'maxCarnie' ? 'MAX' : 'CURRENT');
                 fieldsHtml += `<div class="flex-1 min-w-[100px] pb-0.5"><label class="block text-[9px] font-bold text-amber-400 mb-0.5 uppercase tracking-wider">Target Pool</label>
@@ -309,10 +313,10 @@ export function generateEffectsHTML(ctx) {
             if (foundAb) displayValue = foundAb.name;
             const abLabel = payload.type === 'REMOVE_ABILITY' ? 'Ability to Remove' : 'Ability to Grant';
             const listId = isNested ? `nest-ability-list-${gIdx}-${pIdx}-${nIdx}` : `ability-list-${gIdx}-${pIdx}`;
-            
+
             fieldsHtml += `<div class="flex-1 min-w-[160px] pb-0.5"><label class="block text-[9px] font-bold text-cyan-400 mb-0.5 uppercase tracking-wider">${abLabel}</label><input list="${listId}" value="${displayValue}" onchange="${updAbil('this.value')}" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full text-[10px]" />
             <datalist id="${listId}">${customOptions}</datalist></div>`;
-            
+
             if (payload.type === 'GRANT_ABILITY') {
                 let xChecked = payload.grantedAbilityParamXIsX ? 'checked' : '';
                 let inputDisabled = payload.grantedAbilityParamXIsX ? 'disabled opacity-50' : '';
@@ -327,7 +331,7 @@ export function generateEffectsHTML(ctx) {
             const foundCard = allCards.find(c => c.id === displayValue);
             if (foundCard) displayValue = foundCard.name;
             const listId = isNested ? `nest-card-list-${gIdx}-${pIdx}-${nIdx}` : `card-list-${gIdx}-${pIdx}`;
-            
+
             fieldsHtml += `<div class="flex-1 min-w-[160px] pb-0.5"><label class="block text-[9px] font-bold text-fuchsia-400 mb-0.5 uppercase tracking-wider">Card to Summon</label><input list="${listId}" value="${displayValue}" onchange="${updCard('this.value')}" placeholder="Search or type card name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full text-[10px]" />
             <datalist id="${listId}">${cardOptions}</datalist></div>`;
         }
@@ -337,7 +341,7 @@ export function generateEffectsHTML(ctx) {
                 ${['FIELD', 'HAND', 'DECK', 'DISCARD', 'BANISH'].map(z => `<option value="${z}" ${payload.zone === z ? 'selected' : ''}>${z}</option>`).join('')}
             </select></div>`;
         }
-        
+
         if (manifest.requiresZoneOwner) {
             fieldsHtml += `<div class="flex-1 min-w-[110px] pb-0.5"><label class="block text-[9px] font-bold text-sky-400 mb-0.5 uppercase tracking-wider">Zone Owner</label><select onchange="${upd('zoneOwner', 'this.value')}" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]">
                 <option value="CASTER" ${payload.zoneOwner === 'CASTER' || !payload.zoneOwner ? 'selected' : ''}>Caster</option>
@@ -356,13 +360,13 @@ export function generateEffectsHTML(ctx) {
                 <option value="PERMANENT" ${payload.duration === 'PERMANENT' ? 'selected' : ''}>Permanent</option>
             </select></div>`;
         }
-        
+
         // Settings / Checkbox group
         let checkboxesHtml = '';
         if (manifest.canOverheal) checkboxesHtml += `<label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition whitespace-nowrap bg-slate-900/50 px-2 py-1 rounded"><input type="checkbox" ${payload.overheal ? 'checked' : ''} onchange="${upd('overheal', 'this.checked')}" class="accent-emerald-500 w-3 h-3" /><span class="text-[9px] font-black text-emerald-400 uppercase tracking-wider">Overheal</span></label>`;
         if (manifest.canBlockDuplicates) checkboxesHtml += `<label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition whitespace-nowrap bg-slate-900/50 px-2 py-1 rounded"><input type="checkbox" ${payload.blockDuplicates ? 'checked' : ''} onchange="${upd('blockDuplicates', 'this.checked')}" class="accent-cyan-500 w-3 h-3" /><span class="text-[9px] font-black text-cyan-400 uppercase tracking-wider">Block Dupes</span></label>`;
         if (manifest.canLimitStacks) checkboxesHtml += `<div class="flex items-center gap-1.5 bg-slate-900/50 px-2 py-0.5 rounded"><span class="text-[9px] font-black text-pink-400 uppercase tracking-wider">Src Cap:</span><input type="number" value="${payload.maxStacks || 0}" min="0" onchange="${upd('maxStacks', 'parseInt(this.value)')}" class="bg-slate-950 border border-slate-700 p-0.5 rounded text-white font-black w-10 text-[10px] text-center" /></div>`;
-        
+
         if (checkboxesHtml) {
             fieldsHtml += `<div class="w-full flex flex-wrap items-center gap-2 pt-1.5 border-t border-slate-800/80 mt-1">${checkboxesHtml}</div>`;
         }
@@ -376,6 +380,10 @@ export function generateEffectsHTML(ctx) {
                     <span class="text-slate-500 font-normal">Vars: (state, target, params, engine, actionDepth) | <a href="../docs.html" target="_blank" class="text-sky-400 hover:underline">📚 API Docs</a></span>
                 </label>
                 <textarea onchange="${upd('script', 'this.value')}" rows="8" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea>
+                <label class="flex items-center gap-2 cursor-pointer mt-2 text-[10px] text-amber-300" title="Developer assertion: this script is safe to undo and replay.">
+                    <input type="checkbox" ${payload.undoSafe === true ? 'checked' : ''} onchange="${upd('undoSafe', 'this.checked')}" class="accent-amber-500 w-3 h-3" />
+                    <span class="font-bold uppercase tracking-wider">Undo Safe</span>
+                </label>
                 <label class="block text-[10px] font-bold text-amber-400 mb-1 mt-2">Script Language Description</label>
                 <input type="text" onchange="${upd('description', 'this.value')}" value="${payload.description || ''}" placeholder="e.g. set {POSS} health to 1" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white font-bold w-full text-[10px]" />
             </div>`;
@@ -384,7 +392,7 @@ export function generateEffectsHTML(ctx) {
         // --- Nested Group Builder (Conditionally Rendered ONLY for top-level payloads) ---
         if (!isNested && manifest.hasNestedGroup && payload.nestedGroup) {
             const ng = payload.nestedGroup;
-            
+
             const nestedPayloadsHtml = ng.payloads.map((np, childNIdx) => renderPayload(np, gIdx, pIdx, true, childNIdx, group)).join('');
 
             const conditionalLogicHtml = manifest.hasLogicTree ? `
@@ -427,12 +435,12 @@ export function generateEffectsHTML(ctx) {
         }
 
         // --- Container Packaging ---
-        const containerClasses = isNested 
+        const containerClasses = isNested
             ? "flex flex-col gap-2 bg-slate-950 p-2 pl-6 rounded border border-slate-700/60 relative shadow-sm transition-all mt-1 w-full"
             : "flex flex-col gap-2 bg-slate-950 p-3 pl-8 rounded-lg border border-slate-800 relative shadow-md transition-all";
-        
+
         const removeFn = isNested ? `window.removeNestedPayload(${gIdx}, ${pIdx}, ${nIdx})` : `window.removePayload(${gIdx}, ${pIdx})`;
-        
+
         const dragHandles = !isNested ? `
             draggable="true"
             ondragstart="window.handlePayloadDragStart(event, ${gIdx}, ${pIdx})"
@@ -494,26 +502,26 @@ export function generateEffectsHTML(ctx) {
               </h4>
               <div class="flex flex-wrap gap-2 w-full md:w-5/6">
                 <select onchange="window.updateEffectGroup(${gIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1 font-bold min-w-[200px]">
-                  ${(function() {
-                      const validTargets = getValidTargetMethods(baseTrigger, scope, actMethod);
-                      if (!validTargets.includes(group.targetMethod)) {
-                          group.targetMethod = validTargets.includes('SAME_AS_ACTIVATION') ? 'SAME_AS_ACTIVATION' : validTargets[0];
-                      }
-                      const labels = {
-                          'SAME_AS_ACTIVATION': 'Run on Activated Target(s) / Event Trigger',
-                          'EVENT_SOURCE': 'Run on Event Source (e.g. Attacker, Caster)',
-                          'EVENT_TARGET': 'Run on Event Target (e.g. Defender, Victim)',
-                          'SELF': 'Run on Self (Card with ability)',
-                          'HOST': 'Run on Host (Attached Card)',
-                          'AVATAR': 'Run on Your Avatar',
-                          'ENEMY_AVATAR': 'Run on Enemy Avatar',
-                          'AUTO_ALL': 'Auto-Target ALL Valid Below',
-                          'AUTO_RANDOM': 'Auto-Target N RANDOM Below',
-                          'AUTO_FIRST': 'Auto-Target FIRST N Valid Below',
-                          'AUTO_LAST': 'Auto-Target LAST N Valid Below'
-                      };
-                      return validTargets.map(t => `<option value="${t}" ${group.targetMethod === t ? 'selected' : ''}>${labels[t]}</option>`).join('');
-                  })()}
+                  ${(function () {
+                const validTargets = getValidTargetMethods(baseTrigger, scope, actMethod);
+                if (!validTargets.includes(group.targetMethod)) {
+                    group.targetMethod = validTargets.includes('SAME_AS_ACTIVATION') ? 'SAME_AS_ACTIVATION' : validTargets[0];
+                }
+                const labels = {
+                    'SAME_AS_ACTIVATION': 'Run on Activated Target(s) / Event Trigger',
+                    'EVENT_SOURCE': 'Run on Event Source (e.g. Attacker, Caster)',
+                    'EVENT_TARGET': 'Run on Event Target (e.g. Defender, Victim)',
+                    'SELF': 'Run on Self (Card with ability)',
+                    'HOST': 'Run on Host (Attached Card)',
+                    'AVATAR': 'Run on Your Avatar',
+                    'ENEMY_AVATAR': 'Run on Enemy Avatar',
+                    'AUTO_ALL': 'Auto-Target ALL Valid Below',
+                    'AUTO_RANDOM': 'Auto-Target N RANDOM Below',
+                    'AUTO_FIRST': 'Auto-Target FIRST N Valid Below',
+                    'AUTO_LAST': 'Auto-Target LAST N Valid Below'
+                };
+                return validTargets.map(t => `<option value="${t}" ${group.targetMethod === t ? 'selected' : ''}>${labels[t]}</option>`).join('');
+            })()}
                 </select>
                 ${['AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'].includes(group.targetMethod) ? `<input type="number" value="${group.targetCount || 1}" onchange="window.updateEffectGroup(${gIdx}, 'targetCount', parseInt(this.value))" title="Number of targets (N)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-16" />` : ''}
               </div>

@@ -1,0 +1,384 @@
+/* STREAMING_CHUNK: Universal Centering */
+.stat-box {
+display: flex;
+align-items: center;
+justify-content: center;
+line-height: 1;
+}
+
+.stat-box > span {
+white-space: nowrap;
+position: relative;
+z-index: 10;
+}
+
+/* STREAMING_CHUNK: Stat Text Outlines (Hearthstone Style) */
+.corner-badge.stat-text-base {
+color: white;
+text-shadow:
+-1px -1px 0 #000,
+1px -1px 0 #000,
+-1px  1px 0 #000,
+1px  1px 0 #000,
+0px  2px 3px rgba(0,0,0,0.9);
+}
+
+.corner-badge.stat-text-buff {
+color: #4ade80; /* bright green */
+text-shadow:
+-1px -1px 0 #000,
+1px -1px 0 #000,
+-1px  1px 0 #000,
+1px  1px 0 #000,
+0px  2px 3px rgba(0,0,0,0.9);
+}
+
+.corner-badge.stat-text-debuff {
+color: #f87171; /* bright red */
+text-shadow:
+-1px -1px 0 #000,
+1px -1px 0 #000,
+-1px  1px 0 #000,
+1px  1px 0 #000,
+0px  2px 3px rgba(0,0,0,0.9);
+}
+
+/* STREAMING_CHUNK: Status Glows & Indicators */
+.glow-cyan { box-shadow: 0 0 20px rgba(34, 211, 238, 0.8); }
+.glow-cyan-sm { box-shadow: 0 0 10px rgba(34, 211, 238, 0.8); }
+.glow-fuchsia { box-shadow: 0 0 25px rgba(217, 70, 239, 0.8); }
+.glow-yellow { box-shadow: 0 0 15px rgba(250, 204, 21, 0.6); }
+.glow-blue { box-shadow: 0 0 15px rgba(96, 165, 250, 0.6); }
+.glow-red { box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
+.glow-green { box-shadow: 0 0 15px rgba(74, 222, 128, 0.8); }
+
+.overlay-svg-container > svg { width: 100%; height: 100%; }
+.overlay-glow-red { filter: drop-shadow(0 0 12px rgba(239,68,68,1)); }
+.overlay-glow-red-sm { filter: drop-shadow(0 0 6px rgba(239,68,68,1)); }
+.overlay-glow-green { filter: drop-shadow(0 0 12px rgba(74,222,128,1)); }
+.overlay-glow-green-sm { filter: drop-shadow(0 0 6px rgba(74,222,128,1)); }
+
+.minimal-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+.minimal-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.minimal-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+.minimal-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+
+/* STREAMING_CHUNK: Card Structure & Wrappers */
+.card-wrapper-std {
+position: relative;
+flex-shrink: 0;
+
+/* CRITICAL FIX: Rigid bounding box to prevent text-based stretching */
+width: 140px;
+aspect-ratio: 5 / 7;
+
+border-radius: 0.75rem;
+cursor: pointer;
+transition: all 0.2s;
+display: flex;
+flex-direction: column;
+user-select: none;
+overflow: hidden;
+}
+
+@media (min-width: 640px) {
+.card-wrapper-std { width: 150px; }
+}
+
+.card-wrapper-jumbo {
+position: relative;
+flex-shrink: 0;
+border-radius: 1rem;
+overflow: hidden;
+box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+display: flex;
+flex-direction: column;
+transition: transform 0.3s;
+aspect-ratio: 5 / 7;
+width: 280px;
+}
+
+@media (min-width: 640px) { .card-wrapper-jumbo { width: 360px; } }
+@media (min-width: 768px) { .card-wrapper-jumbo { width: 420px; } }
+
+.card-art-section {
+position: relative;
+width: 100%;
+overflow: hidden;
+}
+
+.card-text-section {
+position: relative;
+width: 100%;
+display: flex;
+flex-direction: column;
+}
+
+.card-name-wrapper {
+position: absolute;
+left: 0;
+right: 0;
+display: flex;
+justify-content: center;
+width: 100%;
+z-index: 20;
+pointer-events: none;
+}
+
+/* STREAMING_CHUNK: Base Card Art & Layout Defaults */
+.name-badge {
+background-color: rgba(0, 0, 0, 0.2);
+backdrop-filter: blur(4px);
+color: white;
+font-weight: 900;
+border-radius: 9999px;
+text-align: center;
+box-shadow: 0 2px 4px rgba(0,0,0,0.8);
+text-transform: uppercase;
+letter-spacing: 0.025em;
+border: none;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+max-width: 100%;
+}
+
+.corner-badge {
+border-width: 0;
+}
+
+.readiness-badge {
+font-weight: 900;
+text-transform: uppercase;
+letter-spacing: 0.05em;
+z-index: 20;
+border-color: black;
+border-style: solid;
+box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.ability-evergreen {
+font-family: 'Roboto Condensed', sans-serif;
+font-size: 11px;
+line-height: 1.25;
+font-weight: 900;
+color: #fcd34d; /* amber-300 */
+text-align: center;
+cursor: help;
+filter: drop-shadow(0 4px 3px rgba(0,0,0,0.07));
+}
+
+.ability-bespoke {
+font-family: 'Roboto Condensed', sans-serif;
+font-size: 11px;
+line-height: 1.25;
+color: #e2e8f0; /* slate-200 */
+font-weight: 700;
+text-align: center;
+width: 100%;
+}
+
+.ability-active-wrap {
+font-family: 'Roboto Condensed', sans-serif;
+font-size: 11px;
+line-height: 1.25;
+font-weight: 700;
+width: 100%;
+cursor: help;
+background-color: rgba(0, 0, 0, 0.2);
+border-radius: 0.25rem;
+padding: 0.125rem 0.25rem;
+border: 1px solid rgba(255, 255, 255, 0.05);
+display: flex;
+justify-content: center;
+align-items: center;
+}
+
+.jmb-ability-evergreen {
+font-size: 0.95rem;
+font-weight: 900;
+color: #fcd34d;
+text-align: center;
+line-height: 1.25;
+margin-bottom: 0.5rem;
+filter: drop-shadow(0 4px 3px rgba(0,0,0,0.07));
+}
+
+.jmb-ability-bespoke {
+background-color: rgba(0, 0, 0, 0.4);
+backdrop-filter: blur(4px);
+padding: 0.5rem;
+border-radius: 0.5rem;
+border: 1px solid rgba(255, 255, 255, 0.1);
+box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+color: #e2e8f0;
+text-align: center;
+line-height: 1.375;
+font-size: 0.9rem;
+}
+
+.jmb-ability-active-wrap {
+background-color: rgba(0, 0, 0, 0.4);
+backdrop-filter: blur(4px);
+padding: 0.625rem;
+border-radius: 0.5rem;
+border: 1px solid rgba(255, 255, 255, 0.1);
+box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+display: flex;
+flex-direction: column;
+gap: 0.125rem;
+align-items: center;
+font-size: 0.9rem;
+}
+
+.ability-name-usable { color: white; }
+.ability-name-unusable { color: #94a3b8; } /* slate-400 /
+.ability-text-usable { color: #e2e8f0; } / slate-200 /
+.ability-text-unusable { color: #64748b; } / slate-500 */
+
+/* =========================================
+CARD ARCHITECTURE: CENTRALIZED THEME
+========================================= */
+
+/* 1. Core Background Art Layers */
+.bg-art-image {
+position: absolute;
+inset: 0;
+width: 100%;
+height: 100%;
+object-fit: cover;
+object-position: center;
+z-index: 0;
+opacity: 0.5;
+pointer-events: none;
+}
+
+.bg-art-mute {
+position: absolute;
+inset: 0;
+background-color: rgba(0, 0, 0, 0.6);
+mix-blend-mode: multiply;
+z-index: 0;
+pointer-events: none;
+}
+
+/* 2. Stat Corners (Colors, Borders, Shadows) */
+.corner-cost, .corner-power, .corner-strength, .corner-armor, .corner-health {
+font-weight: 900;
+pointer-events: auto;
+border-color: black;
+border-style: solid;
+color: white;
+box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.18);
+z-index: 10;
+}
+
+.corner-cost {
+background-color: #f59e0b; /* amber-500 */
+border-bottom-right-radius: 0.5rem;
+border-width: 0 2px 2px 0;
+}
+
+.corner-power {
+background-color: #9333ea; /* purple-600 */
+border-bottom-right-radius: 0.5rem;
+border-width: 0 2px 2px 0;
+}
+
+.corner-strength {
+background-color: #eab308; /* yellow-500 */
+border-top-right-radius: 0.5rem;
+border-width: 2px 2px 0 0;
+}
+
+.corner-armor {
+background-color: #0891b2; /* cyan-600 */
+border-radius: 0.5rem 0.5rem 0 0;
+border-width: 2px 2px 0 2px;
+}
+
+.corner-health {
+background-color: #dc2626; /* red-600 */
+border-top-left-radius: 0.5rem;
+border-width: 2px 0 0 2px;
+}
+
+.micro-hover-name {
+background-color: rgba(0, 0, 0, 0.8);
+backdrop-filter: blur(4px);
+color: white;
+font-weight: 900;
+font-size: 6px;
+padding: 2px 4px;
+border-radius: 2px;
+max-width: 90%;
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* 3. Micro Card Size */
+.card-size-micro {
+width: 80px;
+height: 80px;
+border-radius: 0.375rem; /* matches rounded-md */
+font-size: 14px;
+}
+
+/* Centralized Dimensions for Nano Corners */
+.card-size-micro .corner-cost { width: 16px; height: 18px; }
+.card-size-micro .corner-power { width: 16px; height: 18px; margin-top: -2px; }
+.card-size-micro .corner-strength { width: 16px; height: 18px;  }
+.card-size-micro .corner-armor { height: 18px; padding-left: 4px; padding-right: 4px; }
+.card-size-micro .corner-health { width: 16px; height: 18px; }
+
+/* Nano Spacers & Icons */
+.card-size-micro .corner-spacer { width: 16px; height: 18px; flex-shrink: 0; }
+.card-size-micro .line-icon-box { width: 20px; height: 20px; margin-top: 4px; margin-left: 4px; pointer-events: auto; }
+.card-size-micro .corner-armor svg { width: 8px; height: 8px; margin-right: 2px; }
+
+/* 4. Nano Card Size & Typography Dimensions */
+.card-size-nano {
+width: 60px;
+height: 40px;
+border-radius: 0.5rem; /* rounded-lg */
+font-size: 10px;
+}
+
+/* Centralized Dimensions for Micro Corners */
+.card-size-nano .corner-cost { width: 12px; height: 14px;  }
+.card-size-nano .corner-power { width: 12px; height: 14px;  margin-top: -1px; }
+.card-size-nano .corner-strength { width: 12px; height: 14px;  }
+.card-size-nano .corner-armor { height: 14px; padding-left: 2px; padding-right: 2px;  }
+.card-size-nano .corner-health { width: 12px; height: 14px;  }
+
+/* Micro Specific Elements */
+.card-size-nano .line-icon-box { width: 12px; height: 12px; margin-top: 2px; margin-left: 2px; pointer-events: auto; }
+
+/* Base size for the standard card (previously w-16 h-16, increase here to scale up) */
+.card-wrapper-std .overlay-svg-container {
+  width: 5rem; /* Increased from 4rem for scaling */
+  height: 5rem;
+}
+
+/* Micro and Nano card sizes (previously w-10 h-10) */
+.card-size-micro .overlay-svg-container,
+.card-size-nano .overlay-svg-container {
+  width: 5rem;
+  height: 5rem;
+}
+
+/* Jumbo card size with responsive breakpoint (previously w-24 h-24 sm:w-32 sm:h-32) */
+.card-wrapper-jumbo .overlay-svg-container {
+  width: 6rem;
+  height: 6rem;
+}
+
+@media (min-width: 640px) {
+  .card-wrapper-jumbo .overlay-svg-container {
+    width: 8rem;
+    height: 8rem;
+  }
+}

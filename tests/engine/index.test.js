@@ -3,6 +3,7 @@ import * as actualUtils from '../../src/engine/utils.js';
 import { createTestUnit, createTestState, spawnUnit } from '../test_utils.js';
 
 const sharedFindEntityLocationMock = jest.fn(() => ({ zone: 'mid' }));
+const grantAbilityActionPayloads = [];
 
 jest.unstable_mockModule('../../src/engine/prandom.js', () => ({
     randomInt: jest.fn(() => 0),
@@ -29,6 +30,10 @@ jest.unstable_mockModule('../../src/engine/actions/action_index.js', () => ({
         'MOCK_ACT': class { run = jest.fn(); },
         'DAMAGE': class { run = jest.fn(); },
         'ACT': class { run = jest.fn(); },
+        'GRANT_ABILITY': class {
+            constructor(payload) { this.payload = payload; }
+            run() { grantAbilityActionPayloads.push(this.payload); }
+        },
         // Add mock implementations for the actions used in the new tests
         'KILL': class {
             constructor(payload) { this.payload = payload; }
@@ -87,7 +92,27 @@ describe('index.js GameEngine', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        grantAbilityActionPayloads.length = 0;
         mockState = createTestState();
+    });
+
+    it('should pass the parent effect group target method to grant actions', () => {
+        const engine = new GameEngine(mockState);
+        const source = createTestUnit({ instanceId: 'source_1', ownerId: 'player1' });
+        const ability = {
+            abilityId: 'grantor',
+            origin: 'innate',
+            effects: [{
+                targetMethod: 'SELF',
+                payloads: [{ type: 'GRANT_ABILITY', grantedAbilityId: 'granted' }]
+            }]
+        };
+
+        engine._resolvePayloads(ability, source, {}, 'player1', [[source]], null);
+
+        expect(grantAbilityActionPayloads).toHaveLength(1);
+        expect(grantAbilityActionPayloads[0].targetMethod).toBe('SELF');
+        expect(grantAbilityActionPayloads[0].sourceAbilityOrigin).toBe('innate');
     });
 
     describe('Event Bus & Interceptors', () => {
@@ -401,6 +426,52 @@ describe('index.js GameEngine', () => {
             const nodeSpell = { type: 'condition', attribute: 'entity', operator: '==', value: 'SPELL' };
             expect(engine.evaluateLogicTree(nodeSpell, spellEntity, source, {})).toBe(true);
             expect(engine.evaluateLogicTree(nodeSpell, unitEntity, source, {})).toBe(false);
+        });
+
+        it('should evaluate custom conditions against detached game data and engine state', () => {
+            const target = spawnUnit(mockState, 'player1', 'mid', { instanceId: 'condition_target', health: 3 });
+            const source = spawnUnit(mockState, 'player1', 'back', { instanceId: 'condition_source', health: 4 });
+            const eventPayload = { target, source, amount: 1 };
+            mockState.abilityCatalog = [{ abilityId: 'catalog_entry', name: 'Original' }];
+            const node = {
+                type: 'condition',
+                attribute: 'customScript',
+                operator: '==',
+                value: `
+                    const readsPreservedAliases = target === state.players.player1.lines.mid[0]
+                        && source === state.players.player1.lines.back[0]
+                        && manualTarget === target
+                        && eventPayload.target === target;
+                    target.health = 0;
+                    source.health = 0;
+                    manualTarget.health = 0;
+                    eventPayload.amount = 99;
+                    state.abilityCatalog[0].name = 'Changed';
+                    engine.state.players.player1.lines.mid[0].health = 0;
+                    engine.utils.moveEntity(engine, target, 'player2', 'hand');
+                    return readsPreservedAliases;
+                `
+            };
+
+            expect(engine.evaluateLogicTree(node, target, source, eventPayload)).toBe(true);
+            expect(target.health).toBe(3);
+            expect(source.health).toBe(4);
+            expect(eventPayload.amount).toBe(1);
+            expect(mockState.abilityCatalog[0].name).toBe('Original');
+            expect(mockState.players.player1.lines.mid).toContain(target);
+            expect(mockState.players.player2.hand).not.toContain(target);
+        });
+
+        it('should preserve normal custom-condition reads', () => {
+            const target = spawnUnit(mockState, 'player1', 'mid', { instanceId: 'condition_read', strength: 5 });
+            const node = {
+                type: 'condition',
+                attribute: 'customScript',
+                operator: '==',
+                value: 'return target.strength === 5 && state.activePlayerId === "player1" && engine.state === state;'
+            };
+
+            expect(engine.evaluateLogicTree(node, target, target, {})).toBe(true);
         });
     });
 

@@ -79,6 +79,7 @@ describe('GrantAbilityAction', () => {
             expect(target.abilities).toBeDefined();
             expect(target.abilities.length).toBe(1);
             expect(target.abilities[0].abilityId).toBe('ab_1');
+            expect(target.abilities[0].origin).toBe('bonus');
             
             // Verifies registerEffect successfully pushed the active effect
             expect(target.activeEffects.length).toBe(1);
@@ -97,6 +98,17 @@ describe('GrantAbilityAction', () => {
             expect(target.abilities[0].abilityId).toBe('ab_1');
             expect(target.abilities[0].paramX).toBe(3);
             expect(target.abilities[0].name).toContain('(3)');
+        });
+
+        it('should mark abilities granted by SELF effect groups as innate', () => {
+            const action = new GrantAbilityAction({
+                target,
+                grantedAbilityId: 'ab_1',
+                targetMethod: 'SELF'
+            });
+            action.execute(engine);
+
+            expect(target.abilities[0].origin).toBe('innate');
         });
 
         it('should fallback to an unresolved ability if catalog lookup fails', () => {

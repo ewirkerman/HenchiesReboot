@@ -22,7 +22,7 @@ export function exportCurrentState(formData, uiState) {
     if (formData.actMethod === 'NONE' && formData.triggerScope !== 'GLOBAL') {
         delete activationData.quickTargeting;
     }
-    
+
     if (activationData.logicTree && activationData.logicTree.children && activationData.logicTree.children.length === 0) {
         delete activationData.logicTree;
     }
@@ -69,275 +69,275 @@ export function exportCurrentState(formData, uiState) {
 }
 
 export function getCurrentAbilityState(forceId = null) {
-  let derivedTrigger = document.getElementById('ab-trigger').value;
-  if (!derivedTrigger) {
-      const base = document.getElementById('ab-base-trigger').value;
-      const phase = document.getElementById('ab-trigger-phase').value;
-      const role = document.getElementById('ab-trigger-role').value;
-      const manifest = ACTION_MANIFEST[base];
-      if (manifest) {
-          let verb = base;
-          if (role === 'PASSIVE' && manifest.passiveType) verb = manifest.passiveType;
-          derivedTrigger = `${phase}_${verb}`;
-      } else {
-          derivedTrigger = base || 'MANUAL';
-      }
-  }
+    let derivedTrigger = document.getElementById('ab-trigger').value;
+    if (!derivedTrigger) {
+        const base = document.getElementById('ab-base-trigger').value;
+        const phase = document.getElementById('ab-trigger-phase').value;
+        const role = document.getElementById('ab-trigger-role').value;
+        const manifest = ACTION_MANIFEST[base];
+        if (manifest) {
+            let verb = base;
+            if (role === 'PASSIVE' && manifest.passiveType) verb = manifest.passiveType;
+            derivedTrigger = `${phase}_${verb}`;
+        } else {
+            derivedTrigger = base || 'MANUAL';
+        }
+    }
 
-  const formData = {
-    abilityId: forceId || StudioState.currentEditingId,
-    name: document.getElementById('ab-name').value.trim(),
-    isKeyword: document.getElementById('ab-is-keyword') ? document.getElementById('ab-is-keyword').checked : false,
-    description: document.getElementById('ab-description').value,
-    developerNotes: document.getElementById('ab-developer-notes') ? document.getElementById('ab-developer-notes').value.trim() : '',
-    trigger: derivedTrigger,
-    additionalTriggers: StudioState.additionalTriggers || [],
-    triggerScope: document.getElementById('ab-trigger-scope').value,
-    triggerLimit: document.getElementById('ab-trigger-limit').value,
-    passiveFlags: Array.from(document.querySelectorAll('.ab-flag-chk:checked')).map(cb => cb.value),
-    tribeAmount: document.getElementById('ab-cost-tribe-amt').value,
-    carnie: document.getElementById('ab-cost-tent').value,
-    power: document.getElementById('ab-cost-power').value,
-    readinessCost: document.getElementById('ab-cost-readiness').value,
-    escalates: document.getElementById('ab-cost-escalates') ? document.getElementById('ab-cost-escalates').checked : false,
-    reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked,
-    freeAction: document.getElementById('ab-cost-free-action').checked,
-    actMethod: document.getElementById('ab-act-method').value,
-    actQuickTargeting: StudioState.activationQuickTargeting
-  };
-  
-  const uiState = {
-    activationRoot: StudioState.activationRoot,
-    targetGroups: StudioState.effectGroups
-  };
+    const formData = {
+        abilityId: forceId || StudioState.currentEditingId,
+        name: document.getElementById('ab-name').value.trim(),
+        isKeyword: document.getElementById('ab-is-keyword') ? document.getElementById('ab-is-keyword').checked : false,
+        description: document.getElementById('ab-description').value,
+        developerNotes: document.getElementById('ab-developer-notes') ? document.getElementById('ab-developer-notes').value.trim() : '',
+        trigger: derivedTrigger,
+        additionalTriggers: StudioState.additionalTriggers || [],
+        triggerScope: document.getElementById('ab-trigger-scope').value,
+        triggerLimit: document.getElementById('ab-trigger-limit').value,
+        passiveFlags: Array.from(document.querySelectorAll('.ab-flag-chk:checked')).map(cb => cb.value),
+        tribeAmount: document.getElementById('ab-cost-tribe-amt').value,
+        carnie: document.getElementById('ab-cost-tent').value,
+        power: document.getElementById('ab-cost-power').value,
+        readinessCost: document.getElementById('ab-cost-readiness').value,
+        escalates: document.getElementById('ab-cost-escalates') ? document.getElementById('ab-cost-escalates').checked : false,
+        reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked,
+        freeAction: document.getElementById('ab-cost-free-action').checked,
+        actMethod: document.getElementById('ab-act-method').value,
+        actQuickTargeting: StudioState.activationQuickTargeting
+    };
 
-  return exportCurrentState(formData, uiState);
+    const uiState = {
+        activationRoot: StudioState.activationRoot,
+        targetGroups: StudioState.effectGroups
+    };
+
+    return exportCurrentState(formData, uiState);
 }
 
 export function updateJSONPreview() {
-  const state = getCurrentAbilityState();
-  
-  if (window.updatePreview) {
-      window.updatePreview();
-  } else {
-      renderJSONPreview('json-preview-container', state, 'copyJSONPreview');
-  }
-  
-  const stateForAutoGen = { ...state, description: '' };
-  let autoDesc = 'Complete the ability details to generate a description.';
-  try {
-      const generated = generateAbilityDescription(stateForAutoGen, StudioState.allAbilities, StudioState.allCards, StudioState.customTribesList);
-      if (generated) autoDesc = generated;
-  } catch (e) {
-      autoDesc = 'Unable to generate description (schema updating).';
-  }
-  const descEl = document.getElementById('ab-auto-description');
-  if (descEl) descEl.innerText = autoDesc;
+    const state = getCurrentAbilityState();
+
+    if (window.updatePreview) {
+        window.updatePreview();
+    } else {
+        renderJSONPreview('json-preview-container', state, 'copyJSONPreview');
+    }
+
+    const stateForAutoGen = { ...state, description: '' };
+    let autoDesc = 'Complete the ability details to generate a description.';
+    try {
+        const generated = generateAbilityDescription(stateForAutoGen, StudioState.allAbilities, StudioState.allCards, StudioState.customTribesList);
+        if (generated) autoDesc = generated;
+    } catch (e) {
+        autoDesc = 'Unable to generate description (schema updating).';
+    }
+    const descEl = document.getElementById('ab-auto-description');
+    if (descEl) descEl.innerText = autoDesc;
 }
 
 export function copyJSONPreview() {
-  const state = getCurrentAbilityState();
-  navigator.clipboard.writeText(JSON.stringify(state, null, 2)).then(() => {
-    showToast('JSON Copied to Clipboard!', 'success');
-  });
+    const state = getCurrentAbilityState();
+    navigator.clipboard.writeText(JSON.stringify(state, null, 2)).then(() => {
+        showToast('JSON Copied to Clipboard!', 'success');
+    });
 }
 
 export async function handleSaveAbility() {
-  const ability = getCurrentAbilityState(StudioState.currentEditingId);
+    const ability = getCurrentAbilityState(StudioState.currentEditingId);
 
-  const validationErrors = validateAbilityLogic(ability);
-  if (validationErrors.length > 0) {
-    showToast(`Cannot save: ${validationErrors[0]}`, 'error');
-    return;
-  }
+    const validationErrors = validateAbilityLogic(ability);
+    if (validationErrors.length > 0) {
+        showToast(`Cannot save: ${validationErrors[0]}`, 'error');
+        return;
+    }
 
-  if (!ability.name || ability.name === '') {
-    showToast(`Cannot save: Please provide an Ability Name!`, 'error');
-    return;
-  }
+    if (!ability.name || ability.name === '') {
+        showToast(`Cannot save: Please provide an Ability Name!`, 'error');
+        return;
+    }
 
-  const isDuplicate = StudioState.allAbilities.some(a => (a.name || '').trim().toLowerCase() === ability.name.toLowerCase() && a.abilityId !== ability.abilityId);
-  const originalAb = StudioState.allAbilities.find(a => a.abilityId === StudioState.currentEditingId);
-  const isNameChanged = !originalAb || (originalAb.name || '').trim().toLowerCase() !== ability.name.toLowerCase();
+    const isDuplicate = StudioState.allAbilities.some(a => (a.name || '').trim().toLowerCase() === ability.name.toLowerCase() && a.abilityId !== ability.abilityId);
+    const originalAb = StudioState.allAbilities.find(a => a.abilityId === StudioState.currentEditingId);
+    const isNameChanged = !originalAb || (originalAb.name || '').trim().toLowerCase() !== ability.name.toLowerCase();
 
-  if (isDuplicate && (!StudioState.currentEditingId || isNameChanged)) {
-    showToast(`Cannot save: An ability named '${ability.name}' already exists!`, 'error');
-    return;
-  }
-  
-  const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
-  if (topbar && topbar.setLoading) topbar.setLoading('save', true);
+    if (isDuplicate && (!StudioState.currentEditingId || isNameChanged)) {
+        showToast(`Cannot save: An ability named '${ability.name}' already exists!`, 'error');
+        return;
+    }
 
-  const cloudSaveSuccess = await saveAbilityToCatalog(ability);
-  
-  if (topbar && topbar.setLoading) topbar.setLoading('save', false);
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+    if (topbar && topbar.setLoading) topbar.setLoading('save', true);
 
-  if (cloudSaveSuccess) {
-      showToast(`Ability '${ability.name}' saved!`, 'success');
-  } else {
-      showToast(`⚠️ Cloud save failed! '${ability.name}' saved locally.`, 'error');
-  }
+    const cloudSaveSuccess = await saveAbilityToCatalog(ability);
 
-  let newDesc = '';
-  try { newDesc = generateAbilityDescription(ability, StudioState.allAbilities, StudioState.allCards, StudioState.customTribesList); } catch(e) {}
-  const processedAbility = { ...ability, displayDescription: newDesc };
-  
-  StudioState.allAbilities = [...StudioState.allAbilities.filter(a => a.abilityId !== ability.abilityId), processedAbility];
-  renderCatalogList();
+    if (topbar && topbar.setLoading) topbar.setLoading('save', false);
 
-  StudioState.currentEditingId = ability.abilityId;
-  
-  if (!window.CreatorController) {
-      window.location.hash = ability.abilityId;
-      document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
-  } else {
-      window.history.replaceState(null, '', `#${ability.abilityId}`);
-      document.getElementById('workspace-title').innerText = "⚡ Editing Ability";
-  }
-  
-  if (topbar) topbar.showButtons(true);
+    if (cloudSaveSuccess) {
+        showToast(`Ability '${ability.name}' saved!`, 'success');
+    } else {
+        showToast(`⚠️ Cloud save failed! '${ability.name}' saved locally.`, 'error');
+    }
+
+    let newDesc = '';
+    try { newDesc = generateAbilityDescription(ability, StudioState.allAbilities, StudioState.allCards, StudioState.customTribesList); } catch (e) { }
+    const processedAbility = { ...ability, displayDescription: newDesc };
+
+    StudioState.allAbilities = [...StudioState.allAbilities.filter(a => a.abilityId !== ability.abilityId), processedAbility];
+    renderCatalogList();
+
+    StudioState.currentEditingId = ability.abilityId;
+
+    if (!window.CreatorController) {
+        window.location.hash = ability.abilityId;
+        document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
+    } else {
+        window.history.replaceState(null, '', `#${ability.abilityId}`);
+        document.getElementById('workspace-title').innerText = "⚡ Editing Ability";
+    }
+
+    if (topbar) topbar.showButtons(true);
 }
 
 export async function handleDeleteAbility() {
-  if (StudioState.currentEditingId) {
-    await deleteAbilityFromCatalog(StudioState.currentEditingId);
-    StudioState.allAbilities = StudioState.allAbilities.filter(a => a.abilityId !== StudioState.currentEditingId);
-    resetForm();
-    renderCatalogList();
-  }
+    if (StudioState.currentEditingId) {
+        await deleteAbilityFromCatalog(StudioState.currentEditingId);
+        StudioState.allAbilities = StudioState.allAbilities.filter(a => a.abilityId !== StudioState.currentEditingId);
+        resetForm();
+        renderCatalogList();
+    }
 }
 
 export function handleCloneAbility() {
-  if (!StudioState.currentEditingId) return;
-  
-  const currentConfig = getCurrentAbilityState();
-  StudioState.currentEditingId = null; 
-  
-  if (window.CreatorController) {
-      window.history.pushState(null, '', `#new_ability`);
-      document.getElementById('workspace-title').innerText = `⚡ Editing Ability (Cloned)`;
-  } else {
-      window.location.hash = '';
-      document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
-  }
-  
-  StudioState.activeAssignerId = null;
-  document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
-  
-  const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
-  if (topbar) topbar.showButtons(false);
-  
-  updateJSONPreview();
-  showToast('Ability cloned! Save to keep it.', 'info');
+    if (!StudioState.currentEditingId) return;
+
+    const currentConfig = getCurrentAbilityState();
+    StudioState.currentEditingId = null;
+
+    if (window.CreatorController) {
+        window.history.pushState(null, '', `#new_ability`);
+        document.getElementById('workspace-title').innerText = `⚡ Editing Ability (Cloned)`;
+    } else {
+        window.location.hash = '';
+        document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
+    }
+
+    StudioState.activeAssignerId = null;
+    document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
+
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+    if (topbar) topbar.showButtons(false);
+
+    updateJSONPreview();
+    showToast('Ability cloned! Save to keep it.', 'info');
 }
 
 export function resetForm() {
-  StudioState.currentEditingId = null;
-  StudioState.activeAssignerId = null;
-  
-  if (window.CreatorController) {
-      // The Unified Studio manages the title via switchWorkspace
-  } else {
-      window.location.hash = '';
-      const headingEl = document.getElementById('form-heading');
-      if (headingEl) headingEl.innerText = `⚡ Design Ability Logic`;
-  }
-  
-  const elName = document.getElementById('ab-name');
-  if (elName) elName.value = '';
-  
-  const elKeyword = document.getElementById('ab-is-keyword');
-  if (elKeyword) elKeyword.checked = false;
-  
-  const elDesc = document.getElementById('ab-description');
-  if (elDesc) elDesc.value = '';
+    StudioState.currentEditingId = null;
+    StudioState.activeAssignerId = null;
 
-  const elDeveloperNotes = document.getElementById('ab-developer-notes');
-  if (elDeveloperNotes) elDeveloperNotes.value = '';
-  
-  const elBaseTrig = document.getElementById('ab-base-trigger');
-  if (elBaseTrig) elBaseTrig.value = 'MANUAL';
-  
-  const elPhase = document.getElementById('ab-trigger-phase');
-  if (elPhase) elPhase.value = 'ON';
-  
-  const elRole = document.getElementById('ab-trigger-role');
-  if (elRole) elRole.value = 'ACTIVE';
-  
-  if (typeof window.updateTriggerComposite === 'function') window.updateTriggerComposite();
-  
-  StudioState.additionalTriggers = [];
-  if (typeof window.renderAdditionalTriggers === 'function') window.renderAdditionalTriggers();
-  
-  const elLimit = document.getElementById('ab-trigger-limit');
-  if (elLimit) elLimit.value = 'UNLIMITED';
-  
-  document.querySelectorAll('.ab-flag-chk').forEach(cb => cb.checked = false);
-  if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
-  
-  const elCostTribe = document.getElementById('ab-cost-tribe-amt');
-  if (elCostTribe) elCostTribe.value = '0';
-  
-  const elCostTent = document.getElementById('ab-cost-tent');
-  if (elCostTent) elCostTent.value = '0';
-  
-  const elCostPower = document.getElementById('ab-cost-power');
-  if (elCostPower) elCostPower.value = '0';
-  
-  const elCostReady = document.getElementById('ab-cost-readiness');
-  if (elCostReady) elCostReady.value = 'NONE';
-  
-  const elEscalates = document.getElementById('ab-cost-escalates');
-  if (elEscalates) elEscalates.checked = false;
-  
-  const elReuse = document.getElementById('ab-cost-reuse-exempt');
-  if (elReuse) elReuse.checked = false;
-  
-  const elFree = document.getElementById('ab-cost-free-action');
-  if (elFree) elFree.checked = false;
+    if (window.CreatorController) {
+        // The Unified Studio manages the title via switchWorkspace
+    } else {
+        window.location.hash = '';
+        const headingEl = document.getElementById('form-heading');
+        if (headingEl) headingEl.innerText = `⚡ Design Ability Logic`;
+    }
 
-  const elActMethod = document.getElementById('ab-act-method');
-  if (elActMethod) elActMethod.value = 'NONE';
-  
-  StudioState.activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
-  StudioState.showAdvancedActivation = false;
-  StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-  StudioState.effectGroups = [];
-  
-  const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
-  if (topbar) topbar.showButtons(false);
-  
-  if (typeof window.renderLogicTrees === 'function') window.renderLogicTrees();
-  if (typeof window.renderEffects === 'function') window.renderEffects();
-  if (typeof window.updateTargetingUI === 'function') window.updateTargetingUI();
-  updateJSONPreview();
-  renderAssociatedCards();
+    const elName = document.getElementById('ab-name');
+    if (elName) elName.value = '';
+
+    const elKeyword = document.getElementById('ab-is-keyword');
+    if (elKeyword) elKeyword.checked = false;
+
+    const elDesc = document.getElementById('ab-description');
+    if (elDesc) elDesc.value = '';
+
+    const elDeveloperNotes = document.getElementById('ab-developer-notes');
+    if (elDeveloperNotes) elDeveloperNotes.value = '';
+
+    const elBaseTrig = document.getElementById('ab-base-trigger');
+    if (elBaseTrig) elBaseTrig.value = 'MANUAL';
+
+    const elPhase = document.getElementById('ab-trigger-phase');
+    if (elPhase) elPhase.value = 'ON';
+
+    const elRole = document.getElementById('ab-trigger-role');
+    if (elRole) elRole.value = 'ACTIVE';
+
+    if (typeof window.updateTriggerComposite === 'function') window.updateTriggerComposite();
+
+    StudioState.additionalTriggers = [];
+    if (typeof window.renderAdditionalTriggers === 'function') window.renderAdditionalTriggers();
+
+    const elLimit = document.getElementById('ab-trigger-limit');
+    if (elLimit) elLimit.value = 'UNLIMITED';
+
+    document.querySelectorAll('.ab-flag-chk').forEach(cb => cb.checked = false);
+    if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
+
+    const elCostTribe = document.getElementById('ab-cost-tribe-amt');
+    if (elCostTribe) elCostTribe.value = '0';
+
+    const elCostTent = document.getElementById('ab-cost-tent');
+    if (elCostTent) elCostTent.value = '0';
+
+    const elCostPower = document.getElementById('ab-cost-power');
+    if (elCostPower) elCostPower.value = '0';
+
+    const elCostReady = document.getElementById('ab-cost-readiness');
+    if (elCostReady) elCostReady.value = 'NONE';
+
+    const elEscalates = document.getElementById('ab-cost-escalates');
+    if (elEscalates) elEscalates.checked = false;
+
+    const elReuse = document.getElementById('ab-cost-reuse-exempt');
+    if (elReuse) elReuse.checked = false;
+
+    const elFree = document.getElementById('ab-cost-free-action');
+    if (elFree) elFree.checked = false;
+
+    const elActMethod = document.getElementById('ab-act-method');
+    if (elActMethod) elActMethod.value = 'NONE';
+
+    StudioState.activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+    StudioState.showAdvancedActivation = false;
+    StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
+    StudioState.effectGroups = [];
+
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+    if (topbar) topbar.showButtons(false);
+
+    if (typeof window.renderLogicTrees === 'function') window.renderLogicTrees();
+    if (typeof window.renderEffects === 'function') window.renderEffects();
+    if (typeof window.updateTargetingUI === 'function') window.updateTargetingUI();
+    updateJSONPreview();
+    renderAssociatedCards();
 }
 
 export function renderCatalogList() {
-  if (window.CreatorController) {
-      window.CreatorController.renderUnifiedCatalog();
-      return;
-  }
-    
-  const catalogEl = document.getElementById('ability-catalog');
-  if (!catalogEl) return;
-
-  catalogEl.setItems(StudioState.allAbilities, (ab) => {
-    let conditionCount = 0;
-    const countConditions = (node) => {
-      if (!node) return;
-      if (node.type === 'condition') conditionCount++;
-      else if (node.children) node.children.forEach(countConditions);
-    };
-    countConditions(ab.activation?.logicTree || ab.targeting?.logicTree);
-
-    let effectsCount = 0;
-    if (ab.effects) {
-        effectsCount = ab.effects.reduce((acc, g) => acc + (g.payloads ? g.payloads.length : 1), 0);
+    if (window.CreatorController) {
+        window.CreatorController.renderUnifiedCatalog();
+        return;
     }
 
-    return `
+    const catalogEl = document.getElementById('ability-catalog');
+    if (!catalogEl) return;
+
+    catalogEl.setItems(StudioState.allAbilities, (ab) => {
+        let conditionCount = 0;
+        const countConditions = (node) => {
+            if (!node) return;
+            if (node.type === 'condition') conditionCount++;
+            else if (node.children) node.children.forEach(countConditions);
+        };
+        countConditions(ab.activation?.logicTree || ab.targeting?.logicTree);
+
+        let effectsCount = 0;
+        if (ab.effects) {
+            effectsCount = ab.effects.reduce((acc, g) => acc + (g.payloads ? g.payloads.length : 1), 0);
+        }
+
+        return `
       <div onclick="window.loadAbility('${ab.abilityId}')" class="p-3 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex flex-col gap-1 cursor-pointer transition">
         <div class="flex justify-between items-center font-bold text-amber-300">
           <span>${ab.name}</span>
@@ -347,183 +347,184 @@ export function renderCatalogList() {
         ${conditionCount > 0 ? `<div class="text-[9px] text-indigo-400 mt-1">${conditionCount} Nested Filters</div>` : ''}
       </div>
     `;
-  });
+    });
 }
 
 export function loadAbility(id) {
-  const ab = StudioState.allAbilities.find(a => a.abilityId === id);
-  if (!ab) return;
+    const ab = StudioState.allAbilities.find(a => a.abilityId === id);
+    if (!ab) return;
 
-  StudioState.currentEditingId = ab.abilityId;
-  
-  if (!window.CreatorController) {
-      window.location.hash = id;
-      const headingEl = document.getElementById('form-heading');
-      if (headingEl) headingEl.innerText = `⚡ Edit: ${ab.name}`;
-  }
-  
-  const elName = document.getElementById('ab-name');
-  if (elName) elName.value = ab.name;
-  
-  const elKeyword = document.getElementById('ab-is-keyword');
-  if (elKeyword) elKeyword.checked = !!ab.isKeyword;
-  
-  const elDesc = document.getElementById('ab-description');
-  if (elDesc) elDesc.value = ab.description || '';
+    StudioState.currentEditingId = ab.abilityId;
 
-  const elDeveloperNotes = document.getElementById('ab-developer-notes');
-  if (elDeveloperNotes) elDeveloperNotes.value = ab.developerNotes || '';
-  
-  const comp = window.parseTriggerToComposite ? window.parseTriggerToComposite(ab.trigger) : {base: 'MANUAL', phase: 'ON', role: 'ACTIVE'};
-  
-  const elBase = document.getElementById('ab-base-trigger');
-  if (elBase) elBase.value = comp.base;
-  
-  const elPhase = document.getElementById('ab-trigger-phase');
-  if (elPhase) elPhase.value = comp.phase;
-  
-  const elRole = document.getElementById('ab-trigger-role');
-  if (elRole) elRole.value = comp.role;
-  
-  if (typeof window.updateTriggerComposite === 'function') window.updateTriggerComposite();
-  
-  StudioState.additionalTriggers = ab.additionalTriggers || [];
-  if (typeof window.renderAdditionalTriggers === 'function') window.renderAdditionalTriggers();
-  
-  const elLimit = document.getElementById('ab-trigger-limit');
-  if (elLimit) elLimit.value = ab.triggerLimit || 'UNLIMITED';
-  
-  document.querySelectorAll('.ab-flag-chk').forEach(cb => {
-      cb.checked = ab.passiveFlags ? ab.passiveFlags.includes(cb.value) : false;
-  });
-  if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
-  
-  const cost = ab.cost || {};
-  const elTribeAmt = document.getElementById('ab-cost-tribe-amt');
-  if (elTribeAmt) elTribeAmt.value = cost.tribeAmount || 0;
-  
-  const elTent = document.getElementById('ab-cost-tent');
-  if (elTent) elTent.value = cost.carnie || cost.tent || 0;
-  
-  const elPow = document.getElementById('ab-cost-power');
-  if (elPow) elPow.value = cost.power || 0;
-  
-  const elReady = document.getElementById('ab-cost-readiness');
-  if (elReady) {
-      if (cost.readinessCost) elReady.value = cost.readinessCost;
-      else if (cost.exhausts) elReady.value = 'EXHAUSTS';
-      else elReady.value = 'NONE';
-  }
-  
-  const elEscalates = document.getElementById('ab-cost-escalates');
-  if (elEscalates) elEscalates.checked = !!cost.escalates;
-  
-  const elReuse = document.getElementById('ab-cost-reuse-exempt');
-  if (elReuse) elReuse.checked = !!cost.reuseIgnoresReadiness;
-  
-  const elFree = document.getElementById('ab-cost-free-action');
-  if (elFree) elFree.checked = !!cost.freeAction;
+    if (!window.CreatorController) {
+        window.location.hash = id;
+        const headingEl = document.getElementById('form-heading');
+        if (headingEl) headingEl.innerText = `⚡ Edit: ${ab.name}`;
+    }
 
-  const elScope = document.getElementById('ab-trigger-scope');
-  if (elScope) elScope.value = ab.triggerScope || 'PERSONAL';
+    const elName = document.getElementById('ab-name');
+    if (elName) elName.value = ab.name;
 
-  const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
-  if (topbar) topbar.showButtons(true);
+    const elKeyword = document.getElementById('ab-is-keyword');
+    if (elKeyword) elKeyword.checked = !!ab.isKeyword;
 
-  const srcAct = ab.activation || ab.targeting || {};
-  const elActMethod = document.getElementById('ab-act-method');
-  if (elActMethod) elActMethod.value = srcAct.method || 'NONE';
+    const elDesc = document.getElementById('ab-description');
+    if (elDesc) elDesc.value = ab.description || '';
 
-  const oldTargeting = srcAct.quickTargeting || {};
-  StudioState.activationQuickTargeting = {
-      zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
-      alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment : 
-                  (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
-      entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType : 
-                  (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [oldTargeting.entityType || 'UNIT']),
-      ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines : 
-                          (oldTargeting.line === 'ANY' || false)
-  };
+    const elDeveloperNotes = document.getElementById('ab-developer-notes');
+    if (elDeveloperNotes) elDeveloperNotes.value = ab.developerNotes || '';
 
-  if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
-  else StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
-  
-  StudioState.showAdvancedActivation = StudioState.activationRoot.children && StudioState.activationRoot.children.length > 0;
+    const comp = window.parseTriggerToComposite ? window.parseTriggerToComposite(ab.trigger) : { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
 
-  const migrateConditions = (node) => {
-    if (!node) return;
-    if (node.type === 'condition' && node.attribute === 'hasTrait') node.attribute = 'hasAbility';
-    if (node.children) node.children.forEach(migrateConditions);
-  };
-  migrateConditions(StudioState.activationRoot);
-  
-  const srcEffScope = ab.effectScope || {};
-  
-  if (ab.effects && ab.effects.length > 0) {
-    StudioState.effectGroups = JSON.parse(JSON.stringify(ab.effects)).map(e => {
-        if (e.payloads) {
-           e.showAdvanced = e.logicTree && e.logicTree.children && e.logicTree.children.length > 0;
-           migrateConditions(e.logicTree);
-           
-           if (!e.quickTargeting) e.quickTargeting = {};
-           if (!Array.isArray(e.quickTargeting.zones)) e.quickTargeting.zones = ['FIELD'];
-           if (!Array.isArray(e.quickTargeting.alignment)) e.quickTargeting.alignment = ['ENEMY'];
-           if (!Array.isArray(e.quickTargeting.entityType)) e.quickTargeting.entityType = ['UNIT'];
+    const elBase = document.getElementById('ab-base-trigger');
+    if (elBase) elBase.value = comp.base;
 
-           e.payloads = e.payloads.map(p => {
-              if (p.type === 'APPLY_TRAIT' || p.type === 'GRANT_TRAIT_OR_ABILITY') p.type = 'GRANT_ABILITY';
-              if (p.traitId) { p.grantedAbilityId = p.traitId; delete p.traitId; }
-              return p;
-           });
-           return e;
-        }
+    const elPhase = document.getElementById('ab-trigger-phase');
+    if (elPhase) elPhase.value = comp.phase;
 
-        const group = {
-            targetMethod: e.targetMethod || srcEffScope.method || 'SAME_AS_ACTIVATION',
-            targetCount: e.targetCount || srcEffScope.count || 1,
-            quickTargeting: e.quickTargeting || {},
-            logicTree: e.logicTree || srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] },
-            payloads: []
-        };
+    const elRole = document.getElementById('ab-trigger-role');
+    if (elRole) elRole.value = comp.role;
 
-        const effQT = srcEffScope.quickTargeting || {};
-        group.quickTargeting = {
-            zones: Array.isArray(e.quickTargeting?.zones) ? e.quickTargeting.zones : ['FIELD'],
-            alignment: Array.isArray(e.quickTargeting?.alignment) ? e.quickTargeting.alignment : 
-                       (e.quickTargeting?.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [e.quickTargeting?.alignment || srcEffScope.affiliation || e.targetAffiliation || 'ENEMY']),
-            entityType: Array.isArray(e.quickTargeting?.entityType) ? e.quickTargeting.entityType : 
-                        (e.quickTargeting?.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [e.quickTargeting?.entityType || 'UNIT']),
-            ignoreBattlelines: e.quickTargeting?.ignoreBattlelines !== undefined ? e.quickTargeting.ignoreBattlelines : 
-                               (e.quickTargeting?.line === 'ANY' || false)
-        };
-        
-        group.showAdvanced = group.logicTree.children && group.logicTree.children.length > 0;
-        migrateConditions(group.logicTree);
-        
-        if (e.type === 'APPLY_TRAIT' || e.type === 'GRANT_TRAIT_OR_ABILITY') e.type = 'GRANT_ABILITY';
-        
-        group.payloads.push({
-            type: e.type || 'DEAL_DAMAGE',
-            duration: e.duration || 'INSTANT',
-            amount: e.amount,
-            stat: e.stat,
-            grantedAbilityId: e.grantedAbilityId || e.traitId,
-            cardId: e.cardId,
-            script: e.script,
-            zone: e.zone,
-            zoneOwner: e.zoneOwner || 'CASTER',
-            nestedGroup: e.nestedGroup 
-        });
-        
-        return group;
+    if (typeof window.updateTriggerComposite === 'function') window.updateTriggerComposite();
+
+    StudioState.additionalTriggers = ab.additionalTriggers || [];
+    if (typeof window.renderAdditionalTriggers === 'function') window.renderAdditionalTriggers();
+
+    const elLimit = document.getElementById('ab-trigger-limit');
+    if (elLimit) elLimit.value = ab.triggerLimit || 'UNLIMITED';
+
+    document.querySelectorAll('.ab-flag-chk').forEach(cb => {
+        cb.checked = ab.passiveFlags ? ab.passiveFlags.includes(cb.value) : false;
     });
-  } else { StudioState.effectGroups = []; }
-  
-  if (typeof window.renderLogicTrees === 'function') window.renderLogicTrees();
-  if (typeof window.renderEffects === 'function') window.renderEffects();
-  if (typeof window.updateTargetingUI === 'function') window.updateTargetingUI();
-  updateJSONPreview();
-  renderAssociatedCards();
+    if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
+
+    const cost = ab.cost || {};
+    const elTribeAmt = document.getElementById('ab-cost-tribe-amt');
+    if (elTribeAmt) elTribeAmt.value = cost.tribeAmount || 0;
+
+    const elTent = document.getElementById('ab-cost-tent');
+    if (elTent) elTent.value = cost.carnie || cost.tent || 0;
+
+    const elPow = document.getElementById('ab-cost-power');
+    if (elPow) elPow.value = cost.power || 0;
+
+    const elReady = document.getElementById('ab-cost-readiness');
+    if (elReady) {
+        if (cost.readinessCost) elReady.value = cost.readinessCost;
+        else if (cost.exhausts) elReady.value = 'EXHAUSTS';
+        else elReady.value = 'NONE';
+    }
+
+    const elEscalates = document.getElementById('ab-cost-escalates');
+    if (elEscalates) elEscalates.checked = !!cost.escalates;
+
+    const elReuse = document.getElementById('ab-cost-reuse-exempt');
+    if (elReuse) elReuse.checked = !!cost.reuseIgnoresReadiness;
+
+    const elFree = document.getElementById('ab-cost-free-action');
+    if (elFree) elFree.checked = !!cost.freeAction;
+
+    const elScope = document.getElementById('ab-trigger-scope');
+    if (elScope) elScope.value = ab.triggerScope || 'PERSONAL';
+
+    const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
+    if (topbar) topbar.showButtons(true);
+
+    const srcAct = ab.activation || ab.targeting || {};
+    const elActMethod = document.getElementById('ab-act-method');
+    if (elActMethod) elActMethod.value = srcAct.method || 'NONE';
+
+    const oldTargeting = srcAct.quickTargeting || {};
+    StudioState.activationQuickTargeting = {
+        zones: Array.isArray(oldTargeting.zones) ? oldTargeting.zones : ['FIELD'],
+        alignment: Array.isArray(oldTargeting.alignment) ? oldTargeting.alignment :
+            (oldTargeting.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [oldTargeting.alignment || srcAct.affiliation || 'ENEMY']),
+        entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType :
+            (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [oldTargeting.entityType || 'UNIT']),
+        ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines :
+            (oldTargeting.line === 'ANY' || false)
+    };
+
+    if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
+    else StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
+
+    StudioState.showAdvancedActivation = StudioState.activationRoot.children && StudioState.activationRoot.children.length > 0;
+
+    const migrateConditions = (node) => {
+        if (!node) return;
+        if (node.type === 'condition' && node.attribute === 'hasTrait') node.attribute = 'hasAbility';
+        if (node.children) node.children.forEach(migrateConditions);
+    };
+    migrateConditions(StudioState.activationRoot);
+
+    const srcEffScope = ab.effectScope || {};
+
+    if (ab.effects && ab.effects.length > 0) {
+        StudioState.effectGroups = JSON.parse(JSON.stringify(ab.effects)).map(e => {
+            if (e.payloads) {
+                e.showAdvanced = e.logicTree && e.logicTree.children && e.logicTree.children.length > 0;
+                migrateConditions(e.logicTree);
+
+                if (!e.quickTargeting) e.quickTargeting = {};
+                if (!Array.isArray(e.quickTargeting.zones)) e.quickTargeting.zones = ['FIELD'];
+                if (!Array.isArray(e.quickTargeting.alignment)) e.quickTargeting.alignment = ['ENEMY'];
+                if (!Array.isArray(e.quickTargeting.entityType)) e.quickTargeting.entityType = ['UNIT'];
+
+                e.payloads = e.payloads.map(p => {
+                    if (p.type === 'APPLY_TRAIT' || p.type === 'GRANT_TRAIT_OR_ABILITY') p.type = 'GRANT_ABILITY';
+                    if (p.traitId) { p.grantedAbilityId = p.traitId; delete p.traitId; }
+                    return p;
+                });
+                return e;
+            }
+
+            const group = {
+                targetMethod: e.targetMethod || srcEffScope.method || 'SAME_AS_ACTIVATION',
+                targetCount: e.targetCount || srcEffScope.count || 1,
+                quickTargeting: e.quickTargeting || {},
+                logicTree: e.logicTree || srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] },
+                payloads: []
+            };
+
+            const effQT = srcEffScope.quickTargeting || {};
+            group.quickTargeting = {
+                zones: Array.isArray(e.quickTargeting?.zones) ? e.quickTargeting.zones : ['FIELD'],
+                alignment: Array.isArray(e.quickTargeting?.alignment) ? e.quickTargeting.alignment :
+                    (e.quickTargeting?.alignment === 'ANY' ? ['FRIENDLY', 'ENEMY'] : [e.quickTargeting?.alignment || srcEffScope.affiliation || e.targetAffiliation || 'ENEMY']),
+                entityType: Array.isArray(e.quickTargeting?.entityType) ? e.quickTargeting.entityType :
+                    (e.quickTargeting?.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [e.quickTargeting?.entityType || 'UNIT']),
+                ignoreBattlelines: e.quickTargeting?.ignoreBattlelines !== undefined ? e.quickTargeting.ignoreBattlelines :
+                    (e.quickTargeting?.line === 'ANY' || false)
+            };
+
+            group.showAdvanced = group.logicTree.children && group.logicTree.children.length > 0;
+            migrateConditions(group.logicTree);
+
+            if (e.type === 'APPLY_TRAIT' || e.type === 'GRANT_TRAIT_OR_ABILITY') e.type = 'GRANT_ABILITY';
+
+            group.payloads.push({
+                type: e.type || 'DEAL_DAMAGE',
+                duration: e.duration || 'INSTANT',
+                amount: e.amount,
+                stat: e.stat,
+                grantedAbilityId: e.grantedAbilityId || e.traitId,
+                cardId: e.cardId,
+                script: e.script,
+                ...(e.type === 'CUSTOM_SCRIPT' ? { undoSafe: e.undoSafe === true } : {}),
+                zone: e.zone,
+                zoneOwner: e.zoneOwner || 'CASTER',
+                nestedGroup: e.nestedGroup
+            });
+
+            return group;
+        });
+    } else { StudioState.effectGroups = []; }
+
+    if (typeof window.renderLogicTrees === 'function') window.renderLogicTrees();
+    if (typeof window.renderEffects === 'function') window.renderEffects();
+    if (typeof window.updateTargetingUI === 'function') window.updateTargetingUI();
+    updateJSONPreview();
+    renderAssociatedCards();
 }
 
 export function renderAssociatedCards() {
@@ -539,25 +540,25 @@ export function renderAssociatedCards() {
 
     const nameEl = document.getElementById('ab-name');
     const currentName = nameEl ? nameEl.value : '';
-    
+
     const dependentAbilityIds = new Set([StudioState.currentEditingId]);
     const dependentNames = new Set([currentName.toLowerCase()]);
     let addedNew = true;
-    
+
     while (addedNew) {
         addedNew = false;
         StudioState.allAbilities.forEach(ab => {
             if (dependentAbilityIds.has(ab.abilityId)) return;
-            
+
             let isDependent = false;
-            
+
             const desc = (ab.description || '') + ' ' + (ab.displayDescription || '');
             for (const name of dependentNames) {
                 if (name && desc.toLowerCase().includes('@[' + name + ']')) {
                     isDependent = true; break;
                 }
             }
-            
+
             if (!isDependent && ab.effects) {
                 ab.effects.forEach(g => {
                     if (g.payloads) {
@@ -576,7 +577,7 @@ export function renderAssociatedCards() {
                     }
                 });
             }
-            
+
             if (isDependent) {
                 dependentAbilityIds.add(ab.abilityId);
                 if (ab.name) dependentNames.add(ab.name.toLowerCase());
@@ -606,9 +607,9 @@ export function renderAssociatedCards() {
         const json = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
         const matchedTribe = StudioState.customTribesList?.find(t => t.id === c.tribe || t.name === c.tribe);
         const tribeName = matchedTribe ? matchedTribe.name : (c.tribe || 'Generic');
-        
+
         const linkHref = window.CreatorController ? `#${c.id}` : `cards.html#${c.id}`;
-        
+
         return `
         <div oncontextmenu="event.preventDefault(); window.inspectCard('${json}')" title="Right-click to inspect ${c.name}" class="py-1.5 px-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-xs flex justify-between items-center transition-all group cursor-context-menu hover:border-sky-500/50 overflow-hidden">
             <div class="flex items-center gap-2 flex-1 min-w-0 pr-2 pointer-events-none">
@@ -653,14 +654,14 @@ export async function launchTestMatch() {
     if (topbar && topbar.setLoading) topbar.setLoading('test', true);
 
     await launchSandboxMatch(ability, 'ability');
-    
+
     if (topbar && topbar.setLoading) topbar.setLoading('test', false);
 }
 
 export async function initCardAssigner() {
     const panels = document.querySelectorAll('main .glass-panel');
     const usagePanel = panels.length >= 3 ? panels[panels.length - 1] : null;
-    
+
     if (!usagePanel || document.getElementById('assign-card-container')) return;
 
     const container = document.createElement('div');
@@ -676,7 +677,7 @@ export async function initCardAssigner() {
     const customCards = await fetchCustomCards();
     const allCards = [...CARD_CATALOG, ...customCards];
     const datalist = document.getElementById('assign-card-options');
-    
+
     allCards.forEach(c => {
         const opt = document.createElement('option');
         opt.value = (c.name || '').replace(/"/g, '&quot;');
@@ -687,10 +688,10 @@ export async function initCardAssigner() {
     input.addEventListener('change', async (e) => {
         const val = e.target.value.toLowerCase();
         const match = allCards.find(c => (c.name || '').toLowerCase() === val);
-        
+
         let loadId = StudioState.activeAssignerId || window.location.hash.replace('#', '').replace('ability_', '');
         if (window.CreatorController) loadId = StudioState.currentEditingId;
-        
+
         if (!loadId) {
             showToast('Please select or save an ability first.', 'error');
             input.value = '';
@@ -700,25 +701,25 @@ export async function initCardAssigner() {
         if (match) {
             if (!match.abilities) match.abilities = [];
             const hasAb = match.abilities.some(a => (a.abilityId || a.id || a) === loadId);
-            
+
             if (!hasAb) {
                 input.disabled = true;
                 input.value = 'Assigning...';
-                
+
                 const abs = await fetchCustomAbilities();
                 const fullAb = abs.find(a => a.abilityId === loadId);
-                
+
                 if (fullAb) {
                     match.abilities.push({ abilityId: fullAb.abilityId, paramX: null });
                     await saveCardToCatalog(match);
                     showToast(`Ability assigned to ${match.name}!`, 'success');
-                    
+
                     updateGlobalCard(match);
-                    loadAbility(loadId); 
+                    loadAbility(loadId);
                 } else {
                     showToast('Ability not found in database. Save it first.', 'error');
                 }
-                
+
                 input.disabled = false;
                 input.value = '';
                 input.blur();
