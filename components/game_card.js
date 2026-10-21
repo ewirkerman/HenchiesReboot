@@ -9,10 +9,37 @@ import { renderStandard, renderStandardAbilities } from './standard_card.js';
 import { renderJumbo } from './jumbo_card.js';
 import { resolveAssetUrl } from '../src/asset_paths.js';
 
-function getLiveTribeStyle(tribeName) {
-    const globalTribes = (typeof window !== 'undefined') ? ((window.ClientState && window.ClientState.customTribesList) || (window.StudioState && window.StudioState.customTribesList) || (window.CardState && window.CardState.customTribes) || []) : [];
+// --- Global State Helpers (DRY) ---
+const getGlobalList = (...properties) => {
+    if (typeof window === 'undefined') return [];
+    const states = [window.ClientState, window.StudioState, window.CardState];
+    for (const state of states) {
+        if (!state) continue;
+        for (const prop of properties) {
+            if (state[prop] && state[prop].length > 0) return state[prop];
+        }
+    }
+    return [];
+};
 
+// --- Utilities ---
+export const hasEngineFlag = (card, flag) => {
+    if (!card) return false;
+    return !!(
+        card.passiveFlags?.includes(flag) ||
+        card.abilities?.some(a => a.passiveFlags?.includes(flag)) ||
+        card.activeEffects?.some(e => e.type === flag)
+    );
+};
+
+const isValidStat = (val) => val !== undefined && val !== null && val !== '' && val !== 'null' && !isNaN(Number(val));
+
+// --- Game Logic Formatting ---
+function getLiveTribeStyle(tribeName) {
+    const globalTribes = getGlobalList('customTribesList', 'customTribes');
     const searchStr = (tribeName || 'generic').toLowerCase().replace('tribe_', '');
+    const prettyName = tribeName ? tribeName.replace('tribe_', '') : 'Generic';
+    const finalName = prettyName.charAt(0).toUpperCase() + prettyName.slice(1);
 
     const match = globalTribes.find(t =>
         (t.id || '').toLowerCase() === searchStr ||
@@ -20,30 +47,21 @@ function getLiveTribeStyle(tribeName) {
         (t.id || '').toLowerCase() === `tribe_${searchStr}`
     );
 
-    if (match) {
-        return {
-            bg: match.colorBgClass || match.bgClass || 'bg-slate-800',
-            lightBg: match.colorLightBgClass || match.lightBgClass || 'bg-slate-900/90',
-            border: match.colorBorderClass || match.borderClass || 'border-black',
-            text: match.colorTextClass || match.textClass || 'text-slate-300',
-            hexBg: match.colorBgHex || match.hexBg || null,
-            hexLightBg: match.colorLightBgHex || match.hexLightBg || null,
-            hexBorder: match.colorBorderHex || match.hexBorder || null,
-            iconSvg: match.iconSvg || null,
-            name: match.name || tribeName,
-            bgImageUrl: match.bgImageUrl || null,
-            bgImageX: match.bgImageX || 0,
-            bgImageY: match.bgImageY || 0,
-            bgImageScale: match.bgImageScale || 100
-        };
-    }
-
-    const prettyName = tribeName ? tribeName.replace('tribe_', '') : 'Generic';
-    const finalName = prettyName.charAt(0).toUpperCase() + prettyName.slice(1);
-
+    const t = match || {};
     return {
-        bg: 'bg-slate-800', lightBg: 'bg-slate-900/90', border: 'border-black', text: 'text-slate-300',
-        hexBg: null, hexLightBg: null, hexBorder: null, iconSvg: null, name: finalName, bgImageUrl: null, bgImageX: 0, bgImageY: 0, bgImageScale: 100
+        bg: t.colorBgClass || t.bgClass || 'bg-slate-800',
+        lightBg: t.colorLightBgClass || t.lightBgClass || 'bg-slate-900/90',
+        border: t.colorBorderClass || t.borderClass || 'border-black',
+        text: t.colorTextClass || t.textClass || 'text-slate-300',
+        hexBg: t.colorBgHex || t.hexBg || null,
+        hexLightBg: t.colorLightBgHex || t.hexLightBg || null,
+        hexBorder: t.colorBorderHex || t.hexBorder || null,
+        iconSvg: t.iconSvg || null,
+        name: t.name || finalName,
+        bgImageUrl: t.bgImageUrl || null,
+        bgImageX: t.bgImageX || 0,
+        bgImageY: t.bgImageY || 0,
+        bgImageScale: t.bgImageScale || 100
     };
 }
 
@@ -52,28 +70,24 @@ export function formatAbilityCostBadge(cost, cardTribe) {
 
     let badgeParts = [];
     const carnieCost = cost.carnie || cost.tent || 0;
-    for (let i = 0; i < carnieCost; i++) {
-        badgeParts.push('[RESOURCE:tent]');
-    }
-    if (cost.power > 0) {
-        badgeParts.push(`${cost.power}[STAT:power]`);
-    }
+
+    if (carnieCost > 0) badgeParts.push(...Array(carnieCost).fill('[RESOURCE:tent]'));
+    if (cost.power > 0) badgeParts.push(`${cost.power}[STAT:power]`);
+
     if (cost.tribeAmount > 0) {
         const tType = cost.tribeType || cardTribe || 'Generic';
         if (tType && tType !== 'NONE' && tType !== 'Generic') {
             const tribeTokenName = normalizeResourceTokenName(`tribe_${String(tType).replace(/^tribe_/, '').toLowerCase()}`);
             const style = getLiveTribeStyle(tType);
-            for (let i = 0; i < cost.tribeAmount; i++) {
-                badgeParts.push(`[RESOURCE:${tribeTokenName}]`);
-            }
-            if (!style || !style.iconSvg) {
-                const tribeName = style && style.name ? style.name : tType;
+
+            badgeParts.push(...Array(cost.tribeAmount).fill(`[RESOURCE:${tribeTokenName}]`));
+
+            if (!style.iconSvg) {
+                const tribeName = style.name ? style.name : tType;
                 badgeParts.push(`${tribeName.charAt(0).toUpperCase()}`);
             }
         } else {
-            for (let i = 0; i < cost.tribeAmount; i++) {
-                badgeParts.push('[RESOURCE:tribe_generic]');
-            }
+            badgeParts.push(...Array(cost.tribeAmount).fill('[RESOURCE:tribe_generic]'));
         }
     }
 
@@ -87,18 +101,25 @@ export function formatAbilityCostBadge(cost, cardTribe) {
     const badgeHtml = renderResourceTextTokens(badgeText, {
         colorClass: 'text-purple-400',
         tribeStyle: getLiveTribeStyle(cost.tribeType || cardTribe || 'Generic'),
-        iconSizeClass: 'w-[1.35em] h-[1.35em]'
+        iconSizeClass: ''
     });
-    return `<span class="inline-flex items-center gap-0.5 text-[14px] leading-none text-amber-300 font-bold ml-0.5 mr-0.5 tracking-tighter whitespace-nowrap opacity-90">${badgeHtml}</span>`;
+    return `<span class="inline-flex items-center gap-0.5 opacity-90">${badgeHtml}</span>`;
 }
 
-export const hasEngineFlag = (card, flag) => {
-    if (!card) return false;
-    if (card.passiveFlags && card.passiveFlags.includes(flag)) return true;
-    if (card.abilities && card.abilities.some(a => a.passiveFlags && a.passiveFlags.includes(flag))) return true;
-    if (card.activeEffects && card.activeEffects.some(e => e.type === flag)) return true;
-    return false;
-};
+function getPrefixColor(prefix, type) {
+    if (!prefix) return '';
+    const lower = prefix.toLowerCase();
+
+    if (type === 'stat') {
+        if (/(?:gain|heal|recover|harvest|\+)/.test(lower)) return 'text-emerald-400';
+        if (/(?:lose|deal|take|pay|\-)/.test(lower)) return 'text-red-400';
+    } else if (type === 'battleline') {
+        if (/(?:move|return|draw)/.test(lower)) return 'text-sky-400';
+        if (/(?:discard|banish|trash)/.test(lower)) return 'text-red-400';
+        if (/(?:shuffle)/.test(lower)) return 'text-fuchsia-400';
+    }
+    return 'text-slate-200';
+}
 
 export function formatCardText(text, allAbilitiesRegistry = []) {
     if (!text) return '';
@@ -107,15 +128,9 @@ export function formatCardText(text, allAbilitiesRegistry = []) {
     formatted = formatted.replace(/\*\*([\s\S]*?)\*\*/g, '<span class="font-black text-amber-400">$1</span>');
 
     const statMap = {
-        'strength': getIconSvg('attack'),
-        'health': getIconSvg('health'),
-        'maxhealth': getIconSvg('health'),
-        'power': getIconSvg('power'),
-        'armor': getIconSvg('armor'),
-        'acts': getIconSvg('fast'),
-        'carnie': getIconSvg('tent'),
-        'tent': getIconSvg('tent'),
-        'readiness': getIconSvg('hourglass-full')
+        'strength': getIconSvg('attack'), 'health': getIconSvg('health'), 'maxhealth': getIconSvg('health'),
+        'power': getIconSvg('power'), 'armor': getIconSvg('armor'), 'acts': getIconSvg('fast'),
+        'carnie': getIconSvg('tent'), 'tent': getIconSvg('tent'), 'readiness': getIconSvg('hourglass-full')
     };
 
     formatted = renderResourceTextTokens(formatted, { colorClass: 'text-purple-400' });
@@ -123,18 +138,8 @@ export function formatCardText(text, allAbilitiesRegistry = []) {
     formatted = formatted.replace(/((?:(?:gain|lose|heal|deal|take|pay|recover|harvest)\s*)?[+-]?\s*\d*\s*)\[\[?(?:STAT|RESOURCE|RESOURCES):([a-zA-Z]+)\]\]?/gi, (match, prefix, p1) => {
         const key = p1.toLowerCase();
         const svg = statMap[key];
-
-        let tokenColor = (key === 'carnie' || key === 'tent') ? 'text-purple-400' : 'text-amber-300';
-        let prefixColor = 'text-slate-200';
-
-        const lowerPrefix = prefix.toLowerCase();
-        if (lowerPrefix.includes('+') || lowerPrefix.includes('gain') || lowerPrefix.includes('heal') || lowerPrefix.includes('recover') || lowerPrefix.includes('harvest')) {
-            prefixColor = 'text-emerald-400';
-        } else if (lowerPrefix.includes('-') || lowerPrefix.includes('lose') || lowerPrefix.includes('deal') || lowerPrefix.includes('take') || lowerPrefix.includes('pay')) {
-            prefixColor = 'text-red-400';
-        }
-
-        let prefixHtml = prefix ? `<span class="${prefixColor} font-bold drop-shadow-sm">${prefix}</span>` : '';
+        const tokenColor = (key === 'carnie' || key === 'tent') ? 'text-purple-400' : 'text-amber-300';
+        const prefixHtml = prefix ? `<span class="${getPrefixColor(prefix, 'stat')} font-bold drop-shadow-sm">${prefix}</span>` : '';
 
         if (svg) {
             return `<span class="whitespace-nowrap">${prefixHtml}<span class="inline-block w-[1.1em] h-[1.1em] align-middle -translate-y-[0.1em] ml-0.5 ${tokenColor} drop-shadow-md">${svg}</span></span>`;
@@ -143,20 +148,8 @@ export function formatCardText(text, allAbilitiesRegistry = []) {
     });
 
     formatted = formatted.replace(/((?:(?:move|return|shuffle|draw|discard|banish|trash)\s*)?(?:to|from|in|into)?\s*)\[BATTLELINE:([a-zA-Z_]+)\]/gi, (match, prefix, p1) => {
-        const line = p1.toLowerCase();
-        const svg = getLineIconSvg(line);
-
-        let prefixColor = 'text-slate-200';
-        const lowerPrefix = prefix.toLowerCase();
-        if (lowerPrefix.includes('move') || lowerPrefix.includes('return') || lowerPrefix.includes('draw')) {
-            prefixColor = 'text-sky-400';
-        } else if (lowerPrefix.includes('discard') || lowerPrefix.includes('banish') || lowerPrefix.includes('trash')) {
-            prefixColor = 'text-red-400';
-        } else if (lowerPrefix.includes('shuffle')) {
-            prefixColor = 'text-fuchsia-400';
-        }
-
-        let prefixHtml = prefix ? `<span class="${prefixColor} font-bold drop-shadow-sm">${prefix}</span>` : '';
+        const svg = getLineIconSvg(p1.toLowerCase());
+        const prefixHtml = prefix ? `<span class="${getPrefixColor(prefix, 'battleline')} font-bold drop-shadow-sm">${prefix}</span>` : '';
 
         if (svg) {
             return `<span class="whitespace-nowrap">${prefixHtml}<span class="inline-block w-[1.1em] h-[1.1em] align-middle -translate-y-[0.1em] ml-0.5 text-sky-300 drop-shadow-md">${svg}</span></span>`;
@@ -168,9 +161,7 @@ export function formatCardText(text, allAbilitiesRegistry = []) {
         let displayName = p1;
         if (p1.startsWith('ability_')) {
             const found = allAbilitiesRegistry.find(a => a.abilityId === p1);
-            if (found && found.name) {
-                displayName = found.name;
-            }
+            if (found && found.name) displayName = found.name;
         }
         return `<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary: ${displayName}">${displayName}</span>`;
     });
@@ -178,6 +169,7 @@ export function formatCardText(text, allAbilitiesRegistry = []) {
     return formatted;
 }
 
+// --- Window Cache Init ---
 if (typeof window !== 'undefined') {
     window.__GAME_CARD_CACHE = window.__GAME_CARD_CACHE || new Map();
     window.inspectFromCache = (cacheId) => {
@@ -195,152 +187,141 @@ export function renderCardHTML(card, options = {}) {
         window.__GAME_CARD_CACHE.set(cacheId, card);
     }
 
-    const instanceId = card.instanceId || card.id;
-    let attrs = `cache-id="${cacheId}" data-instance-id="${instanceId}"`;
+    let attrs = [`cache-id="${cacheId}"`, `data-instance-id="${card.instanceId || card.id}"`];
 
-    if (options.size === 'jumbo') attrs += ` size="jumbo"`;
-    else if (options.isMicro) attrs += ` size="micro"`;
-    else if (options.isNano) attrs += ` size="nano"`;
-    if (options.isHand) attrs += ` is-hand="true"`;
-    if (options.isSelected) attrs += ` is-selected="true"`;
-    if (options.isTargetable) attrs += ` is-targetable="true"`;
-    if (options.isCasting) attrs += ` is-casting="true"`;
-    if (options.isTargetingMode) attrs += ` is-targeting-mode="true"`;
-    if (options.isForceHover) attrs += ` is-force-hover="true"`;
-    if (options.onMouseLeave) attrs += ` onmouseleave="${options.onMouseLeave.replace(/"/g, '&quot;')}"`;
-    if (options.actionState) attrs += ` action-state="${options.actionState}"`;
-    if (options.readiness !== undefined && options.readiness !== null) attrs += ` readiness="${options.readiness}"`;
-    if (options.onClick) attrs += ` on-click="${options.onClick.replace(/"/g, '&quot;')}"`;
+    const toggleAttr = (condition, attrName, value = "true") => {
+        if (condition) attrs.push(`${attrName}="${value}"`);
+    };
+
+    toggleAttr(options.size === 'jumbo', 'size', 'jumbo');
+    toggleAttr(options.isMicro, 'size', 'micro');
+    toggleAttr(options.isNano, 'size', 'nano');
+    toggleAttr(options.isHand, 'is-hand');
+    toggleAttr(options.isSelected, 'is-selected');
+    toggleAttr(options.isTargetable, 'is-targetable');
+    toggleAttr(options.isCasting, 'is-casting');
+    toggleAttr(options.isTargetingMode, 'is-targeting-mode');
+    toggleAttr(options.isForceHover, 'is-force-hover');
+    toggleAttr(options.onMouseLeave, 'onmouseleave', options.onMouseLeave?.replace(/"/g, '&quot;'));
+    toggleAttr(options.actionState, 'action-state', options.actionState);
+    toggleAttr(options.readiness !== undefined && options.readiness !== null, 'readiness', options.readiness);
+    toggleAttr(options.onClick, 'on-click', options.onClick?.replace(/"/g, '&quot;'));
+    toggleAttr(options.abilityUses, 'ability-uses', encodeURIComponent(JSON.stringify(options.abilityUses)));
 
     let cleanInspect = options.onInspect;
     if (cleanInspect && cleanInspect.includes('window.inspectCard(')) {
         cleanInspect = `window.inspectFromCache('${cacheId}')`;
     }
-    if (cleanInspect) attrs += ` on-inspect="${cleanInspect.replace(/"/g, '&quot;')}"`;
+    toggleAttr(cleanInspect, 'on-inspect', cleanInspect?.replace(/"/g, '&quot;'));
 
-    if (options.abilityUses) attrs += ` ability-uses="${encodeURIComponent(JSON.stringify(options.abilityUses))}"`;
+    return `<game-card ${attrs.join(' ')}></game-card>`;
+}
 
-    return `<game-card ${attrs}></game-card>`;
+// --- Ability Logic ---
+function getActionBlockStatus(card, blockFlag) {
+    if (!hasEngineFlag(card, blockFlag)) return null;
+    if (card.passiveFlags?.includes(blockFlag) || card.abilities?.some(a => a.passiveFlags?.includes(blockFlag))) return 'permanent';
+    const effect = card.activeEffects?.find(e => e.type === blockFlag);
+    if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
+    return 'temporary';
+}
+
+function checkAbilityUsable(card, ab, options, isAttack) {
+    if (options.isHand || card.readiness === undefined) return { isUsable: true, showHourglass: false };
+
+    let isUsable = true;
+    let showHourglass = false;
+
+    const uses = (options.abilityUses || {})[`${card.instanceId}_${ab.abilityId}`] || 0;
+    if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
+    if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
+
+    const blockStatus = getActionBlockStatus(card, isAttack ? 'BLOCK_ATTACK' : 'BLOCK_ACT');
+    if (blockStatus) {
+        isUsable = false;
+        if (blockStatus === 'temporary') showHourglass = true;
+    }
+
+    if (isUsable) {
+        const cost = ab.cost || {};
+        if (!cost.freeAction && !isAttack && (!card.acts || card.acts < 1)) {
+            isUsable = false;
+            showHourglass = true;
+        }
+    }
+    return { isUsable, showHourglass };
 }
 
 export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
     let displayAbilities = card.abilities ? [...card.abilities] : [];
     const isUnit = card.type === 'unit' || card.type === 'avatar';
-    const isAvatar = card.type === 'avatar';
-    const defLine = card.defaultLine || 'mid';
 
-    let globalCards = (typeof window !== 'undefined') ? ((window.ClientState && (window.ClientState.allCards || window.ClientState.cards)) || (window.StudioState && (window.StudioState.allCards || window.StudioState.cards)) || (window.CardState && (window.CardState.allCards || window.CardState.cards)) || []) : [];
-    const globalTribes = (typeof window !== 'undefined') ? ((window.ClientState && window.ClientState.customTribesList) || (window.StudioState && window.StudioState.customTribesList) || (window.CardState && window.CardState.customTribes) || []) : [];
+    let globalCards = getGlobalList('allCards', 'cards');
+    const globalTribes = getGlobalList('customTribesList', 'customTribes');
 
-    if ((!globalCards || globalCards.length === 0) && typeof window !== 'undefined' && window.__GAME_CARD_CACHE) {
+    if (globalCards.length === 0 && typeof window !== 'undefined' && window.__GAME_CARD_CACHE) {
         globalCards = Array.from(window.__GAME_CARD_CACHE.values());
     }
 
-    if (isUnit && !isAvatar && defLine !== 'mid') {
-        const lineAb = getSystemLineAbility(defLine);
-        if (lineAb) {
-            displayAbilities.push({ ...lineAb, isKeyword: true });
-        }
+    if (isUnit && card.type !== 'avatar' && (card.defaultLine || 'mid') !== 'mid') {
+        const lineAb = getSystemLineAbility(card.defaultLine || 'mid');
+        if (lineAb) displayAbilities.push({ ...lineAb, isKeyword: true });
     }
 
     const data = { evergreen: [], bespoke: [], active: [] };
     if (displayAbilities.length === 0) return data;
 
     displayAbilities.forEach(a => {
-        const ab = allAbilitiesRegistry.length > 0 ? (allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || a) : a;
-        const isKeyword = ab.isKeyword || (ab.trigger === 'UNTRIGGERABLE' && (!ab.effects || ab.effects.length === 0 || ab.passiveFlags?.length > 0));
+        const regMatch = allAbilitiesRegistry.find(reg => reg.abilityId === a.abilityId) || {};
+        const ab = { ...regMatch, ...a };
+
+        const isKeyword = ab.isKeyword || (ab.trigger === 'UNTRIGGERABLE' && (!ab.effects?.length || ab.passiveFlags?.length > 0));
 
         let rawDesc = ab.displayDescription || ab.description || '';
         if (!rawDesc) {
             try { rawDesc = generateAbilityDescription(ab, allAbilitiesRegistry, globalCards, globalTribes); } catch (e) { console.error(e); }
         }
 
+        // Ensure the description starts with a capital letter natively (ignoring HTML tags/tokens)
+        if (rawDesc) {
+            rawDesc = rawDesc.replace(/^((?:<[^>]+>|\[[^\]]+\]|@\[[^\]]+\]|[^a-zA-Z])*)([a-zA-Z])/, (m, prefix, letter) => prefix + letter.toUpperCase());
+        }
+
         const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
 
         if (isKeyword) {
-            data.evergreen.push({
-                name: ab.name || 'System Keyword',
-                costBadge: costBadge,
-                rawDesc: rawDesc || 'System Keyword'
-            });
+            data.evergreen.push({ name: ab.name || 'System Keyword', costBadge, rawDesc: rawDesc || 'System Keyword' });
         } else if (ab.trigger === 'MANUAL') {
-            const abilityKey = `${card.instanceId}_${ab.abilityId}`;
-            const uses = (options.abilityUses || {})[abilityKey] || 0;
-            let isUsable = true;
-            let showHourglass = false;
-
-            if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
-            if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
-
-            const isAttack = ab.effects && ab.effects.some(g => g.payloads && g.payloads.some(p => p.type === 'ATTACK'));
-
-            if (!options.isHand && card.readiness !== undefined) {
-                const checkBlock = (flag) => {
-                    if (!hasEngineFlag(card, flag)) return null;
-                    if (card.passiveFlags?.includes(flag)) return 'permanent';
-                    if (card.abilities?.some(a => a.passiveFlags?.includes(flag))) return 'permanent';
-                    const effect = card.activeEffects?.find(e => e.type === flag);
-                    if (effect && ['INDEFINITE', 'PERMANENT', 'WHILE_ATTACHED', 'INSTANT'].includes(effect.duration)) return 'permanent';
-                    return 'temporary';
-                };
-
-                const actBlock = checkBlock('BLOCK_ACT');
-                const attackBlock = checkBlock('BLOCK_ATTACK');
-
-                if (isAttack && attackBlock) {
-                    isUsable = false;
-                    if (attackBlock === 'temporary') showHourglass = true;
-                }
-                if (!isAttack && actBlock) {
-                    isUsable = false;
-                    if (actBlock === 'temporary') showHourglass = true;
-                }
-
-                if (isUsable) {
-                    const cost = ab.cost || {};
-                    if (!cost.freeAction && !isAttack && (card.acts === undefined || card.acts < 1)) {
-                        isUsable = false;
-                        showHourglass = true;
-                    }
-                }
-            }
-
-            if (options.isHand || card.readiness === undefined) {
-                isUsable = true;
-                showHourglass = false;
-            }
+            const isAttack = ab.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
+            const { isUsable, showHourglass } = checkAbilityUsable(card, ab, options, isAttack);
 
             data.active.push({
-                name: ab.name || 'Action',
-                costBadge: costBadge,
-                rawDesc: rawDesc,
+                name: ab.name || 'Action', costBadge, rawDesc,
                 formattedDesc: formatCardText(rawDesc, allAbilitiesRegistry),
-                isUsable,
-                showHourglass,
-                isAttack
+                isUsable, showHourglass, isAttack
             });
         } else {
-            let desc = rawDesc;
-            if (!rawDesc && ab.name) rawDesc = `**${ab.name}**`;
-
+            let desc = rawDesc || (ab.name ? `**${ab.name}**` : '');
             const isSpellPlay = card.type === 'spell' && ['PLAY', 'ON_BE_PLAYED', 'ON_PLAYED'].includes(ab.trigger);
-            const event = getTriggerWord(ab.trigger);
+            let event = getTriggerWord(ab.trigger);
+            if (event && ab.triggerScope === 'GLOBAL') {
+                if (event.toUpperCase().startsWith('BLOCK ')) {
+                    event = event.substring(0, 6) + 'ANY ' + event.substring(6);
+                } else {
+                    event = `ANY ${event}`;
+                }
+            }
 
             if (isSpellPlay) {
                 desc = costBadge ? `${costBadge} ${desc}` : desc;
             } else {
-                const badgeStr = costBadge ? `${costBadge} ` : '';
-                const eventStr = event ? `<span class="font-black text-amber-400 drop-shadow-sm">${event}:</span>` : '';
-                desc = `${eventStr}${badgeStr}${desc}`;
+                desc = `${event ? `<span class="event-trigger">${event}:</span>` : ''}${costBadge ? `${costBadge} ` : ''}${desc}`;
             }
 
             data.bespoke.push({
-                name: ab.name || 'Ability',
-                costBadge: costBadge,
-                rawDesc: rawDesc,
+                name: ab.name || 'Ability', costBadge, rawDesc,
                 formattedDesc: formatCardText(desc, allAbilitiesRegistry),
-                event: event,
-                isSpellPlay: isSpellPlay
+                event, isSpellPlay
             });
         }
     });
@@ -348,6 +329,54 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
     return data;
 }
 
+// --- Web Component Helpers ---
+function calculateNetStats(activeEffects) {
+    let net = { strength: 0, health: 0, power: 0, acts: 0, hasPositive: false, hasNegative: false };
+    if (!activeEffects || activeEffects.length === 0) return net;
+
+    activeEffects.forEach(item => {
+        if (item.duration !== 'TEMPORARY' && item.duration !== 'BRIEF') return;
+
+        if (item.type === 'STAT_MODIFIER' || item.type === 'MODIFY_STAT' || item.type === 'SET_STAT') {
+            const amt = item.delta !== undefined ? Number(item.delta) :
+                (item.type === 'SET_STAT' ? (Number(item.amount) === 0 ? -1 : 1) : (Number(item.amount) || 0));
+            const statKey = item.stat === 'maxhealth' ? 'health' : item.stat;
+            if (net.hasOwnProperty(statKey)) net[statKey] += amt;
+            net.hasPositive = true;
+        } else {
+            net.hasPositive = true;
+        }
+    });
+
+    const netTotal = net.strength + net.health + net.power + net.acts;
+    if (netTotal < 0) net.hasNegative = true;
+    else if (netTotal > 0) net.hasPositive = true;
+
+    return net;
+}
+
+function determineStateClasses(options, isEntityTemporary, hasNegativeEffect) {
+    if (options.isCasting) return 'ring-4 ring-fuchsia-500 glow-fuchsia scale-105 z-30';
+
+    const isSm = options.isNano || options.isMicro;
+    if (options.isTargetable) return `ring-${isSm ? '2' : '4'} ring-cyan-400 glow-cyan${isSm ? '-sm' : ''} z-20 cursor-pointer`;
+    if (options.isSelected) return `ring-${isSm ? '2' : '4'} ring-yellow-400 scale-105 z-20`;
+
+    if (options.isForceHover) {
+        if (options.actionState === 'single') return 'ring-2 ring-blue-300 glow-blue z-10 cursor-pointer scale-105';
+        if (options.actionState === 'multiple') return 'ring-2 ring-yellow-300 glow-yellow z-10 cursor-pointer scale-105';
+        return 'scale-105 z-10 cursor-pointer';
+    }
+
+    if (options.actionState === 'single') return 'ring-2 ring-blue-400 glow-blue z-10 cursor-pointer hover:ring-blue-300 hover:scale-105';
+    if (options.actionState === 'multiple') return 'ring-2 ring-yellow-400 glow-yellow z-10 cursor-pointer hover:ring-yellow-300 hover:scale-105';
+
+    if (isEntityTemporary) return hasNegativeEffect ? 'ring-2 ring-red-500 glow-red' : 'ring-2 ring-green-400 glow-green';
+
+    return '';
+}
+
+// --- Component Definition ---
 export class GameCard extends HTMLElement {
     constructor() {
         super();
@@ -371,23 +400,17 @@ export class GameCard extends HTMLElement {
 
         if (this.getAttribute('size') !== 'jumbo') {
             const cacheId = this.getAttribute('cache-id');
-            if (HoverManager.currentCardId === cacheId) {
-                HoverManager.forceHide();
-            }
+            if (HoverManager.currentCardId === cacheId) HoverManager.forceHide();
         }
     }
 
-    _onMouseEnter(e) {
+    _onMouseEnter() {
         const cacheId = this.getAttribute('cache-id');
-        const innerElement = this.firstElementChild;
-        if (cacheId && innerElement) {
-            HoverManager.onMouseEnter(innerElement, cacheId);
-        }
+        if (cacheId && this.firstElementChild) HoverManager.onMouseEnter(this.firstElementChild, cacheId);
     }
 
-    _onMouseLeave(e) {
-        const cacheId = this.getAttribute('cache-id');
-        HoverManager.onMouseLeave(cacheId);
+    _onMouseLeave() {
+        HoverManager.onMouseLeave(this.getAttribute('cache-id'));
     }
 
     static get observedAttributes() {
@@ -395,14 +418,12 @@ export class GameCard extends HTMLElement {
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
-        if (oldValue !== newValue && this.isConnected) {
-            this.render();
-        }
+        if (oldValue !== newValue && this.isConnected) this.render();
     }
 
     _parseCardData() {
         const cacheId = this.getAttribute('cache-id');
-        if (cacheId && typeof window !== 'undefined' && window.__GAME_CARD_CACHE && window.__GAME_CARD_CACHE.has(cacheId)) {
+        if (cacheId && typeof window !== 'undefined' && window.__GAME_CARD_CACHE?.has(cacheId)) {
             const cachedCard = window.__GAME_CARD_CACHE.get(cacheId);
             this.setAttribute('data-instance-id', cachedCard.instanceId || cachedCard.id);
             return cachedCard;
@@ -418,172 +439,76 @@ export class GameCard extends HTMLElement {
     _parseOptions() {
         const size = this.getAttribute('size');
         const readinessAttr = this.getAttribute('readiness');
-        const abilityUsesStr = this.getAttribute('ability-uses');
+        const boolAttr = (attr) => this.getAttribute(attr) === 'true';
 
         return {
             isJumbo: size === 'jumbo',
             isMicro: size === 'micro',
             isNano: size === 'nano',
-            isHand: this.getAttribute('is-hand') === 'true',
-            isSelected: this.getAttribute('is-selected') === 'true',
-            isTargetable: this.getAttribute('is-targetable') === 'true',
-            isCasting: this.getAttribute('is-casting') === 'true',
-            isTargetingMode: this.getAttribute('is-targeting-mode') === 'true',
-            isForceHover: this.getAttribute('is-force-hover') === 'true',
+            isHand: boolAttr('is-hand'),
+            isSelected: boolAttr('is-selected'),
+            isTargetable: boolAttr('is-targetable'),
+            isCasting: boolAttr('is-casting'),
+            isTargetingMode: boolAttr('is-targeting-mode'),
+            isForceHover: boolAttr('is-force-hover'),
             actionState: this.getAttribute('action-state'),
             readiness: readinessAttr !== null && readinessAttr !== 'null' && readinessAttr !== 'undefined' ? parseInt(readinessAttr) : null,
             onClick: this.getAttribute('on-click') || '',
             onInspect: this.getAttribute('on-inspect') || '',
-            abilityUses: abilityUsesStr ? JSON.parse(decodeURIComponent(abilityUsesStr)) : {}
+            abilityUses: this.getAttribute('ability-uses') ? JSON.parse(decodeURIComponent(this.getAttribute('ability-uses'))) : {}
         };
     }
 
     _computeStyleContext(card) {
         const style = getLiveTribeStyle(card.tribe);
-        const bgTransX = style.bgImageX ?? 0;
-        const bgTransY = style.bgImageY ?? 0;
-        const bgScale = style.bgImageScale ?? 100;
-
         return {
             style,
             hexBg: style.hexBg ? `background-color: ${style.hexBg};` : '',
             hexLightBg: style.hexLightBg ? `background-color: ${style.hexLightBg};` : '',
             hexBorder: style.hexBorder ? `border-color: ${style.hexBorder};` : '',
             bgArtUrl: resolveAssetUrl(style.bgImageUrl),
-            bgArtStyle: `object-position: center; transform: translate(${bgTransX}px, ${bgTransY}px) scale(${bgScale / 100});`,
+            bgArtStyle: `object-position: center; transform: translate(${style.bgImageX ?? 0}px, ${style.bgImageY ?? 0}px) scale(${(style.bgImageScale ?? 100) / 100});`,
             cardArtUrl: resolveAssetUrl(card.artUrl)
         };
     }
 
-    _computeCardState(card, options) {
-        const isUnit = card.type === 'unit' || card.type === 'avatar';
+    _computeCardState(card) {
         const isAvatar = card.type === 'avatar';
-        const isToken = !!card.isToken;
-        const activeLine = card.line || card.defaultLine || (isAvatar ? 'avatar' : 'mid');
-        const isTempLine = card.line && card.defaultLine && card.line !== card.defaultLine;
-        const hasReadiness = isUnit || card.type === 'equipment' || card.type === 'artifact';
-
-        return { isUnit, isAvatar, isToken, activeLine, isTempLine, hasReadiness };
+        return {
+            isUnit: card.type === 'unit' || isAvatar,
+            isAvatar,
+            isToken: !!card.isToken,
+            activeLine: card.line || card.defaultLine || (isAvatar ? 'avatar' : 'mid'),
+            isTempLine: card.line && card.defaultLine && card.line !== card.defaultLine,
+            hasReadiness: ['unit', 'avatar', 'equipment', 'artifact'].includes(card.type)
+        };
     }
 
     _computeStatsContext(card, isAvatar, isUnit) {
-        const strVal = card.strength;
-        const hasStrength = isUnit && strVal !== undefined && strVal !== null && strVal !== '' && strVal !== 'null' && !isNaN(Number(strVal));
-
-        const defaultHealth = isAvatar ? 20 : (isUnit ? 1 : null);
-
-        let displayHealth = card.currentHealth;
-        if (displayHealth === undefined || displayHealth === null || displayHealth === '' || displayHealth === 'null') {
-            displayHealth = card.health;
-        }
-
-        if (displayHealth === undefined || displayHealth === '' || displayHealth === 'null') {
-            displayHealth = defaultHealth;
-        }
-
-        const showHealth = isUnit && displayHealth !== null && displayHealth !== undefined && displayHealth !== '' && displayHealth !== 'null' && !isNaN(Number(displayHealth));
+        const hasStrength = isUnit && isValidStat(card.strength);
+        let displayHealth = isValidStat(card.currentHealth) ? card.currentHealth : (isValidStat(card.health) ? card.health : (isAvatar ? 20 : (isUnit ? 1 : null)));
+        const showHealth = isUnit && isValidStat(displayHealth);
         const hasArmor = isUnit && Number(card.armor) > 0;
 
-        return {
-            hasStrength, showHealth, displayHealth, hasArmor,
-            showBottomStats: hasStrength || showHealth || hasArmor
-        };
+        return { hasStrength, showHealth, displayHealth, hasArmor, showBottomStats: hasStrength || showHealth || hasArmor };
     }
 
     _computeVisualClasses(card, options, styleContext, cardState) {
-        const isStatusApplied = (targetCard, flag, statusNames) => {
-            if (targetCard.activeEffects && targetCard.activeEffects.some(e => e.type === flag)) return true;
-            if (targetCard.abilities && targetCard.abilities.some(a => statusNames.includes((a.name || '').toLowerCase()))) return true;
-            return false;
-        };
+        const isStatusApplied = (flag, statusNames) =>
+            card.activeEffects?.some(e => e.type === flag) ||
+            card.abilities?.some(a => statusNames.includes((a.name || '').toLowerCase()));
 
-        const isStunned = isStatusApplied(card, 'BLOCK_ACT', ['stun', 'stunned']);
-        const isDazed = isStatusApplied(card, 'BLOCK_RETALIATE', ['daze', 'dazed']) && !isStunned;
+        const isStunned = isStatusApplied('BLOCK_ACT', ['stun', 'stunned']);
+        const isDazed = isStatusApplied('BLOCK_RETALIATE', ['daze', 'dazed']) && !isStunned;
         const isHidden = hasEngineFlag(card, 'BLOCK_TARGETING');
 
-        const baseStatClass = 'stat-text-base';
-        const buffStatClass = 'stat-text-buff';
-        const debuffStatClass = 'stat-text-debuff';
+        const net = options.isHand ? { strength: 0, health: 0 } : calculateNetStats(card.activeEffects);
+        const isEntityTemporary = card.duration === 'TEMPORARY' || card.duration === 'BRIEF';
 
-        let strengthClass = baseStatClass;
-        let healthClass = baseStatClass;
-        let costClass = baseStatClass;
-        let powerClass = baseStatClass;
-        let armorClass = baseStatClass;
+        const baseCls = 'stat-text-base', buffCls = 'stat-text-buff', debuffCls = 'stat-text-debuff';
+        const getStatClass = (netVal) => netVal > 0 ? buffCls : (netVal < 0 ? debuffCls : baseCls);
 
-        let hasNegativeEffect = false;
-        let hasPositiveEffect = false;
-        let isEntityTemporary = false;
-
-        if (!options.isHand && card.activeEffects && card.activeEffects.length > 0) {
-            let netStrength = 0;
-            let netHealth = 0;
-            let netPower = 0;
-            let netActs = 0;
-
-            card.activeEffects.forEach(item => {
-                if (item.duration === 'TEMPORARY' || item.duration === 'BRIEF') {
-                    if (item.type === 'STAT_MODIFIER' || item.type === 'MODIFY_STAT') {
-                        const amt = item.delta !== undefined ? Number(item.delta) : (Number(item.amount) || 0);
-                        if (item.stat === 'strength') netStrength += amt;
-                        else if (item.stat === 'health' || item.stat === 'maxhealth') netHealth += amt;
-                        else if (item.stat === 'power') netPower += amt;
-                        else if (item.stat === 'acts') netActs += amt;
-                    }
-                    else if (item.type === 'SET_STAT') {
-                        const amt = item.delta !== undefined ? Number(item.delta) : (Number(item.amount) === 0 ? -1 : 1);
-                        if (item.stat === 'strength') netStrength += amt;
-                        else if (item.stat === 'health' || item.stat === 'maxhealth') netHealth += amt;
-                        else if (item.stat === 'power') netPower += amt;
-                        else if (item.stat === 'acts') netActs += amt;
-                    }
-                    else if (item.duration === 'TEMPORARY' || item.duration === 'BRIEF') {
-                        hasPositiveEffect = true;
-                    }
-                }
-            });
-
-            const netTotal = netStrength + netHealth + netPower + netActs;
-            if (netTotal < 0) hasNegativeEffect = true;
-            else if (netTotal > 0) hasPositiveEffect = true;
-
-            if (netStrength > 0) strengthClass = buffStatClass;
-            else if (netStrength < 0) strengthClass = debuffStatClass;
-
-            if (netHealth > 0) healthClass = buffStatClass;
-            else if (netHealth < 0) healthClass = debuffStatClass;
-        }
-
-        isEntityTemporary = card.duration === 'TEMPORARY' || card.duration === 'BRIEF';
-
-        let stateClasses = '';
-        if (options.isCasting) {
-            stateClasses = 'ring-4 ring-fuchsia-500 glow-fuchsia scale-105 z-30';
-        } else if (options.isTargetable) {
-            stateClasses = (options.isNano || options.isMicro) ? 'ring-2 ring-cyan-400 glow-cyan-sm z-20 cursor-pointer' : 'ring-4 ring-cyan-400 glow-cyan z-20 cursor-pointer';
-        } else if (options.isSelected) {
-            stateClasses = (options.isNano || options.isMicro) ? 'ring-2 ring-yellow-400 scale-105 z-20' : 'ring-4 ring-yellow-400 scale-105 z-20';
-        } else if (options.isForceHover && options.actionState === 'single') {
-            stateClasses = 'ring-2 ring-blue-300 glow-blue z-10 cursor-pointer scale-105';
-        } else if (options.isForceHover && options.actionState === 'multiple') {
-            stateClasses = 'ring-2 ring-yellow-300 glow-yellow z-10 cursor-pointer scale-105';
-        } else if (options.isForceHover) {
-            stateClasses = 'scale-105 z-10 cursor-pointer';
-        } else if (options.actionState === 'single') {
-            stateClasses = 'ring-2 ring-blue-400 glow-blue z-10 cursor-pointer hover:ring-blue-300 hover:scale-105';
-        } else if (options.actionState === 'multiple') {
-            stateClasses = 'ring-2 ring-yellow-400 glow-yellow z-10 cursor-pointer hover:ring-yellow-300 hover:scale-105';
-        }
-
-        if (!stateClasses && isEntityTemporary) {
-            if (hasNegativeEffect) {
-                stateClasses = 'ring-2 ring-red-500 glow-red';
-            } else {
-                stateClasses = 'ring-2 ring-green-400 glow-green';
-            }
-        }
-
-        let lineGlowClass = cardState.isTempLine ? '[&>svg]:!text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,1)] z-20' : '';
+        const stateClasses = determineStateClasses(options, isEntityTemporary, net.hasNegative);
 
         let dynamicBorderClass = cardState.isToken ? 'border-2 border-white/50 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : `border-2 ${styleContext.style.border}`;
         let dynamicBorderStyle = cardState.isToken ? '' : styleContext.hexBorder;
@@ -593,113 +518,68 @@ export class GameCard extends HTMLElement {
             dynamicBorderStyle = '';
         }
 
-        const isFieldUnready = !options.isHand && cardState.hasReadiness && options.readiness !== null && options.readiness === 0;
-        const isFieldExhausted = !options.isHand && cardState.hasReadiness && options.readiness !== null && options.readiness < 0;
-        const isFieldOverReady = !options.isHand && cardState.hasReadiness && options.readiness !== null && options.readiness > 1;
-        const fieldDimmingClass = (isFieldUnready || isFieldExhausted || isStunned || isDazed) ? 'saturate-[0.25] opacity-90' : '';
-        const hiddenClass = isHidden && !options.isHand ? 'opacity-60 hover:opacity-100' : '';
-        const separatorClass = cardState.isToken ? 'border-white/40' : 'border-black';
+        const isFieldState = (stateCheck) => !options.isHand && cardState.hasReadiness && options.readiness !== null && stateCheck;
+        const isFieldUnready = isFieldState(options.readiness === 0);
+        const isFieldExhausted = isFieldState(options.readiness < 0);
+        const isFieldOverReady = isFieldState(options.readiness > 1);
 
         return {
             isStunned, isDazed, isFieldUnready, isFieldExhausted, isFieldOverReady,
-            hasNegativeEffect, hasPositiveEffect, isEntityTemporary, lineGlowClass,
-            strengthClass, healthClass, costClass, powerClass, armorClass,
-            stateClasses, dynamicBorderClass, dynamicBorderStyle, fieldDimmingClass, hiddenClass, separatorClass
+            hasNegativeEffect: net.hasNegative, hasPositiveEffect: net.hasPositive, isEntityTemporary,
+            lineGlowClass: cardState.isTempLine ? '[&>svg]:!text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,1)] z-20' : '',
+            strengthClass: getStatClass(net.strength), healthClass: getStatClass(net.health),
+            costClass: baseCls, powerClass: baseCls, armorClass: baseCls,
+            stateClasses, dynamicBorderClass, dynamicBorderStyle,
+            fieldDimmingClass: (isFieldUnready || isFieldExhausted || isStunned || isDazed) ? 'saturate-[0.25] opacity-90' : '',
+            hiddenClass: isHidden && !options.isHand ? 'opacity-60 hover:opacity-100' : '',
+            separatorClass: cardState.isToken ? 'border-white/40' : 'border-black'
         };
     }
 
     _buildOverlayHTML(visuals, options) {
         let overlayContent = '';
-        let bgClass = 'bg-black/30';
-        let glowClass = '';
-        let iconColor = 'text-white';
+        let bgClass = 'bg-black/30', glowClass = '', iconColor = 'text-white';
 
-        if (visuals.isStunned) {
-            overlayContent = SVG_STUNNED;
-        } else if (visuals.isDazed) {
-            overlayContent = SVG_DAZED;
-        } else if (visuals.isFieldExhausted) {
-            overlayContent = getIconSvg('exhausted') || getIconSvg('hourglass-full');
-            bgClass = 'bg-black/50';
-            iconColor = 'text-slate-300';
-        } else if (visuals.isFieldUnready) {
-            overlayContent = getIconSvg('unready') || getIconSvg('hourglass-empty');
-            bgClass = 'bg-black/50';
-            iconColor = 'text-slate-300';
-        } else if (visuals.isFieldOverReady) {
+        if (visuals.isStunned) overlayContent = SVG_STUNNED;
+        else if (visuals.isDazed) overlayContent = SVG_DAZED;
+        else if (visuals.isFieldExhausted) { overlayContent = getIconSvg('exhausted') || getIconSvg('hourglass-full'); bgClass = 'bg-black/50'; iconColor = 'text-slate-300'; }
+        else if (visuals.isFieldUnready) { overlayContent = getIconSvg('unready') || getIconSvg('hourglass-empty'); bgClass = 'bg-black/50'; iconColor = 'text-slate-300'; }
+        else if (visuals.isFieldOverReady) {
             overlayContent = getIconSvg('overready') || getIconSvg('hourglass-full');
-            bgClass = 'bg-emerald-400/20';
-            iconColor = 'text-emerald-400';
-            const glowColor = visuals.hasNegativeEffect ? 'red' : 'green';
-            glowClass = (options.isMicro || options.isNano) ? `overlay-glow-${glowColor}-sm` : `overlay-glow-${glowColor}`;
+            bgClass = 'bg-emerald-400/20'; iconColor = 'text-emerald-400';
+            glowClass = (options.isMicro || options.isNano) ? `overlay-glow-${visuals.hasNegativeEffect ? 'red' : 'green'}-sm` : `overlay-glow-${visuals.hasNegativeEffect ? 'red' : 'green'}`;
         }
 
         if (!overlayContent) return '';
 
-        const isMicroOverlay = options.isMicro || options.isNano;
-
-        let overlayOpacityClass = isMicroOverlay ? 'opacity-80' : 'opacity-90';
-        if (visuals.isStunned || visuals.isDazed) {
-            overlayOpacityClass = isMicroOverlay ? 'opacity-50' : 'opacity-80';
-        }
-
-        const overlayShadowClass = isMicroOverlay
-            ? 'drop-shadow-[0_2px_6px_rgba(0,0,0,1)]'
-            : 'drop-shadow-[0_4px_12px_rgba(0,0,0,1)]';
-
-        let overlayScaleClass = visuals.isDazed ? 'scale-75' : '';
+        const isSm = options.isMicro || options.isNano;
+        const opacityCls = isSm ? (visuals.isStunned || visuals.isDazed ? 'opacity-50' : 'opacity-80') : (visuals.isStunned || visuals.isDazed ? 'opacity-80' : 'opacity-90');
 
         return `<div class="absolute inset-0 z-[40] flex items-center justify-center pointer-events-none ${bgClass} rounded-md">
-            <div class="${overlayScaleClass} ${overlayOpacityClass} ${overlayShadowClass} overlay-svg-container ${glowClass} ${iconColor} [&>svg]:w-full [&>svg]:h-full [&>svg]:m-0 flex items-center justify-center">
+            <div class="${visuals.isDazed ? 'scale-75' : ''} ${opacityCls} ${isSm ? 'drop-shadow-[0_2px_6px_rgba(0,0,0,1)]' : 'drop-shadow-[0_4px_12px_rgba(0,0,0,1)]'} overlay-svg-container ${glowClass} ${iconColor} [&>svg]:w-full [&>svg]:h-full [&>svg]:m-0 flex items-center justify-center">
             ${overlayContent}
             </div>
         </div>`;
     }
 
-    _buildBadges(card, options, cardState) {
-        const inspectButton = options.onInspect ? `
-          <button 
-            onclick="event.stopPropagation(); ${options.onInspect}"
-            class="absolute top-0 right-0 ${(options.isMicro || options.isNano) ? 'w-[18px] h-[20px] text-[8px]' : 'w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] text-[10px] sm:text-xs'} pt-[1px] pr-[2px] sm:pt-[2px] sm:pr-[3px] bg-black/50 hover:bg-black text-white rounded-bl-md border-l border-b border-white/20 transition-colors pointer-events-auto"
-            title="Inspect Card"
-          >
-            🔍
-          </button>
-        ` : '';
-
-        const fastBadge = (card.fast > 0) ? `
-          <div class="absolute -top-1.5 -right-1.5 w-6 h-6 text-[10px] flex items-center justify-center rounded-full bg-yellow-400 text-black font-black border-black shadow-lg pointer-events-auto" title="Fast Charges">
-            <div class="w-3 h-3 mr-0.5">${getIconSvg('fast')}</div>${card.fast}
-          </div>
-        ` : '';
-
-        return { readinessBadge: '', inspectButton, fastBadge, attachmentsBadge: '' };
+    _buildBadges(card, options) {
+        return {
+            readinessBadge: '', attachmentsBadge: '',
+            inspectButton: options.onInspect ? `<button onclick="event.stopPropagation(); ${options.onInspect}" class="absolute top-0 right-0 ${(options.isMicro || options.isNano) ? 'w-[18px] h-[20px] text-[8px]' : 'w-[18px] h-[20px] sm:w-[22px] sm:h-[24px] text-[10px] sm:text-xs'} pt-[1px] pr-[2px] sm:pt-[2px] sm:pr-[3px] bg-black/50 hover:bg-black text-white rounded-bl-md border-l border-b border-white/20 transition-colors pointer-events-auto" title="Inspect Card">🔍</button>` : '',
+            fastBadge: (card.fast > 0) ? `<div class="absolute -top-1.5 -right-1.5 w-6 h-6 text-[10px] flex items-center justify-center rounded-full bg-yellow-400 text-black font-black border-black shadow-lg pointer-events-auto" title="Fast Charges"><div class="w-3 h-3 mr-0.5">${getIconSvg('fast')}</div>${card.fast}</div>` : ''
+        };
     }
 
     _getCardArtStyle(card) {
-        let transX = card.artX ?? 0;
-        let transY = card.artY ?? 0;
-        let scale = card.artScale ?? 100;
-
-        let pctX = (transX / 128) * 100;
-        let pctY = (transY / 179) * 100;
-
-        return `object-position: center; transform: translate(${pctX}%, ${pctY}%) scale(${scale / 100});`;
+        return `object-position: center; transform: translate(${((card.artX ?? 0) / 128) * 100}%, ${((card.artY ?? 0) / 179) * 100}%) scale(${(card.artScale ?? 100) / 100});`;
     }
 
     _getCameraStyle(card, options) {
         if (!card.artUrl) return '';
-
-        let transX = 0, transY = 0, scale = 100;
-        if (options.isNano || options.isMicro) {
-            transX = card.nanoArtX ?? 0;
-            transY = card.nanoArtY ?? 0;
-            scale = card.nanoArtScale ?? 110;
-        }
-
-        if (scale === 100 && transX === 0 && transY === 0) return '';
-
-        return `transform: translate(${transX}px, ${transY}px) scale(${scale / 100});`;
+        const tX = (options.isNano || options.isMicro) ? (card.nanoArtX ?? 0) : 0;
+        const tY = (options.isNano || options.isMicro) ? (card.nanoArtY ?? 0) : 0;
+        const s = (options.isNano || options.isMicro) ? (card.nanoArtScale ?? 110) : 100;
+        return (s === 100 && tX === 0 && tY === 0) ? '' : `transform: translate(${tX}px, ${tY}px) scale(${s / 100});`;
     }
 
     render() {
@@ -708,43 +588,28 @@ export class GameCard extends HTMLElement {
 
         const options = this._parseOptions();
         const styleContext = this._computeStyleContext(card);
-        const cardState = this._computeCardState(card, options);
+        const cardState = this._computeCardState(card);
         const statsContext = this._computeStatsContext(card, cardState.isAvatar, cardState.isUnit);
         const visuals = this._computeVisualClasses(card, options, styleContext, cardState);
         const overlayHTML = this._buildOverlayHTML(visuals, options);
-        const badges = this._buildBadges(card, options, cardState);
+        const badges = this._buildBadges(card, options);
 
         const rightClickAttr = options.onInspect ? `oncontextmenu="event.preventDefault(); event.stopPropagation(); ${options.onInspect}"` : '';
 
         let safeTooltip = '';
         if (typeof window === 'undefined' || !window.__GAME_CARD_CACHE) {
-            let hoverTooltip = card.name || 'Unknown Card';
-            if (card.description) hoverTooltip += `\n"${card.description}"`;
-            hoverTooltip += `\n\n(Right-click or tap 🔍 to inspect fully)`;
-            safeTooltip = hoverTooltip.replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+            safeTooltip = `${card.name || 'Unknown Card'}${card.description ? `\n"${card.description}"` : ''}\n\n(Right-click or tap 🔍 to inspect fully)`.replace(/"/g, '&quot;').replace(/'/g, '&apos;');
         }
 
-        const globalRegistry = (typeof window !== 'undefined') ? ((window.ClientState && window.ClientState.allAbilitiesRegistry) || (window.StudioState && window.StudioState.allAbilitiesRegistry) || (window.CardState && window.CardState.allAbilitiesRegistry) || []) : [];
-
-        const abilitiesData = computeAbilitiesData(card, options, globalRegistry);
-        const abilitiesHTML = renderStandardAbilities(abilitiesData);
-        const artStyle = this._getCardArtStyle(card);
-        const cameraStyle = this._getCameraStyle(card, options);
+        const abilitiesData = computeAbilitiesData(card, options, getGlobalList('allAbilitiesRegistry'));
 
         const ctx = {
             card, ...options, ...styleContext, ...cardState, ...statsContext, ...visuals, ...badges,
-            overlayHTML, rightClickAttr, safeTooltip, abilitiesData, abilitiesHTML, artStyle, cameraStyle
+            overlayHTML, rightClickAttr, safeTooltip, abilitiesData, abilitiesHTML: renderStandardAbilities(abilitiesData),
+            artStyle: this._getCardArtStyle(card), cameraStyle: this._getCameraStyle(card, options)
         };
 
-        if (options.isJumbo) {
-            this.innerHTML = renderJumbo(ctx);
-        } else if (options.isMicro) {
-            this.innerHTML = renderMicro(ctx);
-        } else if (options.isNano) {
-            this.innerHTML = renderNano(ctx);
-        } else {
-            this.innerHTML = renderStandard(ctx);
-        }
+        this.innerHTML = options.isJumbo ? renderJumbo(ctx) : options.isMicro ? renderMicro(ctx) : options.isNano ? renderNano(ctx) : renderStandard(ctx);
     }
 }
 
