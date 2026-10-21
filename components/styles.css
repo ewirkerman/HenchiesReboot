@@ -1,4 +1,3 @@
-/* STREAMING_CHUNK: Universal Centering */
 .stat-box {
 display: flex;
 align-items: center;
@@ -12,7 +11,6 @@ position: relative;
 z-index: 10;
 }
 
-/* STREAMING_CHUNK: Stat Text Outlines (Hearthstone Style) */
 .corner-badge.stat-text-base {
 color: white;
 text-shadow:
@@ -43,7 +41,6 @@ text-shadow:
 0px  2px 3px rgba(0,0,0,0.9);
 }
 
-/* STREAMING_CHUNK: Status Glows & Indicators */
 .glow-cyan { box-shadow: 0 0 20px rgba(34, 211, 238, 0.8); }
 .glow-cyan-sm { box-shadow: 0 0 10px rgba(34, 211, 238, 0.8); }
 .glow-fuchsia { box-shadow: 0 0 25px rgba(217, 70, 239, 0.8); }
@@ -63,15 +60,12 @@ text-shadow:
 .minimal-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
 .minimal-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
 
-/* STREAMING_CHUNK: Card Structure & Wrappers */
 .card-wrapper-std {
 position: relative;
 flex-shrink: 0;
-
 /* CRITICAL FIX: Rigid bounding box to prevent text-based stretching */
 width: 140px;
 aspect-ratio: 5 / 7;
-
 border-radius: 0.75rem;
 cursor: pointer;
 transition: all 0.2s;
@@ -79,6 +73,8 @@ display: flex;
 flex-direction: column;
 user-select: none;
 overflow: hidden;
+container-type: inline-size;
+container-name: cardBase;
 }
 
 @media (min-width: 640px) {
@@ -125,22 +121,28 @@ z-index: 20;
 pointer-events: none;
 }
 
-/* STREAMING_CHUNK: Base Card Art & Layout Defaults */
 .name-badge {
-background-color: rgba(0, 0, 0, 0.2);
+background-color: rgba(0, 0, 0, 0.4); /* Slightly darker to ensure readability over art*/
 backdrop-filter: blur(4px);
 color: white;
 font-weight: 900;
-border-radius: 9999px;
+border-radius: 0.5rem; /* Better shape for 2 lines than a pill */
 text-align: center;
 box-shadow: 0 2px 4px rgba(0,0,0,0.8);
 text-transform: uppercase;
 letter-spacing: 0.025em;
-border: none;
-white-space: nowrap;
-overflow: hidden;
-text-overflow: ellipsis;
+border: 1px solid rgba(255, 255, 255, 0.1);
 max-width: 100%;
+padding: 2px 6px;
+
+/* 2-Line Truncation & Balancing */
+white-space: normal;
+display: -webkit-box;
+-webkit-line-clamp: 2;
+-webkit-box-orient: vertical;
+overflow: hidden;
+text-wrap: balance;
+line-height: 1.1;
 }
 
 .corner-badge {
@@ -157,8 +159,19 @@ border-style: solid;
 box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
+/* Force inline resource icons to scale with the text*/
+.ability-evergreen svg,
+.ability-bespoke svg,
+.ability-active-wrap svg {
+width: 100%;
+height: 100%;
+display: inline-block;
+/* Nudge the icon down slightly so it sits on the baseline rather than floating above it */
+vertical-align: -0.125em;
+}
+
 .ability-evergreen {
-font-family: 'Roboto Condensed', sans-serif;
+font-family: 'Franklin Gothic Condensed', sans-serif;
 font-size: 11px;
 line-height: 1.25;
 font-weight: 900;
@@ -169,17 +182,18 @@ filter: drop-shadow(0 4px 3px rgba(0,0,0,0.07));
 }
 
 .ability-bespoke {
-font-family: 'Roboto Condensed', sans-serif;
+font-family: 'Franklin Gothic Condensed', sans-serif;
 font-size: 11px;
 line-height: 1.25;
 color: #e2e8f0; /* slate-200 */
 font-weight: 700;
 text-align: center;
 width: 100%;
+text-wrap: balance;
 }
 
 .ability-active-wrap {
-font-family: 'Roboto Condensed', sans-serif;
+font-family: 'Franklin Gothic Condensed', sans-serif;
 font-size: 11px;
 line-height: 1.25;
 font-weight: 700;
@@ -192,6 +206,8 @@ border: 1px solid rgba(255, 255, 255, 0.05);
 display: flex;
 justify-content: center;
 align-items: center;
+
+text-wrap: balance;
 }
 
 .jmb-ability-evergreen {
@@ -215,6 +231,15 @@ color: #e2e8f0;
 text-align: center;
 line-height: 1.375;
 font-size: 0.9rem;
+
+text-wrap: balance;
+}
+
+.glossary-item > div:last-child::first-letter,
+.ability-text-usable::first-letter,
+.ability-bespoke::first-letter,
+.jmb-ability-bespoke::first-letter {
+  text-transform: uppercase;
 }
 
 .jmb-ability-active-wrap {
@@ -229,12 +254,14 @@ flex-direction: column;
 gap: 0.125rem;
 align-items: center;
 font-size: 0.9rem;
+text-wrap: balance;
 }
 
 .ability-name-usable { color: white; }
-.ability-name-unusable { color: #94a3b8; } /* slate-400 /
-.ability-text-usable { color: #e2e8f0; } / slate-200 /
-.ability-text-unusable { color: #64748b; } / slate-500 */
+.ability-name-unusable { color: #94a3b8; } /* slate-400*/
+.ability-text-usable { color: #e2e8f0; 
+text-wrap: balance;} /* slate-200*/
+.ability-text-unusable { color: #64748b; } /* slate-500 */
 
 /* =========================================
 CARD ARCHITECTURE: CENTRALIZED THEME
@@ -319,7 +346,7 @@ box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* 3. Micro Card Size */
+/* 3. Micro Card Size*/
 .card-size-micro {
 width: 80px;
 height: 80px;
@@ -339,7 +366,7 @@ font-size: 14px;
 .card-size-micro .line-icon-box { width: 20px; height: 20px; margin-top: 4px; margin-left: 4px; pointer-events: auto; }
 .card-size-micro .corner-armor svg { width: 8px; height: 8px; margin-right: 2px; }
 
-/* 4. Nano Card Size & Typography Dimensions */
+/* 4. Nano Card Size & Typography Dimensions*/
 .card-size-nano {
 width: 60px;
 height: 40px;
@@ -357,28 +384,115 @@ font-size: 10px;
 /* Micro Specific Elements */
 .card-size-nano .line-icon-box { width: 12px; height: 12px; margin-top: 2px; margin-left: 2px; pointer-events: auto; }
 
-/* Base size for the standard card (previously w-16 h-16, increase here to scale up) */
+/* Base size for the standard card */
 .card-wrapper-std .overlay-svg-container {
-  width: 5rem; /* Increased from 4rem for scaling */
-  height: 5rem;
+width: 5rem;
+height: 5rem;
 }
 
-/* Micro and Nano card sizes (previously w-10 h-10) */
+/* Micro and Nano card sizes */
 .card-size-micro .overlay-svg-container,
 .card-size-nano .overlay-svg-container {
-  width: 5rem;
-  height: 5rem;
+width: 5rem;
+height: 5rem;
 }
 
-/* Jumbo card size with responsive breakpoint (previously w-24 h-24 sm:w-32 sm:h-32) */
+/* Jumbo card size with responsive breakpoint */
 .card-wrapper-jumbo .overlay-svg-container {
-  width: 6rem;
-  height: 6rem;
+width: 6rem;
+height: 6rem;
 }
 
 @media (min-width: 640px) {
-  .card-wrapper-jumbo .overlay-svg-container {
-    width: 8rem;
-    height: 8rem;
-  }
+.card-wrapper-jumbo .overlay-svg-container {
+width: 8rem;
+height: 8rem;
+}
+}
+
+.action-verb {
+color: #eab308;
+font-weight: 700
+}
+
+.event-trigger {
+font-weight: 900;
+color: #eab308;
+margin-right: 0.125rem;
+text-transform: uppercase
+}
+
+/* =========================================
+STANDARD CARD SPACE OPTIMIZATION OVERRIDES
+========================================= */
+
+/* 1. Rebalance Aspect Ratio: 55% Art / 45% Text */
+.card-wrapper-std .card-art-section {
+height: 55% !important;
+}
+
+.card-wrapper-std .card-text-section {
+height: 45% !important;
+padding: 4px 2px 2px 2px !important; /* Reclaimed padding! */
+container-type: size;
+container-name: cardText;
+}
+
+/* 2. Auto-Scaling Text based on Container Height */
+.card-wrapper-std .ability-bespoke,
+.card-wrapper-std .ability-active-wrap,
+.card-wrapper-std .ability-evergreen {
+font-size: clamp(7.5px, 14cqh, 12.5px) !important;
+line-height: 1.05 !important;
+letter-spacing: -0.01em !important;
+}
+
+.card-wrapper-std .ability-active-wrap {
+padding-top: 0 !important;
+padding-bottom: 0 !important;
+margin-bottom: 2px;
+}
+
+/* 3. Move Stats UP to the bottom of the Art section*/
+.card-wrapper-std .card-text-section > .absolute.bottom-0 {
+top: 0 !important;
+bottom: auto !important;
+transform: translateY(-100%) !important; /* Pushes the flex box exactly into the art block */
+align-items: flex-end !important;
+z-index: 30 !important;
+}
+
+/* 4. Complete the Stat Box Borders so they look whole floating in the art */
+.card-wrapper-std .corner-strength {
+border-radius: 0.5rem 0.5rem 0 0 !important;
+border-width: 2px 2px 2px 0 !important;
+}
+
+.card-wrapper-std .corner-health {
+border-radius: 0.5rem 0.5rem 0 0 !important;
+border-width: 2px 0 2px 2px !important;
+}
+
+.card-wrapper-std .corner-armor {
+border-width: 2px !important;
+margin-bottom: -1px !important; /* snug against text border */
+}
+
+/* 5. Center Name Badge between Stats*/
+.card-wrapper-std .card-name-wrapper {
+bottom: 3px !important; /* Aligns neatly with the stats row*/
+padding: 0 22px !important; /* Expanded! Safe zone prevents long names sliding under badges */
+}
+
+.card-wrapper-std .name-badge {
+font-size: clamp(7px, 6.5cqi, 9.5px) !important; /* Shrink to fit logic based on card width*/
+letter-spacing: -0.02em !important; /* Tighter text tracking*/
+line-height: 1.05 !important;
+word-break: break-word; /* Wrap aggressively if necessary */
+}
+
+/* 6. Dynamic Name Shift: Prevent Name from overlapping Armor if present*/
+.card-wrapper-std:has(.corner-armor) .card-name-wrapper {
+bottom: 26px !important;
+padding: 0 8px !important; /* Expand full width when above stats! */
 }

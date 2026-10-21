@@ -79,11 +79,11 @@ export class UnitActionModal extends HTMLElement {
         const act = this.actions[index];
         
         if (act.type === 'PLAY') {
-            window.executeNormalPlay(this.entityId);
+            window.executeNormalPlay(this.entityId, null, null, act.undoable);
         } else if (this.isHand) {
             window.activateHandCardAbility(this.entityId, act.abilityId);
         } else {
-            window.activateAbility(this.entityId, act.abilityId);
+            window.activateAbility(this.entityId, act.abilityId, act.undoable);
         }
     }
 
