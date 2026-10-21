@@ -9,188 +9,204 @@ import { generateAbilityDescription } from './language_description.js';
 export const CARD_BASE_CLASSES = "w-[128px] h-[179px] sm:w-[144px] sm:h-[201px]";
 export const TRIBE_STYLES = {}; // Legacy fallback to prevent import crashes
 
-import { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg } from './glossary.js';
-export { SVG_CLASS, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg };
+import {
+  SVG_CLASS,
+  SVG_EXHAUST as RAW_SVG_EXHAUST,
+  SVG_UNREADY as RAW_SVG_UNREADY,
+  SVG_FREE as RAW_SVG_FREE,
+  SVG_DAZED,
+  SVG_STUNNED,
+  SYSTEM_GLOSSARY,
+  getSystemLineAbility,
+  getIconSvg,
+  getLineIconSvg
+} from './glossary.js';
+
+export const SVG_FREE = `<span class="inline-flex items-center justify-center w-[1.1em] h-[1.1em] align-middle -translate-y-[0.05em] drop-shadow-sm [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0">${RAW_SVG_FREE}</span>`;
+export const SVG_EXHAUST = `<span class="inline-flex items-center justify-center w-[1.1em] h-[1.1em] align-middle -translate-y-[0.05em] drop-shadow-sm [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0">${RAW_SVG_EXHAUST}</span>`;
+export const SVG_UNREADY = `<span class="inline-flex items-center justify-center w-[1.1em] h-[1.1em] align-middle -translate-y-[0.05em] drop-shadow-sm [&>svg]:!w-full [&>svg]:!h-full [&>svg]:!m-0">${RAW_SVG_UNREADY}</span>`;
+
+export { SVG_CLASS, SVG_DAZED, SVG_STUNNED, SYSTEM_GLOSSARY, getSystemLineAbility, getIconSvg, getLineIconSvg };
 
 import '../components/game_card.js';
 import '../components/card_preview.js';
 
 export async function loadUI() {
-    if (typeof document !== 'undefined' && !document.getElementById('raw-svg-styles')) {
-        const style = document.createElement('style');
-        style.id = 'raw-svg-styles';
-        style.innerHTML = `
+  if (typeof document !== 'undefined' && !document.getElementById('raw-svg-styles')) {
+    const style = document.createElement('style');
+    style.id = 'raw-svg-styles';
+    style.innerHTML = `
             @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700;900&display=swap');
             .font-roboto-condensed {
                 font-family: 'Roboto Condensed', sans-serif !important;
             }
         `;
-        document.head.appendChild(style);
-    }
+    document.head.appendChild(style);
+  }
 }
 
 import { formatAbilityCostBadge, hasEngineFlag, formatCardText, renderCardHTML, computeAbilitiesData } from '../components/game_card.js';
 export { formatAbilityCostBadge, hasEngineFlag, formatCardText, renderCardHTML, computeAbilitiesData };
 
 export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = '') {
-    if (!allAbilitiesRegistry || allAbilitiesRegistry.length === 0) return [];
-      
-      let glossaryMap = new Map();
-      let systemMap = new Map();
-      let baseIds = new Set((baseAbilities || []).map(a => a.abilityId));
+  if (!allAbilitiesRegistry || allAbilitiesRegistry.length === 0) return [];
 
-      if (baseAbilities) {
-          baseAbilities.forEach(a => {
-              // Automatically extract Evergreen Keywords into the Glossary, even if they aren't explicitly mentioned in text!
-              if (a.isKeyword || a.trigger === 'UNTRIGGERABLE') {
-                  if (!glossaryMap.has(a.abilityId) && a.name) {
-                      glossaryMap.set(a.abilityId, a);
-                  }
-              }
-          });
+  let glossaryMap = new Map();
+  let systemMap = new Map();
+  let baseIds = new Set((baseAbilities || []).map(a => a.abilityId));
+
+  if (baseAbilities) {
+    baseAbilities.forEach(a => {
+      // Automatically extract Evergreen Keywords into the Glossary, even if they aren't explicitly mentioned in text!
+      if (a.isKeyword || a.trigger === 'UNTRIGGERABLE') {
+        if (!glossaryMap.has(a.abilityId) && a.name) {
+          glossaryMap.set(a.abilityId, a);
+        }
       }
+    });
+  }
 
-      function processAbility(current) {
-          if (!current) return;
-          let text = (current.displayDescription || current.description || '');
-          if (!text) {
-              try { text = generateAbilityDescription(current, allAbilitiesRegistry); } catch (e) {}
-          }
+  function processAbility(current) {
+    if (!current) return;
+    let text = (current.displayDescription || current.description || '');
+    if (!text) {
+      try { text = generateAbilityDescription(current, allAbilitiesRegistry); } catch (e) { }
+    }
 
-          const mentionRegex = /@\[(.*?)\]/g;
-          let match;
-          while ((match = mentionRegex.exec(text)) !== null) {
-              const matchedName = match[1];
-              const found = allAbilitiesRegistry.find(a => a.name.toLowerCase() === matchedName.toLowerCase());
+    const mentionRegex = /@\[(.*?)\]/g;
+    let match;
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const matchedName = match[1];
+      const found = allAbilitiesRegistry.find(a => a.name.toLowerCase() === matchedName.toLowerCase());
+      if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
+        glossaryMap.set(found.abilityId, found);
+        processAbility(found);
+      }
+    }
+
+    // Find deeply nested GRANT_ABILITY effects
+    if (current.effects) {
+      current.effects.forEach(group => {
+        if (group.payloads) {
+          group.payloads.forEach(eff => {
+            if (eff.type === 'GRANT_ABILITY') {
+              const found = allAbilitiesRegistry.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
               if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
-                  glossaryMap.set(found.abilityId, found);
-                  processAbility(found);
+                glossaryMap.set(found.abilityId, found);
+                processAbility(found);
               }
-          }
-
-          // Find deeply nested GRANT_ABILITY effects
-          if (current.effects) {
-              current.effects.forEach(group => {
-                  if (group.payloads) {
-                      group.payloads.forEach(eff => {
-                          if (eff.type === 'GRANT_ABILITY') {
-                              const found = allAbilitiesRegistry.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
-                              if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
-                                  glossaryMap.set(found.abilityId, found);
-                                  processAbility(found);
-                              }
-                          }
-                          if (eff.nestedGroup && eff.nestedGroup.payloads) {
-                              eff.nestedGroup.payloads.forEach(neff => {
-                                  if (neff.type === 'GRANT_ABILITY') {
-                                      const found = allAbilitiesRegistry.find(a => a.abilityId === neff.grantedAbilityId || a.name === neff.grantedAbilityId);
-                                      if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
-                                          glossaryMap.set(found.abilityId, found);
-                                          processAbility(found);
-                                      }
-                                  }
-                              });
-                          }
-                      });
+            }
+            if (eff.nestedGroup && eff.nestedGroup.payloads) {
+              eff.nestedGroup.payloads.forEach(neff => {
+                if (neff.type === 'GRANT_ABILITY') {
+                  const found = allAbilitiesRegistry.find(a => a.abilityId === neff.grantedAbilityId || a.name === neff.grantedAbilityId);
+                  if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
+                    glossaryMap.set(found.abilityId, found);
+                    processAbility(found);
                   }
+                }
               });
-          }
-
-          SYSTEM_GLOSSARY.forEach(sys => {
-              if (!systemMap.has(sys.id) && sys.regex.test(text)) {
-                  systemMap.set(sys.id, sys);
-              }
+            }
           });
-      }
+        }
+      });
+    }
 
-      if (baseAbilities) {
-          baseAbilities.forEach(a => processAbility(a));
+    SYSTEM_GLOSSARY.forEach(sys => {
+      if (!systemMap.has(sys.id) && sys.regex.test(text)) {
+        systemMap.set(sys.id, sys);
       }
-      if (cardText) {
-          processAbility({ displayDescription: cardText, abilityId: 'card_text_dummy' });
-      }
+    });
+  }
 
-      return [...Array.from(glossaryMap.values()), ...Array.from(systemMap.values())];
+  if (baseAbilities) {
+    baseAbilities.forEach(a => processAbility(a));
+  }
+  if (cardText) {
+    processAbility({ displayDescription: cardText, abilityId: 'card_text_dummy' });
+  }
+
+  return [...Array.from(glossaryMap.values()), ...Array.from(systemMap.values())];
 }
 
 export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNested = false, abilityUses = {}, isHand = false) {
-    if (!window._inspectHistory) window._inspectHistory = [];
-    if (!isNested) window._inspectHistory = [];
-    
-    const currentRef = cardOrUnit.instanceId || cardOrUnit.id || cardOrUnit.name;
-    const lastInHistory = window._inspectHistory.length > 0 ? window._inspectHistory[window._inspectHistory.length - 1] : null;
-    const lastRef = lastInHistory ? (lastInHistory.card.instanceId || lastInHistory.card.id || lastInHistory.card.name) : null;
-    
-    if (currentRef !== lastRef) {
-        window._inspectHistory.push({ card: cardOrUnit, registry: allAbilitiesRegistry });
-    }
+  if (!window._inspectHistory) window._inspectHistory = [];
+  if (!isNested) window._inspectHistory = [];
 
-    let modal = document.getElementById('inspection-modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'inspection-modal';
-      modal.className = 'fixed inset-0 z-[100] bg-black/20 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none overflow-x-hidden';
-      
-      const handleBack = () => {
-        if (window._inspectHistory && window._inspectHistory.length > 1) {
-          window._inspectHistory.pop();
-          const prev = window._inspectHistory[window._inspectHistory.length - 1];
-          openInspectionModal(prev.card, prev.registry, true, abilityUses, isHand);
-        } else {
-          modal.classList.add('hidden');
-          window._inspectHistory = [];
-          document.body.style.overflow = ''; // Restore horizontal scroll rule
-        }
-      };
+  const currentRef = cardOrUnit.instanceId || cardOrUnit.id || cardOrUnit.name;
+  const lastInHistory = window._inspectHistory.length > 0 ? window._inspectHistory[window._inspectHistory.length - 1] : null;
+  const lastRef = lastInHistory ? (lastInHistory.card.instanceId || lastInHistory.card.id || lastInHistory.card.name) : null;
 
-      window._handleModalBack = handleBack;
-      modal.onclick = (e) => { if (e.target === modal) handleBack(); };
-      modal.oncontextmenu = (e) => { if (e.target === modal) { e.preventDefault(); handleBack(); } };
-      
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
-          handleBack();
-        }
-      });
-      
-      document.body.appendChild(modal);
-    }
+  if (currentRef !== lastRef) {
+    window._inspectHistory.push({ card: cardOrUnit, registry: allAbilitiesRegistry });
+  }
 
-    window.closeInspectionModal = () => {
-      window._inspectHistory = [];
-      const m = document.getElementById('inspection-modal');
-      if (m) m.classList.add('hidden');
-      document.body.style.overflow = ''; // Restore horizontal scroll rule
+  let modal = document.getElementById('inspection-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'inspection-modal';
+    modal.className = 'fixed inset-0 z-[100] bg-black/20 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none overflow-x-hidden';
+
+    const handleBack = () => {
+      if (window._inspectHistory && window._inspectHistory.length > 1) {
+        window._inspectHistory.pop();
+        const prev = window._inspectHistory[window._inspectHistory.length - 1];
+        openInspectionModal(prev.card, prev.registry, true, abilityUses, isHand);
+      } else {
+        modal.classList.add('hidden');
+        window._inspectHistory = [];
+        document.body.style.overflow = ''; // Restore horizontal scroll rule
+      }
     };
 
-    window._toggleGlossaryMode = () => {
-      const chk = document.getElementById('glossary-toggle-chk');
-      const newMode = chk.checked ? 'full' : 'essentials';
-      localStorage.setItem('henchies_glossary_mode', newMode);
-      
-      const items = document.querySelectorAll('.glossary-item');
-      items.forEach(el => {
-          if (el.dataset.isSystem === 'true') {
-              el.style.display = newMode === 'essentials' ? 'none' : 'flex';
-          }
-      });
-    };
+    window._handleModalBack = handleBack;
+    modal.onclick = (e) => { if (e.target === modal) handleBack(); };
+    modal.oncontextmenu = (e) => { if (e.target === modal) { e.preventDefault(); handleBack(); } };
 
-    window.inspectNestedCard = (cardJson) => {
-      const card = JSON.parse(decodeURIComponent(cardJson));
-      const currentRegistry = window._inspectHistory.length > 0 ? window._inspectHistory[window._inspectHistory.length - 1].registry : [];
-      openInspectionModal(card, currentRegistry, true);
-    };
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        handleBack();
+      }
+    });
 
-    // Prevent body horizontal/vertical scrolling entirely while modal is open
-    document.body.style.overflow = 'hidden';
+    document.body.appendChild(modal);
+  }
 
-    // Extract Glossary
-    const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry, cardOrUnit.description);
-    
-    const cardHtml = renderCardHTML(cardOrUnit, { size: 'jumbo', abilityUses: abilityUses, isHand: isHand });
+  window.closeInspectionModal = () => {
+    window._inspectHistory = [];
+    const m = document.getElementById('inspection-modal');
+    if (m) m.classList.add('hidden');
+    document.body.style.overflow = ''; // Restore horizontal scroll rule
+  };
 
-    modal.innerHTML = `
+  window._toggleGlossaryMode = () => {
+    const chk = document.getElementById('glossary-toggle-chk');
+    const newMode = chk.checked ? 'full' : 'essentials';
+    localStorage.setItem('henchies_glossary_mode', newMode);
+
+    const items = document.querySelectorAll('.glossary-item');
+    items.forEach(el => {
+      if (el.dataset.isSystem === 'true') {
+        el.style.display = newMode === 'essentials' ? 'none' : 'flex';
+      }
+    });
+  };
+
+  window.inspectNestedCard = (cardJson) => {
+    const card = JSON.parse(decodeURIComponent(cardJson));
+    const currentRegistry = window._inspectHistory.length > 0 ? window._inspectHistory[window._inspectHistory.length - 1].registry : [];
+    openInspectionModal(card, currentRegistry, true);
+  };
+
+  // Prevent body horizontal/vertical scrolling entirely while modal is open
+  document.body.style.overflow = 'hidden';
+
+  // Extract Glossary
+  const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry, cardOrUnit.description);
+
+  const cardHtml = renderCardHTML(cardOrUnit, { size: 'jumbo', abilityUses: abilityUses, isHand: isHand });
+
+  modal.innerHTML = `
       <!-- Close Button (Fixed Top Right) -->
       <button 
         onclick="window.closeInspectionModal()"
@@ -227,13 +243,13 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNes
             ${glossaryAbilities.length > 0 ? `
               <div class="flex flex-col gap-2.5 md:gap-3 w-full">
                 ${glossaryAbilities.map(a => {
-                  const isSystem = a.id && a.id.startsWith('sys_');
-                  const displayStyle = localStorage.getItem('henchies_glossary_mode') === 'essentials' && isSystem ? 'none' : 'flex';
-                  let rawDesc = a.displayDescription || a.description || '';
-                  if (!rawDesc) {
-                      try { rawDesc = generateAbilityDescription(a, allAbilitiesRegistry); } catch (e) {}
-                  }
-                  return `
+    const isSystem = a.id && a.id.startsWith('sys_');
+    const displayStyle = localStorage.getItem('henchies_glossary_mode') === 'essentials' && isSystem ? 'none' : 'flex';
+    let rawDesc = a.displayDescription || a.description || '';
+    if (!rawDesc) {
+      try { rawDesc = generateAbilityDescription(a, allAbilitiesRegistry); } catch (e) { }
+    }
+    return `
                   <div class="glossary-item bg-slate-900/90 backdrop-blur-md p-3 md:p-4 rounded-xl border border-slate-700 shadow-xl flex-col gap-1.5 transform transition-transform hover:scale-[1.02] w-full" data-is-system="${isSystem}" style="display: ${displayStyle};">
                     <div class="flex justify-between items-center border-b border-slate-700/50 pb-1 md:pb-1.5">
                         <div class="font-black text-fuchsia-300 text-xs md:text-sm drop-shadow-md truncate pr-2">${a.name || a.abilityId || a.id}</div>
@@ -249,7 +265,7 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNes
 
       </div>
     `;
-    modal.classList.remove('hidden');
+  modal.classList.remove('hidden');
 }
 
 export function renderHistorySlider(container, historyLog, currentStep, onStepChange, label = "Replay Scrub:") {
@@ -272,15 +288,15 @@ export function renderHistorySlider(container, historyLog, currentStep, onStepCh
 }
 
 export function renderJSONPreview(containerId, jsonObject, copyCallbackName, title = "Data Structure Preview") {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    
-    const safeJson = JSON.stringify(jsonObject, null, 2)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    
-    container.innerHTML = `
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const safeJson = JSON.stringify(jsonObject, null, 2)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  container.innerHTML = `
       <div class="glass-panel rounded-2xl p-4 flex flex-col gap-2 shadow-2xl border border-slate-800 w-full h-full relative flex-1">
         <div class="flex justify-between items-center border-b border-slate-800 pb-1 shrink-0">
           <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">
@@ -298,15 +314,15 @@ export function renderJSONPreview(containerId, jsonObject, copyCallbackName, tit
 }
 
 export function openJSONImportModal(onImport) {
-let modal = document.getElementById('json-import-modal');
-if (!modal) {
-  modal = document.createElement('div');
-  modal.id = 'json-import-modal';
-  modal.className = 'fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4';
-  document.body.appendChild(modal);
-}
+  let modal = document.getElementById('json-import-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'json-import-modal';
+    modal.className = 'fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4';
+    document.body.appendChild(modal);
+  }
 
-modal.innerHTML = `
+  modal.innerHTML = `
   <div class="glass-panel rounded-2xl p-6 shadow-2xl border border-slate-700 max-w-lg w-full flex flex-col gap-4 relative">
     <div class="flex justify-between items-center border-b border-slate-800 pb-2">
       <h3 class="text-lg font-black text-emerald-400 uppercase tracking-wider">📥 Import JSON</h3>
@@ -320,52 +336,52 @@ modal.innerHTML = `
     </div>
   </div>
 `;
-modal.classList.remove('hidden');
+  modal.classList.remove('hidden');
 
-document.getElementById('confirm-import-btn').onclick = () => {
-  const val = document.getElementById('import-json-textarea').value;
-  try {
-    const parsed = JSON.parse(val);
-    onImport(parsed);
-    modal.classList.add('hidden');
-  } catch (e) {
+  document.getElementById('confirm-import-btn').onclick = () => {
+    const val = document.getElementById('import-json-textarea').value;
+    try {
+      const parsed = JSON.parse(val);
+      onImport(parsed);
+      modal.classList.add('hidden');
+    } catch (e) {
       console.error("Failed to parse JSON for import", e);
       showToast("Invalid JSON data.", "error");
-  }
-};
+    }
+  };
 }
 
 export function showToast(message, type = 'info') {
-let container = document.getElementById('toast-container');
-if (!container) {
+  let container = document.getElementById('toast-container');
+  if (!container) {
     container = document.createElement('div');
     container.id = 'toast-container';
     container.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-[150] flex flex-col gap-2 pointer-events-none max-w-md w-full px-4 items-center';
     document.body.appendChild(container);
-}
+  }
 
-const toast = document.createElement('div');
-const bgColors = {
-  success: 'bg-emerald-600 text-white',
-  error: 'bg-red-600 text-white',
-  info: 'bg-cyan-600 text-white',
-  warning: 'bg-amber-600 text-black'
-};
-const colorClass = bgColors[type] || bgColors.info;
-toast.className = `${colorClass} px-4 py-2 rounded-xl shadow-2xl text-xs font-bold pointer-events-auto transition-all duration-300 z-[150] opacity-0 translate-y-[-1rem]`;
-toast.innerText = message;
-container.appendChild(toast);
+  const toast = document.createElement('div');
+  const bgColors = {
+    success: 'bg-emerald-600 text-white',
+    error: 'bg-red-600 text-white',
+    info: 'bg-cyan-600 text-white',
+    warning: 'bg-amber-600 text-black'
+  };
+  const colorClass = bgColors[type] || bgColors.info;
+  toast.className = `${colorClass} px-4 py-2 rounded-xl shadow-2xl text-xs font-bold pointer-events-auto transition-all duration-300 z-[150] opacity-0 translate-y-[-1rem]`;
+  toast.innerText = message;
+  container.appendChild(toast);
 
-// Animate in
-setTimeout(() => {
-  toast.style.opacity = '1';
-  toast.style.transform = 'translateY(0)';
-}, 10);
+  // Animate in
+  setTimeout(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+  }, 10);
 
-// Animate out and remove
-setTimeout(() => {
-  toast.style.opacity = '0';
-  toast.style.transform = 'translateY(-1rem)';
-  setTimeout(() => toast.remove(), 300);
-}, 3000);
+  // Animate out and remove
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-1rem)';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
 }

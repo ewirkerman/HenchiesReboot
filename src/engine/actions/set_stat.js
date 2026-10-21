@@ -1,6 +1,7 @@
 import { Action, registerEffect } from './core.js';
-import { findEntityLocation } from '../utils.js';
-import { moveEntity } from '../utils.js';
+import { findEntityLocation, LINES, moveEntity } from '../utils.js';
+
+const UNRESTRICTED_LINES = ['avatar', 'taunt', 'front', 'mid', 'back', 'sheltered'];
 
 export class SetStatAction extends Action {
     execute(engine) {
@@ -8,9 +9,19 @@ export class SetStatAction extends Action {
         if (target && stat && amount !== undefined) {
             if (stat === 'line') {
                 const loc = findEntityLocation(engine, target);
-                if (loc && loc.zone === 'sideline') {
-                    if (!engine.state.isReconstructing) console.log(`[Engine] ${target.name} is locked in the sideline.`);
-                    return;
+
+                if (loc) {
+                    const isInnateSelf = this.payload.targetMethod === 'SELF' && this.payload.sourceAbilityOrigin === 'innate';
+                    const allowedDestinations = UNRESTRICTED_LINES.includes(loc.zone)
+                        ? LINES
+                        : loc.zone === 'bodyguard' ? ['taunt', 'sideline'] : [];
+
+                    if (!isInnateSelf && !allowedDestinations.includes(amount)) {
+                        if (loc.zone === 'sideline' && !engine.state.isReconstructing) {
+                            console.log(`[Engine] ${target.name} is locked in the sideline.`);
+                        }
+                        return;
+                    }
                 }
             }
 
@@ -31,19 +42,19 @@ export class SetStatAction extends Action {
                 if (stat === 'line') oldVal = target.type === 'avatar' ? 'avatar' : (target.defaultLine || 'mid');
                 else oldVal = typeof amount === 'number' ? 0 : null;
             }
-            
+
             let trueOriginal = oldVal;
             if (target.activeEffects) {
                 const existingEffects = target.activeEffects.filter(e => e.type === 'SET_STAT' && e.stat === stat);
                 if (existingEffects.length > 0) {
-                    trueOriginal = existingEffects[0].originalValue; 
+                    trueOriginal = existingEffects[0].originalValue;
                 }
             }
-            
+
             let finalAmount = amount;
             if (stat === 'readiness' && finalAmount < -1) finalAmount = -1;
             target[stat] = finalAmount;
-            
+
             let delta = 0;
             if (typeof oldVal === 'number' && typeof finalAmount === 'number') {
                 delta = finalAmount - oldVal;
@@ -60,7 +71,7 @@ export class SetStatAction extends Action {
             }
 
             registerEffect(engine, target, this.payload, { originalValue: trueOriginal, delta: delta });
-            
+
             if (stat === 'line') {
                 const loc = findEntityLocation(engine, target);
                 if (loc && loc.playerId && loc.zone !== amount) {

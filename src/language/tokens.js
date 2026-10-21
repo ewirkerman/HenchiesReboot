@@ -13,12 +13,16 @@ export function resolveTokens(text, formatCtx) {
     text = text.replace(/\{REFLEXIVE\}/g, isPlural ? 'themselves' : 'itself');
 
     if (text.includes('{OMIT_TARGET}')) {
-        tracker.mention(groupId, targetStr, isPlural);
+        if (!text.includes('{TARGET}') && !text.includes('{POSS}')) {
+            tracker.mention(groupId, targetStr, isPlural);
+        }
         text = text.replace(/\{OMIT_TARGET\}/g, '');
     }
 
     if (text.includes('{PER_TARGET}')) {
-        tracker.mention(groupId, targetStr, isPlural);
+        if (!text.includes('{TARGET}') && !text.includes('{POSS}')) {
+            tracker.mention(groupId, targetStr, isPlural);
+        }
         if (['this', 'it', 'the triggering card', 'the targeted card', 'the attacker', 'the defender', 'the damaged character', 'the damage source', 'the healed character', 'the target', 'your avatar', 'the enemy avatar'].includes(targetStr) || targetStr.startsWith('a ') || targetStr.startsWith('an ')) {
             text = text.replace(/\{PER_TARGET\}/g, '');
         } else if (group.targetMethod === 'AUTO_ALL') {
@@ -34,6 +38,12 @@ export function resolveTokens(text, formatCtx) {
         } else if (match === '{POSS}') {
             return tracker.mentionPoss(groupId, possessiveStr, isPlural);
         }
+    });
+
+    // Natural grammar adjustment if plural objective pronoun "them" was placed before a verb like "lose" or "gain"
+    // Modified to optionally bypass our <v> annotation tags
+    text = text.replace(/\bthem (<v>)?(lose|gain)(<\/v>)?\b/gi, (m, tag1, v, tag2) => {
+        return (m.charAt(0) === 'T' ? 'They ' : 'they ') + (tag1 || '') + v + (tag2 || '');
     });
 
     return text;

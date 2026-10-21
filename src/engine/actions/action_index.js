@@ -2,7 +2,6 @@ import { ACTION_MANIFEST, EVENT_MANIFEST, ACTION_REGISTRY, Action, registerEffec
 import { findEntityLocation } from '../utils.js';
 import { moveEntity } from '../utils.js';
 
-
 import { HitAction } from './hit.js';
 import { DealDamageAction } from './deal_damage.js';
 import { HealAction } from './heal.js';
@@ -59,8 +58,8 @@ ACTION_REGISTRY['PLAY'] = PlayAction;
 ACTION_REGISTRY['ATTACK'] = AttackAction;
 ACTION_REGISTRY['HARVEST'] = HarvestAction;
 ACTION_REGISTRY['DISCARD'] = DiscardAction;
-ACTION_REGISTRY['DISCARD_CARD'] = DiscardAction; 
-ACTION_REGISTRY['MILL'] = MillAction; 
+ACTION_REGISTRY['DISCARD_CARD'] = DiscardAction;
+ACTION_REGISTRY['MILL'] = MillAction;
 ACTION_REGISTRY['SHUFFLE'] = ShuffleAction;
 ACTION_REGISTRY['RETURN'] = ReturnAction;
 ACTION_REGISTRY['RECOVER'] = RecoverAction;
@@ -95,7 +94,7 @@ export const ACTION_CATEGORIES = {
 };
 
 export const EVENT_CATEGORIES = {
-    'Combat': ['HIT']
+    'Combat': ['HIT', 'COMBAT_ENDED']
 };
 
 export const EFFECT_TYPES = Object.keys(ACTION_MANIFEST);
@@ -106,7 +105,7 @@ export function getActionTriggers() {
         triggers.push(`WOULD_${action}`);
         triggers.push(`MODIFY_${action}`);
         triggers.push(`ON_${action}`);
-        
+
         const pType = ACTION_MANIFEST[action].passiveType;
         if (pType) {
             triggers.push(`WOULD_${pType}`);

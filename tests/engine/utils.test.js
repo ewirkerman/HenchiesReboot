@@ -50,17 +50,137 @@ describe('Engine Utilities (utils.js)', () => {
             expect(utils.isUndoable(mockState, { effects: [] })).toBe(true);
         });
 
-        it('should return false if group targetMethod is AUTO_RANDOM', () => {
+        it('should allow AUTO_RANDOM groups with no payloads as no-ops', () => {
             const ability = { effects: [{ targetMethod: 'AUTO_RANDOM' }] };
+            expect(utils.isUndoable(mockState, ability)).toBe(true);
+        });
+
+        it('should allow random-target no-ops when the pool is provably empty', () => {
+            const emptyGroup = { targetMethod: 'AUTO_RANDOM', payloads: [{ type: 'HEAL' }] };
+            const noPayloadGroup = { targetMethod: 'AUTO_RANDOM', payloads: [] };
+
+            expect(utils.isUndoable(mockState, { effects: [emptyGroup] }, { getRandomTargetCount: () => 0 })).toBe(true);
+            expect(utils.isUndoable(mockState, { effects: [emptyGroup] }, { getRandomTargetCount: () => 1 })).toBe(true);
+            expect(utils.isUndoable(mockState, { effects: [noPayloadGroup] })).toBe(true);
+            expect(utils.isUndoable(mockState, { effects: [emptyGroup] })).toBe(false);
+            expect(utils.isUndoable(mockState, { effects: [emptyGroup] }, { getRandomTargetCount: () => 2 })).toBe(false);
+        });
+
+        it('should not treat non-automatic targeting as empty based on an auto pool count', () => {
+            const ability = { effects: [{ targetMethod: 'SELF', payloads: [{ type: 'CUSTOM_SCRIPT' }] }] };
+            expect(utils.isUndoable(mockState, ability, { getRandomTargetCount: () => 0 })).toBe(false);
+        });
+
+        it('should default custom-script conditions to undo-safe across all logic trees', () => {
+            const customCondition = { type: 'condition', attribute: 'customScript', value: 'return true;' };
+            const ability = {
+                activation: { logicTree: { type: 'group', children: [customCondition] } },
+                effects: [{
+                    logicTree: { type: 'group', children: [{ ...customCondition, undoSafe: false }] },
+                    payloads: [{
+                        type: 'CONDITIONAL',
+                        nestedGroup: { logicTree: { type: 'group', children: [{ ...customCondition, undoSafe: false }] }, payloads: [] }
+                    }]
+                }]
+            };
             expect(utils.isUndoable(mockState, ability)).toBe(false);
+
+            ability.effects[0].logicTree.children[0].undoSafe = true;
+            ability.effects[0].payloads[0].nestedGroup.logicTree.children[0].undoSafe = true;
+            expect(utils.isUndoable(mockState, ability)).toBe(true);
+
+            expect(utils.isUndoable(mockState, {
+                activation: { logicTree: { type: 'condition', attribute: 'customScript', undoSafe: false } }
+            })).toBe(false);
         });
 
         it('should return false for inherently unsafe payload types', () => {
-            const types = ['SHUFFLE', 'MILL', 'CUSTOM_SCRIPT', 'TOP_DECK'];
+            const types = ['SHUFFLE', 'MILL', 'TOP_DECK', 'CUSTOM_SCRIPT'];
             types.forEach(type => {
                 const ability = { effects: [{ payloads: [{ type }] }] };
                 expect(utils.isUndoable(mockState, ability)).toBe(false);
             });
+        });
+
+        it('should allow a custom script only when that payload opts in', () => {
+            const ability = { effects: [{ payloads: [{ type: 'CUSTOM_SCRIPT', undoSafe: true }] }] };
+            expect(utils.isUndoable(mockState, ability)).toBe(true);
+
+            ability.effects[0].payloads[0].undoSafe = false;
+            expect(utils.isUndoable(mockState, ability)).toBe(false);
+        });
+
+        it('should keep an ability unsafe when another payload is unsafe', () => {
+            const ability = {
+                effects: [{
+                    payloads: [
+                        { type: 'CUSTOM_SCRIPT', undoSafe: true },
+                        { type: 'CUSTOM_SCRIPT' }
+                    ]
+                }]
+            };
+            expect(utils.isUndoable(mockState, ability)).toBe(false);
+        });
+
+        it('should classify nested custom scripts', () => {
+            const ability = {
+                effects: [{
+                    payloads: [{
+                        type: 'SUMMON',
+                        nestedGroup: { payloads: [{ type: 'CUSTOM_SCRIPT', undoSafe: true }] }
+                    }]
+                }]
+            };
+            expect(utils.isUndoable(mockState, ability)).toBe(true);
+
+            ability.effects[0].payloads[0].nestedGroup.payloads[0].undoSafe = false;
+            expect(utils.isUndoable(mockState, ability)).toBe(false);
+        });
+
+        it('should classify conditional nested actions and legacy direct payloads', () => {
+            const nestedAbility = {
+                effects: [{
+                    payloads: [{
+                        type: 'CONDITIONAL',
+                        nestedGroup: { payloads: [{ type: 'CUSTOM_SCRIPT' }] }
+                    }]
+                }]
+            };
+            expect(utils.isUndoable(mockState, nestedAbility)).toBe(false);
+
+            const legacyAbility = {
+                effects: [{
+                    payloads: [{
+                        type: 'CONDITIONAL',
+                        payloads: [{ type: 'CUSTOM_SCRIPT' }]
+                    }]
+                }]
+            };
+            expect(utils.isUndoable(mockState, legacyAbility)).toBe(false);
+        });
+
+        it('should reject randomized summon follow-up targets', () => {
+            const ability = {
+                effects: [{
+                    payloads: [{
+                        type: 'SUMMON',
+                        nestedGroup: { targetMethod: 'AUTO_RANDOM', payloads: [{ type: 'HEAL' }] }
+                    }]
+                }]
+            };
+            expect(utils.isUndoable(mockState, ability)).toBe(false);
+        });
+
+        it('should treat empty randomized summon follow-ups as no-ops', () => {
+            const ability = {
+                effects: [{
+                    payloads: [{
+                        type: 'SUMMON',
+                        nestedGroup: { targetMethod: 'AUTO_RANDOM', payloads: [] }
+                    }]
+                }]
+            };
+            expect(utils.isUndoable(mockState, ability)).toBe(true);
         });
 
         it('should return false for DISCARD if targeting enemy hand', () => {
@@ -191,6 +311,20 @@ describe('Engine Utilities (utils.js)', () => {
             expect(mockState.abilityUses['u1_ab1_0']).toBe(1);
 
             // Second time should return false because limit is hit
+            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(false);
+        });
+
+        it('should track consumed passive flags by ability instance ID', () => {
+            const ability = {
+                passiveFlags: ['BLOCK_TARGETING'],
+                triggerLimit: 'ONCE_PER_ROUND',
+                abilityId: 'ab1',
+                instanceId: 'ab_inst_1'
+            };
+            entity.abilities.push(ability);
+
+            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING', true)).toBe(true);
+            expect(mockState.abilityUses.ab_inst_1).toBe(1);
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(false);
         });
     });
@@ -667,6 +801,12 @@ describe('Engine Utilities (utils.js)', () => {
 
                 const unit = utils.instantiateEntity({ id: 'u1', type: 'unit' }, catalogAbs);
                 expect(unit.instanceId).toMatch(/^ent_/);
+            });
+
+            it('should mark hydrated card abilities as innate', () => {
+                const unit = utils.instantiateEntity({ id: 'u1', type: 'unit', abilities: ['ab_1'] }, catalogAbs);
+
+                expect(unit.abilities[0].origin).toBe('innate');
             });
 
             it('should assign item_ prefix to equipment, buff, and debuff card types', () => {

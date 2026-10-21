@@ -1,90 +1,88 @@
-import { CARD_THEME } from './card_theme.js';
+import { getIconSvg, getLineIconSvg } from '../src/ui.js';
 
 export function renderMicro(ctx) {
-  const forceHoverClass = ctx.isForceHover ? '-translate-y-4 scale-125 !z-[100]' : '';
+  const forceHoverClass = ctx.isForceHover ? '-translate-y-4 !z-[100]' : '';
 
-  // Minimalist readiness indicator (tiny colored dot instead of text)
-  let readinessDot = '';
-  if (ctx.hasReadiness && ctx.readiness !== null) {
-      const color = ctx.readiness > 0 ? 'bg-emerald-500' : ctx.readiness === 0 ? 'bg-yellow-500' : 'bg-red-500';
-      readinessDot = `<div class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${color} border border-black shadow-sm z-20 pointer-events-none"></div>`;
-  }
-
+  // Micro cards omit some layout padding/text sizing for extreme density
   return `
     <div 
       onclick="${ctx.onClick}"
       ${ctx.rightClickAttr}
       title="${ctx.safeTooltip}"
-      class="group relative flex-shrink-0 cursor-pointer transition-all duration-200 select-none overflow-hidden w-[60px] h-[40px] rounded-md ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} ${ctx.hiddenClass} ${forceHoverClass}"
+      class="group relative flex-shrink-0 rounded-xl cursor-pointer transition-all duration-200 flex flex-col select-none overflow-hidden card-size-micro ${ctx.style.bg} ${ctx.dynamicBorderClass} ${ctx.stateClasses} ${ctx.hiddenClass} ${forceHoverClass}"
       style="${ctx.hexBg} ${ctx.dynamicBorderStyle}"
     >
-      <!-- Background Art Layer -->
+      <!-- Base Texture Layer -->
+      <div class="absolute inset-0 opacity-10 mix-blend-overlay"></div>
+      
+      <!-- Art Layer & Fallback (With Camera Panning) -->
       <div class="absolute inset-0 z-0 flex items-center justify-center overflow-hidden ${ctx.fieldDimmingClass}">
         <div class="absolute inset-0 flex items-center justify-center transition-transform duration-200" style="${ctx.cameraStyle || ''}">
           ${ctx.bgArtUrl ? `
-            <img src="${ctx.bgArtUrl}" class="${CARD_THEME.bgArtImage}" style="${ctx.bgArtStyle}" draggable="false" />
-            <div class="${CARD_THEME.bgArtMute}"></div>
+            <img src="${ctx.bgArtUrl}" class="absolute inset-0 w-full h-full object-cover object-center z-0 opacity-50 pointer-events-none" style="${ctx.bgArtStyle}" draggable="false" />
+            <div class="absolute inset-0 bg-black/60 mix-blend-multiply z-0 pointer-events-none"></div>
           ` : ''}
-          ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-cover relative z-10 opacity-90" style="${ctx.artStyle}" draggable="false" />` : ``}
+          ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-contain relative z-10" style="${ctx.artStyle}" draggable="false" />` : ``}
         </div>
       </div>
 
-      <!-- Dimming overlay -->
-      <div class="absolute inset-0 bg-black/30 pointer-events-none ${ctx.fieldDimmingClass}"></div>
+      <!-- Edge Overlays (Restricted to edges so background color shines through cleanly in the middle) -->
+      <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10 ${ctx.fieldDimmingClass}"></div>
+      <div class="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/50 to-transparent pointer-events-none z-10 ${ctx.fieldDimmingClass}"></div>
 
-      <!-- Fallback Name if no art -->
+      <!-- Center: Name Badge (Fallback if no art, but cleanly styled) -->
       ${!ctx.cardArtUrl ? `
-      <div class="absolute inset-0 flex items-center justify-center p-0.5 pointer-events-none z-10">
-        <div class="bg-black/60 text-white font-bold text-[6px] px-1 rounded-sm text-center max-w-full truncate">
+      <div class="absolute inset-0 flex items-center justify-center p-1 pointer-events-none z-10">
+        <div class="bg-black/20 backdrop-blur-sm text-white font-black rounded-full truncate px-1.5 py-[1px] text-center max-w-[95%] shadow-md border-none uppercase tracking-wide leading-tight">
           ${ctx.card.name}
         </div>
       </div>
       ` : ''}
 
-      <!-- Top-Left: Cost & Power -->
-      <div class="absolute top-0 left-0 z-10 flex flex-col pointer-events-none">
-        ${!ctx.isAvatar ? `
-          <div class="w-[12px] h-[14px] pt-[1px] pl-[1px] text-[8px] bg-amber-500 text-black font-black rounded-br flex items-start justify-start border-r border-b border-black shadow-sm pointer-events-auto leading-none">
-            ${ctx.card.cost ?? 0}
-          </div>
-        ` : ''}
-        ${ctx.card.power > 0 ? `
-          <div class="w-[10px] h-[12px] pt-[1px] pl-[1px] text-[7px] bg-purple-600 text-white font-black rounded-br flex items-start justify-start border-r border-b border-black shadow-sm pointer-events-auto leading-none -mt-px">
-            ${ctx.card.power}
-          </div>
-        ` : ''}
-      </div>
+      <!-- Bottom Row: Stats -->
+      ${ctx.showBottomStats ? `
+        <div class="absolute bottom-0 left-0 right-0 flex justify-between items-end pointer-events-none z-20">
+          ${ctx.hasStrength ? `
+            <div class="w-[14px] h-[16px] sm:w-[16px] sm:h-[18px] stat-box corner-badge corner-strength ${ctx.strengthClass || ''} pointer-events-auto" title="Strength">
+              <span>${Math.max(0, ctx.card.strength)}</span>
+            </div>
+          ` : '<div class="w-[14px] h-[16px] sm:w-[16px] sm:h-[18px] shrink-0"></div>'}
+          
+          ${ctx.hasArmor ? `
+            <div class="h-[16px] sm:h-[18px] px-0.5 stat-box corner-badge corner-armor ${ctx.armorClass || ''} pointer-events-auto" title="Armor: ${ctx.card.armor}">
+              <div class="w-2 h-2 mr-0.5">${getIconSvg('armor')}</div>
+              <span>${ctx.card.armor}</span>
+            </div>
+          ` : ''}
 
-      <!-- Bottom-Left: Strength -->
-      ${ctx.hasStrength ? `
-        <div class="absolute bottom-0 left-0 z-10 w-[12px] h-[14px] pb-[1px] pl-[1px] text-[8px] bg-yellow-500 text-black font-black rounded-tr flex items-end justify-start border-r border-t border-black shadow-sm pointer-events-auto leading-none">
-          ${Math.max(0, ctx.card.strength)}
+          ${ctx.showHealth ? `
+            <div class="w-[14px] h-[16px] sm:w-[16px] sm:h-[18px] stat-box corner-badge corner-health ${ctx.healthClass || ''} pointer-events-auto" title="Health">
+              <span>${ctx.displayHealth}</span>
+            </div>
+          ` : '<div class="w-[14px] h-[16px] sm:w-[16px] sm:h-[18px] shrink-0"></div>'}
         </div>
       ` : ''}
 
-      <!-- Bottom-Right: Health & Armor -->
-      <div class="absolute bottom-0 right-0 z-10 flex pointer-events-none">
-         ${ctx.hasArmor ? `
-            <div class="h-[14px] px-0.5 pb-[1px] text-[7px] bg-cyan-600 text-white font-black rounded-tl flex items-end justify-center border-l border-t border-black shadow-sm pointer-events-auto leading-none">
-              ${ctx.card.armor}
-            </div>
-          ` : ''}
-          ${ctx.showHealth ? `
-            <div class="w-[12px] h-[14px] pb-[1px] pr-[1px] text-[8px] bg-red-600 text-white font-black rounded-tl flex items-end justify-end border-l border-t border-black shadow-sm pointer-events-auto leading-none">
-              ${ctx.displayHealth}
-            </div>
-          ` : ''}
+      <!-- Top Row: Cost, Power & Line -->
+      <div class="absolute top-0 left-0 flex flex-col items-start z-10 pointer-events-none">
+        ${!ctx.isAvatar ? `
+          <div class="w-[14px] h-[16px] sm:w-[16px] sm:h-[18px] stat-box corner-badge corner-cost ${ctx.costClass || ''} pointer-events-auto" title="Cost">
+            <span>${ctx.card.cost ?? 0}</span>
+          </div>
+        ` : ''}
+        ${ctx.card.power > 0 ? `
+          <div class="w-[12px] h-[14px] sm:w-[14px] sm:h-[16px] stat-box -mt-[1px] corner-badge corner-power ${ctx.powerClass || ''} pointer-events-auto" title="Power">
+            <span>${ctx.card.power}</span>
+          </div>
+        ` : ''}
+        ${ctx.activeLine && !['deck', 'discard', 'hand', 'equator'].includes(ctx.activeLine) ? `
+          <div class="w-[12px] h-[12px] mt-0.5 ml-0.5 stat-box pointer-events-auto drop-shadow-md ${ctx.lineGlowClass || ''}" title="Line: ${ctx.activeLine}">
+             <div class="w-full h-full text-white [&>svg]:w-full [&>svg]:h-full [&>svg]:m-0">${getLineIconSvg(ctx.activeLine)}</div>
+          </div>
+        ` : ''}
       </div>
 
-      ${readinessDot}
-
-      <!-- Hover Name Banner (Tiny) -->
-      <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none">
-         <div class="bg-black/80 backdrop-blur-sm text-white font-black text-[6px] px-1 py-0.5 rounded-sm max-w-[90%] truncate shadow-md border border-white/20">
-            ${ctx.card.name}
-         </div>
-      </div>
-
+      <!-- External Overlays -->
       ${ctx.overlayHTML || ''}
     </div>
   `;

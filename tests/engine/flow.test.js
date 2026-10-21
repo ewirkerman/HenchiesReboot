@@ -92,6 +92,46 @@ describe('flow.js core mechanics', () => {
             expect(tiredUnit.readiness).toBe(0);
             expect(tiredUnit.acts).toBe(2);
         });
+
+        it('resets only the active player ability uses between TURN_STARTING and TURN_STARTED', () => {
+            mockState.players.player2.lines.mid.push({
+                instanceId: 'p1_unit',
+                ownerId: 'player1',
+                abilities: [{ abilityId: 'p1_ability', instanceId: 'p1_ability_instance' }]
+            });
+            mockState.players.player2.lines.mid.push({
+                instanceId: 'p2_unit',
+                ownerId: 'player2',
+                abilities: [{ abilityId: 'p2_ability', instanceId: 'p2_ability_instance' }]
+            });
+            mockState.abilityUses = {
+                p1_ability_instance: 1,
+                p2_ability_instance: 1,
+                unrelatedAbility: 1
+            };
+            const observedUses = {};
+            const engine = {
+                emit: jest.fn(event => {
+                    observedUses[event] = { ...mockState.abilityUses };
+                })
+            };
+
+            flow.startTurn(mockState, engine);
+
+            expect(observedUses.TURN_STARTING).toEqual({
+                p1_ability_instance: 1,
+                p2_ability_instance: 1,
+                unrelatedAbility: 1
+            });
+            expect(observedUses.TURN_STARTED).toEqual({
+                p2_ability_instance: 1,
+                unrelatedAbility: 1
+            });
+            expect(mockState.abilityUses).toEqual({
+                p2_ability_instance: 1,
+                unrelatedAbility: 1
+            });
+        });
     });
 
     describe('Card Play Constraints (canPlayCard & playCard)', () => {

@@ -1,5 +1,5 @@
 import { Action } from './core.js';
-import { findEntityLocation } from '../utils.js';
+import { findEntityLocation, markHiddenInformationReveal } from '../utils.js';
 import { moveEntity } from '../utils.js';
 import { SetStatAction } from './set_stat.js';
 
@@ -21,9 +21,10 @@ export class PlayAction extends Action {
         }
 
         const loc = findEntityLocation(engine, this.payload.target);
+        const ownerId = loc ? loc.playerId : engine.state.activePlayerId;
+        markHiddenInformationReveal(engine, loc, ownerId, destZone);
         if (loc && loc.array) loc.array.splice(loc.index, 1);
         
-        const ownerId = loc ? loc.playerId : engine.state.activePlayerId;
         moveEntity(engine, instance, ownerId, destZone);
         
         this.payload.target = instance; 

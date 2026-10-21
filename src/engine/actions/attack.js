@@ -8,13 +8,12 @@ export class AttackAction extends Action {
     }
 
     run(engine) {
-        // Wrap the entire action (including WOULD_ and MODIFY_ events) in a combat state
-        // to allow other actions (like DealDamage) to automatically defer deaths.
+        // Wrap the entire action in a combat state so DealDamage defers deaths
         const previousCombatState = engine.state.activeCombatState;
         engine.state.activeCombatState = true;
-        
+
         const result = super.run(engine);
-        
+
         engine.state.activeCombatState = previousCombatState;
         return result;
     }
@@ -22,7 +21,7 @@ export class AttackAction extends Action {
     execute(engine) {
         const attacker = this.payload.source;
         const defender = this.payload.target;
-        
+
         const isTimid = engine.utils.hasEngineFlag(engine.state, attacker, 'BLOCK_TARGET_AVATAR');
 
         if (isTimid && defender.type === 'avatar') {
@@ -37,12 +36,10 @@ export class AttackAction extends Action {
             text: `⚔️ ${attacker.name || 'Unit'} attacks ${defender.name || 'Unit'}!`,
             depth: this.getLogDepth(engine)
         });
-        
-        // This prevents the emission of the ON_ATTACK, ON_BE_ATTACKED events so
-        // we can emit them with first phase of combat.
+
+        // Suppress default ON_ATTACK/ON_BE_ATTACKED so they align with the first strike phase
         this.payload.preventReaction = true;
 
-        // READ speed without consuming flags
         const atkSpeed = this.getSpeed(engine, attacker);
         const defSpeed = this.getSpeed(engine, defender);
 
@@ -50,32 +47,32 @@ export class AttackAction extends Action {
 
         for (const phase of [1, 0, -1]) {
             if (
-                attacker._isDying || !this.checkBoard(engine, attacker) || 
+                attacker._isDying || !this.checkBoard(engine, attacker) ||
                 defender._isDying || !this.checkBoard(engine, defender)
             ) {
                 break;
             }
 
-            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined 
-                ? attacker.strength 
+            const currentAtkDmg = attacker.strength !== null && attacker.strength !== undefined
+                ? attacker.strength
                 : null;
-            
+
             const defBlockRetaliate = engine.utils.hasEngineFlag(engine.state, defender, 'BLOCK_RETALIATE');
-            const currentDefDmg = defBlockRetaliate 
-                ? null 
+            const currentDefDmg = defBlockRetaliate
+                ? null
                 : (defender.strength !== null && defender.strength !== undefined ? defender.strength : null);
 
-            const atkStrikes = atkSpeed === phase && 
-                               currentAtkDmg !== null && 
-                               currentAtkDmg >= 0 && 
-                               !attacker._isDying && 
-                               this.checkBoard(engine, attacker);
+            const atkStrikes = atkSpeed === phase &&
+                currentAtkDmg !== null &&
+                currentAtkDmg >= 0 &&
+                !attacker._isDying &&
+                this.checkBoard(engine, attacker);
 
-            const defStrikes = defSpeed === phase && 
-                               currentDefDmg !== null && 
-                               currentDefDmg >= 0 && 
-                               !defender._isDying && 
-                               this.checkBoard(engine, defender);
+            const defStrikes = defSpeed === phase &&
+                currentDefDmg !== null &&
+                currentDefDmg >= 0 &&
+                !defender._isDying &&
+                this.checkBoard(engine, defender);
 
             const strikesHappened = atkStrikes || defStrikes;
 
@@ -86,27 +83,42 @@ export class AttackAction extends Action {
             }
 
             if (atkStrikes) {
-                // Consume the flag only at the exact moment the strike executes
                 if (phase === 1) engine.utils.hasEngineFlag(engine.state, attacker, 'STRIKE_FAST', true);
                 if (phase === -1) engine.utils.hasEngineFlag(engine.state, attacker, 'STRIKE_SLOW', true);
                 this.executeStrike(engine, attacker, defender, attacker, defender, currentAtkDmg);
             }
             if (defStrikes) {
-                // Consume the flag only at the exact moment the strike executes
                 if (phase === 1) engine.utils.hasEngineFlag(engine.state, defender, 'STRIKE_FAST', true);
                 if (phase === -1) engine.utils.hasEngineFlag(engine.state, defender, 'STRIKE_SLOW', true);
                 this.executeStrike(engine, attacker, defender, defender, attacker, currentDefDmg);
             }
-            
-            // SRP: Death checking is handled purely based on state, independent of who struck
+
             this.processKill(engine, attacker, defender, attacker, defender);
             this.processKill(engine, attacker, defender, defender, attacker);
         }
+
+        const postCombatPayload = {
+            ...this.payload,
+            source: attacker,
+            target: defender,
+            isCombat: true,
+            _lkiSourceAbilities: attacker.abilities ? [...attacker.abilities] : [],
+            _lkiTargetAbilities: defender.abilities ? [...defender.abilities] : [],
+            eventContext: {
+                ...(this.payload.eventContext || {}),
+                isCombat: true,
+                combatAttackerId: attacker.instanceId,
+                combatDefenderId: defender.instanceId,
+                attackerSurvived: !attacker._isDying && this.checkBoard(engine, attacker),
+                defenderSurvived: !defender._isDying && this.checkBoard(engine, defender)
+            }
+        };
+
+        engine.emit('ON_COMBAT_ENDED', postCombatPayload);
     }
 
     getSpeed(engine, ent) {
         let speed = 0;
-        // Check state safely without consuming the ability uses
         if (engine.utils.hasEngineFlag(engine.state, ent, 'STRIKE_FAST', false)) {
             speed += 1;
         }
@@ -119,7 +131,7 @@ export class AttackAction extends Action {
     checkBoard(engine, ent) {
         const loc = findEntityLocation(engine, ent);
         const validZones = [
-            'front', 'mid', 'back', 'sheltered', 
+            'front', 'mid', 'back', 'sheltered',
             'sideline', 'taunt', 'bodyguard', 'avatar'
         ];
         return loc && validZones.includes(loc.zone);
@@ -149,8 +161,6 @@ export class AttackAction extends Action {
         const KillAction = ACTION_REGISTRY['KILL'];
         if (!KillAction) return;
 
-        // Clean up units that were explicitly marked as deferred death.
-        // This gracefully ignores 0 HP units that haven't been issued a kill order.
         if (target._deathDeferred && !target._isDying) {
             const sourceLKI = source.abilities ? [...source.abilities] : [];
             const targetLKI = target.abilities ? [...target.abilities] : [];
@@ -161,7 +171,7 @@ export class AttackAction extends Action {
                 _lkiSourceAbilities: sourceLKI,
                 _lkiTargetAbilities: targetLKI,
                 isCombat: true,
-                forceKill: true, // Tell KillAction to bypass deferral rules
+                forceKill: true,
                 eventContext: {
                     isCombat: true,
                     combatAttackerId: combatAttacker.instanceId,

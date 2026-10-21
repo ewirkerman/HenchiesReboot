@@ -28,7 +28,7 @@ export class ReferenceTracker {
             return isPlural ? 'them' : 'it';
         }
     }
-    
+
     mentionPoss(id, fullDescPoss, isPlural) {
         const pluralKey = isPlural ? 'plural' : 'singular';
         const isFocused = this.lastMentionedId[pluralKey] === id;
@@ -116,7 +116,7 @@ function resolveTribeStyleForToken(tokenName) {
 
 export function renderResourceTextTokens(text, options = {}) {
     if (!text) return '';
-    const iconSizeClass = options.iconSizeClass || 'w-[1.1em] h-[1.1em]';
+    const iconSizeClass = options.iconSizeClass || 'w-[1em] h-[1em]';
     return text.replace(/\[(?:RESOURCE|RESOURCES):([^\]]+)\]/gi, (match, tokenName) => {
         const normalizedName = normalizeResourceTokenName(tokenName);
         const lowerName = normalizedName.toLowerCase();
@@ -153,7 +153,7 @@ export function formatResourceIcons(amount, resourceName, isX = false) {
 
     let iconStr = `[RESOURCE:${normalizedName}]`;
     let result = '';
-    for(let i=0; i < Math.max(0, amount || 0); i++) {
+    for (let i = 0; i < Math.max(0, amount || 0); i++) {
         result += iconStr;
     }
     return result;
@@ -176,14 +176,14 @@ import anExclusions from './an_exclusions.js';
 export function getIndefiniteArticle(word) {
     if (!word) return 'a';
     let cleanWord = word.replace(/^@\[/, '').replace(/\]$/, '').toLowerCase().trim();
-    
+
     for (const exc of anExclusions.vowel_starts_requiring_a) {
         if (cleanWord === exc || cleanWord.startsWith(exc + ' ') || cleanWord.startsWith(exc + '-')) return 'a';
     }
     for (const exc of anExclusions.consonant_starts_requiring_an) {
         if (cleanWord === exc || cleanWord.startsWith(exc + ' ') || cleanWord.startsWith(exc + '-')) return 'an';
     }
-    
+
     return /^[aeiou]/i.test(cleanWord) ? 'an' : 'a';
 }
 
@@ -206,7 +206,7 @@ export function resolveEntityName(identifier, allCards) {
         let iter = arr;
         if (arr instanceof Map || arr instanceof Set) iter = Array.from(arr.values());
         else if (typeof arr === 'object' && !Array.isArray(arr)) iter = Object.values(arr);
-        
+
         for (const item of iter) {
             const card = item?.card || item; // Handle nested wrappers if they exist
             if (card && (card.id === rawId || card.cardId === rawId || card._id === rawId)) {
@@ -235,11 +235,98 @@ export function resolveEntityName(identifier, allCards) {
     if (found && found.name) {
         return `@[${found.name}]`;
     }
-    
+
     // Clean up ugly IDs if still missing to prevent "Unknown Card 1785522839644s"
     if (rawId.startsWith('card_') || /\d{10,}/.test(rawId) || rawId.toLowerCase().includes('unknown card')) {
         return 'Unknown Card';
     }
-    
+
     return rawId;
+}
+
+export function resolveAbility(abilityId, allAbilities) {
+    let name = abilityId;
+    let isManual = false;
+    if (allAbilities && Array.isArray(allAbilities)) {
+        const match = allAbilities.find(a => a.abilityId === abilityId || a.id === abilityId);
+        if (match) {
+            name = match.name;
+            isManual = match.trigger === 'MANUAL';
+        }
+    } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
+        const match = getAbility(abilityId);
+        if (match) {
+            name = match.name;
+            isManual = match.trigger === 'MANUAL';
+        }
+    }
+    return { name, isManual };
+}
+
+export function resolveTribeName(tribeId, allTribes) {
+    let resName = tribeId || 'resource';
+    if (resName === 'maxCarnie') return 'Max Carnie';
+    if (allTribes && Array.isArray(allTribes)) {
+        const match = allTribes.find(t => t.id === resName || t.name.toLowerCase() === resName.toLowerCase());
+        if (match) return match.name;
+    } else if (resName.toLowerCase().startsWith('tribe_')) {
+        resName = resName.substring(6).replace(/_/g, ' ');
+        resName = resName.replace(/\b\w/g, l => l.toUpperCase());
+        return resName;
+    }
+    return resName;
+}
+
+export function getReadinessConditionState(operator, value) {
+    const val = Number(value);
+    if (isNaN(val)) return null;
+
+    if (operator === '>' && val === 0) return 'ready';
+    if (operator === '>=' && val === 1) return 'ready';
+    if (operator === '==' && val === 1) return 'ready';
+
+    if (operator === '<' && val === 1) return 'unready';
+    if (operator === '<=' && val === 0) return 'unready';
+    if (operator === '==' && val === 0) return 'unready';
+
+    if (operator === '<' && val === 0) return 'exhausted';
+    if (operator === '<=' && val === -1) return 'exhausted';
+    if (operator === '==' && val === -1) return 'exhausted';
+
+    if (operator === '>' && val === 1) return 'over-ready';
+    if (operator === '>=' && val === 2) return 'over-ready';
+    if (operator === '==' && val === 2) return 'over-ready';
+
+    return null;
+}
+
+export function getZoneLinguistics(rawZone) {
+    let val = String(rawZone).toLowerCase();
+    let prep = (val === 'field' || val === 'equator') ? 'on' : 'in';
+
+    if (val === 'original_deck') val = 'original deck';
+    else if (val === 'field') val = 'the field';
+    else if (val === 'equator') val = 'the equator';
+    else if (val === 'discard') val = 'the discard pile';
+    else if (val === 'banish') val = 'the banish zone';
+    else if (val === 'deck') val = 'the deck';
+
+    return { name: val, prep };
+}
+
+export function capitalizeSentence(str) {
+    if (!str) return str;
+    return str.replace(/^((?:<[^>]+>|\[[^\]]+\]|@\[[^\]]+\]|[^a-zA-Z])*)([a-zA-Z])/, (m, prefix, letter) => prefix + letter.toUpperCase());
+}
+
+export function lowercaseSentence(str) {
+    if (!str) return str;
+    return str.replace(/^((?:<[^>]+>|\[[^\]]+\]|@\[[^\]]+\]|[^a-zA-Z])*)([a-zA-Z])/, (m, prefix, letter) => prefix + letter.toLowerCase());
+}
+
+export function formatXValue(paramX) {
+    if (paramX === undefined || paramX === null || isNaN(Number(paramX))) {
+        return 'X';
+    }
+    return `X (${paramX})`;
 }

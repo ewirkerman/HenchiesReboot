@@ -27,7 +27,7 @@ export const ACTION_MANIFEST = {
     'MODIFY_EVENT': { passiveType: null, canInvert: false, canBeCost: false, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'TRANSFORM': { passiveType: 'BE_TRANSFORMED', canInvert: false, canBeCost: true, requiresCardId: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
+    'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     //    'DISCARD_CARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'MILL': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'SHUFFLE': { passiveType: 'BE_SHUFFLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -38,7 +38,7 @@ export const ACTION_MANIFEST = {
     'REBEL': { passiveType: 'BE_REBELLED', canInvert: true, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'UNATTACH': { passiveType: 'BE_UNATTACHED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: false },
     'UNFIELD': { passiveType: 'BE_UNFIELDED', canInvert: true, canBeCost: true, validZones: ['FIELD'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
-    'TRASH': { passiveType: 'BE_TRASHED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['FIELD', 'HAND', 'DECK'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
+    'TRASH': { passiveType: 'BE_TRASHED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['FIELD', 'HAND'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'FIELD': { passiveType: 'BE_FIELDED', canInvert: true, canBeCost: false, validZones: ['HAND', 'DISCARD'], endZone: ['FIELD'], validDurations: ['INSTANT'] },
     'BANISH': { passiveType: 'BE_BANISHED', canInvert: true, canBeCost: true, validZones: 'ALL', endZone: ['BANISH'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'DONATE': { passiveType: 'BE_DONATED', canInvert: false, canBeCost: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] }
@@ -70,6 +70,8 @@ export class Action {
     }
 
     run(engine) {
+        const previousActorId = engine.currentActionActorId;
+        engine.currentActionActorId = this.payload.actingPlayerId || this.payload.source?.ownerId || engine.state.activePlayerId;
         this.incrementDepth(engine);
         this.recordPreRunOwners();
         this.evaluateUndoSafety(engine);
@@ -94,6 +96,7 @@ export class Action {
             return true;
         } finally {
             this.decrementDepth(engine);
+            engine.currentActionActorId = previousActorId;
         }
     }
 
@@ -116,6 +119,12 @@ export class Action {
     }
 
     evaluateUndoSafety(engine) {
+        const targetLocation = findEntityLocation(engine, this.payload.target);
+        const actingPlayerId = this.payload.actingPlayerId || this.payload.source?.ownerId || engine.state.activePlayerId;
+        if (targetLocation && ['hand', 'deck'].includes(targetLocation.zone) && targetLocation.playerId !== actingPlayerId) {
+            engine.state._irreversibleActionOccurred = true;
+        }
+
         const abilityId = this.payload.sourceAbilityId || this.payload.eventContext?.abilityId;
         if (abilityId) {
             this.checkAbilityUndoSafety(engine, abilityId);
@@ -129,13 +138,19 @@ export class Action {
         if (!catAb && this.payload.source?.abilities) {
             catAb = this.payload.source.abilities.find(a => a.abilityId === abilityId);
         }
-        if (catAb && !isUndoable(engine.state, catAb)) {
+        const abilityUndoable = catAb && (typeof engine.isAbilityUndoable === 'function'
+            ? engine.isAbilityUndoable(catAb, this.payload.source, this.payload.actingPlayerId)
+            : isUndoable(engine.state, catAb));
+        if (catAb && !abilityUndoable) {
             engine.state._irreversibleActionOccurred = true;
+        } else if (!catAb) {
+            this.checkNativeUndoSafety(engine);
         }
     }
 
     checkNativeUndoSafety(engine) {
-        if (['SHUFFLE', 'MILL', 'CUSTOM_SCRIPT', 'TOP_DECK'].includes(this.type)) {
+        if (['SHUFFLE', 'MILL', 'TOP_DECK'].includes(this.type) ||
+            (this.type === 'CUSTOM_SCRIPT' && this.payload.undoSafe !== true)) {
             engine.state._irreversibleActionOccurred = true;
         }
         if (this.type === 'DRAW_CARD') {

@@ -22,7 +22,7 @@ export class CleanseAction extends Action {
                 cleansedCount++;
             }
         }
-        
+
         if (cleansedCount > 0 && !endingPlayerId) {
             engine.state.history_log.push({ text: `✨ '${target.name || 'Target'}' was cleansed of temporary effects.`, depth: this.getLogDepth(engine) });
         }

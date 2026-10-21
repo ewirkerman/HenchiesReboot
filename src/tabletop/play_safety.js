@@ -1,10 +1,10 @@
-import { isUndoable } from '../engine/index.js';
+import { isAbilityUndoable } from '../engine/targeting.js';
 
 export function isActionUnsafe(state, entity, abilityId) {
     if (!state || !entity) return true;
     const ability = entity.abilities?.find(a => a.abilityId === abilityId);
     if (!ability) return false;
-    return !isUndoable(state, ability);
+    return !isAbilityUndoable(state, ability, entity, entity.ownerId || state.activePlayerId);
 }
 
 export function isDefaultPlayTrigger(ab) {
@@ -20,7 +20,7 @@ export function isDefaultPlayOptionUnsafe(state, card) {
     for (const ab of card.abilities) {
         //console.log("Trigger Check:", isDefaultPlayTrigger(ab)); // Is this true?
         //console.log("Undoable Check:", isUndoable(state, ab));   // Is this true?
-        if (isDefaultPlayTrigger(ab) && !isUndoable(state, ab)) return true;
+        if (isDefaultPlayTrigger(ab) && !isAbilityUndoable(state, ab, card, card.ownerId || state.activePlayerId)) return true;
     }
     return false;
 }

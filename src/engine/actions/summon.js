@@ -54,7 +54,14 @@ export class SummonAction extends Action {
             const ng = this.payload.nestedGroup;
             let targets = [];
             if (ng.targetMethod === 'AUTO_ALL') targets = summonedInstances;
-            else if (ng.targetMethod === 'AUTO_RANDOM') targets = shuffleArray(engine.state, [...summonedInstances]).slice(0, ng.targetCount || 1);
+            else if (ng.targetMethod === 'AUTO_RANDOM') {
+                if (summonedInstances.length > 1) {
+                    engine.state._irreversibleActionOccurred = true;
+                    targets = shuffleArray(engine.state, [...summonedInstances]).slice(0, ng.targetCount || 1);
+                } else {
+                    targets = summonedInstances;
+                }
+            }
             else if (ng.targetMethod === 'AUTO_FIRST') targets = summonedInstances.slice(0, ng.targetCount || 1);
             else if (ng.targetMethod === 'AUTO_LAST') targets = summonedInstances.slice(-(ng.targetCount || 1));
             

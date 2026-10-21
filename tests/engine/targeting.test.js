@@ -347,14 +347,14 @@ describe('targeting.js core logic', () => {
         it('should allow abilities to ignore readiness if reuseIgnoresReadiness is true and ability was used this turn', () => {
             const unit = {
                 id: 'u1', instanceId: 'u1', type: 'unit', readiness: 0, acts: 1, ownerId: 'player1',
-                abilities: [{ abilityId: 'ab_reuse', trigger: 'MANUAL', cost: { readinessCost: 'UNREADIES', reuseIgnoresReadiness: true } }]
+                abilities: [{ abilityId: 'ab_reuse', instanceId: 'ab_inst_reuse', trigger: 'MANUAL', cost: { readinessCost: 'UNREADIES', reuseIgnoresReadiness: true } }]
             };
             mockState.players.player1.lines.mid.push(unit);
 
             let actions = getEntityAvailableActions(mockState, 'player1', 'u1');
             expect(actions.some(a => a.abilityId === 'ab_reuse')).toBe(false);
 
-            mockState.abilityUses = { 'u1_ab_reuse': 1 };
+            mockState.abilityUses = { ab_inst_reuse: 1 };
             actions = getEntityAvailableActions(mockState, 'player1', 'u1');
             expect(actions.some(a => a.abilityId === 'ab_reuse')).toBe(true);
         });

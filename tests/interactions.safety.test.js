@@ -5,7 +5,7 @@ import { isPlayUnsafe, isDefaultPlayOptionUnsafe } from '../src/tabletop/play_sa
 // The beforeAll block has been removed, as tests/setup.js handles global DOM mocking now.
 
 describe('Interactions Safety', () => {
-    test('default play stays safe even when the optional on-play ability is unsafe', () => {
+    test('optional on-play AUTO_RANDOM ability stays safe when its known target pool is empty', () => {
         ClientState.gameState = {
             status: 'active', activePlayerId: 'player1',
             players: {
@@ -34,6 +34,6 @@ describe('Interactions Safety', () => {
 
         expect(isDefaultPlayOptionUnsafe(ClientState.gameState, deckhand)).toBe(false);
         expect(isPlayUnsafe(ClientState.gameState, deckhand, null)).toBe(false);
-        expect(isPlayUnsafe(ClientState.gameState, deckhand, 'ability_1787097456536')).toBe(true);
+        expect(isPlayUnsafe(ClientState.gameState, deckhand, 'ability_1787097456536')).toBe(false);
     });
 });

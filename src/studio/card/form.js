@@ -9,15 +9,15 @@ import { CARD_TYPES, CARD_TYPE_LABELS } from '../../engine/card_types.js';
 export function populateCardTypes() {
     const typeSelect = document.getElementById('card-type');
     if (!typeSelect) return;
-    
+
     const currentVal = typeSelect.value;
     let optionsHtml = '';
-    
+
     for (const [key, value] of Object.entries(CARD_TYPES)) {
         const label = CARD_TYPE_LABELS[value] || value.charAt(0).toUpperCase() + value.slice(1);
         optionsHtml += `<option value="${value}">${label}</option>`;
     }
-    
+
     typeSelect.innerHTML = optionsHtml;
     if (currentVal && typeSelect.querySelector(`option[value="${currentVal}"]`)) {
         typeSelect.value = currentVal;
@@ -64,7 +64,7 @@ export function populateFamily(currentFamily = '') {
 export function toggleStatFields() {
     const type = document.getElementById('card-type').value;
     const typeUpper = type.toUpperCase();
-    
+
     const fieldMapping = {
         'health': 'stat-health-container',
         'strength': 'stat-strength-container',
@@ -89,10 +89,10 @@ export function toggleStatFields() {
     for (const [attr, containerId] of Object.entries(fieldMapping)) {
         const container = document.getElementById(containerId);
         if (!container) continue;
-        
+
         const inputEl = container.querySelector('input, select');
         const manifestDef = ATTRIBUTE_MANIFEST[attr];
-        
+
         if (manifestDef && (manifestDef.allowedTypes.includes('ALL') || manifestDef.allowedTypes.includes(typeUpper))) {
             container.classList.remove('opacity-40', 'pointer-events-none', 'grayscale');
             if (inputEl) inputEl.disabled = false;
@@ -115,15 +115,15 @@ export function toggleStatFields() {
 export function resetForm() {
     CardState.currentEditingId = null;
     window.location.hash = '';
-    
+
     const titleEl = document.getElementById('form-title') || document.getElementById('workspace-title');
     if (titleEl) titleEl.innerText = '⚡ Design New Card';
-    
+
     document.getElementById('card-name').value = '';
-    
+
     const tribeEl = document.getElementById('card-tribe');
     if (tribeEl && CardState.customTribes.length > 0) tribeEl.value = CardState.customTribes[0].id;
-    
+
     document.getElementById('card-type').value = CARD_TYPES.UNIT;
     document.getElementById('card-default-line').value = 'mid';
     populateGenuses(tribeEl ? tribeEl.value : '', '');
@@ -133,25 +133,25 @@ export function resetForm() {
     document.getElementById('card-health').value = '1';
     document.getElementById('card-strength').value = '';
     document.getElementById('card-art').value = '';
-    
+
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     setVal('card-art-x', 0); setVal('card-art-y', 0); setVal('card-art-scale', 100);
     setVal('card-nano-art-x', 0); setVal('card-nano-art-y', 0); setVal('card-nano-art-scale', 110);
-    
+
     document.getElementById('card-description').value = '';
     const developerNotesEl = document.getElementById('card-developer-notes');
     if (developerNotesEl) developerNotesEl.value = '';
     const hideDeckbuilderFlag = document.getElementById('card-hide-from-deckbuilder');
     if (hideDeckbuilderFlag) hideDeckbuilderFlag.checked = false;
-    
+
     const seriesDropdown = document.getElementById('card-series');
     if (seriesDropdown) seriesDropdown.value = 'Base Set';
-    
+
     CardState.currentAbilities = [];
-    
+
     const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
     if (topbar) topbar.showButtons(false);
-    
+
     populateCardTypes();
     toggleStatFields();
     renderAssignedAbilities();
@@ -167,27 +167,27 @@ export function buildCardState(forceId = null) {
         const def = ATTRIBUTE_MANIFEST[attr];
         return def && (def.allowedTypes.includes('ALL') || def.allowedTypes.includes(typeUpper));
     };
-    
+
     const parsedHealth = parseInt(document.getElementById('card-health').value);
     let defaultHealth = null;
     if (cardType === CARD_TYPES.AVATAR) defaultHealth = 20;
     else if (cardType === CARD_TYPES.UNIT) defaultHealth = 1;
-    
+
     const finalHealth = isAllowed('health') ? (!isNaN(parsedHealth) ? parsedHealth : defaultHealth) : null;
-    
+
     const valX = parseInt(document.getElementById('card-art-x')?.value) || 0;
     const valY = parseInt(document.getElementById('card-art-y')?.value) || 0;
     const valScale = parseInt(document.getElementById('card-art-scale')?.value);
-    
+
     const nanoX = parseInt(document.getElementById('card-nano-art-x')?.value) || 0;
     const nanoY = parseInt(document.getElementById('card-nano-art-y')?.value) || 0;
     const nanoScale = parseInt(document.getElementById('card-nano-art-scale')?.value);
-    
+
     const searchId = forceId || CardState.currentEditingId;
     const existingCard = CardState.allCards.find(c => c.id === searchId);
     const hideDeckbuilderCheckbox = document.getElementById('card-hide-from-deckbuilder');
     const seriesDropdown = document.getElementById('card-series');
-    
+
     const state = {
         id: searchId || ('card_' + Date.now()),
         updatedAt: existingCard ? existingCard.updatedAt : Date.now(),
@@ -215,24 +215,24 @@ export function buildCardState(forceId = null) {
         abilities: (CardState.currentAbilities || []).map(obj => {
             const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
             if (!ab) return null;
-            
-            let hasX = false;
-            if (ab.effects) {
+
+            let hasX = !!ab.requiresX;
+            if (!hasX && ab.effects) {
                 hasX = ab.effects.some(g => g.payloads && g.payloads.some(p => p.amountIsX || p.grantedAbilityParamXIsX || (p.nestedGroup && p.nestedGroup.payloads && p.nestedGroup.payloads.some(np => np.amountIsX || np.grantedAbilityParamXIsX))));
             }
-            
+
             let pX = obj.paramX;
             if (hasX && (pX === null || pX === undefined)) pX = 1;
-            
+
             let hydrated = hydrateAbility({ abilityId: obj.id, paramX: pX, isSelectable: obj.isSelectable }, CardState.allAbilities);
             if (!hydrated) return null;
-            
+
             try {
                 hydrated.displayDescription = generateAbilityDescription(hydrated, CardState.allAbilities, CardState.allCards, CardState.customTribes);
-            } catch(e) {
+            } catch (e) {
                 console.warn("Failed to generate description for hydrated ability", e);
             }
-            
+
             return hydrated;
         }).filter(Boolean)
     };
@@ -240,7 +240,7 @@ export function buildCardState(forceId = null) {
     if (isAllowed('line')) {
         state.defaultLine = document.getElementById('card-default-line').value;
     }
-    
+
     populateCardTypes();
     return state;
 }

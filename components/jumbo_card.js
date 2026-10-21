@@ -1,85 +1,81 @@
 import { getIconSvg, getLineIconSvg } from '../src/ui.js';
-import { CARD_THEME } from './card_theme.js';
 
 // Minimal set of base dimensions and anchor positions
 const LAYOUT = {
-    // Dimensions
-    mainBox: "w-6 h-7",
-    mainText: "text-xl",
-    subBox: "w-5 h-6",
-    subText: "text-base",
-    iconBox: "w-7 h-7",
-    
-    // Positioning
-    padTopLeft: "pt-1 pl-1.5",
-    padBottomLeft: "pb-1 pl-1.5",
-    padBottomRight: "pb-1 pr-1.5",
-    marginTopLeft: "mt-1 ml-1.5"
+  // Dimensions
+  mainBox: "w-6 h-7 stat-box",
+  mainText: "text-xl",
+  subBox: "w-5 h-6 stat-box",
+  subText: "text-base",
+  iconBox: "w-7 h-7 stat-box",
+
+  // Positioning
+  marginTopLeft: "mt-1 ml-1.5"
 };
 
 // Derived element classes ensuring symmetric balance
 const JUMBO_CORNER_SIZES = {
-    cost: `${LAYOUT.mainBox} ${LAYOUT.mainText} ${LAYOUT.padTopLeft}`,
-    power: `${LAYOUT.subBox} ${LAYOUT.subText} ${LAYOUT.padTopLeft} -mt-0.5`,
-    line: `${LAYOUT.iconBox} ${LAYOUT.marginTopLeft}`,
-    fast: `${LAYOUT.iconBox} ${LAYOUT.marginTopLeft} text-xs border-[1.5px]`,
-    strength: `${LAYOUT.mainBox} ${LAYOUT.mainText} ${LAYOUT.padBottomLeft}`,
-    armor: `h-7 px-1.5 pb-1 text-xs`, // Center element uses distinct layout
-    health: `${LAYOUT.mainBox} ${LAYOUT.mainText} ${LAYOUT.padBottomRight}`,
-    placeholder: `${LAYOUT.mainBox} shrink-0` // Mirrors strength to keep armor perfectly centered
+  cost: `${LAYOUT.mainBox} ${LAYOUT.mainText}`,
+  power: `${LAYOUT.subBox} ${LAYOUT.subText} -mt-0.5`,
+  line: `${LAYOUT.iconBox} ${LAYOUT.marginTopLeft}`,
+  fast: `${LAYOUT.iconBox} ${LAYOUT.marginTopLeft} text-xs border-[1.5px]`,
+  strength: `${LAYOUT.mainBox} ${LAYOUT.mainText}`,
+  armor: `h-7 px-1.5 stat-box text-xs`, // Center element uses distinct layout
+  health: `${LAYOUT.mainBox} ${LAYOUT.mainText}`,
+  placeholder: `${LAYOUT.mainBox} shrink-0` // Mirrors strength to keep armor perfectly centered
 };
 
 export function renderJumboAbilities(abilitiesData) {
-    if (!abilitiesData) return '';
-    let html = '<div class="flex flex-col gap-1 mt-1">';
-    
-    if (abilitiesData.evergreen.length > 0) {
-        const namesHtml = abilitiesData.evergreen.map(a => a.name + (a.costBadge ? ' ' + a.costBadge : '')).join(', ');
-        html += `<div class="${CARD_THEME.jmbEvergreen}">${namesHtml}</div>`;
-    }
+  if (!abilitiesData) return '';
+  let html = '<div class="flex flex-col gap-1 mt-1">';
 
-    abilitiesData.bespoke.forEach(ab => {
-        html += `<div class="${CARD_THEME.jmbBespoke}">${ab.formattedDesc}</div>`;
-    });
+  if (abilitiesData.evergreen.length > 0) {
+    const namesHtml = abilitiesData.evergreen.map(a => a.name + (a.costBadge ? ' ' + a.costBadge : '')).join(', ');
+    html += `<div class="jmb-ability-evergreen">${namesHtml}</div>`;
+  }
 
-    abilitiesData.active.forEach(ab => {
-        const iconContent = ab.isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
-        const hourglassIcon = (!ab.isUsable && ab.showHourglass) ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
-        
-        const nameColorClass = ab.isUsable ? CARD_THEME.activeUsableName : CARD_THEME.activeUnusableName;
-        const textColorClass = ab.isUsable ? CARD_THEME.activeUsableText : CARD_THEME.activeUnusableText;
+  abilitiesData.bespoke.forEach(ab => {
+    html += `<div class="jmb-ability-bespoke">${ab.formattedDesc}</div>`;
+  });
 
-        const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}${ab.name}</span>`;
-        
-        html += `
-        <div class="${CARD_THEME.jmbActiveWrap}">
+  abilitiesData.active.forEach(ab => {
+    const iconContent = ab.isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
+    const hourglassIcon = (!ab.isUsable && ab.showHourglass) ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+
+    const nameColorClass = ab.isUsable ? 'ability-name-usable' : 'ability-name-unusable';
+    const textColorClass = ab.isUsable ? 'ability-text-usable' : 'ability-text-unusable';
+
+    const nameContent = `<span class="font-black ${nameColorClass} drop-shadow-sm">${hourglassIcon}${iconContent}${ab.name}</span>`;
+
+    html += `
+        <div class="jmb-ability-active-wrap">
             <div class="flex items-center gap-2">${nameContent}${ab.costBadge}</div>
             <div class="${textColorClass} text-center leading-snug px-1">${ab.formattedDesc}</div>
         </div>`;
-    });
-    
-    html += '</div>';
-    return html;
+  });
+
+  html += '</div>';
+  return html;
 }
 
 export function renderJumbo(ctx) {
-    const { card, style, hexBg, hexBorder, hexLightBg, isToken, separatorClass, bgArtUrl, bgArtStyle, cardArtUrl, artStyle, isUnit, isAvatar, isTempLine, activeLine, hasReadiness, readiness, hasStrength, hasArmor, showHealth, displayHealth, abilitiesData, hiddenClass, isHand } = ctx;
+  const { card, style, hexBg, hexBorder, hexLightBg, isToken, separatorClass, bgArtUrl, bgArtStyle, cardArtUrl, artStyle, isUnit, isAvatar, isTempLine, activeLine, hasReadiness, readiness, hasStrength, hasArmor, showHealth, displayHealth, abilitiesData, hiddenClass, isHand } = ctx;
 
-    let inspectBorderClass = isToken ? 'border-white/50 shadow-[0_0_24px_rgba(255,255,255,0.25)]' : style.border;
-    let inspectBorderStyle = isToken ? '' : hexBorder;
-    if (hiddenClass && !isHand) {
-        inspectBorderClass = 'border-dashed border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.4)]';
-        inspectBorderStyle = '';
-    }
+  let inspectBorderClass = isToken ? 'border-white/50 shadow-[0_0_24px_rgba(255,255,255,0.25)]' : style.border;
+  let inspectBorderStyle = isToken ? '' : hexBorder;
+  if (hiddenClass && !isHand) {
+    inspectBorderClass = 'border-dashed border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.4)]';
+    inspectBorderStyle = '';
+  }
 
-    return `
-      <div class="${CARD_THEME.jumboWrapper} border-4 ${inspectBorderClass} ${style.bg}" style="${hexBg} ${inspectBorderStyle}">
+  return `
+      <div class="card-wrapper-jumbo border-4 ${inspectBorderClass} ${style.bg}" style="${hexBg} ${inspectBorderStyle}">
         
         <!-- Top Section: Art & Cost (60%) -->
-        <div class="h-[60%] ${CARD_THEME.artSection} ${separatorClass}">
+        <div class="h-[60%] card-art-section ${separatorClass}">
           ${bgArtUrl ? `
-            <img src="${bgArtUrl}" class="${CARD_THEME.bgArtImage}" style="${bgArtStyle}" draggable="false" />
-            <div class="${CARD_THEME.bgArtMute}"></div>
+            <img src="${bgArtUrl}" class="bg-art-image" style="${bgArtStyle}" draggable="false" />
+            <div class="bg-art-mute"></div>
           ` : ''}
           ${cardArtUrl ? `<img src="${cardArtUrl}" alt="${card.name}" class="w-full h-full object-contain relative z-10" style="${artStyle}" draggable="false" />` : `
             <div class="relative z-10 w-full h-full flex items-center justify-center drop-shadow-md text-6xl font-bold">
@@ -87,8 +83,8 @@ export function renderJumbo(ctx) {
             </div>
           `}
           
-          <div class="bottom-2 ${CARD_THEME.nameWrapper}">
-            <div class="${CARD_THEME.nameBadge} text-xl sm:text-2xl px-4 py-1">
+          <div class="bottom-2 card-name-wrapper">
+            <div class="name-badge text-xl sm:text-2xl px-4 py-1">
                 ${card.name}
             </div>
           </div>
@@ -96,35 +92,28 @@ export function renderJumbo(ctx) {
           <!-- Pushed to Corners -->
           <div class="absolute top-0 left-0 flex flex-col items-start z-10 pointer-events-none">
             ${!isAvatar ? `
-              <div class="${JUMBO_CORNER_SIZES.cost} ${CARD_THEME.cornerCost}" title="Cost">
-                ${card.cost ?? 0}
+              <div class="${JUMBO_CORNER_SIZES.cost} corner-badge corner-cost ${ctx.costClass || ''}" title="Cost">
+                <span>${card.cost ?? 0}</span>
               </div>
             ` : ''}
             ${card.power > 0 ? `
-              <div class="${JUMBO_CORNER_SIZES.power} ${CARD_THEME.cornerPower}" title="Power">
-                ${card.power}
+              <div class="${JUMBO_CORNER_SIZES.power} corner-badge corner-power ${ctx.powerClass || ''}" title="Power">
+                <span>${card.power}</span>
               </div>
             ` : ''}
             ${isUnit ? `
-              <div class="${JUMBO_CORNER_SIZES.line} flex items-center justify-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
+              <div class="${JUMBO_CORNER_SIZES.line} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
                 ${getLineIconSvg(activeLine)}
               </div>
             ` : ''}
             ${(card.fast > 0) ? `
-              <div class="${JUMBO_CORNER_SIZES.fast} rounded-full bg-yellow-400 text-black font-black flex items-center justify-center border-black shadow-lg pointer-events-auto" title="Fast Charges">
+              <div class="${JUMBO_CORNER_SIZES.fast} rounded-full bg-yellow-400 text-black font-black border-black shadow-lg pointer-events-auto" title="Fast Charges">
                 <div class="w-3.5 h-3.5 mr-0.5">${getIconSvg('fast')}</div>${card.fast}
               </div>
             ` : ''}
           </div>
 
-          ${(hasReadiness && readiness !== undefined && readiness !== null) ? `
-            <div class="absolute top-3 right-3 text-sm px-2.5 py-1 rounded-md font-black uppercase tracking-wider z-20 border-2 border-black shadow-lg ${
-              readiness >= 1 ? 'bg-emerald-500 text-black' : 
-              readiness === 0 ? 'bg-yellow-500 text-black' : 'bg-red-950 text-red-400 border-red-700'
-            }">
-              ${readiness > 1 ? 'OVER-READY' : readiness === 1 ? 'READY' : readiness === 0 ? 'UNREADY' : 'EXHAUSTED'}
-            </div>
-          ` : ''}
+          ${ctx.overlayHTML}
         </div>
 
         <!-- Bottom Section: Details & Abilities (40%) -->
@@ -148,13 +137,18 @@ export function renderJumbo(ctx) {
             
             <!-- Left: Strength -->
             ${hasStrength ? `
-              <div class="${JUMBO_CORNER_SIZES.strength} ${CARD_THEME.cornerStrength}" title="Strength">${Math.max(0, card.strength)}</div>
+              <div class="${JUMBO_CORNER_SIZES.strength} corner-badge corner-strength ${ctx.strengthClass || ''}" title="Strength">
+                <span>${Math.max(0, card.strength)}</span>
+              </div>
             ` : `<div class="${JUMBO_CORNER_SIZES.placeholder}"></div>`}
             
             <!-- Center: Armor & Flavor Text -->
             <div class="flex-1 flex flex-col items-center justify-end pb-1 px-1 gap-1 pointer-events-none mb-1">
               ${hasArmor ? `
-                <div class="${JUMBO_CORNER_SIZES.armor} ${CARD_THEME.cornerArmor}" title="Armor: ${card.armor}"><div class="w-3.5 h-3.5 mr-0.5">${getIconSvg('armor')}</div>${card.armor}</div>
+                <div class="${JUMBO_CORNER_SIZES.armor} corner-badge corner-armor ${ctx.armorClass || ''}" title="Armor: ${card.armor}">
+                    <div class="w-3.5 h-3.5 mr-0.5">${getIconSvg('armor')}</div>
+                    <span>${card.armor}</span>
+                </div>
               ` : ''}
               ${card.description ? `
                 <div class="text-[11px] italic text-slate-300 text-center leading-snug w-full opacity-90 drop-shadow-md pb-0.5">
@@ -165,7 +159,9 @@ export function renderJumbo(ctx) {
             
             <!-- Right: Health -->
             ${showHealth ? `
-              <div class="${JUMBO_CORNER_SIZES.health} ${CARD_THEME.cornerHealth}" title="Health">${displayHealth}</div>
+              <div class="${JUMBO_CORNER_SIZES.health} corner-badge corner-health ${ctx.healthClass || ''}" title="Health">
+                <span>${displayHealth}</span>
+              </div>
             ` : `<div class="${JUMBO_CORNER_SIZES.placeholder}"></div>`}
           </div>
 

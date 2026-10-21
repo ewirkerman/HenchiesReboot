@@ -6,9 +6,9 @@ import { generateEffectsHTML } from './ability_renderer.js';
 import { CARD_TYPES } from '../../engine/card_types.js';
 
 export function getValidActionsForZones(selectedZones) {
-    if (!selectedZones || selectedZones.length === 0) return []; 
+    if (!selectedZones || selectedZones.length === 0) return [];
     return Object.keys(ACTION_MANIFEST).filter(action => {
-        const validZones = ACTION_MANIFEST[action].validZones; 
+        const validZones = ACTION_MANIFEST[action].validZones;
         if (validZones === 'ALL') return true;
         return selectedZones.every(z => validZones.includes(z));
     });
@@ -32,30 +32,31 @@ export function calculateEffectiveZones(baseZones, payloads, currentIndex) {
 }
 
 export function handleAddEffectGroup() {
-  StudioState.effectGroups.push({
-    targetMethod: 'SAME_AS_ACTIVATION',
-    targetCount: 1,
-    quickTargeting: { 
-      zones: [...(StudioState.activationQuickTargeting.zones || ['FIELD'])], 
-      alignment: [...(StudioState.activationQuickTargeting.alignment || ['ENEMY'])], 
-      entityType: [...(StudioState.activationQuickTargeting.entityType || [CARD_TYPES.UNIT.toUpperCase(), CARD_TYPES.AVATAR.toUpperCase()])], 
-      ignoreBattlelines: StudioState.activationQuickTargeting.ignoreBattlelines || false 
-    },
-    showAdvanced: false,
-    logicTree: { type: 'group', logicalOperator: 'AND', children: [] },
-    payloads: [
-        { type: 'DEAL_DAMAGE', amount: 1, duration: 'INSTANT' }
-    ]
-  });
-  revalidatePayloadTypes();
-  renderEffects();
-  updateJSONPreview();
+    StudioState.effectGroups.push({
+        targetMethod: 'SAME_AS_ACTIVATION',
+        targetCount: 1,
+        targetCountIsX: false,
+        quickTargeting: {
+            zones: [...(StudioState.activationQuickTargeting.zones || ['FIELD'])],
+            alignment: [...(StudioState.activationQuickTargeting.alignment || ['ENEMY'])],
+            entityType: [...(StudioState.activationQuickTargeting.entityType || [CARD_TYPES.UNIT.toUpperCase(), CARD_TYPES.AVATAR.toUpperCase()])],
+            ignoreBattlelines: StudioState.activationQuickTargeting.ignoreBattlelines || false
+        },
+        showAdvanced: false,
+        logicTree: { type: 'group', logicalOperator: 'AND', children: [] },
+        payloads: [
+            { type: 'DEAL_DAMAGE', amount: 1, duration: 'INSTANT' }
+        ]
+    });
+    revalidatePayloadTypes();
+    renderEffects();
+    updateJSONPreview();
 }
 
 export function removeEffectGroup(index) {
-  StudioState.effectGroups.splice(index, 1);
-  renderEffects();
-  updateJSONPreview();
+    StudioState.effectGroups.splice(index, 1);
+    renderEffects();
+    updateJSONPreview();
 }
 
 export function moveEffectGroup(index, direction) {
@@ -67,12 +68,17 @@ export function moveEffectGroup(index, direction) {
     updateJSONPreview();
 }
 
-export function updateEffectGroup(index, field, value) { 
+export function updateEffectGroup(index, field, value) {
     if (!StudioState.effectGroups[index]) return;
-    StudioState.effectGroups[index][field] = value; 
-    if (field === 'targetMethod') revalidatePayloadTypes();
-    renderEffects(); 
-    updateJSONPreview(); 
+    StudioState.effectGroups[index][field] = value;
+    if (field === 'targetMethod') {
+        if (!['AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'].includes(value)) {
+            delete StudioState.effectGroups[index].targetCountIsX;
+        }
+        revalidatePayloadTypes();
+    }
+    renderEffects();
+    updateJSONPreview();
 }
 
 export function addPayload(groupIndex) {
@@ -80,16 +86,16 @@ export function addPayload(groupIndex) {
     if (!group) return;
     let baseZones = group.quickTargeting?.zones || ['FIELD'];
     if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = StudioState.activationQuickTargeting?.zones || ['FIELD'];
-        
+
     let effectiveZones = calculateEffectiveZones(baseZones, group.payloads, group.payloads.length);
 
-    const validActions = typeof getValidActionsForZones !== 'undefined' 
+    const validActions = typeof getValidActionsForZones !== 'undefined'
         ? (group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones))
         : EFFECT_TYPES;
-        
+
     const initialType = validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT';
     group.payloads.push({ type: initialType, amount: 1, duration: 'INSTANT' });
-    
+
     renderEffects();
     updateJSONPreview();
 }
@@ -136,95 +142,101 @@ export function handlePayloadDragEnd(e) {
 }
 
 export function updatePayload(groupIndex, payloadIndex, field, value) {
-  if (!StudioState.effectGroups[groupIndex] || !StudioState.effectGroups[groupIndex].payloads[payloadIndex]) return;
-  const payload = StudioState.effectGroups[groupIndex].payloads[payloadIndex];
-  
-  if (field === 'stat') {
-      if (value === 'line') payload.amount = 'mid';
-      else if (payload.stat === 'line' && value !== 'line') payload.amount = 1;
-  }
+    if (!StudioState.effectGroups[groupIndex] || !StudioState.effectGroups[groupIndex].payloads[payloadIndex]) return;
+    const payload = StudioState.effectGroups[groupIndex].payloads[payloadIndex];
 
-  payload[field] = value;
+    if (field === 'stat') {
+        if (value === 'line') payload.amount = 'mid';
+        else if (payload.stat === 'line' && value !== 'line') payload.amount = 1;
+    }
 
-  if (field === 'targetPool' && value === 'MAX') {
-      payload.respectMax = false;
-  }
-  
-  if (field === 'type') {
-      const manifest = ACTION_MANIFEST[value];
-      if (!manifest) return;
-      
-      const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
-      const requiresResource = manifest.requiresResource || value === 'HARVEST';
+    payload[field] = value;
 
-      if (requiresAmount) {
-          payload.amount = 1; 
-          delete payload.amountIsX;
-      } else { 
-          delete payload.amount; 
-          delete payload.amountIsX; 
-      }
-      
-      if (requiresResource) {
-          payload.resource = value === 'HARVEST' ? 'default' : 'Carnie'; 
-          if (value === 'MODIFY_RESOURCE') {
-              payload.targetPool = 'CURRENT';
-              payload.respectMax = false;
-          } else {
-              delete payload.targetPool;
-              delete payload.respectMax;
-          }
-      } else {
-          delete payload.resource;
-          delete payload.targetPool;
-          delete payload.respectMax;
-      }
-      
-      if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
-      if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
-      if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
-      if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
-      if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
-      if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
-      if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
-    if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
-    if (!manifest.canOverheal) delete payload.overheal;
-      if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
-      if (!manifest.canInvert) delete payload.invertRoles;
-      if (!manifest.canBeCost) delete payload.isCost;
-      
-      if (manifest.hasNestedGroup) {
-          payload.nestedGroup = manifest.hasLogicTree
-              ? { logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] }
-              : { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
-      } else {
-          delete payload.nestedGroup;
-      }
-      
-      if (!manifest.validDurations.includes(payload.duration)) {
-          payload.duration = manifest.validDurations[0] || 'INSTANT';
-      }
-  }
-  renderEffects();
-  updateJSONPreview();
+    if (field === 'targetPool' && value === 'MAX') {
+        payload.respectMax = false;
+    }
+
+    if (field === 'type') {
+        const manifest = ACTION_MANIFEST[value];
+        if (!manifest) return;
+
+        if (value === 'CUSTOM_SCRIPT') {
+            payload.undoSafe = payload.undoSafe === true;
+        } else {
+            delete payload.undoSafe;
+        }
+
+        const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
+        const requiresResource = manifest.requiresResource || value === 'HARVEST';
+
+        if (requiresAmount) {
+            payload.amount = 1;
+            delete payload.amountIsX;
+        } else {
+            delete payload.amount;
+            delete payload.amountIsX;
+        }
+
+        if (requiresResource) {
+            payload.resource = value === 'HARVEST' ? 'default' : 'Carnie';
+            if (value === 'MODIFY_RESOURCE') {
+                payload.targetPool = 'CURRENT';
+                payload.respectMax = false;
+            } else {
+                delete payload.targetPool;
+                delete payload.respectMax;
+            }
+        } else {
+            delete payload.resource;
+            delete payload.targetPool;
+            delete payload.respectMax;
+        }
+
+        if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
+        if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+        if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
+        if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
+        if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
+        if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
+        if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
+        if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+        if (!manifest.canOverheal) delete payload.overheal;
+        if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
+        if (!manifest.canInvert) delete payload.invertRoles;
+        if (!manifest.canBeCost) delete payload.isCost;
+
+        if (manifest.hasNestedGroup) {
+            payload.nestedGroup = manifest.hasLogicTree
+                ? { logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] }
+                : { targetMethod: 'AUTO_ALL', targetCount: 1, targetCountIsX: false, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
+        } else {
+            delete payload.nestedGroup;
+        }
+
+        if (!manifest.validDurations.includes(payload.duration)) {
+            payload.duration = manifest.validDurations[0] || 'INSTANT';
+        }
+    }
+    renderEffects();
+    updateJSONPreview();
 }
 
 export function updateGrantedAbility(gIdx, pIdx, value) {
-  const match = StudioState.allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
-  StudioState.effectGroups[gIdx].payloads[pIdx].grantedAbilityId = match ? match.abilityId : value;
-  renderEffects(); updateJSONPreview();
+    const match = StudioState.allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
+    StudioState.effectGroups[gIdx].payloads[pIdx].grantedAbilityId = match ? match.abilityId : value;
+    renderEffects(); updateJSONPreview();
 }
 
 export function updateSummonCard(gIdx, pIdx, value) {
-  const match = StudioState.allCards.find(c => c.name.toLowerCase() === value.toLowerCase());
-  StudioState.effectGroups[gIdx].payloads[pIdx].cardId = match ? match.id : value;
-  renderEffects(); updateJSONPreview();
+    const match = StudioState.allCards.find(c => c.name.toLowerCase() === value.toLowerCase());
+    StudioState.effectGroups[gIdx].payloads[pIdx].cardId = match ? match.id : value;
+    renderEffects(); updateJSONPreview();
 }
 
 export function updateNestedSummonCard(gIdx, pIdx, nIdx, value) {
-  const match = StudioState.allCards.find(c => c.name.toLowerCase() === value.toLowerCase());
-  StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx].cardId = match ? match.id : value;
-  renderEffects(); updateJSONPreview();
+    const match = StudioState.allCards.find(c => c.name.toLowerCase() === value.toLowerCase());
+    StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx].cardId = match ? match.id : value;
+    renderEffects(); updateJSONPreview();
 }
 
 export function addNestedPayload(gIdx, pIdx) {
@@ -240,108 +252,117 @@ export function removeNestedPayload(gIdx, pIdx, nIdx) {
 }
 
 export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
-  const payload = StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx];
-  
-  if (field === 'stat') {
-      if (value === 'line') payload.amount = 'mid';
-      else if (payload.stat === 'line' && value !== 'line') payload.amount = 1;
-  }
+    const payload = StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx];
 
-  payload[field] = value;
+    if (field === 'stat') {
+        if (value === 'line') payload.amount = 'mid';
+        else if (payload.stat === 'line' && value !== 'line') payload.amount = 1;
+    }
 
-  if (field === 'targetPool' && value === 'MAX') {
-      payload.respectMax = false;
-  }
-  
-  if (field === 'type') {
-      const manifest = ACTION_MANIFEST[value];
-      if (!manifest) return;
-      
-      const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
-      const requiresResource = manifest.requiresResource || value === 'HARVEST';
+    payload[field] = value;
 
-      if (requiresAmount) { 
-          payload.amount = 1; 
-          delete payload.amountIsX; 
-      } else { 
-          delete payload.amount; 
-          delete payload.amountIsX; 
-      }
-      
-      if (requiresResource) {
-          payload.resource = value === 'HARVEST' ? 'default' : 'Carnie'; 
-          if (value === 'MODIFY_RESOURCE') {
-              payload.targetPool = 'CURRENT';
-              payload.respectMax = false;
-          } else {
-              delete payload.targetPool;
-              delete payload.respectMax;
-          }
-      } else {
-          delete payload.resource;
-          delete payload.targetPool;
-          delete payload.respectMax;
-      }
+    if (field === 'targetPool' && value === 'MAX') {
+        payload.respectMax = false;
+    }
 
-      if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
-      if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
-      if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
-      if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
-      if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
-      if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
-      if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
-    if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
-    if (!manifest.canOverheal) delete payload.overheal;
-      if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
-      if (!manifest.canInvert) delete payload.invertRoles;
-      if (!manifest.canBeCost) delete payload.isCost;
-      
-      if (!manifest.validDurations.includes(payload.duration)) {
-          payload.duration = manifest.validDurations[0] || 'INSTANT';
-      }
-  }
-  
-  renderEffects();
-  updateJSONPreview();
+    if (field === 'type') {
+        const manifest = ACTION_MANIFEST[value];
+        if (!manifest) return;
+
+        if (value === 'CUSTOM_SCRIPT') {
+            payload.undoSafe = payload.undoSafe === true;
+        } else {
+            delete payload.undoSafe;
+        }
+
+        const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
+        const requiresResource = manifest.requiresResource || value === 'HARVEST';
+
+        if (requiresAmount) {
+            payload.amount = 1;
+            delete payload.amountIsX;
+        } else {
+            delete payload.amount;
+            delete payload.amountIsX;
+        }
+
+        if (requiresResource) {
+            payload.resource = value === 'HARVEST' ? 'default' : 'Carnie';
+            if (value === 'MODIFY_RESOURCE') {
+                payload.targetPool = 'CURRENT';
+                payload.respectMax = false;
+            } else {
+                delete payload.targetPool;
+                delete payload.respectMax;
+            }
+        } else {
+            delete payload.resource;
+            delete payload.targetPool;
+            delete payload.respectMax;
+        }
+
+        if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
+        if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+        if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
+        if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
+        if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
+        if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
+        if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
+        if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
+        if (!manifest.canOverheal) delete payload.overheal;
+        if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
+        if (!manifest.canInvert) delete payload.invertRoles;
+        if (!manifest.canBeCost) delete payload.isCost;
+
+        if (!manifest.validDurations.includes(payload.duration)) {
+            payload.duration = manifest.validDurations[0] || 'INSTANT';
+        }
+    }
+
+    renderEffects();
+    updateJSONPreview();
 }
 
 export function updateNestedGrantedAbility(gIdx, pIdx, nIdx, value) {
-  const match = StudioState.allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
-  StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx].grantedAbilityId = match ? match.abilityId : value;
-  renderEffects(); updateJSONPreview();
+    const match = StudioState.allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
+    StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx].grantedAbilityId = match ? match.abilityId : value;
+    renderEffects(); updateJSONPreview();
 }
 
 export function updateNestedGroup(gIdx, pIdx, field, value) {
     StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup[field] = value;
+    if (field === 'targetMethod' && !['AUTO_RANDOM', 'AUTO_FIRST'].includes(value)) {
+        delete StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.targetCountIsX;
+    }
     renderEffects();
     updateJSONPreview();
 }
 
 export function revalidatePayloadTypes() {
     if (typeof getValidActionsForZones === 'undefined') return;
-    
+
     const fullTrigger = document.getElementById('ab-trigger') ? document.getElementById('ab-trigger').value.toUpperCase() : 'MANUAL';
 
     StudioState.effectGroups.forEach((group, gIdx) => {
         let baseZones = group.quickTargeting?.zones || ['FIELD'];
         if (group.targetMethod === 'SAME_AS_ACTIVATION') baseZones = StudioState.activationQuickTargeting?.zones || ['FIELD'];
-        
+
         group.payloads.forEach((payload, pIdx) => {
             let effectiveZones = calculateEffectiveZones(baseZones, group.payloads, pIdx);
             const baseValidActions = group.targetMethod === 'SELF' ? EFFECT_TYPES : getValidActionsForZones(effectiveZones);
             const validActions = getValidEffectTypes(fullTrigger, baseValidActions);
-            
+
             if (!validActions.includes(payload.type)) {
                 const fallback = validActions.includes('DEAL_DAMAGE') ? 'DEAL_DAMAGE' : (validActions.length > 0 ? validActions[0] : 'CUSTOM_SCRIPT');
                 payload.type = fallback;
-                
+
                 const manifest = ACTION_MANIFEST[fallback];
                 if (manifest) {
                     const requiresAmount = manifest.requiresAmount || fallback === 'HARVEST';
                     const requiresResource = manifest.requiresResource || fallback === 'HARVEST';
 
                     if (requiresAmount) payload.amount = 1; else delete payload.amount;
-                    
+
                     if (requiresResource) {
                         payload.resource = fallback === 'HARVEST' ? 'default' : 'Carnie';
                         if (fallback === 'MODIFY_RESOURCE') {
@@ -356,7 +377,7 @@ export function revalidatePayloadTypes() {
                         delete payload.targetPool;
                         delete payload.respectMax;
                     }
-                    
+
                     if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
                     if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
                     if (fallback !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
@@ -369,11 +390,11 @@ export function revalidatePayloadTypes() {
                     if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
                     if (!manifest.canInvert) delete payload.invertRoles;
                     if (!manifest.canBeCost) delete payload.isCost;
-                    
+
                     if (manifest.hasNestedGroup) {
-                        payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
+                        payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, targetCountIsX: false, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
                     } else { delete payload.nestedGroup; }
-                    
+
                     if (!manifest.validDurations.includes(payload.duration)) {
                         payload.duration = manifest.validDurations[0] || 'INSTANT';
                     }
@@ -384,27 +405,37 @@ export function revalidatePayloadTypes() {
 }
 
 export function renderEffects() {
-  const container = document.getElementById('effect-groups-container');
-  
-  if (StudioState.effectGroups.length === 0) {
-    container.innerHTML = `<div class="text-slate-500 italic text-xs p-3 text-center border border-dashed border-slate-700 rounded-xl">No target blocks added. This ability does nothing.</div>`;
-    return;
-  }
+    const container = document.getElementById('effect-groups-container');
+    if (!container) return;
 
-  const baseTrigger = document.getElementById('ab-trigger').value.toUpperCase();
-  const scope = document.getElementById('ab-trigger-scope').value;
-  const actMethod = document.getElementById('ab-act-method').value;
+    const triggerEl = document.getElementById('ab-trigger');
+    const baseTrigger = triggerEl ? triggerEl.value.toUpperCase() : 'MANUAL';
+    const scopeEl = document.getElementById('ab-trigger-scope');
+    const scope = scopeEl ? scopeEl.value : 'PERSONAL';
+    const actMethodEl = document.getElementById('ab-act-method');
+    const actMethod = actMethodEl ? actMethodEl.value : 'NONE';
 
-  const ctx = {
-      effectGroups: StudioState.effectGroups, baseTrigger, scope, actMethod, activationQuickTargeting: StudioState.activationQuickTargeting,
-      getValidActionsForZones, calculateEffectiveZones, EFFECT_TYPES, getValidEffectTypes, ACTION_MANIFEST, ACTION_CATEGORIES,
-      allAbilities: StudioState.allAbilities, allCards: StudioState.allCards, customTribesList: StudioState.customTribesList, getValidTargetMethods
-  };
+    const ctx = {
+        effectGroups: StudioState.effectGroups,
+        baseTrigger,
+        scope,
+        actMethod,
+        activationQuickTargeting: StudioState.activationQuickTargeting,
+        getValidActionsForZones,
+        calculateEffectiveZones,
+        EFFECT_TYPES,
+        getValidEffectTypes,
+        ACTION_MANIFEST,
+        ACTION_CATEGORIES,
+        allAbilities: StudioState.allAbilities,
+        allCards: StudioState.allCards,
+        customTribesList: StudioState.customTribesList,
+        getValidTargetMethods
+    };
 
-  container.innerHTML = generateEffectsHTML(ctx);
+    container.innerHTML = generateEffectsHTML(ctx);
 }
 
-// Bind to window
 window.removeEffectGroup = removeEffectGroup;
 window.moveEffectGroup = moveEffectGroup;
 window.updateEffectGroup = updateEffectGroup;
