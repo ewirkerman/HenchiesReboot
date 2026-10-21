@@ -15,12 +15,12 @@ export function renderAssignedAbilities() {
     container.innerHTML = CardState.currentAbilities.map((obj, index) => {
         const ab = CardState.allAbilities.find(a => a.abilityId === obj.id);
         if (!ab) return '';
-        
-        let hasX = false;
-        if (ab.effects) {
-            hasX = ab.effects.some(g => g.payloads && g.payloads.some(p => p.amountIsX || (p.nestedGroup && p.nestedGroup.payloads && p.nestedGroup.payloads.some(np => np.amountIsX))));
+
+        let hasX = !!ab.requiresX;
+        if (!hasX && ab.effects) {
+            hasX = ab.effects.some(g => g.payloads && g.payloads.some(p => p.amountIsX || p.grantedAbilityParamXIsX || (p.nestedGroup && p.nestedGroup.payloads && p.nestedGroup.payloads.some(np => np.amountIsX || np.grantedAbilityParamXIsX))));
         }
-        
+
         const xInputHtml = hasX ? `
             <div class="pointer-events-auto flex items-center gap-1 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-900/50 ml-2">
                 <span class="text-[10px] font-black text-amber-500">X =</span>
@@ -61,14 +61,14 @@ export function renderAssignedAbilities() {
             </div>
         `;
     }).join('');
-    
+
     renderReferencedAbilities();
 }
 
 export function renderReferencedAbilities() {
     const container = document.getElementById('referenced-abilities-container');
     const listContainer = document.getElementById('referenced-abilities-list');
-    
+
     const dependentAbilityIds = new Set();
     const queue = CardState.currentAbilities.map(a => a.id);
     const processed = new Set();
@@ -77,7 +77,7 @@ export function renderReferencedAbilities() {
         const currentId = queue.shift();
         if (processed.has(currentId)) continue;
         processed.add(currentId);
-        
+
         const ab = CardState.allAbilitiesRegistry.find(a => a.abilityId === currentId);
         if (!ab) continue;
 
@@ -128,9 +128,9 @@ export function renderReferencedAbilities() {
     listContainer.innerHTML = Array.from(dependentAbilityIds).map(abId => {
         const ab = CardState.allAbilitiesRegistry.find(a => a.abilityId === abId);
         if (!ab) return '';
-        
+
         const linkHref = window.CreatorController ? `#${ab.abilityId}` : `abilities.html#${ab.abilityId}`;
-        
+
         return `
             <div class="flex justify-between items-center bg-slate-900/60 border border-slate-700/50 py-1.5 px-2 rounded text-xs transition-colors group overflow-hidden">
                 <div class="pointer-events-none flex items-center gap-1.5 flex-1 min-w-0 pr-2">
@@ -205,7 +205,7 @@ export async function createNewAbilityForCard() {
         showToast('Please name the card before creating an ability.', 'error');
         return;
     }
-    
+
     const btn = document.getElementById('create-new-ability-btn');
     btn.innerHTML = 'Saving...';
     btn.disabled = true;

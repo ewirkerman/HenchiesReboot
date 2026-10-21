@@ -3,29 +3,29 @@
  * Translates JSON target constraints into Noun Phrases.
  */
 
-import { formatArrayToString, resolveEntityName } from './utils.js';
+import { formatArrayToString, resolveEntityName, getReadinessConditionState, getZoneLinguistics, resolveAbility, resolveTribeName, formatXValue } from './utils.js';
 
-export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes = null, allAbilities = null, allCards = null) {
+export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes = null, allAbilities = null, allCards = null, paramX = null) {
     if (!qt) return isPlural ? 'targets' : 'target';
-    
+
     let isCardZone = qt && qt.zones && qt.zones.length > 0 && qt.zones.every(z => ['HAND', 'DECK', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'].includes(z));
-    
+
     // Robustly match the implied zone (case-insensitive) to suppress redundant location text
     let matchesImpliedZone = false;
     if (allHaveSameImpliedZone && impliedZone && qt && qt.zones) {
         matchesImpliedZone = qt.zones.some(z => String(z).toUpperCase() === impliedZone);
     }
-    
+
     if (matchesImpliedZone) {
         isCardZone = false; // Prevents forcing "card" suffix if the verb implies a physical unit
     }
 
     let adjectives = [];
     let suffixes = [];
-    
+
     let combatState = null;
     let attackingState = null;
-    
+
     const isAre = isPlural ? 'are' : 'is';
 
     const parseNode = (node) => {
@@ -37,65 +37,70 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             const ctx = node.context || 'EVAL_TARGET';
 
             let contextSubject = "their ";
+            let contextPronoun = isPlural ? "they " : "it ";
             if (!isPlural) contextSubject = "its ";
-            
-            if (ctx === 'HOST') { contextSubject = isPlural ? "their hosts " : "its host "; }
-            else if (ctx === 'EVENT_SOURCE') { contextSubject = "the event doer "; }
-            else if (ctx === 'EVENT_TARGET') { contextSubject = "the event receiver "; }
-            else if (ctx === 'ABILITY_SOURCE') { contextSubject = "this "; }
+
+            if (ctx === 'HOST') { contextSubject = isPlural ? "their hosts " : "its host "; contextPronoun = contextSubject; }
+            else if (ctx === 'EVENT_SOURCE') { contextSubject = "the event doer "; contextPronoun = contextSubject; }
+            else if (ctx === 'EVENT_TARGET') { contextSubject = "the event receiver "; contextPronoun = contextSubject; }
+            else if (ctx === 'ABILITY_SOURCE') { contextSubject = "this "; contextPronoun = contextSubject; }
 
             const opMap = { '==': '', '!=': 'not', '>': 'more than', '<': 'less than', '>=': 'at least', '<=': 'at most' };
             let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
-            
+
             if (['tribe', 'family', 'genus'].includes(checkAttr)) {
-                let displayValue = String(node.value);
-                if (checkAttr === 'tribe') {
-                    if (allTribes && Array.isArray(allTribes)) {
-                        const match = allTribes.find(t => t.id === displayValue || t.name.toLowerCase() === displayValue.toLowerCase());
-                        if (match) displayValue = match.name;
-                    } else if (displayValue.toLowerCase().startsWith('tribe_')) {
-                        displayValue = displayValue.substring(6).replace(/_/g, ' ');
-                        displayValue = displayValue.replace(/\b\w/g, l => l.toUpperCase());
-                    }
-                }
-                
+                let displayValue = checkAttr === 'tribe' ? resolveTribeName(node.value, allTribes) : String(node.value);
+
                 if (node.operator === '==') {
                     if (ctx === 'EVAL_TARGET') adjectives.push(displayValue);
-                    else suffixes.push(`where ${contextSubject}is ${displayValue}`);
+                    else suffixes.push(`where ${contextPronoun}is ${displayValue}`);
                 } else {
                     if (ctx === 'EVAL_TARGET') suffixes.push(`that ${isAre} not ${displayValue}`);
-                    else suffixes.push(`where ${contextSubject}is not ${displayValue}`);
+                    else suffixes.push(`where ${contextPronoun}is not ${displayValue}`);
                 }
             } else if (checkAttr === 'isCombat') {
                 let isTrue = String(node.value).toLowerCase() === 'true';
-                if (node.operator === '!=') isTrue = !isTrue; 
-                combatState = isTrue ? `during combat` : `outside of combat`;
+                if (node.operator === '!=') isTrue = !isTrue;
+
+                if (ctx === 'EVAL_TARGET') {
+                    combatState = isTrue ? `in combat` : `not in combat`;
+                } else {
+                    suffixes.push(isTrue ? `where ${contextPronoun}is in combat` : `where ${contextPronoun}is not in combat`);
+                }
             } else if (checkAttr === 'isAttacking') {
                 let isTrue = String(node.value).toLowerCase() === 'true';
-                if (node.operator === '!=') isTrue = !isTrue; 
-                if (isTrue) suffixes.push(`where the event is an attack`);
-                else suffixes.push(`where the event is not an attack`);
+                if (node.operator === '!=') isTrue = !isTrue;
+
+                if (ctx === 'EVAL_TARGET') {
+                    attackingState = isTrue ? `attacking` : `not attacking`;
+                } else {
+                    suffixes.push(isTrue ? `where ${contextPronoun}is attacking` : `where ${contextPronoun}is not attacking`);
+                }
             } else if (checkAttr === 'eventAbility') {
                 if (node.operator === '==') suffixes.push(`where the event ability is '${node.value}'`);
                 else suffixes.push(`where the event ability is not '${node.value}'`);
             } else if (checkAttr === 'hasAbility') {
-                let abilityName = node.value;
-                if (allAbilities && Array.isArray(allAbilities)) {
-                    const match = allAbilities.find(a => a.abilityId === node.value || a.name === node.value);
-                    if (match) abilityName = match.name;
-                }
+                let abilityName = resolveAbility(node.value, allAbilities).name;
                 if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'with' : `where ${contextSubject}has`} '${abilityName}'`);
                 else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'without' : `where ${contextSubject}does not have`} '${abilityName}'`);
             } else if (checkAttr === 'entity') {
                 let val = String(node.value);
+                let rawLower = val.toLowerCase();
+
+                if (rawLower === 'target' && node.operator === '!=') {
+                    if (ctx === 'EVAL_TARGET') adjectives.push('other');
+                    else suffixes.push(`where ${contextSubject}is not the target`);
+                    return;
+                }
+
                 if (val.toLowerCase() === 'self') {
                     val = 'this';
                 } else {
                     val = resolveEntityName(val, allCards);
                 }
-                
+
                 let lowerVal = val.toLowerCase();
-                
+
                 if (node.operator === '==') {
                     if (ctx === 'EVAL_TARGET' && lowerVal !== 'unit' && lowerVal !== 'avatar') adjectives.push(val);
                     else if (ctx !== 'EVAL_TARGET') suffixes.push(`where ${contextSubject}is a ${val}`);
@@ -113,10 +118,9 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                     else suffixes.push(`where ${contextSubject}is not ${nounStr}`);
                 }
             } else if (checkAttr === 'zone') {
-                let val = String(node.value).toLowerCase();
-                if (val === 'original_deck') val = 'original deck';
-                if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'in' : `where ${contextSubject}is in`} ${val}`);
-                else suffixes.push(`${ctx === 'EVAL_TARGET' ? 'not in' : `where ${contextSubject}is not in`} ${val}`);
+                const { name: val, prep } = getZoneLinguistics(node.value);
+                if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? prep : `where ${contextSubject}is ${prep}`} ${val}`);
+                else suffixes.push(`${ctx === 'EVAL_TARGET' ? `not ${prep}` : `where ${contextSubject}is not ${prep}`} ${val}`);
             } else if (checkAttr === 'line') {
                 let val = String(node.value).toLowerCase();
                 if (node.operator === '==') suffixes.push(`${ctx === 'EVAL_TARGET' ? 'in' : `where ${contextSubject}is in`} [BATTLELINE:${val}]`);
@@ -126,9 +130,21 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                     let desc = node.description;
                     desc = desc.replace(/\{SELF\}/g, 'this');
                     desc = desc.replace(/\{SELF_POSS\}/g, "its");
+                    // Unconditionally evaluate paramX replacement
+                    desc = desc.replace(/\bX\b/g, formatXValue(paramX));
                     suffixes.push(desc);
                 } else {
                     suffixes.push(`matching a custom condition`);
+                }
+            } else if (checkAttr === 'readiness') {
+                let rState = getReadinessConditionState(node.operator, node.value);
+                if (rState) {
+                    if (ctx === 'EVAL_TARGET') adjectives.unshift(rState); // Forces ready/unready to precede tribe names
+                    else suffixes.push(`where ${contextPronoun}is ${rState}`);
+                } else {
+                    let statName = `[STAT:${checkAttr}]`;
+                    if (ctx === 'EVAL_TARGET') suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
+                    else suffixes.push(`where ${contextSubject}${statName} is ${opText} ${node.value}`.trim());
                 }
             } else {
                 let statName = `[STAT:${checkAttr}]`;
@@ -139,7 +155,7 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
     };
 
     if (logicTree) parseNode(logicTree);
-    
+
     // Resolve combat states with precedence (attacking entails combat)
     if (attackingState) {
         suffixes.push(attackingState);
@@ -149,18 +165,18 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
 
     let validAlignments = (qt.alignment || []).filter(a => a !== 'ANY' && a !== 'ALL');
     if (validAlignments.length === 0) validAlignments = ['FRIENDLY', 'ENEMY'];
-    
+
     let scopeAlignments = formatArrayToString(validAlignments, 'any');
     if (scopeAlignments === 'friendly') scopeAlignments = isPlural ? 'allies' : 'ally';
     else if (scopeAlignments === 'enemy') scopeAlignments = isPlural ? 'enemies' : 'enemy';
     else if (scopeAlignments === 'enemy or friendly' || scopeAlignments === 'friendly or enemy') {
-         if (isCardZone) scopeAlignments = isPlural ? 'cards' : 'card';
-         else scopeAlignments = isPlural ? 'characters' : 'character';
+        if (isCardZone) scopeAlignments = isPlural ? 'cards' : 'card';
+        else scopeAlignments = isPlural ? 'characters' : 'character';
     }
-    
+
     let validTypesRaw = (qt.entityType || []).filter(e => e !== 'ANY' && e !== 'ALL');
     let validTypes = validTypesRaw.map(type => resolveEntityName(type, allCards));
-    
+
     let scopeTypes = formatArrayToString(validTypes, 'entity');
     if (isPlural) {
         scopeTypes = validTypes.map((s, idx) => {
@@ -182,10 +198,10 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
         }).join(' or ');
     }
     if (scopeTypes === '') {
-         if (isCardZone) scopeTypes = isPlural ? 'cards' : 'card';
-         else scopeTypes = isPlural ? 'entities' : 'entity';
+        if (isCardZone) scopeTypes = isPlural ? 'cards' : 'card';
+        else scopeTypes = isPlural ? 'entities' : 'entity';
     }
-    
+
     let isPlayerZone = qt && qt.zones && qt.zones.length > 0 && qt.zones.every(z => ['HAND', 'DECK', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'].includes(z));
 
     let noun = scopeTypes;
@@ -195,18 +211,21 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             adjAlign = validAlignments[0].toLowerCase();
             if (adjAlign === 'friendly') adjAlign = 'ally';
         }
-        
+
         if (isPlayerZone && adjAlign === 'ally') {
             adjAlign = '';
         }
-        
-        let canDropUnit = validTypesRaw.length === 1 && validTypesRaw[0] === 'UNIT' && !isCardZone;
-        
+
+        let canDropUnit = validTypesRaw.length === 1 && validTypesRaw[0] === 'UNIT' && (!isCardZone || adjectives.length > 0);
+
         if (validTypesRaw.length === 0 || canDropUnit) {
-            if (adjAlign) {
-                 noun = isCardZone ? `${adjAlign} ${isPlural ? 'cards' : 'card'}` : scopeAlignments;
+            if (adjectives.length > 0) {
+                // If there's an adjective like "Humanoid", allow it to act as the primary noun, dropping "unit"
+                noun = adjAlign ? scopeAlignments : '';
+            } else if (adjAlign) {
+                noun = isCardZone ? `${adjAlign} ${isPlural ? 'cards' : 'card'}` : scopeAlignments;
             } else {
-                 noun = isCardZone ? (isPlural ? 'cards' : 'card') : (isPlural ? 'units' : 'unit');
+                noun = isCardZone ? (isPlural ? 'cards' : 'card') : (isPlural ? 'units' : 'unit');
             }
         } else {
             noun = adjAlign ? `${adjAlign} ${scopeTypes}` : scopeTypes;
@@ -251,14 +270,14 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
         let suffixJoin = (logicTree && logicTree.logicalOperator === 'OR') ? ' or ' : ' and ';
         baseDesc += ` ${suffixes.join(suffixJoin)}`;
     }
-    
+
     const isPlay = trigger === 'PLAY' || trigger === 'PLAY_OPTIONAL';
     const isManual = trigger === 'MANUAL';
-    
+
     if (isPlay && qt.ignoreBattlelines === false) {
-         baseDesc += ` (respecting battlelines)`;
+        baseDesc += ` (respecting battlelines)`;
     } else if (isManual && qt.ignoreBattlelines === true) {
-         baseDesc += ` (ignoring battlelines)`;
+        baseDesc += ` (ignoring battlelines)`;
     }
 
     return baseDesc.replace(/\s+/g, ' ').trim();

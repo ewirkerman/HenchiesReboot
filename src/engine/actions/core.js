@@ -70,6 +70,8 @@ export class Action {
     }
 
     run(engine) {
+        const previousActorId = engine.currentActionActorId;
+        engine.currentActionActorId = this.payload.actingPlayerId || this.payload.source?.ownerId || engine.state.activePlayerId;
         this.incrementDepth(engine);
         this.recordPreRunOwners();
         this.evaluateUndoSafety(engine);
@@ -94,6 +96,7 @@ export class Action {
             return true;
         } finally {
             this.decrementDepth(engine);
+            engine.currentActionActorId = previousActorId;
         }
     }
 
@@ -116,6 +119,12 @@ export class Action {
     }
 
     evaluateUndoSafety(engine) {
+        const targetLocation = findEntityLocation(engine, this.payload.target);
+        const actingPlayerId = this.payload.actingPlayerId || this.payload.source?.ownerId || engine.state.activePlayerId;
+        if (targetLocation && ['hand', 'deck'].includes(targetLocation.zone) && targetLocation.playerId !== actingPlayerId) {
+            engine.state._irreversibleActionOccurred = true;
+        }
+
         const abilityId = this.payload.sourceAbilityId || this.payload.eventContext?.abilityId;
         if (abilityId) {
             this.checkAbilityUndoSafety(engine, abilityId);
@@ -129,7 +138,10 @@ export class Action {
         if (!catAb && this.payload.source?.abilities) {
             catAb = this.payload.source.abilities.find(a => a.abilityId === abilityId);
         }
-        if (catAb && !isUndoable(engine.state, catAb)) {
+        const abilityUndoable = catAb && (typeof engine.isAbilityUndoable === 'function'
+            ? engine.isAbilityUndoable(catAb, this.payload.source, this.payload.actingPlayerId)
+            : isUndoable(engine.state, catAb));
+        if (catAb && !abilityUndoable) {
             engine.state._irreversibleActionOccurred = true;
         } else if (!catAb) {
             this.checkNativeUndoSafety(engine);

@@ -5,6 +5,17 @@ import { ACTION_MANIFEST, ACTION_CATEGORIES, EVENT_MANIFEST, EVENT_CATEGORIES } 
 import { updateJSONPreview } from './catalog_sync.js';
 import { getValidScopes, getValidActivationMethods } from '../../ability_validation.js';
 import { generateQuickMatrixHTML } from './ability_renderer.js';
+import { renderEffects, revalidatePayloadTypes } from './payloads.js';
+
+const EVENT_DISPLAY_LABELS = {
+    'COMBAT_ENDED': 'Combat Ended',
+    'HIT': 'Hit'
+};
+
+function formatEventLabel(key) {
+    if (EVENT_DISPLAY_LABELS[key]) return EVENT_DISPLAY_LABELS[key];
+    return key.replace(/_/g, ' ');
+}
 
 export function populateBaseTriggers() {
     const baseTriggerSelect = document.getElementById('ab-base-trigger');
@@ -29,20 +40,27 @@ export function populateBaseTriggers() {
         { val: 'OPP_TURN_ENDED', label: 'Opponent Turn Ended' },
         { val: 'ON_ACT', label: 'When Acting (Ability/Attack)' }
     ];
-    
+
     let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t.val}">${t.label}</option>`).join('') + `</optgroup>`;
-    
+
     Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
         baseOptionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
     });
     Object.entries(EVENT_CATEGORIES).forEach(([categoryName, events]) => {
-        baseOptionsHtml += `<optgroup label="${categoryName} Events">` + events.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+        baseOptionsHtml += `<optgroup label="${categoryName} Events">` + events.map(t => `<option value="${t}">${formatEventLabel(t)}</option>`).join('') + `</optgroup>`;
     });
 
     baseTriggerSelect.innerHTML = baseOptionsHtml;
 }
 
 export function parseTriggerToComposite(triggerString) {
+    if (!triggerString) return { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
+    const cleanStr = String(triggerString).toUpperCase();
+
+    if (cleanStr.includes('COMBAT_ENDED')) {
+        return { base: 'COMBAT_ENDED', phase: 'ON', role: 'ACTIVE' };
+    }
+
     const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED', 'ON_ACT'];
     if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
 
@@ -69,11 +87,13 @@ export function parseTriggerToComposite(triggerString) {
 
 export function renderAdditionalTriggers() {
     const container = document.getElementById('additional-triggers-container');
+    if (!container) return;
+
     if (StudioState.additionalTriggers.length === 0) {
         container.innerHTML = '';
         return;
     }
-    
+
     const basics = [
         { val: 'MANUAL', label: 'Manual Activation' },
         { val: 'ON_BE_PLAYED', label: 'When Played (Mandatory)' },
@@ -93,14 +113,14 @@ export function renderAdditionalTriggers() {
         { val: 'OPP_TURN_ENDED', label: 'Opponent Turn Ended' },
         { val: 'ON_ACT', label: 'When Acting (Ability/Attack)' }
     ];
-    
+
     let baseOptionsHtml = `<optgroup label="Basic Triggers">` + basics.map(t => `<option value="${t.val}">${t.label}</option>`).join('') + `</optgroup>`;
-    
+
     Object.entries(ACTION_CATEGORIES).forEach(([categoryName, actions]) => {
         baseOptionsHtml += `<optgroup label="${categoryName} Events">` + actions.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
     });
     Object.entries(EVENT_CATEGORIES).forEach(([categoryName, events]) => {
-        baseOptionsHtml += `<optgroup label="${categoryName} Events">` + events.map(t => `<option value="${t}">${t.replace(/_/g, ' ')}</option>`).join('') + `</optgroup>`;
+        baseOptionsHtml += `<optgroup label="${categoryName} Events">` + events.map(t => `<option value="${t}">${formatEventLabel(t)}</option>`).join('') + `</optgroup>`;
     });
 
     container.innerHTML = StudioState.additionalTriggers.map((trigStr, idx) => {
@@ -110,7 +130,7 @@ export function renderAdditionalTriggers() {
         const isEvent = !!EVENT_MANIFEST[comp.base];
         const hasPhase = isAction || isEvent;
         const hasDual = hasPhase && manifest.passiveType;
-        
+
         return `
         <div class="flex items-center gap-1.5 bg-slate-900/60 p-1.5 rounded border border-slate-700/80">
             <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest px-1">OR</span>
@@ -119,15 +139,15 @@ export function renderAdditionalTriggers() {
             </select>
             ${hasPhase ? `
             <select onchange="window.updateAdditionalTrigger(${idx}, 'phase', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-amber-300 text-[10px] font-bold w-20 shrink-0">
-                <option value="ON" ${comp.phase==='ON'?'selected':''}>React</option>
-                <option value="WOULD" ${comp.phase==='WOULD'?'selected':''}>Int</option>
-                <option value="MODIFY" ${comp.phase==='MODIFY'?'selected':''}>Mod</option>
+                <option value="ON" ${comp.phase === 'ON' ? 'selected' : ''}>React</option>
+                <option value="WOULD" ${comp.phase === 'WOULD' ? 'selected' : ''}>Int</option>
+                <option value="MODIFY" ${comp.phase === 'MODIFY' ? 'selected' : ''}>Mod</option>
             </select>
             ` : ''}
             ${hasDual ? `
             <select onchange="window.updateAdditionalTrigger(${idx}, 'role', this.value)" class="bg-slate-950 border border-slate-700 p-1 rounded text-amber-300 text-[10px] font-bold w-20 shrink-0">
-                <option value="ACTIVE" ${comp.role==='ACTIVE'?'selected':''}>Subj</option>
-                <option value="PASSIVE" ${comp.role==='PASSIVE'?'selected':''}>Obj</option>
+                <option value="ACTIVE" ${comp.role === 'ACTIVE' ? 'selected' : ''}>Subj</option>
+                <option value="PASSIVE" ${comp.role === 'PASSIVE' ? 'selected' : ''}>Obj</option>
             </select>
             ` : ''}
             <button type="button" onclick="window.removeAdditionalTrigger(${idx})" class="text-red-400 hover:text-red-300 font-black px-1.5">&times;</button>
@@ -151,13 +171,13 @@ export function removeAdditionalTrigger(idx) {
 export function updateAdditionalTrigger(idx, field, value) {
     const comp = parseTriggerToComposite(StudioState.additionalTriggers[idx]);
     comp[field] = value;
-    
+
     const manifest = ACTION_MANIFEST[comp.base] || EVENT_MANIFEST[comp.base] || {};
     const isAction = !!manifest.validDurations;
     const isEvent = !!EVENT_MANIFEST[comp.base];
     const hasPhase = isAction || isEvent;
     const hasDual = hasPhase && manifest.passiveType;
-    
+
     if (field === 'base') {
         comp.phase = 'ON';
         comp.role = 'ACTIVE';
@@ -169,14 +189,15 @@ export function updateAdditionalTrigger(idx, field, value) {
         if (comp.role === 'PASSIVE' && hasDual) verb = manifest.passiveType;
         finalStr = `${comp.phase}_${verb}`;
     }
-    
+
     StudioState.additionalTriggers[idx] = finalStr;
     renderAdditionalTriggers();
     updateJSONPreview();
 }
 
 export function updateTriggerComposite() {
-    const base = document.getElementById('ab-base-trigger').value;
+    const baseEl = document.getElementById('ab-base-trigger');
+    const base = baseEl ? baseEl.value : 'MANUAL';
     const phaseSelect = document.getElementById('ab-trigger-phase');
     const roleSelect = document.getElementById('ab-trigger-role');
     const hiddenTrigger = document.getElementById('ab-trigger');
@@ -186,43 +207,53 @@ export function updateTriggerComposite() {
     const isAction = !!ACTION_MANIFEST[base];
     const isEvent = !!EVENT_MANIFEST[base];
     const hasPhase = isAction || isEvent;
-    const hasDual = hasPhase && manifest.passiveType;
+    const hasDual = hasPhase && manifest?.passiveType;
 
     if (hasPhase) {
-        phaseSelect.classList.remove('hidden');
+        if (phaseSelect) phaseSelect.classList.remove('hidden');
         if (hasDual) {
-            roleSelect.classList.remove('hidden');
+            if (roleSelect) roleSelect.classList.remove('hidden');
         } else {
-            roleSelect.classList.add('hidden');
-            roleSelect.value = 'ACTIVE';
+            if (roleSelect) {
+                roleSelect.classList.add('hidden');
+                roleSelect.value = 'ACTIVE';
+            }
         }
 
         let verb = base;
-        if (roleSelect.value === 'PASSIVE' && hasDual) {
+        if (roleSelect && roleSelect.value === 'PASSIVE' && hasDual) {
             verb = manifest.passiveType;
         }
 
-        hiddenTrigger.value = `${phaseSelect.value}_${verb}`;
+        const phaseVal = phaseSelect ? phaseSelect.value : 'ON';
+        if (hiddenTrigger) hiddenTrigger.value = `${phaseVal}_${verb}`;
     } else {
-        phaseSelect.classList.add('hidden');
-        roleSelect.classList.add('hidden');
-        hiddenTrigger.value = base;
+        if (phaseSelect) phaseSelect.classList.add('hidden');
+        if (roleSelect) roleSelect.classList.add('hidden');
+        if (hiddenTrigger) hiddenTrigger.value = base;
     }
 
-    preview.innerText = `Final Event: ${hiddenTrigger.value}`;
+    if (preview && hiddenTrigger) {
+        preview.innerText = `Final Event: ${hiddenTrigger.value}`;
+    }
+
     updateTargetingUI();
+    revalidatePayloadTypes();
+    renderEffects();
 }
 
 export function updateTargetingUI() {
-    const triggerValue = document.getElementById('ab-trigger').value.toUpperCase();
-    const baseTrigger = document.getElementById('ab-base-trigger').value.toUpperCase();
+    const triggerEl = document.getElementById('ab-trigger');
+    const baseTriggerEl = document.getElementById('ab-base-trigger');
+    const triggerValue = triggerEl ? triggerEl.value.toUpperCase() : 'MANUAL';
+    const baseTrigger = baseTriggerEl ? baseTriggerEl.value.toUpperCase() : 'MANUAL';
     const actMethodSelect = document.getElementById('ab-act-method');
     const triggerLimitSelect = document.getElementById('ab-trigger-limit');
     const scopeSelect = document.getElementById('ab-trigger-scope');
 
     const validScopes = getValidScopes(baseTrigger);
     if (!validScopes.includes('HOST')) validScopes.push('HOST');
-    
+
     const scopeLabels = {
         'PERSONAL': 'Personal (Self only)',
         'GLOBAL': 'Global (Board-wide)',
@@ -230,96 +261,105 @@ export function updateTargetingUI() {
     };
 
     const scopeContainer = document.getElementById('trigger-scope-container');
-    
-    if (validScopes.length > 1) {
-         scopeContainer.classList.remove('hidden');
-         scopeSelect.innerHTML = validScopes.map(s => `<option value="${s}" ${scopeSelect.value === s ? 'selected' : ''}>${scopeLabels[s] || s}</option>`).join('');
-    } else {
-         scopeContainer.classList.add('hidden');
-         scopeSelect.innerHTML = `<option value="${validScopes[0]}" selected>${scopeLabels[validScopes[0]] || validScopes[0]}</option>`;
+
+    if (scopeContainer && scopeSelect) {
+        if (validScopes.length > 1) {
+            scopeContainer.classList.remove('hidden');
+            scopeSelect.innerHTML = validScopes.map(s => `<option value="${s}" ${scopeSelect.value === s ? 'selected' : ''}>${scopeLabels[s] || s}</option>`).join('');
+        } else {
+            scopeContainer.classList.add('hidden');
+            scopeSelect.innerHTML = `<option value="${validScopes[0]}" selected>${scopeLabels[validScopes[0]] || validScopes[0]}</option>`;
+        }
     }
-    
-    const scope = scopeSelect.value;
+
+    const scope = scopeSelect ? scopeSelect.value : 'PERSONAL';
 
     if (triggerValue !== StudioState.lastTriggerValue) {
-         if (baseTrigger === 'ON_BE_PLAYED' || baseTrigger === 'PLAY' || baseTrigger === 'PLAY_OPTIONAL') {
-             StudioState.activationQuickTargeting.ignoreBattlelines = true;
-         } else if (baseTrigger === 'MANUAL') {
-             StudioState.activationQuickTargeting.ignoreBattlelines = false;
-         }
-         StudioState.lastTriggerValue = triggerValue;
+        if (baseTrigger === 'ON_BE_PLAYED' || baseTrigger === 'PLAY' || baseTrigger === 'PLAY_OPTIONAL') {
+            StudioState.activationQuickTargeting.ignoreBattlelines = true;
+        } else if (baseTrigger === 'MANUAL') {
+            StudioState.activationQuickTargeting.ignoreBattlelines = false;
+        }
+        StudioState.lastTriggerValue = triggerValue;
     }
 
-    if (baseTrigger === 'UNTRIGGERABLE') {
-      triggerLimitSelect.disabled = true;
-      triggerLimitSelect.title = "Not applicable for UNTRIGGERABLE abilities";
-    } else {
-      triggerLimitSelect.disabled = false;
-      triggerLimitSelect.title = "";
+    if (triggerLimitSelect) {
+        if (baseTrigger === 'UNTRIGGERABLE') {
+            triggerLimitSelect.disabled = true;
+            triggerLimitSelect.title = "Not applicable for UNTRIGGERABLE abilities";
+        } else {
+            triggerLimitSelect.disabled = false;
+            triggerLimitSelect.title = "";
+        }
     }
-    
+
     const validActMethods = getValidActivationMethods(baseTrigger, scope);
-    if (!validActMethods.includes(actMethodSelect.value)) actMethodSelect.value = validActMethods[0];
-    
-    actMethodSelect.innerHTML = validActMethods.map(m => {
-        const label = m === 'NONE' ? 'None (Self, Global, or Auto-Trigger)' : 'Player Choice (Click 1 Target)';
-        return `<option value="${m}" ${actMethodSelect.value === m ? 'selected' : ''}>${label}</option>`;
-    }).join('');
-    
+    if (actMethodSelect) {
+        if (!validActMethods.includes(actMethodSelect.value)) actMethodSelect.value = validActMethods[0];
+
+        actMethodSelect.innerHTML = validActMethods.map(m => {
+            const label = m === 'NONE' ? 'None (Self, Global, or Auto-Trigger)' : 'Player Choice (Click 1 Target)';
+            return `<option value="${m}" ${actMethodSelect.value === m ? 'selected' : ''}>${label}</option>`;
+        }).join('');
+    }
+
     const matrixContainer = document.getElementById('act-quick-matrix-container');
     const advancedToggleContainer = document.getElementById('act-advanced-toggle-container');
     const advancedTreeWrapper = document.getElementById('act-logic-tree-wrapper');
     const advancedIcon = document.getElementById('act-advanced-icon');
-    
+
     const section3Header = document.getElementById('section3-header');
     const actMethodContainer = document.getElementById('act-method-container');
-    
+
     if (scope === 'GLOBAL') {
-         actMethodContainer.classList.add('hidden');
-         matrixContainer.classList.remove('hidden');
-         advancedToggleContainer.classList.remove('hidden');
-         section3Header.innerText = "3. Global Event Filter (Who triggered this?)";
-         
-         matrixContainer.innerHTML = generateQuickMatrixHTML('activation', StudioState.activationQuickTargeting);
-         
-         if (StudioState.showAdvancedActivation) {
-             advancedTreeWrapper.classList.remove('hidden');
-             advancedIcon.style.transform = 'rotate(90deg)';
-         } else {
-             advancedTreeWrapper.classList.add('hidden');
-             advancedIcon.style.transform = 'rotate(0deg)';
-         }
+        if (actMethodContainer) actMethodContainer.classList.add('hidden');
+        if (matrixContainer) {
+            matrixContainer.classList.remove('hidden');
+            matrixContainer.innerHTML = generateQuickMatrixHTML('activation', StudioState.activationQuickTargeting);
+        }
+        if (advancedToggleContainer) advancedToggleContainer.classList.remove('hidden');
+        if (section3Header) section3Header.innerText = "3. Global Event Filter (Who triggered this?)";
+
+        if (StudioState.showAdvancedActivation) {
+            if (advancedTreeWrapper) advancedTreeWrapper.classList.remove('hidden');
+            if (advancedIcon) advancedIcon.style.transform = 'rotate(90deg)';
+        } else {
+            if (advancedTreeWrapper) advancedTreeWrapper.classList.add('hidden');
+            if (advancedIcon) advancedIcon.style.transform = 'rotate(0deg)';
+        }
     } else {
-         actMethodContainer.classList.remove('hidden');
-         
-         if (actMethodSelect.value === 'PLAYER_CHOICE') {
-           section3Header.innerText = "3. Player Activation Targets (Input)";
-           matrixContainer.classList.remove('hidden');
-           advancedToggleContainer.classList.remove('hidden');
-           matrixContainer.innerHTML = generateQuickMatrixHTML('activation', StudioState.activationQuickTargeting);
-           
-           if (StudioState.showAdvancedActivation) {
-             advancedTreeWrapper.classList.remove('hidden');
-             advancedIcon.style.transform = 'rotate(90deg)';
-           } else {
-             advancedTreeWrapper.classList.add('hidden');
-             advancedIcon.style.transform = 'rotate(0deg)';
-           }
-         } else {
-           section3Header.innerText = "3. Event Conditions (Optional)";
-           matrixContainer.classList.add('hidden');
-           advancedToggleContainer.classList.remove('hidden');
-           
-           if (StudioState.showAdvancedActivation) {
-             advancedTreeWrapper.classList.remove('hidden');
-             advancedIcon.style.transform = 'rotate(90deg)';
-           } else {
-             advancedTreeWrapper.classList.add('hidden');
-             advancedIcon.style.transform = 'rotate(0deg)';
-           }
-         }
+        if (actMethodContainer) actMethodContainer.classList.remove('hidden');
+
+        if (actMethodSelect && actMethodSelect.value === 'PLAYER_CHOICE') {
+            if (section3Header) section3Header.innerText = "3. Player Activation Targets (Input)";
+            if (matrixContainer) {
+                matrixContainer.classList.remove('hidden');
+                matrixContainer.innerHTML = generateQuickMatrixHTML('activation', StudioState.activationQuickTargeting);
+            }
+            if (advancedToggleContainer) advancedToggleContainer.classList.remove('hidden');
+
+            if (StudioState.showAdvancedActivation) {
+                if (advancedTreeWrapper) advancedTreeWrapper.classList.remove('hidden');
+                if (advancedIcon) advancedIcon.style.transform = 'rotate(90deg)';
+            } else {
+                if (advancedTreeWrapper) advancedTreeWrapper.classList.add('hidden');
+                if (advancedIcon) advancedIcon.style.transform = 'rotate(0deg)';
+            }
+        } else {
+            if (section3Header) section3Header.innerText = "3. Event Conditions (Optional)";
+            if (matrixContainer) matrixContainer.classList.add('hidden');
+            if (advancedToggleContainer) advancedToggleContainer.classList.remove('hidden');
+
+            if (StudioState.showAdvancedActivation) {
+                if (advancedTreeWrapper) advancedTreeWrapper.classList.remove('hidden');
+                if (advancedIcon) advancedIcon.style.transform = 'rotate(90deg)';
+            } else {
+                if (advancedTreeWrapper) advancedTreeWrapper.classList.add('hidden');
+                if (advancedIcon) advancedIcon.style.transform = 'rotate(0deg)';
+            }
+        }
     }
-    
+
     updateJSONPreview();
 }
 

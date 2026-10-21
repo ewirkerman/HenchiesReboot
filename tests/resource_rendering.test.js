@@ -31,7 +31,7 @@ describe('Resource Rendering', () => {
 
     test('card text resource tokens degrade gracefully when fed unknown keys (Negative Case)', () => {
         const html = formatCardText('gain [RESOURCE:made_up_garbage].');
-        
+
         // It shouldn't crash, and it should just leave the raw token or strip it cleanly 
         // depending on your implementation, but it definitely shouldn't output a broken SVG
         expect(html).not.toMatch(/<svg id="undefined"/);

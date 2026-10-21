@@ -115,7 +115,48 @@ describe('index.js GameEngine', () => {
         expect(grantAbilityActionPayloads[0].sourceAbilityOrigin).toBe('innate');
     });
 
+    it('should only mark AUTO_RANDOM irreversible when it has multiple eligible candidates', () => {
+        const engine = new GameEngine(mockState);
+        const source = createTestUnit({ instanceId: 'random_source', ownerId: 'player1' });
+        const ability = {
+            abilityId: 'random_noop',
+            effects: [{
+                targetMethod: 'AUTO_RANDOM',
+                quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'] },
+                payloads: [{ type: 'MOCK_ACT' }]
+            }]
+        };
+
+        engine._resolvePayloads(ability, source, {}, 'player1', [[]], null);
+        expect(mockState._irreversibleActionOccurred).toBeFalsy();
+
+        spawnUnit(mockState, 'player1', 'mid', { instanceId: 'random_target' });
+        engine._resolvePayloads(ability, source, {}, 'player1', [[]], null);
+        expect(mockState._irreversibleActionOccurred).toBeFalsy();
+
+        spawnUnit(mockState, 'player1', 'mid', { instanceId: 'random_target_2' });
+        engine._resolvePayloads(ability, source, {}, 'player1', [[]], null);
+        expect(mockState._irreversibleActionOccurred).toBe(true);
+    });
+
     describe('Event Bus & Interceptors', () => {
+        it('matches COMBAT_ENDED abilities to ON_COMBAT_ENDED events', () => {
+            const engine = new GameEngine(mockState);
+            const eraser = spawnUnit(mockState, 'player1', 'mid', {
+                abilities: [{ abilityId: 'erasure', trigger: 'COMBAT_ENDED', effects: [] }]
+            });
+            const defender = spawnUnit(mockState, 'player2', 'mid');
+
+            const triggersQueued = engine.queueTriggers('ON_COMBAT_ENDED', {
+                source: eraser,
+                target: defender,
+                isCombat: true
+            });
+
+            expect(triggersQueued).toBe(1);
+            expect(engine.stack[0].ability.abilityId).toBe('erasure');
+        });
+
         it('should register own and opponent turn aliases against generic turn events', () => {
             const engine = new GameEngine(mockState);
 
@@ -426,6 +467,41 @@ describe('index.js GameEngine', () => {
             const nodeSpell = { type: 'condition', attribute: 'entity', operator: '==', value: 'SPELL' };
             expect(engine.evaluateLogicTree(nodeSpell, spellEntity, source, {})).toBe(true);
             expect(engine.evaluateLogicTree(nodeSpell, unitEntity, source, {})).toBe(false);
+        });
+
+        it('should count only random candidates that pass target conditions', () => {
+            const source = createTestUnit({ instanceId: 'preflight_source', ownerId: 'player1' });
+            spawnUnit(mockState, 'player1', 'mid', { instanceId: 'eligible_target', power: 6 });
+            spawnUnit(mockState, 'player1', 'mid', { instanceId: 'ineligible_target', power: 2 });
+            const ability = {
+                effects: [{
+                    targetMethod: 'AUTO_RANDOM',
+                    quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'] },
+                    logicTree: { type: 'condition', attribute: 'power', operator: '>=', value: 5 },
+                    payloads: [{ type: 'HEAL' }]
+                }]
+            };
+
+            expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(true);
+
+            spawnUnit(mockState, 'player1', 'mid', { instanceId: 'second_eligible_target', power: 7 });
+            expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(false);
+        });
+
+        it('should treat unresolved nested summon random pools as unknown', () => {
+            const source = createTestUnit({ instanceId: 'preflight_summon_source', ownerId: 'player1' });
+            const ability = {
+                effects: [{
+                    targetMethod: 'SELF',
+                    payloads: [{
+                        type: 'SUMMON',
+                        cardId: 'missing_card',
+                        nestedGroup: { targetMethod: 'AUTO_RANDOM', payloads: [{ type: 'HEAL' }] }
+                    }]
+                }]
+            };
+
+            expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(false);
         });
 
         it('should evaluate custom conditions against detached game data and engine state', () => {

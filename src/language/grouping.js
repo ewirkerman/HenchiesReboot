@@ -7,8 +7,14 @@ import { formatCombinedPayloads } from './format_payload.js';
 import { joinWithAnd } from './utils.js';
 
 export function getSimilarityKey(eff) {
+    if (eff.type === 'CONDITIONAL') {
+        return `CONDITIONAL_${JSON.stringify(eff.nestedGroup?.logicTree || {})}_${eff.isCost}`;
+    }
     if ((eff.type === 'MODIFY_STAT' || eff.type === 'SET_STAT') && eff.stat === 'readiness') {
         return `READINESS_${eff.type}_${eff.amountIsX ? 'X' : eff.amount}_${eff.duration}_${eff.invertRoles}_${eff.isCost}`;
+    }
+    if ((eff.type === 'MODIFY_STAT' || eff.type === 'SET_STAT') && eff.stat === 'line') {
+        return `LINE_${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}`;
     }
     if (['GRANT_ABILITY', 'REMOVE_ABILITY', 'SET_STAT'].includes(eff.type)) {
         return `${eff.type}_${eff.duration}_${eff.invertRoles}_${eff.isCost}_${eff.blockDuplicates}`;
@@ -42,8 +48,8 @@ export function groupPayloads(payloadsToGroup, formatCtx) {
 
 export function finalizeString(arr, isCost, formatCtx) {
     const { tracker, groupId, targetStr, isPlural } = formatCtx;
-    if(arr.length === 0) return null;
-    
+    if (arr.length === 0) return null;
+
     // Deduplicate common trailing duration/condition modifiers
     if (arr.length > 1) {
         const suffixes = [' this turn', ' this round', ' for the current action', ' this action', ' while attached'];
@@ -51,9 +57,9 @@ export function finalizeString(arr, isCost, formatCtx) {
             // Check for the suffix at the end of the string, preserving any trailing format tokens
             const regexStr = `${suffix}((?: instead)?(?:\\{OMIT_TARGET\\})?(?:\\{PER_TARGET\\})?)$`;
             const regex = new RegExp(regexStr);
-            
+
             const allHaveSuffix = arr.every(s => regex.test(s));
-            
+
             if (allHaveSuffix) {
                 arr = arr.map((s, idx) => {
                     if (idx === arr.length - 1) return s; // Keep the suffix on the final item
@@ -62,12 +68,18 @@ export function finalizeString(arr, isCost, formatCtx) {
             }
         }
     }
-    
+
     let combined = '';
     if (isCost) {
         combined = joinWithAnd(arr);
     } else {
-        let parts = arr.map((f, i) => i > 0 && f !== 'Instead' ? f.charAt(0).toLowerCase() + f.slice(1) : f);
+        // Tag-aware lowercasing to handle <v> annotations cleanly
+        const lowerFirst = (str) => {
+            if (!str) return str;
+            return str.replace(/^((?:<[^>]+>|\[[^\]]+\]|@\[[^\]]+\]|[^a-zA-Z])*)([a-zA-Z])/, (m, prefix, letter) => prefix + letter.toLowerCase());
+        };
+
+        let parts = arr.map((f, i) => i > 0 && f !== 'Instead' ? lowerFirst(f) : f);
 
         if (parts[0] === 'Instead') {
             if (parts.length === 1) combined = parts[0];
@@ -85,7 +97,7 @@ export function finalizeString(arr, isCost, formatCtx) {
             }
         }
     }
-    
+
     if (!tracker.hasMentioned(groupId)) {
         if (combined.includes(' for each ')) {
             combined = combined.replace(' for each ', ` to ${tracker.mention(groupId, targetStr, isPlural)} for each `);

@@ -15,7 +15,7 @@ export class Card { }
 export class UnitInstance { }
 export class Avatar { }
 
-export function isUndoable(state, ability) {
+export function isUndoable(state, ability, context = {}) {
     if (state && state.status === 'finished') return false;
     if (!ability) return true;
 
@@ -25,8 +25,15 @@ export function isUndoable(state, ability) {
         return !Array.isArray(node.children) || node.children.every(logicTreeIsUndoable);
     };
 
+    const randomGroupIsUndoable = (group, parentPayload = null) => {
+        if (!group.payloads?.length) return true;
+        const candidateCount = context.getRandomTargetCount?.(group, parentPayload);
+        return candidateCount === 0 || candidateCount === 1;
+    };
+
     const payloadsAreUndoable = (payloads, group) => {
         for (const payload of payloads || []) {
+            const nestedGroup = payload.nestedGroup;
             if (['SHUFFLE', 'MILL', 'TOP_DECK'].includes(payload.type)) return false;
             if (payload.type === 'CUSTOM_SCRIPT' && payload.undoSafe !== true) return false;
             if (!logicTreeIsUndoable(payload.logicTree)) return false;
@@ -57,9 +64,8 @@ export function isUndoable(state, ability) {
                 if (method !== 'PLAYER_CHOICE') return false;
             }
 
-            const nestedGroup = payload.nestedGroup;
             if (nestedGroup) {
-                if (nestedGroup.targetMethod === 'AUTO_RANDOM') return false;
+                if (nestedGroup.targetMethod === 'AUTO_RANDOM' && !randomGroupIsUndoable(nestedGroup, payload)) return false;
                 if (!logicTreeIsUndoable(nestedGroup.logicTree)) return false;
                 if (!payloadsAreUndoable(nestedGroup.payloads, nestedGroup)) return false;
             } else if (Array.isArray(payload.payloads) && !payloadsAreUndoable(payload.payloads, group)) {
@@ -70,7 +76,7 @@ export function isUndoable(state, ability) {
     };
 
     for (const group of ability.effects || []) {
-        if (group.targetMethod === 'AUTO_RANDOM') return false;
+        if (group.targetMethod === 'AUTO_RANDOM' && !randomGroupIsUndoable(group)) return false;
         if (!logicTreeIsUndoable(group.logicTree)) return false;
         if (!payloadsAreUndoable(group.payloads, group)) return false;
     }
@@ -132,7 +138,7 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
     }
 
     const checkAbility = (ability, index) => {
-        const abilityKey = `${entity.instanceId}_${ability.abilityId}_${index}`;
+        const abilityKey = ability.instanceId || `${entity.instanceId}_${ability.abilityId}_${index}`;
         if (ability.passiveFlags && ability.passiveFlags.includes(flagName)) {
             if (ability.triggerLimit && ability.triggerLimit !== 'UNLIMITED') {
                 const uses = state.abilityUses?.[abilityKey] || 0;
@@ -222,6 +228,10 @@ export function hydrateAbility(abRef, catalogAbs) {
             cloned.paramX = abRef.paramX;
             if (cloned.effects) {
                 cloned.effects.forEach(g => {
+                    if (g.targetCountIsX) {
+                        g.targetCount = abRef.paramX;
+                        delete g.targetCountIsX;
+                    }
                     if (g.payloads) {
                         g.payloads.forEach(p => {
                             if (p.amountIsX) {
@@ -232,17 +242,23 @@ export function hydrateAbility(abRef, catalogAbs) {
                                 p.grantedAbilityParamX = abRef.paramX;
                                 delete p.grantedAbilityParamXIsX;
                             }
-                            if (p.nestedGroup && p.nestedGroup.payloads) {
-                                p.nestedGroup.payloads.forEach(np => {
-                                    if (np.amountIsX) {
-                                        np.amount = (np.amount < 0) ? -abRef.paramX : abRef.paramX;
-                                        delete np.amountIsX;
-                                    }
-                                    if (np.grantedAbilityParamXIsX) {
-                                        np.grantedAbilityParamX = abRef.paramX;
-                                        delete np.grantedAbilityParamXIsX;
-                                    }
-                                });
+                            if (p.nestedGroup) {
+                                if (p.nestedGroup.targetCountIsX) {
+                                    p.nestedGroup.targetCount = abRef.paramX;
+                                    delete p.nestedGroup.targetCountIsX;
+                                }
+                                if (p.nestedGroup.payloads) {
+                                    p.nestedGroup.payloads.forEach(np => {
+                                        if (np.amountIsX) {
+                                            np.amount = (np.amount < 0) ? -abRef.paramX : abRef.paramX;
+                                            delete np.amountIsX;
+                                        }
+                                        if (np.grantedAbilityParamXIsX) {
+                                            np.grantedAbilityParamX = abRef.paramX;
+                                            delete np.grantedAbilityParamXIsX;
+                                        }
+                                    });
+                                }
                             }
                         });
                     }
@@ -462,12 +478,23 @@ export function payCost(state, player, entity, costObj, escalateAmt = 0, isCardP
 
 export function moveEntity(engine, target, destPlayerId, destZone) {
     destZone = String(destZone || 'discard').toLowerCase();
+    const currentLocation = findEntityLocation(engine, target);
+    markHiddenInformationReveal(engine, currentLocation, destPlayerId, destZone);
 
     removeFromCurrentLocation(engine, target);
     resetEntityStateForBoard(target, destZone);
     resetEntityReadinessForPile(target, destZone);
     addToDestination(engine, target, destPlayerId, destZone);
 }
+
+export function markHiddenInformationReveal(engine, sourceLocation, destinationPlayerId, destinationZone) {
+    if (!sourceLocation || !['hand', 'deck'].includes(sourceLocation.zone)) return;
+    const actingPlayerId = engine.currentActionActorId || engine.state.activePlayerId;
+    if (sourceLocation.playerId === actingPlayerId) return;
+    const isPublicZone = LINES.includes(destinationZone) || ['field', 'board', 'equator', 'discard', 'banish'].includes(destinationZone);
+    if (isPublicZone || destinationPlayerId === actingPlayerId) engine.state._irreversibleActionOccurred = true;
+}
+
 function removeFromCurrentLocation(engine, target) {
     const loc = findEntityLocation(engine, target);
     if (loc && loc.array) loc.array.splice(loc.index, 1);

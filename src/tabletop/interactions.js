@@ -1,7 +1,8 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
 import { pushActionToLog } from '../firebase.js';
-import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getValidAttackTargets, getEntityAvailableActions, LINES, canPlayCard, isUndoable } from '../engine/index.js';
+import { playCard, executeEntityAction, endTurn, executeSacrificeDecision, getValidAbilityTargets, getValidAttackTargets, getEntityAvailableActions, LINES, canPlayCard } from '../engine/index.js';
+import { isAbilityUndoable } from '../engine/targeting.js';
 import { showToast } from '../ui.js';
 import { reconstructStateFromLog } from './multiplayer.js';
 import { RandomAI } from '../ai/random.js';
@@ -39,12 +40,12 @@ function isDefaultPlayTrigger(ab) {
 function checkDefaultPlaySafety(card) {
     if (!card?.abilities) return false;
     for (const ab of card.abilities) {
-        if (isDefaultPlayTrigger(ab) && !isUndoable(ClientState.gameState, ab)) return true;
+        if (isDefaultPlayTrigger(ab) && !isAbilityUndoable(ClientState.gameState, ab, card, ClientState.localPlayerRole)) return true;
     }
     return false;
 }
 
-export async function dispatchAbility(entityId, abilityId, targetId, targetLine) {
+export async function dispatchAbility(entityId, abilityId, targetId, targetLine, preflightUndoable = null) {
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
 
@@ -52,10 +53,13 @@ export async function dispatchAbility(entityId, abilityId, targetId, targetLine)
     const ability = entity?.abilities?.find(a => a.abilityId === abilityId);
     const isAttack = abilityId === 'native_attack' || ability?.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
     const actionType = isAttack ? 'ATTACK' : 'ABILITY';
+    const staticallyUndoable = ability
+        ? (preflightUndoable ?? isAbilityUndoable(ClientState.gameState, ability, entity, ClientState.localPlayerRole))
+        : true;
 
     ClientState.gameState._irreversibleActionOccurred = false;
     const result = executeEntityAction(ClientState.gameState, ClientState.localPlayerRole, entityId, actionType, abilityId, targetId, targetLine);
-    const isUnsafe = (ability ? !isUndoable(ClientState.gameState, ability) : false) || ClientState.gameState._irreversibleActionOccurred;
+    const isUnsafe = !staticallyUndoable || ClientState.gameState._irreversibleActionOccurred;
 
     const payload = { type: 'ENTITY_ACTION', actionIndex: ClientState.gameState.actionIndex, playerId: ClientState.localPlayerRole, entityId, actionType, abilityId, targetId, targetLine, isUnsafe };
 
@@ -97,18 +101,21 @@ export async function handleEndTurn() {
     updateUI();
 }
 
-export async function executeNormalPlay(cardId, chosenAbilityId = null, abilityTargetId = null) {
+export async function executeNormalPlay(cardId, chosenAbilityId = null, abilityTargetId = null, preflightUndoable = null) {
     closeUnitActionModal();
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
 
     const card = findClientEntity(cardId);
+    const ability = chosenAbilityId ? card?.abilities?.find(a => a.abilityId === chosenAbilityId) : null;
+    const staticallyUndoable = preflightUndoable ?? (ability
+        ? isAbilityUndoable(ClientState.gameState, ability, card, ClientState.localPlayerRole)
+        : !checkDefaultPlaySafety(card));
     ClientState.gameState._irreversibleActionOccurred = false;
 
     const result = playCard(ClientState.gameState, ClientState.localPlayerRole, cardId, 'back', chosenAbilityId, abilityTargetId);
 
-    const ability = chosenAbilityId ? card?.abilities?.find(a => a.abilityId === chosenAbilityId) : null;
-    const isUnsafe = (ability ? !isUndoable(ClientState.gameState, ability) : checkDefaultPlaySafety(card)) || ClientState.gameState._irreversibleActionOccurred;
+    const isUnsafe = !staticallyUndoable || ClientState.gameState._irreversibleActionOccurred;
 
     const payload = { type: 'PLAY_CARD', actionIndex: ClientState.gameState.actionIndex, playerId: ClientState.localPlayerRole, cardId, targetLine: 'back', chosenAbilityId, abilityTargetId, isUnsafe };
 
@@ -250,13 +257,13 @@ function processPendingTarget(targetId) {
     if (ClientState.validTargets.some(t => t.id === targetId)) {
         if (ClientState.pendingAbility.isHandCard) {
             if (ClientState.pendingAbility.isHandActivate) {
-                dispatchAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, 'hand');
+                dispatchAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, 'hand', ClientState.pendingAbility.preflightUndoable);
             } else {
-                window.executeNormalPlay(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId);
+                window.executeNormalPlay(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, ClientState.pendingAbility.preflightUndoable);
             }
         } else {
             const targetLine = resolveTargetLine(targetId);
-            dispatchAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, targetLine);
+            dispatchAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, targetLine, ClientState.pendingAbility.preflightUndoable);
         }
         clearPendingAbility();
     } else {
@@ -354,7 +361,7 @@ window.handleHandCardClick = async (cardId) => {
         if (playState.mode === 'single') {
             const act = playState.action;
             if (act.type === 'PLAY') {
-                window.executeNormalPlay(cardId, act.abilityId === 'native_play' ? null : act.abilityId);
+                window.executeNormalPlay(cardId, act.abilityId === 'native_play' ? null : act.abilityId, null, act.undoable);
             } else {
                 window.activateHandCardAbility(cardId, act.abilityId);
             }
@@ -404,7 +411,8 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
             entityId: cardId,
             abilityId: action.abilityId,
             isHandCard: true,
-            isHandActivate: !action.isPlayAbility
+            isHandActivate: !action.isPlayAbility,
+            preflightUndoable: action.undoable
         };
 
         showToast(`Select a target for ${ability?.name || action.name}`, 'info');
@@ -416,23 +424,26 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
     closeUnitActionModal();
 
     if (action.isPlayAbility) {
-        await window.executeNormalPlay(cardId, action.abilityId === 'native_play' ? null : action.abilityId);
+        await window.executeNormalPlay(cardId, action.abilityId === 'native_play' ? null : action.abilityId, null, action.undoable);
     } else {
-        dispatchAbility(cardId, action.abilityId, null, null);
+        dispatchAbility(cardId, action.abilityId, null, null, action.undoable);
     }
 };
 
-window.activateAbility = async (entityId, abilityId) => {
+window.activateAbility = async (entityId, abilityId, selectedPreflightUndoable = null) => {
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     if (!ClientState.isMyTurn()) return;
 
     const entity = findClientEntity(entityId);
     if (!entity) return;
+    const action = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId)
+        .find(candidate => candidate.abilityId === abilityId);
+    const preflightUndoable = selectedPreflightUndoable ?? action?.undoable ?? true;
 
     if (abilityId === 'native_attack') {
         closeUnitActionModal();
         ClientState.validTargets = getValidAttackTargets(ClientState.gameState, ClientState.localPlayerRole, entity);
-        ClientState.pendingAbility = { entityId, abilityId };
+        ClientState.pendingAbility = { entityId, abilityId, preflightUndoable };
         showToast(`Select a target to attack`, 'info');
         updateUI();
         return;
@@ -442,7 +453,7 @@ window.activateAbility = async (entityId, abilityId) => {
     if (ability?.activation?.method === 'PLAYER_CHOICE') {
         closeUnitActionModal();
         ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, entityId, abilityId);
-        ClientState.pendingAbility = { entityId, abilityId };
+        ClientState.pendingAbility = { entityId, abilityId, preflightUndoable };
         showToast(`Select a target for ${ability.name}`, 'info');
         updateUI();
         maybeOpenZoneModal();
@@ -450,7 +461,7 @@ window.activateAbility = async (entityId, abilityId) => {
     }
 
     closeUnitActionModal();
-    dispatchAbility(entityId, abilityId, null, null);
+    dispatchAbility(entityId, abilityId, null, null, preflightUndoable);
 };
 
 let gestureState = {

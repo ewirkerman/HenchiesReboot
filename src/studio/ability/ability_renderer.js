@@ -402,6 +402,9 @@ export function generateEffectsHTML(ctx) {
                 </div>
             ` : '';
 
+            const ngCountIsX = ng.targetCountIsX ? 'checked' : '';
+            const ngInputDisabled = ng.targetCountIsX ? 'disabled opacity-50' : '';
+
             const nestedGroupHtml = `
             <div class="w-full mt-3 bg-slate-900/80 p-3 rounded-lg border border-fuchsia-700/50 shadow-inner">
                 <div class="flex justify-between items-center mb-3 border-b border-fuchsia-900/50 pb-2">
@@ -419,9 +422,15 @@ export function generateEffectsHTML(ctx) {
                         </select>
                     </div>
                     ${['AUTO_RANDOM', 'AUTO_FIRST'].includes(ng.targetMethod) ? `
-                    <div class="w-24">
-                        <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Count (N)</label>
-                        <input type="number" value="${ng.targetCount || 1}" onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetCount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]" />
+                    <div class="w-32 flex flex-col">
+                        <label class="flex justify-between items-center text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                            <span>Count (N)</span>
+                            <label class="flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 ml-1">
+                                <input type="checkbox" ${ngCountIsX} onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetCountIsX', this.checked)" class="w-2.5 h-2.5 accent-amber-500" />
+                                <span>Var X</span>
+                            </label>
+                        </label>
+                        <input type="number" value="${ng.targetCount || 1}" ${ngInputDisabled} onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetCount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]" />
                     </div>
                     ` : ''}
                 </div>` : ''}
@@ -481,84 +490,118 @@ export function generateEffectsHTML(ctx) {
         `;
     }
 
-    return effectGroups.map((group, gIdx) => {
-        const payloadsHtml = group.payloads.map((payload, pIdx) => renderPayload(payload, gIdx, pIdx, false, null, group)).join('');
-        group.quickTargeting = group.quickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: [CARD_TYPES.UNIT.toUpperCase(), CARD_TYPES.AVATAR.toUpperCase()], ignoreBattlelines: false };
+    const existingCheckbox = document.getElementById('ab-requires-x');
+    const xCheckedStr = (existingCheckbox && existingCheckbox.checked) ? 'checked' : '';
 
-        const moveUpDisabled = gIdx === 0 ? 'opacity-30 cursor-not-allowed' : '';
-        const moveDownDisabled = gIdx === effectGroups.length - 1 ? 'opacity-30 cursor-not-allowed' : '';
-
-        return `
-          <div class="flex flex-col gap-3 bg-slate-900/80 p-4 rounded-xl border border-slate-700 relative shadow-inner">
-            <button type="button" onclick="window.removeEffectGroup(${gIdx})" class="absolute top-2 right-2 text-slate-500 hover:text-red-400 font-black px-1.5 bg-slate-950 rounded">&times; Remove Target Group</button>
-            <div class="absolute top-2 right-40 flex gap-1">
-                <button type="button" onclick="window.moveEffectGroup(${gIdx}, -1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${moveUpDisabled}">↑ Move Up</button>
-                <button type="button" onclick="window.moveEffectGroup(${gIdx}, 1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${moveDownDisabled}">↓ Move Down</button>
+    const globalSettingsHtml = `
+        <div class="w-full mb-4 bg-slate-900/80 p-3 rounded-lg border border-amber-700/50 shadow-inner flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div class="flex flex-col">
+                <span class="text-[11px] font-black text-amber-400 uppercase tracking-wider">⚡ Variable Magnitude (X)</span>
+                <span class="text-[9px] text-slate-400">Require an X value to be provided when assigning this ability to a card.</span>
             </div>
-            
-            <div class="flex flex-col gap-2">
-              <h4 class="text-[11px] font-black text-fuchsia-400 uppercase tracking-widest flex items-center gap-1">
-                <span>🎯 Target Group ${gIdx + 1}</span>
-              </h4>
-              <div class="flex flex-wrap gap-2 w-full md:w-5/6">
-                <select onchange="window.updateEffectGroup(${gIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1 font-bold min-w-[200px]">
-                  ${(function () {
-                const validTargets = getValidTargetMethods(baseTrigger, scope, actMethod);
-                if (!validTargets.includes(group.targetMethod)) {
-                    group.targetMethod = validTargets.includes('SAME_AS_ACTIVATION') ? 'SAME_AS_ACTIVATION' : validTargets[0];
-                }
-                const labels = {
-                    'SAME_AS_ACTIVATION': 'Run on Activated Target(s) / Event Trigger',
-                    'EVENT_SOURCE': 'Run on Event Source (e.g. Attacker, Caster)',
-                    'EVENT_TARGET': 'Run on Event Target (e.g. Defender, Victim)',
-                    'SELF': 'Run on Self (Card with ability)',
-                    'HOST': 'Run on Host (Attached Card)',
-                    'AVATAR': 'Run on Your Avatar',
-                    'ENEMY_AVATAR': 'Run on Enemy Avatar',
-                    'AUTO_ALL': 'Auto-Target ALL Valid Below',
-                    'AUTO_RANDOM': 'Auto-Target N RANDOM Below',
-                    'AUTO_FIRST': 'Auto-Target FIRST N Valid Below',
-                    'AUTO_LAST': 'Auto-Target LAST N Valid Below'
-                };
-                return validTargets.map(t => `<option value="${t}" ${group.targetMethod === t ? 'selected' : ''}>${labels[t]}</option>`).join('');
-            })()}
-                </select>
-                ${['AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'].includes(group.targetMethod) ? `<input type="number" value="${group.targetCount || 1}" onchange="window.updateEffectGroup(${gIdx}, 'targetCount', parseInt(this.value))" title="Number of targets (N)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-16" />` : ''}
-              </div>
-              
-              ${group.targetMethod.startsWith('AUTO_') ? `
-              <div class="flex flex-col gap-2 mt-2">
-                ${generateQuickMatrixHTML('effect', group.quickTargeting, gIdx)}
-              </div>
-              ` : ''}
-              
-              <div class="mt-2">
-                 <button type="button" onclick="window.toggleAdvancedLogic('effect', ${gIdx})" class="text-[10px] font-bold text-slate-400 hover:text-fuchsia-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 w-max">
-                   <span style="transform: rotate(${group.showAdvanced ? '90deg' : '0deg'});" class="transition-transform duration-200">▶</span>
-                   <span>⚙️ Advanced Filters (Conditions & Scope)</span>
-                 </button>
-              </div>
+            <label class="flex items-center gap-2 cursor-pointer bg-slate-950 p-2 rounded border border-slate-700 hover:border-amber-500 transition">
+                <input type="checkbox" id="ab-requires-x" class="accent-amber-500 w-4 h-4" ${xCheckedStr} onchange="if(window.updateJSONPreview) window.updateJSONPreview()" />
+                <span class="text-[10px] font-bold text-amber-300 uppercase tracking-wider">Requires X</span>
+            </label>
+        </div>
+    `;
 
-              ${group.showAdvanced ? `
-              <div class="flex flex-col gap-2 mt-2 pl-3 border-l-2 border-fuchsia-500/30">
-                <label class="font-bold text-fuchsia-300 block mb-1 text-[9px]">Advanced Execution Conditions</label>
-                <div class="flex flex-col gap-2 min-h-[40px]">
-                  ${generateGroupHTML(`effect_${gIdx}`, group.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
+    let effectsHtml = '';
+    if (effectGroups.length === 0) {
+        effectsHtml = `<div class="text-slate-500 italic text-xs p-3 text-center border border-dashed border-slate-700 rounded-xl">No target blocks added. This ability does nothing.</div>`;
+    } else {
+        effectsHtml = effectGroups.map((group, gIdx) => {
+            const payloadsHtml = group.payloads.map((payload, pIdx) => renderPayload(payload, gIdx, pIdx, false, null, group)).join('');
+            group.quickTargeting = group.quickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: [CARD_TYPES.UNIT.toUpperCase(), CARD_TYPES.AVATAR.toUpperCase()], ignoreBattlelines: false };
+
+            const moveUpDisabled = gIdx === 0 ? 'opacity-30 cursor-not-allowed' : '';
+            const moveDownDisabled = gIdx === effectGroups.length - 1 ? 'opacity-30 cursor-not-allowed' : '';
+
+            const isCountX = group.targetCountIsX ? 'checked' : '';
+            const countInputDisabled = group.targetCountIsX ? 'disabled opacity-50' : '';
+
+            return `
+              <div class="flex flex-col gap-3 bg-slate-900/80 p-4 rounded-xl border border-slate-700 relative shadow-inner">
+                <button type="button" onclick="window.removeEffectGroup(${gIdx})" class="absolute top-2 right-2 text-slate-500 hover:text-red-400 font-black px-1.5 bg-slate-950 rounded">&times; Remove Target Group</button>
+                <div class="absolute top-2 right-40 flex gap-1">
+                    <button type="button" onclick="window.moveEffectGroup(${gIdx}, -1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${moveUpDisabled}">↑ Move Up</button>
+                    <button type="button" onclick="window.moveEffectGroup(${gIdx}, 1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow ${moveDownDisabled}">↓ Move Down</button>
                 </div>
+                
+                <div class="flex flex-col gap-2">
+                  <h4 class="text-[11px] font-black text-fuchsia-400 uppercase tracking-widest flex items-center gap-1">
+                    <span>🎯 Target Group ${gIdx + 1}</span>
+                  </h4>
+                  <div class="flex flex-wrap items-center gap-2 w-full md:w-5/6">
+                    <select onchange="window.updateEffectGroup(${gIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white flex-1 font-bold min-w-[200px]">
+                      ${(function () {
+                    const validTargets = getValidTargetMethods(baseTrigger, scope, actMethod);
+                    if (!validTargets.includes(group.targetMethod)) {
+                        group.targetMethod = validTargets.includes('SAME_AS_ACTIVATION') ? 'SAME_AS_ACTIVATION' : validTargets[0];
+                    }
+                    const labels = {
+                        'SAME_AS_ACTIVATION': 'Run on Activated Target(s) / Event Trigger',
+                        'EVENT_SOURCE': 'Run on Event Source (e.g. Attacker, Caster)',
+                        'EVENT_TARGET': 'Run on Event Target (e.g. Defender, Victim)',
+                        'SELF': 'Run on Self (Card with ability)',
+                        'HOST': 'Run on Host (Attached Card)',
+                        'AVATAR': 'Run on Your Avatar',
+                        'ENEMY_AVATAR': 'Run on Enemy Avatar',
+                        'AUTO_ALL': 'Auto-Target ALL Valid Below',
+                        'AUTO_RANDOM': 'Auto-Target N RANDOM Below',
+                        'AUTO_FIRST': 'Auto-Target FIRST N Valid Below',
+                        'AUTO_LAST': 'Auto-Target LAST N Valid Below'
+                    };
+                    return validTargets.map(t => `<option value="${t}" ${group.targetMethod === t ? 'selected' : ''}>${labels[t]}</option>`).join('');
+                })()}
+                    </select>
+                    ${['AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'].includes(group.targetMethod) ? `
+                    <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-700 px-2 py-1 rounded">
+                        <label class="flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 text-[10px] font-bold">
+                            <input type="checkbox" ${isCountX} onchange="window.updateEffectGroup(${gIdx}, 'targetCountIsX', this.checked)" class="w-3 h-3 accent-amber-500" />
+                            <span>Var X</span>
+                        </label>
+                        <input type="number" value="${group.targetCount || 1}" ${countInputDisabled} onchange="window.updateEffectGroup(${gIdx}, 'targetCount', parseInt(this.value))" title="Number of targets (N)" class="bg-slate-900 border border-slate-700 px-1 py-0.5 rounded text-amber-300 font-bold w-14 text-center text-[10px]" />
+                    </div>
+                    ` : ''}
+                  </div>
+                  
+                  ${group.targetMethod.startsWith('AUTO_') ? `
+                  <div class="flex flex-col gap-2 mt-2">
+                    ${generateQuickMatrixHTML('effect', group.quickTargeting, gIdx)}
+                  </div>
+                  ` : ''}
+                  
+                  <div class="mt-2">
+                     <button type="button" onclick="window.toggleAdvancedLogic('effect', ${gIdx})" class="text-[10px] font-bold text-slate-400 hover:text-fuchsia-400 flex items-center gap-1.5 transition-colors bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50 w-max">
+                       <span style="transform: rotate(${group.showAdvanced ? '90deg' : '0deg'});" class="transition-transform duration-200">▶</span>
+                       <span>⚙️ Advanced Filters (Conditions & Scope)</span>
+                     </button>
+                  </div>
+
+                  ${group.showAdvanced ? `
+                  <div class="flex flex-col gap-2 mt-2 pl-3 border-l-2 border-fuchsia-500/30">
+                    <label class="font-bold text-fuchsia-300 block mb-1 text-[9px]">Advanced Execution Conditions</label>
+                    <div class="flex flex-col gap-2 min-h-[40px]">
+                      ${generateGroupHTML(`effect_${gIdx}`, group.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
+                    </div>
+                  </div>
+                  ` : ''}
+                </div>
+
+                <div class="mt-3 pl-3 md:pl-5 border-l-2 border-emerald-500/30 flex flex-col gap-3">
+                   <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between items-center pr-2 border-b border-slate-800 pb-1">
+                      <span>⚡ Executed Actions (${group.payloads.length})</span>
+                      <button type="button" onclick="window.addPayload(${gIdx})" class="text-emerald-400 hover:text-emerald-300 transition-colors">+ Add Action</button>
+                   </h5>
+                   ${payloadsHtml}
+                   ${group.payloads.length === 0 ? `<div class="text-xs text-slate-500 italic">No actions defined for this target.</div>` : ''}
+                </div>
+
               </div>
-              ` : ''}
-            </div>
+            `;
+        }).join('');
+    }
 
-            <div class="mt-3 pl-3 md:pl-5 border-l-2 border-emerald-500/30 flex flex-col gap-3">
-               <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between items-center pr-2 border-b border-slate-800 pb-1">
-                  <span>⚡ Executed Actions (${group.payloads.length})</span>
-                  <button type="button" onclick="window.addPayload(${gIdx})" class="text-emerald-400 hover:text-emerald-300 transition-colors">+ Add Action</button>
-               </h5>
-               ${payloadsHtml}
-               ${group.payloads.length === 0 ? `<div class="text-xs text-slate-500 italic">No actions defined for this target.</div>` : ''}
-            </div>
-
-          </div>
-        `;
-    }).join('');
+    return globalSettingsHtml + effectsHtml;
 }

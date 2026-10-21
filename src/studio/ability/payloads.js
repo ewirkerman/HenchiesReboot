@@ -35,6 +35,7 @@ export function handleAddEffectGroup() {
     StudioState.effectGroups.push({
         targetMethod: 'SAME_AS_ACTIVATION',
         targetCount: 1,
+        targetCountIsX: false,
         quickTargeting: {
             zones: [...(StudioState.activationQuickTargeting.zones || ['FIELD'])],
             alignment: [...(StudioState.activationQuickTargeting.alignment || ['ENEMY'])],
@@ -70,7 +71,12 @@ export function moveEffectGroup(index, direction) {
 export function updateEffectGroup(index, field, value) {
     if (!StudioState.effectGroups[index]) return;
     StudioState.effectGroups[index][field] = value;
-    if (field === 'targetMethod') revalidatePayloadTypes();
+    if (field === 'targetMethod') {
+        if (!['AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'].includes(value)) {
+            delete StudioState.effectGroups[index].targetCountIsX;
+        }
+        revalidatePayloadTypes();
+    }
     renderEffects();
     updateJSONPreview();
 }
@@ -154,8 +160,11 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
         const manifest = ACTION_MANIFEST[value];
         if (!manifest) return;
 
-        if (value === 'CUSTOM_SCRIPT') payload.undoSafe = payload.undoSafe === true;
-        else delete payload.undoSafe;
+        if (value === 'CUSTOM_SCRIPT') {
+            payload.undoSafe = payload.undoSafe === true;
+        } else {
+            delete payload.undoSafe;
+        }
 
         const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
         const requiresResource = manifest.requiresResource || value === 'HARVEST';
@@ -199,7 +208,7 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
         if (manifest.hasNestedGroup) {
             payload.nestedGroup = manifest.hasLogicTree
                 ? { logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] }
-                : { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
+                : { targetMethod: 'AUTO_ALL', targetCount: 1, targetCountIsX: false, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
         } else {
             delete payload.nestedGroup;
         }
@@ -260,8 +269,11 @@ export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
         const manifest = ACTION_MANIFEST[value];
         if (!manifest) return;
 
-        if (value === 'CUSTOM_SCRIPT') payload.undoSafe = payload.undoSafe === true;
-        else delete payload.undoSafe;
+        if (value === 'CUSTOM_SCRIPT') {
+            payload.undoSafe = payload.undoSafe === true;
+        } else {
+            delete payload.undoSafe;
+        }
 
         const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
         const requiresResource = manifest.requiresResource || value === 'HARVEST';
@@ -319,6 +331,9 @@ export function updateNestedGrantedAbility(gIdx, pIdx, nIdx, value) {
 
 export function updateNestedGroup(gIdx, pIdx, field, value) {
     StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup[field] = value;
+    if (field === 'targetMethod' && !['AUTO_RANDOM', 'AUTO_FIRST'].includes(value)) {
+        delete StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.targetCountIsX;
+    }
     renderEffects();
     updateJSONPreview();
 }
@@ -377,7 +392,7 @@ export function revalidatePayloadTypes() {
                     if (!manifest.canBeCost) delete payload.isCost;
 
                     if (manifest.hasNestedGroup) {
-                        payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
+                        payload.nestedGroup = { targetMethod: 'AUTO_ALL', targetCount: 1, targetCountIsX: false, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
                     } else { delete payload.nestedGroup; }
 
                     if (!manifest.validDurations.includes(payload.duration)) {
@@ -391,26 +406,36 @@ export function revalidatePayloadTypes() {
 
 export function renderEffects() {
     const container = document.getElementById('effect-groups-container');
+    if (!container) return;
 
-    if (StudioState.effectGroups.length === 0) {
-        container.innerHTML = `<div class="text-slate-500 italic text-xs p-3 text-center border border-dashed border-slate-700 rounded-xl">No target blocks added. This ability does nothing.</div>`;
-        return;
-    }
-
-    const baseTrigger = document.getElementById('ab-trigger').value.toUpperCase();
-    const scope = document.getElementById('ab-trigger-scope').value;
-    const actMethod = document.getElementById('ab-act-method').value;
+    const triggerEl = document.getElementById('ab-trigger');
+    const baseTrigger = triggerEl ? triggerEl.value.toUpperCase() : 'MANUAL';
+    const scopeEl = document.getElementById('ab-trigger-scope');
+    const scope = scopeEl ? scopeEl.value : 'PERSONAL';
+    const actMethodEl = document.getElementById('ab-act-method');
+    const actMethod = actMethodEl ? actMethodEl.value : 'NONE';
 
     const ctx = {
-        effectGroups: StudioState.effectGroups, baseTrigger, scope, actMethod, activationQuickTargeting: StudioState.activationQuickTargeting,
-        getValidActionsForZones, calculateEffectiveZones, EFFECT_TYPES, getValidEffectTypes, ACTION_MANIFEST, ACTION_CATEGORIES,
-        allAbilities: StudioState.allAbilities, allCards: StudioState.allCards, customTribesList: StudioState.customTribesList, getValidTargetMethods
+        effectGroups: StudioState.effectGroups,
+        baseTrigger,
+        scope,
+        actMethod,
+        activationQuickTargeting: StudioState.activationQuickTargeting,
+        getValidActionsForZones,
+        calculateEffectiveZones,
+        EFFECT_TYPES,
+        getValidEffectTypes,
+        ACTION_MANIFEST,
+        ACTION_CATEGORIES,
+        allAbilities: StudioState.allAbilities,
+        allCards: StudioState.allCards,
+        customTribesList: StudioState.customTribesList,
+        getValidTargetMethods
     };
 
     container.innerHTML = generateEffectsHTML(ctx);
 }
 
-// Bind to window
 window.removeEffectGroup = removeEffectGroup;
 window.moveEffectGroup = moveEffectGroup;
 window.updateEffectGroup = updateEffectGroup;

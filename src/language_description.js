@@ -30,10 +30,12 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
 
     // 2. TRIGGER & CONDITIONS
     const { triggerText, globalTargetNoun, conditionsText } = parseTriggers(ability, allTribes);
-    
+
     let header = '';
     if (triggerText) header += `**${triggerText}** `;
-    if (conditionsText) header += `If ${conditionsText}, `;
+
+    // payloads.js natively handles Global logic trees elegantly, so we skip appending the raw string here.
+    if (conditionsText && ability.triggerScope !== 'GLOBAL') header += `If ${conditionsText}, `;
 
     // 3. EFFECTS & COSTS
     const targetGroups = ability.effects || [];
@@ -48,13 +50,13 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
             tracker,
             trigger: ability.trigger || 'MANUAL'
         };
-        
+
         const { allCostSentences, allEffectSentences } = processTargetGroups(ability, ctx);
-        
+
         let sentence = header;
 
         if (allCostSentences.length > 0) {
-             sentence += allCostSentences.join(' and ') + ' to ';
+            sentence += allCostSentences.join(' and ') + ' to ';
         }
 
         if (sentence !== '' && !sentence.endsWith(' ') && allEffectSentences.length > 0) {
@@ -62,39 +64,47 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
         }
 
         if (allEffectSentences.length > 0) {
-             let effectsStr = allEffectSentences.join(', then ');
-             sentence += effectsStr + '.';
+            let effectsStr = allEffectSentences.join(', then ');
+            sentence += effectsStr + '.';
         } else if (allCostSentences.length > 0) {
-             sentence = sentence.trim();
-             if (sentence.endsWith('to')) sentence = sentence.slice(0, -2).trim();
-             sentence += '.'; 
+            sentence = sentence.trim();
+            if (sentence.endsWith('to')) sentence = sentence.slice(0, -2).trim();
+            sentence += '.';
+        } else {
+            // When an ability's only payload is CANCEL_EVENT, close the condition cleanly
+            sentence = sentence.trim();
+            if (sentence.endsWith(',')) sentence = sentence.slice(0, -1).trim();
+            if (sentence.length > 0 && !/[.!?]$/.test(sentence)) sentence += '.';
         }
 
         if (sentence.trim() !== '') {
-             // Strip trailing commas left over from header joining
-             sentence = sentence.replace(/\*\*,\s+/g, '** ');
-             
-             parts.push(sentence.trim());
+            // Strip trailing commas left over from header joining
+            sentence = sentence.replace(/\*\*,\s+/g, '** ');
+
+            parts.push(sentence.trim());
         }
     }
 
     // 4. LIMITS & REUSE
     let limitSuffix = '';
-    if (ability.triggerLimit === 'ONCE_PER_ROUND') limitSuffix = "(Once per round)";
-    else if (ability.triggerLimit === 'TWICE_PER_ROUND') limitSuffix = "(Twice per round)";
-    
+    if (ability.triggerLimit === 'ONCE_PER_ROUND') limitSuffix = "(once per round)";
+    else if (ability.triggerLimit === 'TWICE_PER_ROUND') limitSuffix = "(twice per round)";
+
     const cost = ability.cost || {};
     if (cost.reuseIgnoresReadiness && cost.readinessCost !== 'NONE') {
-        parts.push(`(Reuses ignore readiness)`);
+        parts.push(`(reuse ignores readiness)`);
     }
 
     let finalStr = parts.join(' ').trim();
     if (finalStr.length > 0) {
+        if (finalStr.endsWith(',')) finalStr = finalStr.slice(0, -1).trim();
+        if (!/[.!?]$/.test(finalStr)) finalStr += '.';
+
         if (limitSuffix) {
             if (finalStr.endsWith('.')) finalStr = finalStr.slice(0, -1);
             finalStr += ' ' + limitSuffix + '.';
         }
-        
+
         finalStr = finalStr.replace(/(^\W*\w|[\.;:]\s+\w)/g, m => m.toUpperCase());
     }
 

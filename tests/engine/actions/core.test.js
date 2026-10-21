@@ -146,6 +146,37 @@ describe('core.js Action Core & Utilities', () => {
             expect(mockEngine.state._irreversibleActionOccurred).toBe(false);
         });
 
+        it('should flag runtime actions that inspect an opponent hidden card', () => {
+            const hiddenHandCard = { instanceId: 'opponent_hand_card' };
+            mockEngine.state.players.player2.hand.push(hiddenHandCard);
+
+            const action = new core.Action({
+                type: 'DISCARD',
+                target: hiddenHandCard,
+                actingPlayerId: 'player1'
+            });
+            action.evaluateUndoSafety(mockEngine);
+
+            expect(mockEngine.state._irreversibleActionOccurred).toBe(true);
+        });
+
+        it('should flag movement that exposes an opponent hidden card', () => {
+            const hiddenDeckCard = { instanceId: 'opponent_deck_card' };
+            mockEngine.state.players.player2.deck.push(hiddenDeckCard);
+
+            utilsMock.moveEntity(mockEngine, hiddenDeckCard, 'player1', 'hand');
+
+            expect(mockEngine.state._irreversibleActionOccurred).toBe(true);
+        });
+
+        it('should flag runtime actions that change deck order', () => {
+            for (const type of ['TOP_DECK', 'MILL', 'SHUFFLE']) {
+                mockEngine.state._irreversibleActionOccurred = false;
+                new core.Action({ type }).evaluateUndoSafety(mockEngine);
+                expect(mockEngine.state._irreversibleActionOccurred).toBe(true);
+            }
+        });
+
         it('should respect the undoSafe flag for native custom-script actions', () => {
             const safeAction = new core.Action({ type: 'CUSTOM_SCRIPT', undoSafe: true });
             safeAction.evaluateUndoSafety(mockEngine);

@@ -19,7 +19,7 @@ export const ICON_SVGS = {
     attach: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-full h-full"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>`,
     'hourglass-empty': `<svg viewBox="-32 -32 320 320" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2a16.06 16.06 0 0 0-6.348 11.923A8 8 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a8 8 0 0 0-.053-.893 16.07 16.07 0 0 0-6.299-11.87L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M82.597 172.052l45.384-34.038 45.366 34.293ZM184 75.642l-56.019 42.344L72 76V40h112Z"/></svg>`,
     'hourglass-full': `<svg viewBox="-32 -32 320 320" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><path d="M200 75.641V40a16.02 16.02 0 0 0-16-16H72a16.02 16.02 0 0 0-16 16v36a16.08 16.08 0 0 0 6.4 12.8l52.267 39.2L62.4 167.2A16.08 16.08 0 0 0 56 180v36a16.02 16.02 0 0 0 16 16h112a16.02 16.02 0 0 0 16-16v-35.641a16.09 16.09 0 0 0-6.352-12.764L141.267 128l52.381-39.595A16.09 16.09 0 0 0 200 75.641M184 40v23.996H72V40Zm0 176H72v-36l55.981-41.986L184 180.36Z"/></svg>`,
-    tent: `<svg viewBox="0 0 24 24" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><defs><mask id="tent-mask"><path fill="#fff" d="M0 0h24v24H0z"/><path d="M16.93 20.63 13.86 13a2 2 0 0 0-3.72 0l-3.07 7.63A1 1 0 0 0 8 22h8a1 1 0 0 0 .93-1.37"/></mask></defs><path d="M21.2 8c-4.58-.92-8.38-5.6-8.42-5.64a1 1 0 0 0-1.56 0S7.38 7.1 2.8 8a1 1 0 0 0 .4 2c.23-.05.45-.13.68-.19l-.79 10.03a2 2 0 0 0 2 2.16h13.83a2 2 0 0 0 2-2.16l-.79-10c.23.06.45.14.68.19h.2a1 1 0 0 0 .2-2Z" mask="url(#tent-mask)"/></svg>`
+    tent: `<svg viewBox="2 2 20 20" class="w-full h-full fill-current" xmlns="http://www.w3.org/2000/svg"><defs><mask id="tent-mask"><path fill="#fff" d="M0 0h24v24H0z"/><path d="M16.93 20.63 13.86 13a2 2 0 0 0-3.72 0l-3.07 7.63A1 1 0 0 0 8 22h8a1 1 0 0 0 .93-1.37"/></mask></defs><path d="M21.2 8c-4.58-.92-8.38-5.6-8.42-5.64a1 1 0 0 0-1.56 0S7.38 7.1 2.8 8a1 1 0 0 0 .4 2c.23-.05.45-.13.68-.19l-.79 10.03a2 2 0 0 0 2 2.16h13.83a2 2 0 0 0 2-2.16l-.79-10c.23.06.45.14.68.19h.2a1 1 0 0 0 .2-2Z" mask="url(#tent-mask)"/></svg>`
 };
 
 export const LINE_SVGS = {
@@ -42,7 +42,7 @@ export const SYSTEM_GLOSSARY = [
     { regex: /\bwhile attached\b/i, id: 'sys_attached', name: 'While Attached', trigger: 'DURATION', displayDescription: 'An effect that lasts only as long as the equipment, artifact, or aura remains attached to its host.' },
     { regex: /\bindefinite(ly)?\b/i, id: 'sys_indefinite', name: 'Indefinite', trigger: 'DURATION', displayDescription: 'An effect that lasts as long as the entity remains on the board. Removed if it dies or leaves play.' },
     { regex: /\bpermanent(ly)?\b/i, id: 'sys_permanent', name: 'Permanent', trigger: 'DURATION', displayDescription: 'An effect that persists across all zones, even if the entity is destroyed or returned to hand.' },
-    
+
     // Core Costs & Icons
     { regex: /\{Unready\}|\bUnready\b|\bunreadies\b/i, id: 'sys_unready', name: `${SVG_UNREADY} Unready`, trigger: 'COST', displayDescription: 'Soft-tap the card. It loses its ready state but can be readied again by some effects. Cannot be used if already unready.' },
     { regex: /\{Exhaust\}|\bExhausts\b|\bExhaust\b/i, id: 'sys_exhaust', name: `${SVG_EXHAUST} Exhaust`, trigger: 'COST', displayDescription: 'Hard-tap the card. It becomes exhausted (readiness = -1) and usually requires a full turn cycle to become ready again. Cannot be used if already exhausted.' },
@@ -93,7 +93,7 @@ export function getSystemLineAbility(defLine) {
     const sysId = 'sys_' + defLine.toLowerCase();
     const entry = SYSTEM_GLOSSARY.find(s => s.id === sysId);
     if (!entry) return null;
-    
+
     return {
         abilityId: entry.id,
         name: entry.name,

@@ -57,6 +57,14 @@ function isPlayTrigger(trigger) {
     return ['PLAY', 'PLAY_OPTIONAL', 'ON_BE_PLAYED', 'WOULD_PLAY', 'WOULD_BE_PLAYED', 'MODIFY_PLAY'].includes(trigger);
 }
 
+function isDefaultPlayAbility(ability) {
+    const trigger = ability?.trigger || 'MANUAL';
+    if (trigger === 'PLAY_OPTIONAL') return false;
+    if (trigger === 'MANUAL' && ability?.passiveFlags?.includes('ACTIVATE_FROM_HAND')) return false;
+    if (ability?.activation?.method === 'PLAYER_CHOICE') return false;
+    return ['PLAY', 'ON_PLAY', 'ON_BE_PLAYED', 'PLAYED', 'MODIFY_PLAY', 'WOULD_PLAY', 'WOULD_BE_PLAYED'].includes(trigger);
+}
+
 function checkAttackTargetValidity(state, attacker, target, usePerception) {
     if (target.type === 'boon') return false;
     if (isTimidAgainst(state, attacker, target)) return false;
@@ -306,8 +314,8 @@ function checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct)
     return getStat(entity, 'readiness') >= 1;
 }
 
-function checkActionAffordability(entity, costObj, isHandAct) {
-    if (costObj.freeAction || isHandAct) return true;
+function checkActionAffordability(entity, costObj, isHandAct, abilityKey, state) {
+    if (costObj.freeAction || isHandAct || (costObj.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0)) return true;
     return getStat(entity, 'acts') >= 1;
 }
 
@@ -337,7 +345,7 @@ function checkAbilityAffordability(state, playerId, entity, ability, abilityKey)
     const escalateAmt = cost.escalates ? lifetimeUses * cost.escalates : 0;
 
     if (!canAffordCost(state, player, entity, cost, escalateAmt, isHandAct && isPlayAct).success) return false;
-    if (!checkActionAffordability(entity, cost, isHandAct)) return false;
+    if (!checkActionAffordability(entity, cost, isHandAct, abilityKey, state)) return false;
 
     return true;
 }
@@ -404,11 +412,18 @@ function buildPlayAction(state, playerId, entity) {
     const player = state.players[playerId];
     if (!canAffordCost(state, player, entity, entity.cost, 0, true).success) return null;
 
+    const engine = new GameEngine(state);
+    const undoable = !(entity.abilities || []).some(ability =>
+        isDefaultPlayAbility(ability) && !(typeof engine.isAbilityUndoable === 'function'
+            ? engine.isAbilityUndoable(ability, entity, playerId)
+            : isUndoable(state, ability))
+    );
+
     return {
         type: 'PLAY',
         name: 'Play Normally',
         abilityId: 'native_play',
-        undoable: true,
+        undoable,
         cost: 0,
         requiresTarget: false,
         validTargets: [],
@@ -455,7 +470,7 @@ function buildAbilityAction(state, playerId, entity, ability) {
         return null;
     }
 
-    const abilityKey = `${entity.instanceId}_${ability.abilityId}`;
+    const abilityKey = ability.instanceId;
     if (!checkAbilityAffordability(state, playerId, entity, ability, abilityKey)) return null;
 
     const engine = new GameEngine(state);
@@ -481,12 +496,21 @@ function buildAbilityAction(state, playerId, entity, ability) {
         type: 'ABILITY',
         name: ability.name,
         abilityId: ability.abilityId,
-        undoable: isUndoable(state, ability),
+        undoable: typeof engine.isAbilityUndoable === 'function'
+            ? engine.isAbilityUndoable(ability, entity, playerId)
+            : isUndoable(state, ability),
         cost: ability.cost,
         requiresTarget,
         validTargets,
         isPlayAbility: isPlayTrigger(ability.trigger)
     };
+}
+
+export function isAbilityUndoable(state, ability, source, playerId = null) {
+    const engine = new GameEngine(state);
+    return typeof engine.isAbilityUndoable === 'function'
+        ? engine.isAbilityUndoable(ability, source, playerId)
+        : isUndoable(state, ability);
 }
 
 export function getEntityAvailableActions(state, playerId, entityId) {

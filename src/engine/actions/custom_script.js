@@ -35,9 +35,9 @@ export class CustomScriptAction extends Action {
                     manualTarget = eventCtx.target;
                 }
 
-                // Inject 'source' and 'manualTarget' into the script environment
-                const fn = new Function('state', 'target', 'source', 'manualTarget', 'params', 'engine', 'actionDepth', '"use strict";\n' + cleanScript);
-                fn(engine.state, this.payload.target, this.payload.source, manualTarget, this.payload, engine, actionDepth);
+                // Inject 'source', 'manualTarget', and 'paramX' into the script environment
+                const fn = new Function('state', 'target', 'source', 'manualTarget', 'params', 'engine', 'actionDepth', 'paramX', '"use strict";\n' + cleanScript);
+                fn(engine.state, this.payload.target, this.payload.source, manualTarget, this.payload, engine, actionDepth, this.payload.paramX);
             } catch (e) {
                 let abilityName = this.payload.sourceAbilityId || 'Unknown';
                 if (engine.state.abilityCatalog && this.payload.sourceAbilityId) {

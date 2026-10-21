@@ -25,11 +25,32 @@ export function endTurn(state) {
     startTurn(state, engine);
 }
 
+function resetPlayerAbilityUses(state, playerId) {
+    if (!state.abilityUses) return;
+
+    const ownedEntities = queryState(state, {
+        players: ['player1', 'player2'],
+        zones: ['ALL'],
+        target: () => true,
+        findAll: true,
+        ownedBy: playerId
+    }) || [];
+
+    for (const location of ownedEntities) {
+        const entity = location.array[location.index];
+        entity.abilities?.forEach((ability, index) => {
+            if (typeof ability === 'string') return;
+            const abilityKey = ability.instanceId || (entity.instanceId && ability.abilityId
+                ? `${entity.instanceId}_${ability.abilityId}_${index}`
+                : null);
+            if (abilityKey) delete state.abilityUses[abilityKey];
+        });
+    }
+}
+
 export function startTurn(state, engine) {
     const pId = state.activePlayerId;
     const player = state.players[pId];
-
-    state.abilityUses = {};
 
     if (!player.setupComplete) {
         player.setupComplete = true;
@@ -184,6 +205,11 @@ export function startTurn(state, engine) {
     if (engine) {
         console.trace('Emitting TURN_STARTING');
         engine.emit('TURN_STARTING', { playerId: pId });
+    }
+
+    resetPlayerAbilityUses(state, pId);
+
+    if (engine) {
         engine.emit('TURN_STARTED', { playerId: pId });
     }
 }

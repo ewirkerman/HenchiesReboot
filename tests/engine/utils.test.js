@@ -50,9 +50,25 @@ describe('Engine Utilities (utils.js)', () => {
             expect(utils.isUndoable(mockState, { effects: [] })).toBe(true);
         });
 
-        it('should return false if group targetMethod is AUTO_RANDOM', () => {
+        it('should allow AUTO_RANDOM groups with no payloads as no-ops', () => {
             const ability = { effects: [{ targetMethod: 'AUTO_RANDOM' }] };
-            expect(utils.isUndoable(mockState, ability)).toBe(false);
+            expect(utils.isUndoable(mockState, ability)).toBe(true);
+        });
+
+        it('should allow random-target no-ops when the pool is provably empty', () => {
+            const emptyGroup = { targetMethod: 'AUTO_RANDOM', payloads: [{ type: 'HEAL' }] };
+            const noPayloadGroup = { targetMethod: 'AUTO_RANDOM', payloads: [] };
+
+            expect(utils.isUndoable(mockState, { effects: [emptyGroup] }, { getRandomTargetCount: () => 0 })).toBe(true);
+            expect(utils.isUndoable(mockState, { effects: [emptyGroup] }, { getRandomTargetCount: () => 1 })).toBe(true);
+            expect(utils.isUndoable(mockState, { effects: [noPayloadGroup] })).toBe(true);
+            expect(utils.isUndoable(mockState, { effects: [emptyGroup] })).toBe(false);
+            expect(utils.isUndoable(mockState, { effects: [emptyGroup] }, { getRandomTargetCount: () => 2 })).toBe(false);
+        });
+
+        it('should not treat non-automatic targeting as empty based on an auto pool count', () => {
+            const ability = { effects: [{ targetMethod: 'SELF', payloads: [{ type: 'CUSTOM_SCRIPT' }] }] };
+            expect(utils.isUndoable(mockState, ability, { getRandomTargetCount: () => 0 })).toBe(false);
         });
 
         it('should default custom-script conditions to undo-safe across all logic trees', () => {
@@ -148,11 +164,23 @@ describe('Engine Utilities (utils.js)', () => {
                 effects: [{
                     payloads: [{
                         type: 'SUMMON',
-                        nestedGroup: { targetMethod: 'AUTO_RANDOM', payloads: [] }
+                        nestedGroup: { targetMethod: 'AUTO_RANDOM', payloads: [{ type: 'HEAL' }] }
                     }]
                 }]
             };
             expect(utils.isUndoable(mockState, ability)).toBe(false);
+        });
+
+        it('should treat empty randomized summon follow-ups as no-ops', () => {
+            const ability = {
+                effects: [{
+                    payloads: [{
+                        type: 'SUMMON',
+                        nestedGroup: { targetMethod: 'AUTO_RANDOM', payloads: [] }
+                    }]
+                }]
+            };
+            expect(utils.isUndoable(mockState, ability)).toBe(true);
         });
 
         it('should return false for DISCARD if targeting enemy hand', () => {
@@ -283,6 +311,20 @@ describe('Engine Utilities (utils.js)', () => {
             expect(mockState.abilityUses['u1_ab1_0']).toBe(1);
 
             // Second time should return false because limit is hit
+            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(false);
+        });
+
+        it('should track consumed passive flags by ability instance ID', () => {
+            const ability = {
+                passiveFlags: ['BLOCK_TARGETING'],
+                triggerLimit: 'ONCE_PER_ROUND',
+                abilityId: 'ab1',
+                instanceId: 'ab_inst_1'
+            };
+            entity.abilities.push(ability);
+
+            expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING', true)).toBe(true);
+            expect(mockState.abilityUses.ab_inst_1).toBe(1);
             expect(utils.hasEngineFlag(mockState, entity, 'BLOCK_TARGETING')).toBe(false);
         });
     });

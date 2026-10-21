@@ -1,5 +1,3 @@
-// filepath: src/studio/ability/catalog_sync.js
-
 import { StudioState } from './state.js';
 import { fetchCustomAbilities, saveAbilityToCatalog, fetchCustomCards, deleteAbilityFromCatalog, saveCardToCatalog, fetchCustomTribes } from '../../firebase.js';
 import { CARD_CATALOG } from '../../engine/index.js';
@@ -10,7 +8,7 @@ import { launchSandboxMatch } from '../../testing.js';
 import { updateTriggerComposite, renderAdditionalTriggers, updateTargetingUI } from './triggers.js';
 import { renderLogicTrees } from './logic_tree.js';
 import { renderEffects } from './payloads.js';
-import { ACTION_MANIFEST } from '../../engine/actions/action_index.js';
+import { ACTION_MANIFEST, EVENT_MANIFEST } from '../../engine/actions/action_index.js';
 
 export function exportCurrentState(formData, uiState) {
     let activationData = {
@@ -35,6 +33,7 @@ export function exportCurrentState(formData, uiState) {
         updatedAt: existingAb ? existingAb.updatedAt : Date.now(),
         name: formData.name,
         isKeyword: !!formData.isKeyword,
+        requiresX: !!formData.requiresX,
         description: formData.description || '',
         developerNotes: formData.developerNotes || '',
         trigger: formData.trigger,
@@ -58,7 +57,14 @@ export function exportCurrentState(formData, uiState) {
                 delete group.quickTargeting;
                 delete group.logicTree;
                 delete group.targetCount;
+                delete group.targetCountIsX;
             } else {
+                if (!['AUTO_RANDOM', 'AUTO_FIRST', 'AUTO_LAST'].includes(group.targetMethod)) {
+                    delete group.targetCount;
+                    delete group.targetCountIsX;
+                } else if (!group.targetCountIsX) {
+                    delete group.targetCountIsX;
+                }
                 if (group.logicTree && group.logicTree.children && group.logicTree.children.length === 0) {
                     delete group.logicTree;
                 }
@@ -69,16 +75,31 @@ export function exportCurrentState(formData, uiState) {
 }
 
 export function getCurrentAbilityState(forceId = null) {
-    let derivedTrigger = document.getElementById('ab-trigger').value;
+    const triggerEl = document.getElementById('ab-trigger');
+    let derivedTrigger = triggerEl ? triggerEl.value : null;
+
     if (!derivedTrigger) {
-        const base = document.getElementById('ab-base-trigger').value;
-        const phase = document.getElementById('ab-trigger-phase').value;
-        const role = document.getElementById('ab-trigger-role').value;
-        const manifest = ACTION_MANIFEST[base];
-        if (manifest) {
+        const baseEl = document.getElementById('ab-base-trigger');
+        const phaseEl = document.getElementById('ab-trigger-phase');
+        const roleEl = document.getElementById('ab-trigger-role');
+
+        const base = baseEl ? baseEl.value : 'MANUAL';
+        const phase = phaseEl ? phaseEl.value : 'ON';
+        const role = roleEl ? roleEl.value : 'ACTIVE';
+
+        const actionManifest = ACTION_MANIFEST[base];
+        const eventManifest = EVENT_MANIFEST[base];
+
+        if (actionManifest) {
             let verb = base;
-            if (role === 'PASSIVE' && manifest.passiveType) verb = manifest.passiveType;
+            if (role === 'PASSIVE' && actionManifest.passiveType) verb = actionManifest.passiveType;
             derivedTrigger = `${phase}_${verb}`;
+        } else if (eventManifest) {
+            let verb = base;
+            if (role === 'PASSIVE' && eventManifest.passiveType) verb = eventManifest.passiveType;
+            derivedTrigger = `${phase}_${verb}`;
+        } else if (base.includes('COMBAT_ENDED')) {
+            derivedTrigger = base.startsWith('ON_') ? base : `ON_${base}`;
         } else {
             derivedTrigger = base || 'MANUAL';
         }
@@ -86,23 +107,24 @@ export function getCurrentAbilityState(forceId = null) {
 
     const formData = {
         abilityId: forceId || StudioState.currentEditingId,
-        name: document.getElementById('ab-name').value.trim(),
+        name: document.getElementById('ab-name') ? document.getElementById('ab-name').value.trim() : '',
         isKeyword: document.getElementById('ab-is-keyword') ? document.getElementById('ab-is-keyword').checked : false,
-        description: document.getElementById('ab-description').value,
+        requiresX: document.getElementById('ab-requires-x') ? document.getElementById('ab-requires-x').checked : false,
+        description: document.getElementById('ab-description') ? document.getElementById('ab-description').value : '',
         developerNotes: document.getElementById('ab-developer-notes') ? document.getElementById('ab-developer-notes').value.trim() : '',
         trigger: derivedTrigger,
         additionalTriggers: StudioState.additionalTriggers || [],
-        triggerScope: document.getElementById('ab-trigger-scope').value,
-        triggerLimit: document.getElementById('ab-trigger-limit').value,
+        triggerScope: document.getElementById('ab-trigger-scope') ? document.getElementById('ab-trigger-scope').value : 'PERSONAL',
+        triggerLimit: document.getElementById('ab-trigger-limit') ? document.getElementById('ab-trigger-limit').value : 'UNLIMITED',
         passiveFlags: Array.from(document.querySelectorAll('.ab-flag-chk:checked')).map(cb => cb.value),
-        tribeAmount: document.getElementById('ab-cost-tribe-amt').value,
-        carnie: document.getElementById('ab-cost-tent').value,
-        power: document.getElementById('ab-cost-power').value,
-        readinessCost: document.getElementById('ab-cost-readiness').value,
+        tribeAmount: document.getElementById('ab-cost-tribe-amt') ? document.getElementById('ab-cost-tribe-amt').value : '0',
+        carnie: document.getElementById('ab-cost-tent') ? document.getElementById('ab-cost-tent').value : '0',
+        power: document.getElementById('ab-cost-power') ? document.getElementById('ab-cost-power').value : '0',
+        readinessCost: document.getElementById('ab-cost-readiness') ? document.getElementById('ab-cost-readiness').value : 'NONE',
         escalates: document.getElementById('ab-cost-escalates') ? document.getElementById('ab-cost-escalates').checked : false,
-        reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt').checked,
-        freeAction: document.getElementById('ab-cost-free-action').checked,
-        actMethod: document.getElementById('ab-act-method').value,
+        reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt') ? document.getElementById('ab-cost-reuse-exempt').checked : false,
+        freeAction: document.getElementById('ab-cost-free-action') ? document.getElementById('ab-cost-free-action').checked : false,
+        actMethod: document.getElementById('ab-act-method') ? document.getElementById('ab-act-method').value : 'NONE',
         actQuickTargeting: StudioState.activationQuickTargeting
     };
 
@@ -189,10 +211,12 @@ export async function handleSaveAbility() {
 
     if (!window.CreatorController) {
         window.location.hash = ability.abilityId;
-        document.getElementById('form-heading').innerText = `⚡ Edit: ${ability.name}`;
+        const heading = document.getElementById('form-heading');
+        if (heading) heading.innerText = `⚡ Edit: ${ability.name}`;
     } else {
         window.history.replaceState(null, '', `#${ability.abilityId}`);
-        document.getElementById('workspace-title').innerText = "⚡ Editing Ability";
+        const wsTitle = document.getElementById('workspace-title');
+        if (wsTitle) wsTitle.innerText = "⚡ Editing Ability";
     }
 
     if (topbar) topbar.showButtons(true);
@@ -215,14 +239,17 @@ export function handleCloneAbility() {
 
     if (window.CreatorController) {
         window.history.pushState(null, '', `#new_ability`);
-        document.getElementById('workspace-title').innerText = `⚡ Editing Ability (Cloned)`;
+        const wsTitle = document.getElementById('workspace-title');
+        if (wsTitle) wsTitle.innerText = `⚡ Editing Ability (Cloned)`;
     } else {
         window.location.hash = '';
-        document.getElementById('form-heading').innerText = `⚡ Design Ability Logic (Cloned)`;
+        const heading = document.getElementById('form-heading');
+        if (heading) heading.innerText = `⚡ Design Ability Logic (Cloned)`;
     }
 
     StudioState.activeAssignerId = null;
-    document.getElementById('ab-name').value = currentConfig.name + ' (Copy)';
+    const nameInput = document.getElementById('ab-name');
+    if (nameInput) nameInput.value = currentConfig.name + ' (Copy)';
 
     const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
     if (topbar) topbar.showButtons(false);
@@ -235,9 +262,7 @@ export function resetForm() {
     StudioState.currentEditingId = null;
     StudioState.activeAssignerId = null;
 
-    if (window.CreatorController) {
-        // The Unified Studio manages the title via switchWorkspace
-    } else {
+    if (!window.CreatorController) {
         window.location.hash = '';
         const headingEl = document.getElementById('form-heading');
         if (headingEl) headingEl.innerText = `⚡ Design Ability Logic`;
@@ -248,6 +273,9 @@ export function resetForm() {
 
     const elKeyword = document.getElementById('ab-is-keyword');
     if (elKeyword) elKeyword.checked = false;
+
+    const elReqX = document.getElementById('ab-requires-x');
+    if (elReqX) elReqX.checked = false;
 
     const elDesc = document.getElementById('ab-description');
     if (elDesc) elDesc.value = '';
@@ -284,8 +312,10 @@ export function resetForm() {
     const elCostPower = document.getElementById('ab-cost-power');
     if (elCostPower) elCostPower.value = '0';
 
-    const elCostReady = document.getElementById('ab-cost-readiness');
-    if (elCostReady) elCostReady.value = 'NONE';
+    const elReady = document.getElementById('ab-cost-readiness');
+    if (elReady) {
+        elReady.value = 'NONE';
+    }
 
     const elEscalates = document.getElementById('ab-cost-escalates');
     if (elEscalates) elEscalates.checked = false;
@@ -350,6 +380,29 @@ export function renderCatalogList() {
     });
 }
 
+function migrateLegacyXFlags(abilityData) {
+    if (abilityData.requiresX) return true;
+    let needsX = false;
+    if (abilityData.effects) {
+        abilityData.effects.forEach(g => {
+            if (g.targetCountIsX) needsX = true;
+            if (!g.payloads) return;
+            g.payloads.forEach(p => {
+                if (p.amountIsX || p.grantedAbilityParamXIsX || p.scriptUsesX) needsX = true;
+                if (p.nestedGroup) {
+                    if (p.nestedGroup.targetCountIsX) needsX = true;
+                    if (p.nestedGroup.payloads) {
+                        p.nestedGroup.payloads.forEach(np => {
+                            if (np.amountIsX || np.grantedAbilityParamXIsX || np.scriptUsesX) needsX = true;
+                        });
+                    }
+                }
+            });
+        });
+    }
+    return needsX;
+}
+
 export function loadAbility(id) {
     const ab = StudioState.allAbilities.find(a => a.abilityId === id);
     if (!ab) return;
@@ -368,22 +421,50 @@ export function loadAbility(id) {
     const elKeyword = document.getElementById('ab-is-keyword');
     if (elKeyword) elKeyword.checked = !!ab.isKeyword;
 
+    const elReqX = document.getElementById('ab-requires-x');
+    if (elReqX) elReqX.checked = migrateLegacyXFlags(ab);
+
     const elDesc = document.getElementById('ab-description');
     if (elDesc) elDesc.value = ab.description || '';
 
     const elDeveloperNotes = document.getElementById('ab-developer-notes');
     if (elDeveloperNotes) elDeveloperNotes.value = ab.developerNotes || '';
 
-    const comp = window.parseTriggerToComposite ? window.parseTriggerToComposite(ab.trigger) : { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
+    let comp = { base: 'MANUAL', phase: 'ON', role: 'ACTIVE' };
+    if (window.parseTriggerToComposite) {
+        comp = window.parseTriggerToComposite(ab.trigger);
+    } else if (ab.trigger) {
+        const trigStr = ab.trigger.toUpperCase();
+        if (trigStr.includes('COMBAT_ENDED')) {
+            comp = { base: 'COMBAT_ENDED', phase: 'ON', role: 'ACTIVE' };
+        } else if (trigStr.startsWith('WOULD_') || trigStr.startsWith('MODIFY_') || trigStr.startsWith('ON_')) {
+            const parts = trigStr.split('_');
+            comp = { phase: parts[0], base: parts.slice(1).join('_'), role: 'ACTIVE' };
+        } else {
+            comp = { base: trigStr, phase: 'ON', role: 'ACTIVE' };
+        }
+    }
 
     const elBase = document.getElementById('ab-base-trigger');
-    if (elBase) elBase.value = comp.base;
+    if (elBase) {
+        let optionExists = Array.from(elBase.options).some(opt => opt.value === comp.base);
+        if (!optionExists && comp.base === 'COMBAT_ENDED') {
+            const newOpt = document.createElement('option');
+            newOpt.value = 'COMBAT_ENDED';
+            newOpt.innerText = 'Combat Ended';
+            elBase.appendChild(newOpt);
+        }
+        elBase.value = comp.base;
+    }
 
     const elPhase = document.getElementById('ab-trigger-phase');
     if (elPhase) elPhase.value = comp.phase;
 
     const elRole = document.getElementById('ab-trigger-role');
     if (elRole) elRole.value = comp.role;
+
+    const hiddenTrig = document.getElementById('ab-trigger');
+    if (hiddenTrig) hiddenTrig.value = ab.trigger;
 
     if (typeof window.updateTriggerComposite === 'function') window.updateTriggerComposite();
 
@@ -481,6 +562,7 @@ export function loadAbility(id) {
             const group = {
                 targetMethod: e.targetMethod || srcEffScope.method || 'SAME_AS_ACTIVATION',
                 targetCount: e.targetCount || srcEffScope.count || 1,
+                targetCountIsX: !!e.targetCountIsX,
                 quickTargeting: e.quickTargeting || {},
                 logicTree: e.logicTree || srcEffScope.logicTree || { type: 'group', logicalOperator: 'AND', children: [] },
                 payloads: []

@@ -1,8 +1,38 @@
 import { randomInt, shuffleArray as prandomShuffle } from './prandom.js';
 import { ACTION_REGISTRY, ACTION_MANIFEST, EVENT_MANIFEST, findEntityLocation } from './actions/action_index.js';
-import { log, warn, hasEngineFlag, getOwnerId, getAvatar, resolveResourceKey, LINES, canAffordCost, payCost, getAttackCost, moveEntity } from './utils.js';
-import { getEntityAvailableActions, getValidAttackTargets, acquireTargets, resolveTargetById } from './targeting.js';
+import * as EngineUtils from './utils.js';
+import * as TargetingUtils from './targeting.js';
 import { ATTRIBUTE_MANIFEST } from './attributes.js';
+
+// Exclude wrapper functions from TargetingUtils that share a name with GameEngine prototype methods
+const { isAbilityUndoable: _discardTargetingUndoable, ...safeTargetingUtils } = TargetingUtils;
+
+// Unified helper bundle combining utils, targeting, and PRNG
+export const ALL_ENGINE_UTILS = Object.freeze({
+    ...EngineUtils,
+    ...safeTargetingUtils,
+    randomInt,
+    shuffleArray: prandomShuffle,
+    findEntityLocation
+});
+
+// Hoist core module-scoped identifiers so internal class methods can reference them directly
+const {
+    log,
+    warn,
+    hasEngineFlag,
+    getOwnerId,
+    getAvatar,
+    resolveResourceKey,
+    LINES,
+    canAffordCost,
+    payCost,
+    getAttackCost,
+    moveEntity,
+    isUndoable,
+    acquireTargets,
+    resolveTargetById
+} = ALL_ENGINE_UTILS;
 
 function cloneConditionContext(context) {
     return structuredClone(context);
@@ -10,22 +40,19 @@ function cloneConditionContext(context) {
 
 export class GameEngine {
     constructor(state) {
-        this.state = state;
+        this.state = state || {};
         this.stack = [];
         this.processingDepth = 0;
         this.activeChainAbilities = new Set();
 
-        this.debugConfig = state.debugConfig || { enableNearMisses: true };
+        this.debugConfig = this.state.debugConfig || { enableNearMisses: true };
+        this.ACTION_REGISTRY = ACTION_REGISTRY;
 
-        this.utils = {
-            randomInt,
-            shuffleArray: prandomShuffle,
-            getEntityAvailableActions,
-            getValidAttackTargets,
-            hasEngineFlag,
-            resolveResourceKey,
-            moveEntity
-        };
+        // 1. Mount full utility suite under engine.utils (e.g., engine.utils.isEntityOnBoard)
+        this.utils = { ...ALL_ENGINE_UTILS };
+
+        // 2. Also mount utilities directly onto engine for direct access (e.g., engine.isEntityOnBoard, engine.moveEntity)
+        Object.assign(this, ALL_ENGINE_UTILS);
     }
 
     _isWatched(abilityId, entityId) {
@@ -108,8 +135,8 @@ export class GameEngine {
         const checkedEntities = new Set();
 
         if (payload) {
-            if (payload.source) this._evaluateTriggerMatch(payload.source, getOwnerId(this.state, payload.source), eventType, payload, checkedEntities, triggers);
-            if (payload.target) this._evaluateTriggerMatch(payload.target, getOwnerId(this.state, payload.target), eventType, payload, checkedEntities, triggers);
+            if (payload.source) this._evaluateTriggerMatch(payload.source, payload.source.ownerId || getOwnerId(this.state, payload.source), eventType, payload, checkedEntities, triggers);
+            if (payload.target) this._evaluateTriggerMatch(payload.target, payload.target.ownerId || getOwnerId(this.state, payload.target), eventType, payload, checkedEntities, triggers);
         }
 
         for (const pId of ['player1', 'player2']) {
@@ -151,15 +178,23 @@ export class GameEngine {
     _triggerMatchesEvent(trigger, eventType, ownerId, payload) {
         if (!trigger || !eventType) return false;
 
-        if (trigger === eventType) return true;
+        const cleanTrig = String(trigger).toUpperCase();
+        const cleanEvt = String(eventType).toUpperCase();
+
+        if (cleanTrig === cleanEvt) return true;
+
+        if ((cleanTrig === 'COMBAT_ENDED' && cleanEvt === 'ON_COMBAT_ENDED') ||
+            (cleanTrig === 'ON_COMBAT_ENDED' && cleanEvt === 'COMBAT_ENDED')) {
+            return true;
+        }
 
         if (!payload?.playerId) return false;
 
-        if (trigger.startsWith('OWN_TURN_')) {
-            return trigger.replace('OWN_', '') === eventType && payload.playerId === ownerId;
+        if (cleanTrig.startsWith('OWN_TURN_')) {
+            return cleanTrig.replace('OWN_', '') === cleanEvt && payload.playerId === ownerId;
         }
-        if (trigger.startsWith('OPP_TURN_')) {
-            return trigger.replace('OPP_', '') === eventType && payload.playerId !== ownerId;
+        if (cleanTrig.startsWith('OPP_TURN_')) {
+            return cleanTrig.replace('OPP_', '') === cleanEvt && payload.playerId !== ownerId;
         }
 
         return false;
@@ -180,6 +215,8 @@ export class GameEngine {
         }
 
         if (!abilitiesToCheck || abilitiesToCheck.length === 0) return;
+
+        const isCombatEnded = eventType.includes('COMBAT_ENDED');
 
         for (const ability of abilitiesToCheck) {
             const allTriggers = [ability.trigger, ...(ability.additionalTriggers || [])];
@@ -238,7 +275,14 @@ export class GameEngine {
                         } else if (matchedTrigger?.startsWith('OPP_TURN_')) {
                             if (payload.playerId === ownerId) { isValid = false; rejectReason = 'Not opponent turn'; }
                         } else if (payload.playerId && payload.playerId !== ownerId) {
-                            { isValid = false; rejectReason = 'Player ID mismatch for turn event'; }
+                            isValid = false; rejectReason = 'Player ID mismatch for turn event';
+                        }
+                    } else if (isCombatEnded) {
+                        const isSource = payload.source && payload.source.instanceId === ent.instanceId;
+                        const isTarget = payload.target && payload.target.instanceId === ent.instanceId;
+                        if (!isSource && !isTarget) {
+                            isValid = false;
+                            rejectReason = `Personal scope mismatch for COMBAT_ENDED (Entity is neither attacker nor defender)`;
                         }
                     } else {
                         if (!eventEntity || eventEntity.instanceId !== ent.instanceId) {
@@ -253,7 +297,6 @@ export class GameEngine {
                             rejectReason = 'Global scope requires an event entity, none found';
                         } else {
                             const qt = ability.activation?.quickTargeting;
-                            // Global event triggering explicitly evaluates attachments 
                             const pool = this.findEntitiesInScope(qt, ownerId, true);
                             if (!pool.some(p => p.instanceId === eventEntity?.instanceId)) {
                                 isValid = false;
@@ -264,11 +307,26 @@ export class GameEngine {
                 } else if (scope === 'HOST') {
                     if (!isPhaseEvent) {
                         const loc = findEntityLocation(this, ent);
-                        if (!loc || loc.zone !== 'attachment' || !loc.host || !eventEntity || eventEntity.instanceId !== loc.host.instanceId) {
+                        if (!loc || loc.zone === 'attachment' || !loc.host || !eventEntity || eventEntity.instanceId !== loc.host.instanceId) {
                             isValid = false;
                             rejectReason = `Host scope mismatch (Host: ${loc?.host?.name}, Event Entity: ${eventEntity?.name})`;
                         }
                     }
+                }
+            }
+
+            // Orient payload so self is source and opponent is target for COMBAT_ENDED
+            let triggerPayload = payload;
+            if (isCombatEnded && payload) {
+                const isTarget = payload.target && payload.target.instanceId === ent.instanceId;
+                if (isTarget) {
+                    triggerPayload = {
+                        ...payload,
+                        source: payload.target,
+                        target: payload.source,
+                        _lkiSourceAbilities: payload._lkiTargetAbilities,
+                        _lkiTargetAbilities: payload._lkiSourceAbilities
+                    };
                 }
             }
 
@@ -279,11 +337,13 @@ export class GameEngine {
                 }
 
                 let evalLKI = null;
-                if (payload) {
-                    if (payload.source?.instanceId === evalEntity.instanceId) evalLKI = payload._lkiSourceAbilities;
-                    if (payload.target?.instanceId === evalEntity.instanceId) evalLKI = payload._lkiTargetAbilities;
+                if (triggerPayload) {
+                    if (triggerPayload.source?.instanceId === evalEntity.instanceId) evalLKI = triggerPayload._lkiSourceAbilities;
+                    if (triggerPayload.target?.instanceId === evalEntity.instanceId) evalLKI = triggerPayload._lkiTargetAbilities;
                 }
-                if (!this.evaluateLogicTree(ability.activation.logicTree, evalEntity, ent, payload, evalLKI)) {
+
+                // Explicitly pass ability.paramX to evaluateLogicTree
+                if (!this.evaluateLogicTree(ability.activation.logicTree, evalEntity, ent, triggerPayload, evalLKI, ability.paramX)) {
                     isValid = false;
                     rejectReason = 'LogicTree evaluated to false';
                 }
@@ -298,7 +358,7 @@ export class GameEngine {
             const sideLabel = isPassive ? `[Passive/Target Side: ${foundPassiveType}]` : `[Active/Source Side]`;
             log(this.state, `    ↳ 🎯 Triggered '${ability.name}' on '${ent.name} (${eId})' for ${eventType} ${sideLabel}`);
 
-            triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload });
+            triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload: triggerPayload });
         }
     }
 
@@ -368,7 +428,7 @@ export class GameEngine {
                 return;
             }
 
-            ownerId = ownerId || this.state.activePlayerId;
+            ownerId = ownerId || source.ownerId || getOwnerId(this.state, source) || this.state.activePlayerId;
             if (!eventPayload) eventPayload = {};
             if (!this._checkAndPayCost(ability, source, ownerId, eventPayload)) {
                 return;
@@ -458,24 +518,78 @@ export class GameEngine {
         return true;
     }
 
+    isAbilityUndoable(ability, source, ownerId = null, eventPayload = null) {
+        const callingPlayerId = ownerId || getOwnerId(this.state, source) || this.state.activePlayerId;
+        const getRandomTargetCount = (group, parentPayload = null) => {
+            if (parentPayload?.type === 'SUMMON') {
+                const cardName = (parentPayload.cardId || '').toLowerCase();
+                const summonCard = this.state.catalog?.find(card =>
+                    card.id === parentPayload.cardId || card.name?.toLowerCase() === cardName
+                );
+                if (!summonCard) return null;
+                const amount = Number(parentPayload.amount || 1);
+                return Number.isFinite(amount) ? Math.max(0, Math.ceil(amount)) : null;
+            }
+
+            const zones = group.quickTargeting?.zones || ['FIELD'];
+            const alignments = group.quickTargeting?.alignment || [];
+            const canTargetEnemy = alignments.length === 0 || alignments.includes('ENEMY') || alignments.includes('ANY');
+            if (canTargetEnemy && zones.some(zone => ['HAND', 'DECK'].includes(String(zone).toUpperCase()))) return null;
+
+            const playersToCheck = alignments.length === 0 || alignments.includes('ANY')
+                ? ['player1', 'player2']
+                : [
+                    ...(alignments.includes('FRIENDLY') ? [callingPlayerId] : []),
+                    ...(alignments.includes('ENEMY') ? [callingPlayerId === 'player1' ? 'player2' : 'player1'] : [])
+                ];
+            const zoneNames = zones.map(zone => String(zone).toLowerCase());
+            if (playersToCheck.some(playerId => {
+                const player = this.state.players?.[playerId];
+                if (!player) return true;
+                if (zoneNames.includes('field') && !player.lines) return true;
+                return ['hand', 'deck', 'discard', 'banish'].some(zone => zoneNames.includes(zone) && !Array.isArray(player[zone]));
+            })) return null;
+
+            const candidates = this.findEntitiesInScope(group.quickTargeting, callingPlayerId, false);
+            try {
+                return candidates.filter(candidate =>
+                    this.evaluateLogicTree(group.logicTree, candidate, source, eventPayload, null, ability.paramX)
+                ).length;
+            } catch (error) {
+                return null;
+            }
+        };
+
+        return isUndoable(this.state, ability, { getRandomTargetCount });
+    }
+
     _resolvePayloads(ability, source, eventPayload, ownerId, lockedTargets, originatingEvent) {
         ability.effects.forEach((group, index) => {
-            if (!group || !Array.isArray(group.payloads)) return;
+            if (!group || !Array.isArray(group.payloads) || group.payloads.length === 0) return;
 
             let targets = lockedTargets[index] || [];
 
             if (group.targetMethod?.startsWith('AUTO_')) {
-                // Effects groups like AUTO_RANDOM do not reach attachments naturally
                 let pool = this.findEntitiesInScope(group.quickTargeting, ownerId, false);
-                pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source, eventPayload));
+                pool = pool.filter(ent => this.evaluateLogicTree(group.logicTree, ent, source, eventPayload, null, ability.paramX));
+
+                let targetCount = group.targetCountIsX
+                    ? (ability.paramX !== undefined && ability.paramX !== null ? ability.paramX : (eventPayload?.paramX ?? 1))
+                    : (group.targetCount !== undefined ? group.targetCount : 1);
+                targetCount = Number(targetCount);
+                if (isNaN(targetCount) || targetCount < 0) targetCount = 0;
 
                 if (group.targetMethod === 'AUTO_ALL') targets = pool;
                 else if (group.targetMethod === 'AUTO_RANDOM') {
-                    this.state._irreversibleActionOccurred = true;
-                    targets = prandomShuffle(this.state, [...pool]).slice(0, group.targetCount || 1);
+                    if (pool.length > 1) {
+                        this.state._irreversibleActionOccurred = true;
+                        targets = prandomShuffle(this.state, [...pool]).slice(0, targetCount);
+                    } else {
+                        targets = pool.slice(0, targetCount);
+                    }
                 }
-                else if (group.targetMethod === 'AUTO_FIRST') targets = pool.slice(0, group.targetCount || 1);
-                else if (group.targetMethod === 'AUTO_LAST') targets = pool.slice(-(group.targetCount || 1));
+                else if (group.targetMethod === 'AUTO_FIRST') targets = pool.slice(0, targetCount);
+                else if (group.targetMethod === 'AUTO_LAST') targets = targetCount === 0 ? [] : pool.slice(-targetCount);
             }
 
             for (const payload of group.payloads) {
@@ -505,6 +619,7 @@ export class GameEngine {
                         actionPayload.sourceAbilityId = ability.abilityId;
                         actionPayload.sourceAbilityOrigin = ability.origin;
                         actionPayload.targetMethod = group.targetMethod;
+                        actionPayload.paramX = ability.paramX;
 
                         const action = new ActionClass(actionPayload);
                         action.run(this);
@@ -567,12 +682,31 @@ export class GameEngine {
         });
     }
 
-    evaluateLogicTree(node, entity, source, eventPayload, lkiAbilities = null) {
+    evaluateLogicTree(node, entity, source, eventPayload, lkiAbilities = null, paramX = null) {
         if (!node) return true;
+
+        // Resolve paramX with fallback chain: passed paramX -> source entity ability slot -> payload paramX
+        let resolvedParamX = paramX;
+        if (resolvedParamX === null || resolvedParamX === undefined) {
+            resolvedParamX = eventPayload?.paramX ?? eventPayload?.eventContext?.paramX ?? null;
+        }
+        if ((resolvedParamX === null || resolvedParamX === undefined) && source?.abilities) {
+            const currentAbId = eventPayload?.sourceAbilityId || eventPayload?.eventContext?.abilityId;
+            const matchedAb = currentAbId
+                ? source.abilities.find(a => a.abilityId === currentAbId || a.id === currentAbId)
+                : source.abilities.find(a => a.paramX !== null && a.paramX !== undefined);
+            if (matchedAb && matchedAb.paramX !== undefined && matchedAb.paramX !== null) {
+                resolvedParamX = matchedAb.paramX;
+            }
+        }
+
         if (node.type === 'group') {
             if (!node.children || node.children.length === 0) return true;
-            if (node.logicalOperator === 'OR') return node.children.some(child => this.evaluateLogicTree(child, entity, source, eventPayload, lkiAbilities));
-            else return node.children.every(child => this.evaluateLogicTree(child, entity, source, eventPayload, lkiAbilities));
+            if (node.logicalOperator === 'OR') {
+                return node.children.some(child => this.evaluateLogicTree(child, entity, source, eventPayload, lkiAbilities, resolvedParamX));
+            } else {
+                return node.children.every(child => this.evaluateLogicTree(child, entity, source, eventPayload, lkiAbilities, resolvedParamX));
+            }
         } else if (node.type === 'condition') {
             const context = node.context || 'EVAL_TARGET';
             let targetEnt = entity;
@@ -743,8 +877,8 @@ export class GameEngine {
                     }
 
                     const sandboxEngine = new GameEngine(sandbox.state);
-                    const fn = new Function('target', 'source', 'manualTarget', 'state', 'eventPayload', 'engine', '"use strict";\n' + cleanScript);
-                    const result = fn(sandbox.target, sandbox.source, sandbox.manualTarget, sandbox.state, sandbox.eventPayload, sandboxEngine);
+                    const fn = new Function('target', 'source', 'manualTarget', 'state', 'eventPayload', 'engine', 'paramX', '"use strict";\n' + cleanScript);
+                    const result = fn(sandbox.target, sandbox.source, sandbox.manualTarget, sandbox.state, sandbox.eventPayload, sandboxEngine, resolvedParamX);
                     return node.operator === '==' ? !!result : !result;
                 } catch (e) {
                     console.error(`[Engine] Custom script condition error:`, e);
@@ -774,7 +908,6 @@ export class GameEngine {
         }
         return true;
     }
-    moveEntity = moveEntity;
 }
 
 export * from './utils.js';
