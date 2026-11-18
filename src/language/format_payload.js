@@ -15,6 +15,22 @@ const lowerFirst = (str) => {
     return str.replace(/^((?:<[^>]+>|\[[^\]]+\]|@\[[^\]]+\]|[^a-zA-Z])*)([a-zA-Z])/, (m, prefix, letter) => prefix + letter.toLowerCase());
 };
 
+export function getActionDurationSuffix(trigger) {
+    const normalizedTrigger = String(trigger || '').toUpperCase();
+    const actionNames = [
+        ['ATTACK', 'attack'],
+        ['HIT', 'hit'],
+        ['DAMAGE', 'damage'],
+        ['HEAL', 'heal'],
+        ['PLAY', 'play'],
+        ['KILL', 'kill'],
+        ['HARVEST', 'harvest'],
+        ['DISCARD', 'discard']
+    ];
+    const action = actionNames.find(([eventName]) => normalizedTrigger.includes(eventName));
+    return action ? `for the ${action[1]}` : 'for the current action';
+}
+
 // --- Helper for Modifiers & Suffixes ---
 
 export function getConditionText(logicTree, formatCtx = null) {
@@ -47,7 +63,8 @@ function applyPayloadModifiers(effText, eff, formatCtx) {
             let hasAttach = group && group.payloads && group.payloads.some(p => p.type === 'ATTACH');
             if (trigger !== 'ON_BE_ATTACHED' && !hasAttach) suffix = ' while attached';
         } else if (eff.duration === 'ACTION') {
-            if (isCustomMovement) suffix = ' this action'; else suffix = ' for the current action';
+            if (isCustomMovement) suffix = ' this action';
+            else suffix = ` ${getActionDurationSuffix(trigger)}`;
         } else if (eff.duration === 'TEMPORARY') {
             suffix = ' this round';
         } else if (eff.duration === 'BRIEF') {
@@ -102,7 +119,6 @@ function applyTargetedAction(actionType, valueStr, formatCtx, duration) {
     } else if (actionType === 'LOSE_STAT') {
         if (isSelf) return `${v('lose')} ${valueStr}{OMIT_TARGET}`;
         if (duration === 'WHILE_ATTACHED' || isSimpleSubject) return `{TARGET} ${v(isPlural ? 'lose' : 'loses')} ${valueStr}`;
-        // Fix: Use an imperative verb so it seamlessly attaches to "Pay X to..."
         return `force {TARGET} to ${v('lose')} ${valueStr}`;
     } else if (actionType === 'SET_STAT') {
         if (isSelf) return `${v('set')} ${valueStr}{OMIT_TARGET}`;
@@ -230,6 +246,19 @@ export function formatPayload(eff, formatCtx) {
         case 'RECOVER': effText = `${v('recover')} {TARGET}`; break;
         case 'REVIVE': effText = `${v('revive')} {TARGET}`; break;
         case 'MODIFY_STAT':
+            if (eff.stat === 'amount') {
+                let amountNoun = "the effect's amount";
+                if (formatCtx.trigger) {
+                    if (formatCtx.trigger.includes('DAMAGE') || formatCtx.trigger.includes('HIT') || formatCtx.trigger.includes('ATTACK')) amountNoun = "that damage";
+                    else if (formatCtx.trigger.includes('HEAL')) amountNoun = "that healing";
+                    else if (formatCtx.trigger.includes('DRAW')) amountNoun = "cards drawn";
+                    else if (formatCtx.trigger.includes('DISCARD')) amountNoun = "cards discarded";
+                }
+
+                if (eff.amountIsX) effText = `${v('modify')} ${amountNoun} by ${xDisplay}{OMIT_TARGET}`;
+                else effText = eff.amount < 0 ? `${v('decrease')} ${amountNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `${v('increase')} ${amountNoun} by ${eff.amount}{OMIT_TARGET}`;
+                break;
+            }
             let modStat = `[STAT:${eff.stat || 'stat'}]`;
             let isNeg = !eff.amountIsX && Number(eff.amount) < 0;
             let absAmtStr = eff.amountIsX ? xDisplay : Math.abs(eff.amount);
@@ -239,7 +268,7 @@ export function formatPayload(eff, formatCtx) {
             effText = applyTargetedAction(isNeg ? 'LOSE_STAT' : 'GAIN_STAT', valStr, formatCtx, eff.duration);
             break;
         case 'MODIFY_RESOURCE':
-            let resName2 = resolveTribeName(eff.resource, allTribes);
+            let resName2 = eff.resource || 'Carnie';
             let iconString2 = formatResourceIcons(Math.abs(eff.amount !== undefined ? eff.amount : 1), resName2, eff.amountIsX);
             if (eff.amountIsX && paramX !== null && paramX !== undefined && !isNaN(Number(paramX))) {
                 iconString2 = iconString2.replace(/^X\b/, `X (${paramX})`);
@@ -295,13 +324,13 @@ export function formatPayload(eff, formatCtx) {
         case 'MODIFY_EVENT':
             let amountNoun = "the effect's amount";
             if (formatCtx.trigger) {
-                if (formatCtx.trigger.includes('DAMAGE') || formatCtx.trigger.includes('HIT') || formatCtx.trigger.includes('ATTACK')) amountNoun = "damage";
-                else if (formatCtx.trigger.includes('HEAL')) amountNoun = "healing";
+                if (formatCtx.trigger.includes('DAMAGE') || formatCtx.trigger.includes('HIT') || formatCtx.trigger.includes('ATTACK')) amountNoun = "that damage";
+                else if (formatCtx.trigger.includes('HEAL')) amountNoun = "that healing";
                 else if (formatCtx.trigger.includes('DRAW')) amountNoun = "cards drawn";
                 else if (formatCtx.trigger.includes('DISCARD')) amountNoun = "cards discarded";
             }
 
-            if (eff.stat === 'amount') {
+            if (!eff.stat || eff.stat === 'amount') {
                 if (eff.amountIsX) effText = `${v('modify')} ${amountNoun} by ${xDisplay}{OMIT_TARGET}`;
                 else effText = eff.amount < 0 ? `${v('decrease')} ${amountNoun} by ${Math.abs(eff.amount)}{OMIT_TARGET}` : `${v('increase')} ${amountNoun} by ${eff.amount}{OMIT_TARGET}`;
             } else {
@@ -316,13 +345,15 @@ export function formatPayload(eff, formatCtx) {
                 if (paramX !== null && paramX !== undefined && !isNaN(Number(paramX))) {
                     desc = desc.replace(/\bX\b/g, xDisplay);
                 }
+                desc = desc.replace(/\{paramX\}/g, xDisplay || 'X');
                 effText = desc + '{OMIT_TARGET}';
             } else {
                 effText = `${v('execute')} script on {TARGET}`;
             }
             break;
         case 'GRANT_ABILITY':
-            let { name: abilityName, isManual } = resolveAbility(eff.grantedAbilityId, allAbilities);
+            let { name: abilityName, abilityId: abilityRef, isManual } = resolveAbility(eff.grantedAbilityId, allAbilities);
+            abilityRef ||= abilityName;
             let grantVerb = isManual ? 'grant' : 'apply';
             let paramSuffix = '';
             if (eff.grantedAbilityParamXIsX) {
@@ -335,11 +366,11 @@ export function formatPayload(eff, formatCtx) {
             let isSimpleSubject_GA = ['it', 'them', 'host'].includes(targetStr);
 
             if (isSelf_GA) {
-                effText = `${v('gain')} @[${abilityName}]${paramSuffix}{OMIT_TARGET}`;
+                effText = `${v('gain')} @[${abilityRef}]${paramSuffix}{OMIT_TARGET}`;
             } else if (eff.duration === 'WHILE_ATTACHED' || isSimpleSubject_GA) {
-                effText = `{TARGET} ${v(isPlural ? 'gain' : 'gains')} @[${abilityName}]${paramSuffix}`;
+                effText = `{TARGET} ${v(isPlural ? 'gain' : 'gains')} @[${abilityRef}]${paramSuffix}`;
             } else {
-                effText = `${v(grantVerb)} @[${abilityName}]${paramSuffix} to {TARGET}`;
+                effText = `${v(grantVerb)} @[${abilityRef}]${paramSuffix} to {TARGET}`;
             }
             if (eff.blockDuplicates) effText += ` (unique)`;
             break;
@@ -368,6 +399,15 @@ export function formatPayload(eff, formatCtx) {
             let rmAbilityName = resolveAbility(eff.grantedAbilityId, allAbilities).name;
             effText = `${v('remove')} **${rmAbilityName}** from {TARGET}`;
             break;
+        case 'UPDATE_ABILITY_LEVEL': {
+            const { name: abilityName, abilityId } = resolveAbility(eff.abilityId, allAbilities);
+            const abilityRef = abilityId || abilityName;
+            const amount = eff.amountIsX ? xDisplay : eff.amount;
+            effText = eff.modify
+                ? `${v('increase')} @[${abilityRef}]'s X by ${amount} on {TARGET}`
+                : `${v('set')} @[${abilityRef}]'s X to ${amount} on {TARGET}`;
+            break;
+        }
         case 'SUMMON':
             let cardName = resolveEntityName(eff.cardId, allCards);
             const summonAmt = Math.max(1, Math.abs(eff.amount || 1));
@@ -445,7 +485,10 @@ export function formatPayload(eff, formatCtx) {
         case 'CONDITIONAL':
         case 'EVENT_CONDITIONAL':
             const conditionStr = getConditionText(eff.nestedGroup?.logicTree, formatCtx);
-            effText = `if ${conditionStr}, ${eff.nestedGroup?.payloads?.map(np => formatPayload(np, formatCtx).replace(/\{OMIT_TARGET\}/g, '')).filter(Boolean).join(' and ') || 'do nothing'}`;
+            const conditionPayloadText = eff.nestedGroup?.payloads?.map(np => formatPayload(np, formatCtx).replace(/\{OMIT_TARGET\}/g, '')).filter(Boolean).join(' and ') || 'do nothing';
+            effText = `if ${conditionStr}, ${conditionPayloadText}`;
+            const elsePayloadText = eff.elsePayloads?.map(np => formatPayload(np, formatCtx).replace(/\{OMIT_TARGET\}/g, '')).filter(Boolean).join(' and ');
+            if (elsePayloadText) effText += `; otherwise, ${elsePayloadText}`;
             break;
         // Simple verbs cleanly fallback here (e.g. DISCARD, TRASH, MILL, BANISH, KILL, RECOVER, REVIVE, FIELD, UNATTACH, ATTACK, DONATE)
         default:
@@ -466,10 +509,10 @@ export function formatCombinedPayloads(effs, formatCtx) {
     if (first.type === 'GRANT_ABILITY') {
         let hasManual = false;
         let abNames = effs.map(eff => {
-            let { name, isManual } = resolveAbility(eff.grantedAbilityId, allAbilities);
+            let { name, abilityId, isManual } = resolveAbility(eff.grantedAbilityId, allAbilities);
             if (isManual) hasManual = true;
             let paramSuffix = eff.grantedAbilityParamXIsX ? ' (X)' : (eff.grantedAbilityParamX !== undefined && eff.grantedAbilityParamX !== null ? ` (${eff.grantedAbilityParamX})` : '');
-            return `@[${name}]${paramSuffix}`;
+            return `@[${abilityId || name}]${paramSuffix}`;
         });
 
         let grantVerb = hasManual ? 'grant' : 'apply';
@@ -490,19 +533,35 @@ export function formatCombinedPayloads(effs, formatCtx) {
         effText = `${v('remove')} ${joinWithAnd(abNames)} from {TARGET}`;
 
     } else if (first.type === 'MODIFY_STAT') {
-        let isNeg = !first.amountIsX && Number(first.amount) < 0;
-        let changes = effs.map(eff => {
-            let modStat = `[STAT:${eff.stat || 'stat'}]`;
-            let amtVal = eff.amountIsX ? 'X' : (isNeg ? Math.abs(eff.amount) : eff.amount);
-            return `${amtVal} ${modStat}`;
-        });
+        if (first.stat === 'amount') {
+            let amountNoun = "the effect's amount";
+            if (formatCtx.trigger) {
+                if (formatCtx.trigger.includes('DAMAGE') || formatCtx.trigger.includes('HIT') || formatCtx.trigger.includes('ATTACK')) amountNoun = "that damage";
+                else if (formatCtx.trigger.includes('HEAL')) amountNoun = "that healing";
+                else if (formatCtx.trigger.includes('DRAW')) amountNoun = "cards drawn";
+                else if (formatCtx.trigger.includes('DISCARD')) amountNoun = "cards discarded";
+            }
+            let isNeg = !first.amountIsX && Number(first.amount) < 0;
+            let changes = effs.map(eff => eff.amountIsX ? 'X' : Math.abs(eff.amount));
+            let valStr = joinWithAnd(changes);
 
-        let valStr = joinWithAnd(changes);
-        effText = applyTargetedAction(isNeg ? 'LOSE_STAT' : 'GAIN_STAT', valStr, formatCtx, first.duration);
+            if (first.amountIsX) effText = `${v('modify')} ${amountNoun} by ${valStr}{OMIT_TARGET}`;
+            else effText = isNeg ? `${v('decrease')} ${amountNoun} by ${valStr}{OMIT_TARGET}` : `${v('increase')} ${amountNoun} by ${valStr}{OMIT_TARGET}`;
+        } else {
+            let isNeg = !first.amountIsX && Number(first.amount) < 0;
+            let changes = effs.map(eff => {
+                let modStat = `[STAT:${eff.stat || 'stat'}]`;
+                let amtVal = eff.amountIsX ? 'X' : (isNeg ? Math.abs(eff.amount) : eff.amount);
+                return `${amtVal} ${modStat}`;
+            });
+
+            let valStr = joinWithAnd(changes);
+            effText = applyTargetedAction(isNeg ? 'LOSE_STAT' : 'GAIN_STAT', valStr, formatCtx, first.duration);
+        }
 
     } else if (first.type === 'MODIFY_RESOURCE') {
         let changes = effs.map(eff => {
-            let resName = resolveTribeName(eff.resource, allTribes);
+            let resName = eff.resource || 'Carnie';
             let amount = eff.amount !== undefined ? Math.abs(eff.amount) : 1;
             return formatResourceIcons(amount, resName, eff.amountIsX);
         });

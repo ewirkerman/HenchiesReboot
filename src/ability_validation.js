@@ -1,5 +1,5 @@
 export const UNPREVENTABLE_TRIGGERS = [
-    'MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED',
+    'MANUAL', 'UNTRIGGERABLE', 'GAME_STARTING', 'TURN_STARTING', 'TURN_STARTED',
     'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED',
     'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED',
     'OPP_TURN_ENDING', 'OPP_TURN_ENDED', 'ON_ACT', 'ON_COMBAT_ENDED', 'COMBAT_ENDED'
@@ -11,7 +11,7 @@ export const MODIFIABLE_EVENTS = [
 ];
 
 export const SYSTEM_TRIGGERS = [
-    'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED',
+    'UNTRIGGERABLE', 'GAME_STARTING', 'TURN_STARTING', 'TURN_STARTED',
     'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED',
     'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED',
     'OPP_TURN_ENDING', 'OPP_TURN_ENDED', 'ON_ACT'
@@ -25,7 +25,7 @@ export const STRICTLY_POSITIVE_ACTIONS = [
 export function getValidScopes(trigger) {
     const clean = (trigger || '').toUpperCase();
     if ([
-        'MANUAL', 'UNTRIGGERABLE',
+        'MANUAL', 'UNTRIGGERABLE', 'GAME_STARTING',
         'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED',
         'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'
     ].includes(clean)) {
@@ -94,10 +94,6 @@ export function getValidEffectTypes(trigger, baseValidTypes) {
         types = types.filter(t => t !== 'CANCEL_EVENT');
     }
 
-    if (!cleanTrigger.startsWith('MODIFY_')) {
-        types = types.filter(t => t !== 'MODIFY_EVENT');
-    }
-
     return types;
 }
 
@@ -107,13 +103,13 @@ export function validateAbilityLogic(ability) {
     const cleanTrigger = trigger.toUpperCase();
 
     let hasCancel = false;
-    let hasModifyEvent = false;
-
     const checkPayloads = (payloads, targetMethod) => {
         if (!payloads) return;
         for (const p of payloads) {
             if (p.type === 'CANCEL_EVENT') hasCancel = true;
-            if (p.type === 'MODIFY_EVENT') hasModifyEvent = true;
+            if ((p.type === 'MODIFY_STAT' || p.type === 'SET_STAT') && (p.stat === 'acts' || p.stat === 'maxActs')) {
+                errors.push(`${p.type} cannot modify ${p.stat}; use cooldown-group mechanics instead.`);
+            }
 
             if (p.type === 'ATTACH' || p.type === 'ATTACH_TO') {
                 if (targetMethod === 'SELF') {
@@ -137,6 +133,7 @@ export function validateAbilityLogic(ability) {
                 if (p.nestedGroup.targetMethod?.startsWith('AUTO_') && p.nestedGroup.targetCount !== undefined && p.nestedGroup.targetCount < 1) {
                     errors.push(`Nested target count must be at least 1.`);
                 }
+                checkPayloads(p.nestedGroup.payloads, p.nestedGroup.targetMethod);
             }
         }
     };
@@ -173,9 +170,5 @@ export function validateAbilityLogic(ability) {
     if (hasCancel && (UNPREVENTABLE_TRIGGERS.includes(cleanTrigger) || cleanTrigger.includes('COMBAT_ENDED'))) {
         errors.push(`CANCEL_EVENT cannot be used with the ${trigger} trigger.`);
     }
-    if (hasModifyEvent && !cleanTrigger.startsWith('MODIFY_')) {
-        errors.push(`MODIFY_EVENT cannot be used with the ${trigger} trigger. You can only modify events during a 'MODIFY_' phase trigger.`);
-    }
-
     return errors;
 }

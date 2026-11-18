@@ -10,7 +10,7 @@ admin.initializeApp({
 });
 
 const db = getFirestore();
-  
+
 async function exportDatabase() {
   const data = {};
 
@@ -28,7 +28,7 @@ async function exportDatabase() {
   }
 
   // Save to local file
-  fs.writeFileSync('tools/firestore_export_'+Date.now()+'.json', JSON.stringify(data, null, 2));
+  fs.writeFileSync('tools/firestore_export_' + Date.now() + '.json', JSON.stringify(data, null, 2));
   console.log('Database export completed successfully!');
 }
 

@@ -6,6 +6,7 @@ export const ACTION_MANIFEST = {
     'HEAL': { passiveType: 'BE_HEALED', canInvert: true, canBeCost: false, requiresAmount: true, canOverheal: true, validZones: ['FIELD'], validDurations: ['INSTANT'] },
     'KILL': { passiveType: 'BE_KILLED', canInvert: true, canBeCost: true, validZones: ['FIELD'], validDurations: ['INSTANT'], isLeavesPlay: true },
     'GRANT_ABILITY': { passiveType: 'BE_GRANTED_ABILITY', canInvert: true, canBeCost: false, requiresGrantedAbility: true, canBlockDuplicates: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
+    'UPDATE_ABILITY_LEVEL': { canInvert: false, canBeCost: false, requiresAmount: true, requiresAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'MODIFY_STAT': { passiveType: 'BE_STAT_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, canLimitStacks: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'SET_STAT': { passiveType: 'BE_STAT_SET', canInvert: true, canBeCost: true, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'MODIFY_RESOURCE': { passiveType: 'BE_RESOURCE_MODIFIED', canInvert: true, canBeCost: true, requiresAmount: true, requiresResource: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
@@ -24,7 +25,6 @@ export const ACTION_MANIFEST = {
     'CLEANSE': { passiveType: 'BE_CLEANSED', canInvert: true, canBeCost: false, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CHANGE_DESTINATION': { passiveType: null, canInvert: false, canBeCost: false, requiresZone: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'REMOVE_ABILITY': { passiveType: null, canInvert: true, canBeCost: false, requiresGrantedAbility: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
-    'MODIFY_EVENT': { passiveType: null, canInvert: false, canBeCost: false, requiresAmount: true, requiresStat: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'CUSTOM_SCRIPT': { passiveType: null, canInvert: true, canBeCost: true, requiresScript: true, validZones: 'ALL', validDurations: ['INSTANT'] },
     'TRANSFORM': { passiveType: 'BE_TRANSFORMED', canInvert: false, canBeCost: true, requiresCardId: true, validZones: 'ALL', validDurations: ['INSTANT', 'ACTION', 'TEMPORARY', 'PERMANENT', 'WHILE_ATTACHED', 'BRIEF', 'INDEFINITE'] },
     'DISCARD': { passiveType: 'BE_DISCARDED', canInvert: true, canBeCost: true, requiresAmount: false, validZones: ['HAND'], endZone: ['DISCARD'], validDurations: ['INSTANT'], isLeavesPlay: true },
@@ -59,6 +59,31 @@ export class Action {
         this.passiveType = manifest ? manifest.passiveType : null;
         this.payload = payload;
         this.payload.type = this.type;
+
+        // Dynamically resolve 'X' values from context, ability, or source entity
+        let px = this.payload.paramX;
+
+        // 1. Highest Priority: X was chosen dynamically during an ability activation
+        if (px === undefined && this.payload.eventContext && this.payload.eventContext.paramX !== undefined) {
+            px = this.payload.eventContext.paramX;
+        }
+        // 2. Second Priority: The specific ability firing this action has a persistent X level
+        if (px === undefined && this.payload.source && this.payload.sourceAbilityId) {
+            const firingAb = this.payload.source.abilities?.find(a => a.abilityId === this.payload.sourceAbilityId || a.instanceId === this.payload.sourceAbilityId);
+            if (firingAb && firingAb.paramX !== undefined) px = firingAb.paramX;
+        }
+
+        // 3. Lowest Priority: The entity itself is an X-cost entity
+        if (px === undefined && this.payload.source && this.payload.source.paramX !== undefined) {
+            px = this.payload.source.paramX;
+        }
+
+        if (px !== undefined) {
+            this.payload.paramX = px; // Preserve for downstream/nested actions
+            if (this.payload.amountIsX) this.payload.amount = px;
+            if (this.payload.targetCountIsX) this.payload.targetCount = px;
+            if (this.payload.grantedAbilityParamXIsX) this.payload.grantedAbilityParamX = px;
+        }
     }
 
     resolveActionType() {
@@ -168,7 +193,7 @@ export class Action {
         const sName = this.payload.source ? `${this.payload.source.name || 'Unknown'} (${sId})` : `System (${sId})`;
         const tName = this.payload.target ? `${this.payload.target.name || 'Unknown'} (${tId})` : `None (${tId})`;
         let extra = '';
-        if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE', 'MODIFY_EVENT'].includes(this.type)) {
+        if (['DEAL_DAMAGE', 'HEAL', 'MODIFY_STAT', 'SET_STAT', 'MODIFY_RESOURCE'].includes(this.type)) {
             extra = `(${this.payload.stat ? this.payload.stat + ': ' : ''}${this.payload.amount !== undefined ? this.payload.amount : 0}) `;
         }
         const indent = '  '.repeat(engine.state._actionDepth - 1);
@@ -247,6 +272,7 @@ export class Action {
         if (target.maxHealth !== undefined && target.maxHealth !== null) target.health = target.maxHealth;
         if (target.originalPower !== undefined && target.originalPower !== null) target.power = target.originalPower;
         if (target.originalStrength !== undefined && target.originalStrength !== null) target.strength = target.originalStrength;
+        target.armor = 0;
     }
 
     sweepActionEffects(engine) {
@@ -344,12 +370,51 @@ export function revertEffect(engine, target, effect, isLeavingPlay = false) {
     if (effect.type === 'MODIFY_STAT') revertModifyStat(target, effect);
     else if (effect.type === 'MODIFY_RESOURCE') revertModifyResource(engine, target, effect);
     else if (effect.type === 'SET_STAT') revertSetStat(engine, target, effect, isLeavingPlay);
+    else if (effect.type === 'UPDATE_ABILITY_LEVEL') revertAbilityLevel(engine, target, effect);
     else if (effect.type === 'GRANT_ABILITY') revertGrantAbility(target, effect);
-    else if (effect.type === 'REMOVE_ABILITY') revertRemoveAbility(target, effect);
+    else if (effect.type === 'REMOVE_ABILITY') revertRemoveAbility(target, effect, isLeavingPlay);
     else if (effect.type === 'SUMMON') revertSummon(engine, target);
     else if (effect.type === 'ATTACH') revertAttach(engine, target, effect);
     else if (effect.type === 'REBEL' || effect.type === 'DONATE') revertControlChange(engine, target, effect);
     else if (effect.type === 'TRANSFORM') revertTransform(engine, target, effect);
+}
+
+function revertAbilityLevel(engine, target, effect) {
+    const remainingEffects = (target.activeEffects || []).filter(activeEffect =>
+        activeEffect.id !== effect.id &&
+        activeEffect.type === 'UPDATE_ABILITY_LEVEL' &&
+        activeEffect.abilityId === effect.abilityId &&
+        activeEffect.abilityInstanceId === effect.abilityInstanceId
+    );
+    if (remainingEffects.length > 0) {
+        const latestEffect = remainingEffects[remainingEffects.length - 1];
+        engine.updateAbilityLevel(engine.state, target, effect.abilityId, latestEffect.newParamX);
+        return;
+    }
+
+    const abilityIndex = target.abilities?.findIndex(ability =>
+        ability && typeof ability === 'object' &&
+        ability.abilityId === effect.abilityId &&
+        ability.instanceId === effect.abilityInstanceId
+    ) ?? -1;
+    if (abilityIndex !== -1 && effect.originalAbility) {
+        const abilities = target.abilities.slice();
+        abilities[abilityIndex] = JSON.parse(JSON.stringify(effect.originalAbility));
+        target.abilities = abilities;
+    }
+
+    if (effect.originalGrantEffect && target.activeEffects) {
+        const grantIndex = target.activeEffects.findIndex(activeEffect =>
+            activeEffect.type === 'GRANT_ABILITY' &&
+            (activeEffect.grantedAbilityInstanceId === effect.abilityInstanceId ||
+                activeEffect.grantedAbilityId === effect.abilityId)
+        );
+        if (grantIndex !== -1) {
+            const activeEffects = target.activeEffects.slice();
+            activeEffects[grantIndex] = JSON.parse(JSON.stringify(effect.originalGrantEffect));
+            target.activeEffects = activeEffects;
+        }
+    }
 }
 
 function revertModifyStat(target, effect) {
@@ -360,8 +425,6 @@ function revertModifyStat(target, effect) {
         } else if (target.maxHealth !== undefined && target.maxHealth !== null && target.health > target.maxHealth) {
             target.health = Math.max(0, target.maxHealth);
         }
-    } else if (effect.stat === 'health' && target.maxHealth !== undefined && target.maxHealth !== null) {
-        target.health = Math.min(target.health, target.maxHealth);
     }
 }
 
@@ -453,15 +516,32 @@ function revertGrantAbility(target, effect) {
     }
 }
 
-function revertRemoveAbility(target, effect) {
-    if (effect.restoredAbilities && effect.restoredAbilities.length > 0) {
+function revertRemoveAbility(target, effect, isLeavingPlay) {
+    const restoredEffects = isLeavingPlay
+        ? (effect.restoredEffects || []).filter(restoredEffect => restoredEffect.duration === 'PERMANENT')
+        : (effect.restoredEffects || []);
+    const restoredAbilities = isLeavingPlay
+        ? (effect.restoredAbilities || []).filter(ability => !hasExpiringGrant(ability, effect.restoredEffects || []))
+        : (effect.restoredAbilities || []);
+
+    if (restoredAbilities.length > 0) {
         if (!target.abilities) target.abilities = [];
-        effect.restoredAbilities.forEach(ab => target.abilities.push(ab));
+        restoredAbilities.forEach(ab => target.abilities.push(ab));
     }
-    if (effect.restoredEffects && effect.restoredEffects.length > 0) {
+    if (restoredEffects.length > 0) {
         if (!target.activeEffects) target.activeEffects = [];
-        effect.restoredEffects.forEach(e => target.activeEffects.push(e));
+        restoredEffects.forEach(e => target.activeEffects.push(e));
     }
+}
+
+function hasExpiringGrant(ability, restoredEffects) {
+    return restoredEffects.some(restoredEffect => {
+        if (restoredEffect.type !== 'GRANT_ABILITY' || restoredEffect.duration === 'PERMANENT') return false;
+        if (restoredEffect.grantedAbilityInstanceId && ability.instanceId) {
+            return restoredEffect.grantedAbilityInstanceId === ability.instanceId;
+        }
+        return restoredEffect.grantedAbilityId === ability.abilityId;
+    });
 }
 
 function revertSummon(engine, target) {

@@ -1,12 +1,30 @@
 import { Action, registerEffect } from './core.js';
-import { findEntityLocation, LINES, moveEntity } from '../utils.js';
+import { findEntityLocation, getReadinessFloor, LINES, moveEntity } from '../utils.js';
 
 const UNRESTRICTED_LINES = ['avatar', 'taunt', 'front', 'mid', 'back', 'sheltered'];
 
 export class SetStatAction extends Action {
     execute(engine) {
-        const { target, stat, amount } = this.payload;
-        if (target && stat && amount !== undefined) {
+        const { target, stat, amount, eventContext } = this.payload;
+        if (amount === undefined) return;
+        if (stat === 'acts' || stat === 'maxActs') return;
+
+        // Route in-flight event stat modifications (e.g. Parrying setting damage to 0)
+        if (stat === 'amount') {
+            const eventTarget = eventContext || target?._eventContext;
+            if (eventTarget) {
+                eventTarget.amount = Math.max(0, Number(amount) || 0);
+                if (engine.state?.history_log) {
+                    engine.state.history_log.push({
+                        text: `🛡️ Event amount set to ${eventTarget.amount}.`,
+                        depth: this.getLogDepth ? this.getLogDepth(engine) : 0
+                    });
+                }
+            }
+            return;
+        }
+
+        if (target && stat) {
             if (stat === 'line') {
                 const loc = findEntityLocation(engine, target);
 
@@ -52,7 +70,7 @@ export class SetStatAction extends Action {
             }
 
             let finalAmount = amount;
-            if (stat === 'readiness' && finalAmount < -1) finalAmount = -1;
+            if (stat === 'readiness') finalAmount = Math.max(getReadinessFloor(engine.state, target), finalAmount);
             target[stat] = finalAmount;
 
             let delta = 0;

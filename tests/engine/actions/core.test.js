@@ -339,6 +339,83 @@ describe('core.js Action Core & Utilities', () => {
             expect(target.activeEffects[0].type).toBe('BUFF');
         });
 
+        it('should restore removed temporary grants when the removal is reverted in play', () => {
+            const grantedAbility = { abilityId: 'temporary', instanceId: 'temporary-instance' };
+            const grantEffect = {
+                type: 'GRANT_ABILITY',
+                grantedAbilityId: 'temporary',
+                grantedAbilityInstanceId: 'temporary-instance',
+                duration: 'BRIEF'
+            };
+            const target = { abilities: [], activeEffects: [] };
+
+            core.revertEffect(mockEngine, target, {
+                type: 'REMOVE_ABILITY',
+                restoredAbilities: [grantedAbility],
+                restoredEffects: [grantEffect]
+            });
+
+            expect(target.abilities).toEqual([grantedAbility]);
+            expect(target.activeEffects).toEqual([grantEffect]);
+        });
+
+        it('should restore permanent and intrinsic abilities but not expiring grants when leaving play', () => {
+            class LEAVES_PLAY extends core.Action { execute() { } }
+            core.ACTION_MANIFEST['LEAVES_PLAY'] = { isLeavesPlay: true };
+
+            const target = {
+                abilities: [],
+                activeEffects: [{
+                    type: 'REMOVE_ABILITY',
+                    duration: 'INDEFINITE',
+                    restoredAbilities: [
+                        { abilityId: 'intrinsic', instanceId: 'intrinsic-instance' },
+                        { abilityId: 'brief', instanceId: 'brief-instance' },
+                        { abilityId: 'temporary', instanceId: 'temporary-instance' },
+                        { abilityId: 'indefinite', instanceId: 'indefinite-instance' },
+                        { abilityId: 'permanent', instanceId: 'permanent-instance' }
+                    ],
+                    restoredEffects: [
+                        {
+                            type: 'GRANT_ABILITY',
+                            grantedAbilityId: 'brief',
+                            grantedAbilityInstanceId: 'brief-instance',
+                            duration: 'BRIEF'
+                        },
+                        {
+                            type: 'GRANT_ABILITY',
+                            grantedAbilityId: 'temporary',
+                            grantedAbilityInstanceId: 'temporary-instance',
+                            duration: 'TEMPORARY'
+                        },
+                        {
+                            type: 'GRANT_ABILITY',
+                            grantedAbilityId: 'indefinite',
+                            grantedAbilityInstanceId: 'indefinite-instance',
+                            duration: 'INDEFINITE'
+                        },
+                        {
+                            type: 'GRANT_ABILITY',
+                            grantedAbilityId: 'permanent',
+                            grantedAbilityInstanceId: 'permanent-instance',
+                            duration: 'PERMANENT'
+                        }
+                    ]
+                }]
+            };
+
+            new LEAVES_PLAY({ type: 'LEAVES_PLAY', target }).run(mockEngine);
+
+            expect(target.abilities.map(ability => ability.abilityId)).toEqual(['intrinsic', 'permanent']);
+            expect(target.activeEffects).toEqual([
+                expect.objectContaining({
+                    type: 'GRANT_ABILITY',
+                    grantedAbilityId: 'permanent',
+                    duration: 'PERMANENT'
+                })
+            ]);
+        });
+
         it('should spawn UNATTACH, TRANSFORM, and UNFIELD actions on revert', () => {
             const mockUnfield = jest.fn();
             const mockUnattach = jest.fn();

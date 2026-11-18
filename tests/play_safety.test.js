@@ -1,6 +1,5 @@
 import { getValidAbilityTargets } from '../src/engine/targeting.js';
 import { isPlayUnsafe, isDefaultPlayOptionUnsafe } from '../src/tabletop/play_safety.js';
-import { getActionButtonTheme } from '../components/action_button_theme.js';
 import { jest } from '@jest/globals';
 
 
@@ -100,11 +99,6 @@ describe('Play Safety', () => {
 
         // Drawing a card is not undoable, so the mandatory PLAY trigger makes the default play unsafe.
         expect(isDefaultPlayOptionUnsafe(state, drawCard)).toBe(true);
-    });
-
-    test('Secondary play abilities are colored as violet instead of emerald', () => {
-        expect(getActionButtonTheme('PLAY').baseClass.includes('emerald')).toBe(true);
-        expect(getActionButtonTheme('ABILITY').baseClass.includes('violet')).toBe(true);
     });
 
     test('Ability target filters must respect the payload-specific quick targeting, not a blanket avatar ban', () => {

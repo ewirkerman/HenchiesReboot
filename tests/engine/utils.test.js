@@ -564,19 +564,19 @@ describe('Engine Utilities (utils.js)', () => {
 
         it('canAffordCost should evaluate exact resources required', () => {
             // Player 1 has 5 Carnie, 2 TribeA
-            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj)).toEqual({ success: true });
+            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, true)).toEqual({ success: true });
 
             // Player 1 fails if it costs 3 TribeA (Since 2 TribeA + floor((5-2)/3)=1 == 3)
             // Need 3. Has 2 Tribe. Remainder Carnie = 5-2 = 3. 3/3 = 1 conversion. Total = 3. Should succeed!
             costObj.tribeAmount = 3;
-            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj)).toEqual({ success: true });
+            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, true)).toEqual({ success: true });
 
             // Fail: Cost is 4 TribeA. Max capacity is 2 + (3/3) = 3.
             costObj.tribeAmount = 4;
-            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj)).toEqual({ success: false, reason: 'Not enough resources (Need 4)' });
+            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, true)).toEqual({ success: false, reason: 'Not enough resources (Need 4)' });
         });
 
-        it('canAffordCost should enforce minimum tribe requirements for playing cards', () => {
+        it('canAffordCost should enforce card-play tribe requirements and disallow ability conversion', () => {
             // Player has 5 Carnie, 0 TribeA
             mockPlayer1.resources.TribeA.current = 0;
             costObj.tribeAmount = 1;
@@ -585,7 +585,11 @@ describe('Engine Utilities (utils.js)', () => {
             expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, true))
                 .toEqual({ success: false, reason: 'Must use at least 1 Tribe Resource for the card' });
 
-            // Succeeds if isCardPlay = false (allows pure Carnie conversion for abilities)
+            // Ability costs require the exact tribe resource and cannot convert Carnie.
+            expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, false))
+                .toEqual({ success: false, reason: 'Not enough resources (Need 1)' });
+
+            mockPlayer1.resources.TribeA.current = 1;
             expect(utils.canAffordCost(mockState, mockPlayer1, entity, costObj, 0, false)).toEqual({ success: true });
         });
 
@@ -595,7 +599,7 @@ describe('Engine Utilities (utils.js)', () => {
             costObj.carnie = 2;
             costObj.tribeAmount = 3;
 
-            utils.payCost(mockState, mockPlayer1, entity, costObj);
+            utils.payCost(mockState, mockPlayer1, entity, costObj, 0, true);
 
             // Expect: TribeA goes from 2 -> 0.
             // Carnie goes from 5 -> 3 (paying base cost) -> 0 (paying the 3 converted for the last TribeA).
@@ -610,7 +614,7 @@ describe('Engine Utilities (utils.js)', () => {
             // Give player 5 Carnie, 2 TribeA. 
             // Expected Cost: 2 Base Carnie + 2 TribeA + 1 Missing TribeA converted to 3 Carnie.
             // Expected Deductions: 5 Carnie, 2 TribeA
-            const result = utils.evaluatePayment(mockState, mockPlayer1, testEntity, cost);
+            const result = utils.evaluatePayment(mockState, mockPlayer1, testEntity, cost, 0, true);
 
             expect(result.success).toBe(true);
             expect(result.entityTribe).toBe('TribeA');
@@ -620,6 +624,18 @@ describe('Engine Utilities (utils.js)', () => {
             // Verify it was a PURE function (no state actually modified yet)
             expect(mockPlayer1.resources.TribeA.current).toBe(2);
             expect(mockPlayer1.resources.Carnie.current).toBe(5);
+        });
+
+        it('evaluatePayment should use the tribe stamped on the cost before the host tribe', () => {
+            const cost = { tribeAmount: 2, tribe: 'Carnie' };
+            const host = { tribe: 'TribeA', power: 0 };
+
+            const result = utils.evaluatePayment(mockState, mockPlayer1, host, cost);
+
+            expect(result.success).toBe(true);
+            expect(result.entityTribe).toBe('Carnie');
+            expect(result.carnieDeduct).toBe(2);
+            expect(result.tribeDeduct).toBe(0);
         });
     });
 
@@ -641,18 +657,35 @@ describe('Engine Utilities (utils.js)', () => {
             expect(hydrated.name).toBe('Scale (3)');
             expect(hydrated.paramX).toBe(3);
             expect(hydrated.effects[0].payloads[0].amount).toBe(3);
-            expect(hydrated.effects[0].payloads[0].amountIsX).toBeUndefined(); // Gets deleted
+            expect(hydrated.effects[0].payloads[0].amountIsX).toBe(true);
             expect(hydrated.effects[0].payloads[1].nestedGroup.payloads[0].amount).toBe(3);
+            expect(hydrated.effects[0].payloads[1].nestedGroup.payloads[0].amountIsX).toBe(true);
         });
 
-        it('hydrateAbility should invert paramX mathematically if base amount is negative (healing/debuff)', () => {
+        it('hydrateAbility should replace X-based amounts with paramX regardless of the template sign', () => {
             const catalog = [{
                 abilityId: 'ab_heal',
                 effects: [{ payloads: [{ type: 'HEAL', amountIsX: true, amount: -1 }] }]
             }];
 
             const hydrated = utils.hydrateAbility({ abilityId: 'ab_heal', paramX: 4 }, catalog);
-            expect(hydrated.effects[0].payloads[0].amount).toBe(-4);
+            expect(hydrated.effects[0].payloads[0].amount).toBe(4);
+        });
+
+        it('hydrateAbility should preserve injected tribe metadata from the ability reference', () => {
+            const catalog = [{
+                abilityId: 'ab_tribe',
+                cost: { tribeAmount: 1, tribe: 'TribeA' }
+            }];
+
+            const hydrated = utils.hydrateAbility({
+                abilityId: 'ab_tribe',
+                tribe: 'Robot',
+                cost: { tribe: 'Carnie' }
+            }, catalog);
+
+            expect(hydrated.tribe).toBe('Robot');
+            expect(hydrated.cost).toEqual({ tribeAmount: 1, tribe: 'Carnie' });
         });
 
         it('cloneGameState should preserve non-enumerable catalogs', () => {
@@ -669,6 +702,43 @@ describe('Engine Utilities (utils.js)', () => {
             expect(clone.abilityCatalog[0].id).toBe(1);
             expect(clone.catalog[0].id).toBe(2);
             expect(clone.tribeCatalog[0].id).toBe(3);
+        });
+
+        it('cloneGameState should normalize legacy numeric acts and remove maxActs', () => {
+            const legacyUnit = {
+                id: 'legacy',
+                instanceId: 'legacy',
+                type: 'unit',
+                acts: 2,
+                maxActs: 3,
+                activeEffects: [{ type: 'MODIFY_STAT', stat: 'acts', delta: 1 }]
+            };
+            mockPlayer1.lines.mid.push(legacyUnit);
+
+            const clone = utils.cloneGameState(mockState);
+            const normalized = clone.players.player1.lines.mid[0];
+
+            expect(normalized.acts).toEqual({});
+            expect(normalized.maxActs).toBeUndefined();
+            expect(normalized.activeEffects).toEqual([]);
+            expect(legacyUnit.acts).toBe(2);
+        });
+    });
+
+    describe('cooldown group resolution', () => {
+        it('shares Unique cooldowns by abilityId and isolates Unique+ by instanceId', () => {
+            const first = { abilityId: 'ability_shared', instanceId: 'instance_1', cooldownGroup: 'Unique' };
+            const second = { abilityId: 'ability_shared', instanceId: 'instance_2', cooldownGroup: 'unique' };
+            const uniquePlusFirst = { abilityId: 'ability_shared', instanceId: 'instance_1', cooldownGroup: 'Unique+' };
+            const uniquePlusSecond = { abilityId: 'ability_shared', instanceId: 'instance_2', cooldownGroup: 'Unique+' };
+
+            expect(utils.getAbilityCooldownGroup(first)).toBe(utils.getAbilityCooldownGroup(second));
+            expect(utils.getAbilityCooldownGroup(uniquePlusFirst)).not.toBe(utils.getAbilityCooldownGroup(uniquePlusSecond));
+        });
+
+        it('falls back to abilityId when a Unique+ ability lacks an instanceId', () => {
+            expect(utils.getAbilityCooldownGroup({ abilityId: 'ability_shared', cooldownGroup: 'Unique+' }))
+                .toBe('$unique-instance:ability_shared');
         });
     });
 
@@ -726,6 +796,20 @@ describe('Engine Utilities (utils.js)', () => {
         it('should place entity in equator correctly', () => {
             utils.moveEntity(mockEngine, target, null, 'equator');
             expect(mockState.equator[0]).toBe(target);
+        });
+
+        it('should record ownership when moving an entity to the shared equator', () => {
+            const ownedArtifact = { id: 'artifact_id', instanceId: 'artifact_1', type: 'artifact', name: 'Artifact' };
+            mockPlayer1.hand.push(ownedArtifact);
+
+            utils.moveEntity(mockEngine, ownedArtifact, 'player1', 'equator');
+
+            expect(ownedArtifact).toMatchObject({
+                ownerId: 'player1',
+                originalOwnerId: 'player1'
+            });
+            expect(utils.isNameOrIdOnBoard(mockState, 'player1', ownedArtifact)).toBe(true);
+            expect(utils.isNameOrIdOnBoard(mockState, 'player2', ownedArtifact)).toBe(false);
         });
 
         it('should find entity in nested attachments (host scoped events)', () => {

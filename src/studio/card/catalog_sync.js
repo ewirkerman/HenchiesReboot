@@ -6,6 +6,7 @@ import { saveCardToCatalog, deleteCardFromCatalog } from '../../firebase.js';
 import { showToast } from '../../ui.js';
 import { launchSandboxMatch } from '../../testing.js';
 import { CARD_TYPES, CARD_TYPE_LABELS } from '../../engine/card_types.js';
+import { escapeEditorHtml, getEditorDisplayName } from '../editor_names.js';
 
 export async function saveCard() {
     const card = buildCardState();
@@ -32,7 +33,7 @@ export async function saveCard() {
     CardState.currentEditingId = card.id;
     
     const titleEl = document.getElementById('form-title') || document.getElementById('workspace-title');
-    if (titleEl) titleEl.innerText = `⚡ Edit: ${card.name}`;
+    if (titleEl) titleEl.innerText = `⚡ Edit: ${getEditorDisplayName(card)}`;
     if (topbar) topbar.showButtons(true);
 
     btn.innerHTML = origText;
@@ -41,9 +42,9 @@ export async function saveCard() {
     if (topbar && topbar.setLoading) topbar.setLoading('save', false);
 
     if (cloudSaveSuccess) {
-        showToast(`Card '${card.name}' saved successfully!`, 'success');
+        showToast(`Card '${getEditorDisplayName(card)}' saved successfully!`, 'success');
     } else {
-        showToast(`⚠️ Cloud save failed! Card '${card.name}' saved locally.`, 'error');
+        showToast(`⚠️ Cloud save failed! Card '${getEditorDisplayName(card)}' saved locally.`, 'error');
     }
     renderCatalog();
 }
@@ -94,7 +95,7 @@ export function renderCatalog() {
             <div class="flex items-center gap-2">
                 <span class="w-6 h-6 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[10px]">${c.cost || 0}</span>
                 <div class="flex flex-col">
-                    <span class="font-bold text-amber-300">${c.name}</span>
+                    <span class="font-bold text-amber-300">${escapeEditorHtml(getEditorDisplayName(c))}</span>
                     <span class="text-[9px] text-slate-400 capitalize">${tribeName} • ${typeLabel}</span>
                 </div>
             </div>
@@ -112,15 +113,17 @@ export function loadCard(id) {
     window.location.hash = id;
     
     const titleEl = document.getElementById('form-title') || document.getElementById('workspace-title');
-    if (titleEl) titleEl.innerText = `⚡ Edit: ${card.name}`;
+    if (titleEl) titleEl.innerText = `⚡ Edit: ${getEditorDisplayName(card)}`;
     
     document.getElementById('card-name').value = card.name;
+    const nameSuffixEl = document.getElementById('card-name-suffix');
+    if (nameSuffixEl) nameSuffixEl.value = card.editorNameSuffix || '';
     
     let mappedTribe = card.tribe || 'Generic';
-    if (!mappedTribe.startsWith('tribe_')) {
-        const match = CardState.customTribes.find(t => t.name.toLowerCase() === mappedTribe.toLowerCase());
-        if (match) mappedTribe = match.id;
-    }
+    const tribeMatch = CardState.customTribes.find(t =>
+        t.id === mappedTribe || t.name.toLowerCase() === mappedTribe.toLowerCase()
+    );
+    if (tribeMatch) mappedTribe = tribeMatch.id;
     document.getElementById('card-tribe').value = mappedTribe;
     populateGenuses(mappedTribe, card.genus || '');
 

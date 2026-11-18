@@ -14,10 +14,13 @@ export class HarvestAction extends Action {
         moveEntity(engine, this.payload.target, loc.playerId || harvesterId, 'banish');
         
         // 4. Calculate Yields dynamically
+        const isToken = this.payload.target.isToken;
         const yieldAmt = Number(this.payload.amount) || 0;
         const yields = {};
 
-        if (yieldAmt <= 0) {
+        if (isToken) {
+            yields[resolveResourceKey(engine.state, player, 'Carnie')] = 2;
+        } else if (yieldAmt <= 0) {
             // BASELINE HARVEST: +1 Carnie, +1 Tribe (naturally stacks to 2 if sTribe is Carnie)
             const sTribe = resolveResourceKey(engine.state, player, this.payload.target.tribe);
             yields['Carnie'] = 1;
@@ -35,9 +38,9 @@ export class HarvestAction extends Action {
             // Initialize pool if it doesn't exist yet
             if (!player.resources[res]) player.resources[res] = { current: 0, max: 0 };
             
-            player.resources[res].max += amt;
+            if (!isToken) player.resources[res].max += amt;
             player.resources[res].current += amt;
-            logYields.push(`+${amt} Max ${res}`);
+            logYields.push(isToken ? `+${amt} ${res}` : `+${amt} Max ${res}`);
         }
         
         engine.state.history_log.push({ 

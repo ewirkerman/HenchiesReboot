@@ -892,11 +892,6 @@
       if (!deckObj) return;
 
       const loadedData = deckObj.deckData;
-      
-      if (!Array.isArray(loadedData) || loadedData.length === 0) {
-          showToast('Corrupted deck data.', 'error');
-          return;
-      }
 
       // Map ID references back to full catalog cards
       const hydratedDeck = loadedData.map(ref => {

@@ -418,9 +418,9 @@ export class MinimaxAI extends BaseAIEngine {
       const entity = this.findEntity(state, eId);
 
       if (entity) {
-        sig += `Src[${entity.id}|${entity.strength}|${entity.health || 0}|${entity.acts}]_`;
+        sig += `Src[${entity.id}|${entity.strength}|${entity.health || 0}|${JSON.stringify(entity.acts || {})}]_`;
       }
-      sig += `Act[${opt.action.type}|${opt.action.actionType}|${opt.action.abilityId}]_Tgt[${opt.targetId}|${opt.targetLine}]`;
+      sig += `Act[${opt.action.type}|${opt.action.actionType}|${opt.action.abilityId}|${opt.action.abilityInstanceId}]_Tgt[${opt.targetId}|${opt.targetLine}]`;
 
       if (!signatures.has(sig)) {
         signatures.add(sig);
@@ -483,7 +483,7 @@ export class MinimaxAI extends BaseAIEngine {
         }
       }
 
-      return executeEntityAction(simState, playerId, entityId, action.actionType, action.abilityId, targetId, targetLine);
+      return executeEntityAction(simState, playerId, entityId, action.actionType, action.abilityId, targetId, targetLine, action.abilityInstanceId);
     }
     return { success: false };
   }
@@ -932,7 +932,7 @@ export class MinimaxAI extends BaseAIEngine {
 
           if (!data) {
             console.log(`[MinimaxAI]      * IGNORING: The engine provided ZERO legal actions for this entity.`);
-            console.log(`[MinimaxAI]      * (Check readiness, acts, or BLOCK_ targeting flags in targeting.js)`);
+            console.log(`[MinimaxAI]      * (Check readiness, cooldown groups, or BLOCK_ targeting flags in targeting.js)`);
             continue;
           }
 

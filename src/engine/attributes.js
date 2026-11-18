@@ -14,9 +14,10 @@ export const ATTRIBUTE_MANIFEST = {
     'zone': { label: 'Zone', domain: 'ENTITY', type: 'select', options: ['HAND', 'DECK', 'FIELD', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['ALL'] },
     'tribe': { label: 'Tribe', domain: 'ENTITY', type: 'select', options: ['Robot', 'Mythic', 'Elemental', 'Pirate', 'Undead', 'Carnie', 'Viking', 'Ninja', 'Stalker', 'Alien', 'Luchador'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['ALL'] },
     'family': { label: 'Family', domain: 'ENTITY', type: 'select', options: ['Humanoid', 'Creature', 'Automaton'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT'] },
-    'genus': { label: 'Genus', domain: 'ENTITY', type: 'text', options: [], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT'] },
+    'genus': { label: 'Genus', domain: 'ENTITY', type: 'text', options: [], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON', 'BUFF', 'DEBUFF'] },
     'hasAbility': { label: 'Has Ability ID/Name', domain: 'ENTITY', type: 'text', evaluable: true, settable: false, modifiable: false, allowedTypes: ['ALL'] },
     'isAttacking': { label: 'Is the Active Attacker', domain: 'ENTITY', type: 'select', options: ['true', 'false'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT', 'AVATAR'] },
+    'hasAttackedThisTurn': { label: 'Attacked This Turn', domain: 'ENTITY', type: 'select', options: ['true', 'false'], evaluable: true, settable: false, modifiable: false, allowedTypes: ['UNIT', 'AVATAR'] },
     'customScript': { label: 'Custom Script (Return Bool)', domain: 'ENTITY', type: 'text', evaluable: true, settable: false, modifiable: false, allowedTypes: ['ALL'] },
 
     // --- NUMERIC STATS (Evaluable, Settable, Modifiable) ---
@@ -27,8 +28,6 @@ export const ATTRIBUTE_MANIFEST = {
     'power': { label: 'Power', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'BOON'] },
     'cost': { label: 'Cost', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON', 'BUFF', 'DEBUFF'] },
     'readiness': { label: 'Readiness', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT'] },
-    'acts': { label: 'Available Acts', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT'] },
-    'maxActs': { label: 'Max Acts', domain: 'ENTITY', type: 'number', evaluable: true, settable: true, modifiable: true, allowedTypes: ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT'] },
 
     // --- POSITIONAL (Evaluable, Settable) ---
     'line': { label: 'Battleline', domain: 'ENTITY', type: 'select', options: ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard'], evaluable: true, settable: true, modifiable: false, allowedTypes: ['UNIT', 'AVATAR'] },

@@ -9,11 +9,12 @@ import { updateTriggerComposite, renderAdditionalTriggers, updateTargetingUI } f
 import { renderLogicTrees } from './logic_tree.js';
 import { renderEffects } from './payloads.js';
 import { ACTION_MANIFEST, EVENT_MANIFEST } from '../../engine/actions/action_index.js';
+import { escapeEditorHtml, getEditorDisplayName } from '../editor_names.js';
 
 export function exportCurrentState(formData, uiState) {
     let activationData = {
         method: formData.actMethod,
-        quickTargeting: formData.actQuickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false },
+        quickTargeting: formData.actQuickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false, includeSelf: false },
         logicTree: JSON.parse(JSON.stringify(uiState.activationRoot))
     };
 
@@ -32,6 +33,7 @@ export function exportCurrentState(formData, uiState) {
         abilityId: existingId || ('ability_' + Date.now()),
         updatedAt: existingAb ? existingAb.updatedAt : Date.now(),
         name: formData.name,
+        editorNameSuffix: formData.editorNameSuffix || '',
         isKeyword: !!formData.isKeyword,
         requiresX: !!formData.requiresX,
         description: formData.description || '',
@@ -40,6 +42,7 @@ export function exportCurrentState(formData, uiState) {
         additionalTriggers: formData.additionalTriggers || [],
         triggerScope: formData.triggerScope || 'PERSONAL',
         triggerLimit: formData.triggerLimit || 'UNLIMITED',
+        cooldownGroup: formData.cooldownGroup || null,
         passiveFlags: formData.passiveFlags || [],
         cost: {
             tribeAmount: parseInt(formData.tribeAmount) || 0,
@@ -48,12 +51,13 @@ export function exportCurrentState(formData, uiState) {
             readinessCost: formData.readinessCost || 'NONE',
             escalates: !!formData.escalates,
             reuseIgnoresReadiness: !!formData.reuseIgnoresReadiness,
+            requiresNoReadiness: !!formData.requiresNoReadiness,
             freeAction: !!formData.freeAction
         },
         activation: activationData,
         effects: JSON.parse(JSON.stringify(uiState.targetGroups)).map(group => {
             delete group.showAdvanced;
-            if (['SELF', 'EVENT_SOURCE', 'EVENT_TARGET', 'AVATAR', 'ENEMY_AVATAR', 'SAME_AS_ACTIVATION'].includes(group.targetMethod)) {
+            if (['SELF', 'EVENT_SOURCE', 'EVENT_TARGET', 'AVATAR', 'ENEMY_AVATAR', 'SAME_AS_ACTIVATION', 'HOSTd'].includes(group.targetMethod)) {
                 delete group.quickTargeting;
                 delete group.logicTree;
                 delete group.targetCount;
@@ -108,6 +112,7 @@ export function getCurrentAbilityState(forceId = null) {
     const formData = {
         abilityId: forceId || StudioState.currentEditingId,
         name: document.getElementById('ab-name') ? document.getElementById('ab-name').value.trim() : '',
+        editorNameSuffix: document.getElementById('ab-name-suffix')?.value.trim() || '',
         isKeyword: document.getElementById('ab-is-keyword') ? document.getElementById('ab-is-keyword').checked : false,
         requiresX: document.getElementById('ab-requires-x') ? document.getElementById('ab-requires-x').checked : false,
         description: document.getElementById('ab-description') ? document.getElementById('ab-description').value : '',
@@ -116,6 +121,7 @@ export function getCurrentAbilityState(forceId = null) {
         additionalTriggers: StudioState.additionalTriggers || [],
         triggerScope: document.getElementById('ab-trigger-scope') ? document.getElementById('ab-trigger-scope').value : 'PERSONAL',
         triggerLimit: document.getElementById('ab-trigger-limit') ? document.getElementById('ab-trigger-limit').value : 'UNLIMITED',
+        cooldownGroup: document.getElementById('ab-cooldown-group')?.value || null,
         passiveFlags: Array.from(document.querySelectorAll('.ab-flag-chk:checked')).map(cb => cb.value),
         tribeAmount: document.getElementById('ab-cost-tribe-amt') ? document.getElementById('ab-cost-tribe-amt').value : '0',
         carnie: document.getElementById('ab-cost-tent') ? document.getElementById('ab-cost-tent').value : '0',
@@ -123,6 +129,7 @@ export function getCurrentAbilityState(forceId = null) {
         readinessCost: document.getElementById('ab-cost-readiness') ? document.getElementById('ab-cost-readiness').value : 'NONE',
         escalates: document.getElementById('ab-cost-escalates') ? document.getElementById('ab-cost-escalates').checked : false,
         reuseIgnoresReadiness: document.getElementById('ab-cost-reuse-exempt') ? document.getElementById('ab-cost-reuse-exempt').checked : false,
+        requiresNoReadiness: document.getElementById('ab-cost-no-readiness') ? document.getElementById('ab-cost-no-readiness').checked : false,
         freeAction: document.getElementById('ab-cost-free-action') ? document.getElementById('ab-cost-free-action').checked : false,
         actMethod: document.getElementById('ab-act-method') ? document.getElementById('ab-act-method').value : 'NONE',
         actQuickTargeting: StudioState.activationQuickTargeting
@@ -195,9 +202,9 @@ export async function handleSaveAbility() {
     if (topbar && topbar.setLoading) topbar.setLoading('save', false);
 
     if (cloudSaveSuccess) {
-        showToast(`Ability '${ability.name}' saved!`, 'success');
+        showToast(`Ability '${getEditorDisplayName(ability)}' saved!`, 'success');
     } else {
-        showToast(`⚠️ Cloud save failed! '${ability.name}' saved locally.`, 'error');
+        showToast(`⚠️ Cloud save failed! '${getEditorDisplayName(ability)}' saved locally.`, 'error');
     }
 
     let newDesc = '';
@@ -212,7 +219,7 @@ export async function handleSaveAbility() {
     if (!window.CreatorController) {
         window.location.hash = ability.abilityId;
         const heading = document.getElementById('form-heading');
-        if (heading) heading.innerText = `⚡ Edit: ${ability.name}`;
+        if (heading) heading.innerText = `⚡ Edit: ${getEditorDisplayName(ability)}`;
     } else {
         window.history.replaceState(null, '', `#${ability.abilityId}`);
         const wsTitle = document.getElementById('workspace-title');
@@ -271,6 +278,9 @@ export function resetForm() {
     const elName = document.getElementById('ab-name');
     if (elName) elName.value = '';
 
+    const elNameSuffix = document.getElementById('ab-name-suffix');
+    if (elNameSuffix) elNameSuffix.value = '';
+
     const elKeyword = document.getElementById('ab-is-keyword');
     if (elKeyword) elKeyword.checked = false;
 
@@ -300,6 +310,9 @@ export function resetForm() {
     const elLimit = document.getElementById('ab-trigger-limit');
     if (elLimit) elLimit.value = 'UNLIMITED';
 
+    const elCooldownGroup = document.getElementById('ab-cooldown-group');
+    if (elCooldownGroup) elCooldownGroup.value = '';
+
     document.querySelectorAll('.ab-flag-chk').forEach(cb => cb.checked = false);
     if (typeof window.updatePassiveFlagsCount === 'function') window.updatePassiveFlagsCount();
 
@@ -323,13 +336,16 @@ export function resetForm() {
     const elReuse = document.getElementById('ab-cost-reuse-exempt');
     if (elReuse) elReuse.checked = false;
 
+    const elNoReadiness = document.getElementById('ab-cost-no-readiness');
+    if (elNoReadiness) elNoReadiness.checked = false;
+
     const elFree = document.getElementById('ab-cost-free-action');
     if (elFree) elFree.checked = false;
 
     const elActMethod = document.getElementById('ab-act-method');
     if (elActMethod) elActMethod.value = 'NONE';
 
-    StudioState.activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false };
+    StudioState.activationQuickTargeting = { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false, includeSelf: false };
     StudioState.showAdvancedActivation = false;
     StudioState.activationRoot = { type: 'group', logicalOperator: 'AND', children: [] };
     StudioState.effectGroups = [];
@@ -370,7 +386,7 @@ export function renderCatalogList() {
         return `
       <div onclick="window.loadAbility('${ab.abilityId}')" class="p-3 bg-slate-900 border border-slate-800 hover:border-amber-500 rounded-xl text-xs flex flex-col gap-1 cursor-pointer transition">
         <div class="flex justify-between items-center font-bold text-amber-300">
-          <span>${ab.name}</span>
+          <span>${escapeEditorHtml(getEditorDisplayName(ab))}</span>
           <span class="text-[9px] bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded border border-amber-800 font-bold max-w-[120px] truncate" title="${ab.trigger}">${ab.trigger}</span>
         </div>
         <div class="text-[10px] text-emerald-400">${ab.effects?.length || 0} Targets, ${effectsCount} Actions</div>
@@ -412,11 +428,14 @@ export function loadAbility(id) {
     if (!window.CreatorController) {
         window.location.hash = id;
         const headingEl = document.getElementById('form-heading');
-        if (headingEl) headingEl.innerText = `⚡ Edit: ${ab.name}`;
+        if (headingEl) headingEl.innerText = `⚡ Edit: ${getEditorDisplayName(ab)}`;
     }
 
     const elName = document.getElementById('ab-name');
     if (elName) elName.value = ab.name;
+
+    const elNameSuffix = document.getElementById('ab-name-suffix');
+    if (elNameSuffix) elNameSuffix.value = ab.editorNameSuffix || '';
 
     const elKeyword = document.getElementById('ab-is-keyword');
     if (elKeyword) elKeyword.checked = !!ab.isKeyword;
@@ -474,6 +493,9 @@ export function loadAbility(id) {
     const elLimit = document.getElementById('ab-trigger-limit');
     if (elLimit) elLimit.value = ab.triggerLimit || 'UNLIMITED';
 
+    const elCooldownGroup = document.getElementById('ab-cooldown-group');
+    if (elCooldownGroup) elCooldownGroup.value = ab.cooldownGroup || '';
+
     document.querySelectorAll('.ab-flag-chk').forEach(cb => {
         cb.checked = ab.passiveFlags ? ab.passiveFlags.includes(cb.value) : false;
     });
@@ -502,6 +524,9 @@ export function loadAbility(id) {
     const elReuse = document.getElementById('ab-cost-reuse-exempt');
     if (elReuse) elReuse.checked = !!cost.reuseIgnoresReadiness;
 
+    const elNoReadiness = document.getElementById('ab-cost-no-readiness');
+    if (elNoReadiness) elNoReadiness.checked = !!cost.requiresNoReadiness;
+
     const elFree = document.getElementById('ab-cost-free-action');
     if (elFree) elFree.checked = !!cost.freeAction;
 
@@ -523,7 +548,8 @@ export function loadAbility(id) {
         entityType: Array.isArray(oldTargeting.entityType) ? oldTargeting.entityType :
             (oldTargeting.entityType === 'ANY' ? ['UNIT', 'AVATAR', 'EQUIPMENT', 'ARTIFACT', 'SPELL', 'BOON'] : [oldTargeting.entityType || 'UNIT']),
         ignoreBattlelines: oldTargeting.ignoreBattlelines !== undefined ? oldTargeting.ignoreBattlelines :
-            (oldTargeting.line === 'ANY' || false)
+            (oldTargeting.line === 'ANY' || false),
+        includeSelf: oldTargeting.includeSelf === true
     };
 
     if (srcAct.logicTree) StudioState.activationRoot = JSON.parse(JSON.stringify(srcAct.logicTree));
@@ -609,6 +635,74 @@ export function loadAbility(id) {
     renderAssociatedCards();
 }
 
+export function getAssociatedCards() {
+    if (!StudioState.currentEditingId) return [];
+    const dependentAbilityIds = new Set([StudioState.currentEditingId]);
+    let addedNew = true;
+
+    while (addedNew) {
+        addedNew = false;
+        StudioState.allAbilities.forEach(ab => {
+            if (dependentAbilityIds.has(ab.abilityId)) return;
+
+            let isDependent = false;
+
+            const desc = (ab.description || '') + ' ' + (ab.displayDescription || '');
+            const mentionRegex = /@\[(.*?)\]/g;
+            let mention;
+            while ((mention = mentionRegex.exec(desc)) !== null) {
+                if (dependentAbilityIds.has(mention[1])) {
+                    isDependent = true;
+                    break;
+                }
+            }
+
+            if (!isDependent && ab.effects) {
+                ab.effects.forEach(g => {
+                    if (g.payloads) {
+                        g.payloads.forEach(p => {
+                            if (p.type === 'GRANT_ABILITY' || p.type === 'REMOVE_ABILITY') {
+                                if (dependentAbilityIds.has(p.grantedAbilityId)) isDependent = true;
+                            } else if (p.type === 'UPDATE_ABILITY_LEVEL') {
+                                if (dependentAbilityIds.has(p.abilityId)) isDependent = true;
+                            }
+                            if (p.nestedGroup && p.nestedGroup.payloads) {
+                                p.nestedGroup.payloads.forEach(np => {
+                                    if (np.type === 'GRANT_ABILITY' || np.type === 'REMOVE_ABILITY') {
+                                        if (dependentAbilityIds.has(np.grantedAbilityId)) isDependent = true;
+                                    } else if (np.type === 'UPDATE_ABILITY_LEVEL') {
+                                        if (dependentAbilityIds.has(np.abilityId)) isDependent = true;
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+
+            if (isDependent) {
+                dependentAbilityIds.add(ab.abilityId);
+                addedNew = true;
+            }
+        });
+    }
+
+    return StudioState.allCards.filter(c => {
+        if (!c.abilities) return false;
+        return c.abilities.some(a => {
+            const aId = typeof a === 'string' ? a : (a.abilityId || a.id);
+            return dependentAbilityIds.has(aId);
+        });
+    });
+}
+
+export function getAbilityTestTarget(ability) {
+    const testUnit = getAssociatedCards().find(card => card.type === 'unit');
+    return testUnit
+        ? { item: testUnit, type: 'card' }
+        : { item: ability, type: 'ability' };
+}
+
 export function renderAssociatedCards() {
     const container = document.getElementById('associated-cards-list');
     if (!container) return;
@@ -620,62 +714,7 @@ export function renderAssociatedCards() {
         return;
     }
 
-    const nameEl = document.getElementById('ab-name');
-    const currentName = nameEl ? nameEl.value : '';
-
-    const dependentAbilityIds = new Set([StudioState.currentEditingId]);
-    const dependentNames = new Set([currentName.toLowerCase()]);
-    let addedNew = true;
-
-    while (addedNew) {
-        addedNew = false;
-        StudioState.allAbilities.forEach(ab => {
-            if (dependentAbilityIds.has(ab.abilityId)) return;
-
-            let isDependent = false;
-
-            const desc = (ab.description || '') + ' ' + (ab.displayDescription || '');
-            for (const name of dependentNames) {
-                if (name && desc.toLowerCase().includes('@[' + name + ']')) {
-                    isDependent = true; break;
-                }
-            }
-
-            if (!isDependent && ab.effects) {
-                ab.effects.forEach(g => {
-                    if (g.payloads) {
-                        g.payloads.forEach(p => {
-                            if (p.type === 'GRANT_ABILITY' || p.type === 'REMOVE_ABILITY') {
-                                if (dependentAbilityIds.has(p.grantedAbilityId) || dependentNames.has((p.grantedAbilityId || '').toLowerCase())) isDependent = true;
-                            }
-                            if (p.nestedGroup && p.nestedGroup.payloads) {
-                                p.nestedGroup.payloads.forEach(np => {
-                                    if (np.type === 'GRANT_ABILITY' || np.type === 'REMOVE_ABILITY') {
-                                        if (dependentAbilityIds.has(np.grantedAbilityId) || dependentNames.has((np.grantedAbilityId || '').toLowerCase())) isDependent = true;
-                                    }
-                                });
-                            }
-                        });
-                    }
-                });
-            }
-
-            if (isDependent) {
-                dependentAbilityIds.add(ab.abilityId);
-                if (ab.name) dependentNames.add(ab.name.toLowerCase());
-                addedNew = true;
-            }
-        });
-    }
-
-    const linkedCards = StudioState.allCards.filter(c => {
-        if (!c.abilities) return false;
-        return c.abilities.some(a => {
-            const aId = typeof a === 'string' ? a : (a.abilityId || a.id);
-            const aName = (a.name || '').toLowerCase();
-            return dependentAbilityIds.has(aId) || dependentNames.has(aName);
-        });
-    });
+    const linkedCards = getAssociatedCards();
 
     const cntEl = document.getElementById('associated-cards-count');
     if (cntEl) cntEl.innerText = linkedCards.length;
@@ -693,11 +732,11 @@ export function renderAssociatedCards() {
         const linkHref = window.CreatorController ? `#${c.id}` : `cards.html#${c.id}`;
 
         return `
-        <div oncontextmenu="event.preventDefault(); window.inspectCard('${json}')" title="Right-click to inspect ${c.name}" class="py-1.5 px-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-xs flex justify-between items-center transition-all group cursor-context-menu hover:border-sky-500/50 overflow-hidden">
+        <div oncontextmenu="event.preventDefault(); window.inspectCard('${json}')" title="Right-click to inspect ${escapeEditorHtml(getEditorDisplayName(c))}" class="py-1.5 px-2 bg-slate-900/60 border border-slate-700/50 rounded-lg text-xs flex justify-between items-center transition-all group cursor-context-menu hover:border-sky-500/50 overflow-hidden">
             <div class="flex items-center gap-2 flex-1 min-w-0 pr-2 pointer-events-none">
                 <span class="w-4 h-4 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[8px] shrink-0 shadow">${c.cost || 0}</span>
                 <div class="flex flex-col truncate flex-1 min-w-0">
-                    <span class="font-bold text-sky-300 truncate group-hover:text-white transition-colors text-[11px] leading-tight">${c.name}</span>
+                    <span class="font-bold text-sky-300 truncate group-hover:text-white transition-colors text-[11px] leading-tight">${escapeEditorHtml(getEditorDisplayName(c))}</span>
                     <span class="text-[9px] text-slate-400 capitalize truncate leading-tight">${tribeName} • ${c.type || 'Unit'}</span>
                 </div>
             </div>
@@ -705,7 +744,7 @@ export function renderAssociatedCards() {
                 <button type="button" onclick="window.testAssociatedCard('${c.id}')" title="Test this card" class="text-slate-500 hover:text-purple-400 transition p-1">
                     🧪
                 </button>
-                <a href="${linkHref}" title="Edit ${c.name}" class="text-slate-500 hover:text-sky-400 transition p-1">
+                <a href="${linkHref}" title="Edit ${escapeEditorHtml(getEditorDisplayName(c))}" class="text-slate-500 hover:text-sky-400 transition p-1">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" /></svg>
                 </a>
             </div>
@@ -732,10 +771,11 @@ export async function testAssociatedCard(cardId) {
 
 export async function launchTestMatch() {
     const ability = getCurrentAbilityState();
+    const { item, type } = getAbilityTestTarget(ability);
     const topbar = document.getElementById('global-topbar') || document.getElementById('studio-topbar');
     if (topbar && topbar.setLoading) topbar.setLoading('test', true);
 
-    await launchSandboxMatch(ability, 'ability');
+    await launchSandboxMatch(item, type);
 
     if (topbar && topbar.setLoading) topbar.setLoading('test', false);
 }
@@ -763,6 +803,7 @@ export async function initCardAssigner() {
     allCards.forEach(c => {
         const opt = document.createElement('option');
         opt.value = (c.name || '').replace(/"/g, '&quot;');
+        opt.label = getEditorDisplayName(c);
         datalist.appendChild(opt);
     });
 

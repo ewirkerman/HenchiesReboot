@@ -1,8 +1,9 @@
 import { getIconSvg, getLineIconSvg, SVG_STUNNED, SVG_DAZED, SVG_EXHAUST, SVG_UNREADY, SVG_FREE, getSystemLineAbility } from '../src/ui.js';
-import { generateAbilityDescription } from '../src/language_description.js';
 import { getTriggerWord } from '../src/language/triggers.js';
 import { HoverManager } from '../src/ui/hover_manager.js';
-import { renderResourceTextTokens, normalizeResourceTokenName } from '../src/language/utils.js';
+import { normalizeResourceTokenName } from '../src/language/utils.js';
+import { capitalizeDescription, formatCardText, renderStatAndResourceTokens } from './card_text.js';
+import { getAbilityDescription } from '../src/ability_descriptions.js';
 import { renderMicro } from './micro_card.js';
 import { renderNano } from './nano_card.js';
 import { renderStandard, renderStandardAbilities } from './standard_card.js';
@@ -71,7 +72,6 @@ export function formatAbilityCostBadge(cost, cardTribe) {
     let badgeParts = [];
     const carnieCost = cost.carnie || cost.tent || 0;
 
-    if (carnieCost > 0) badgeParts.push(...Array(carnieCost).fill('[RESOURCE:tent]'));
     if (cost.power > 0) badgeParts.push(`${cost.power}[STAT:power]`);
 
     if (cost.tribeAmount > 0) {
@@ -91,6 +91,7 @@ export function formatAbilityCostBadge(cost, cardTribe) {
         }
     }
 
+    if (carnieCost > 0) badgeParts.push(...Array(carnieCost).fill('[RESOURCE:tent]'));
     if (cost.readinessCost === 'EXHAUSTS') badgeParts.push(SVG_EXHAUST);
     if (cost.readinessCost === 'UNREADIES') badgeParts.push(SVG_UNREADY);
     if (cost.freeAction) badgeParts.push(SVG_FREE);
@@ -98,7 +99,7 @@ export function formatAbilityCostBadge(cost, cardTribe) {
     const badgeText = badgeParts.join(' ').trim();
     if (!badgeText) return '';
 
-    const badgeHtml = renderResourceTextTokens(badgeText, {
+    const badgeHtml = renderStatAndResourceTokens(badgeText, {
         colorClass: 'text-purple-400',
         tribeStyle: getLiveTribeStyle(cost.tribeType || cardTribe || 'Generic'),
         iconSizeClass: ''
@@ -106,68 +107,7 @@ export function formatAbilityCostBadge(cost, cardTribe) {
     return `<span class="inline-flex items-center gap-0.5 opacity-90">${badgeHtml}</span>`;
 }
 
-function getPrefixColor(prefix, type) {
-    if (!prefix) return '';
-    const lower = prefix.toLowerCase();
-
-    if (type === 'stat') {
-        if (/(?:gain|heal|recover|harvest|\+)/.test(lower)) return 'text-emerald-400';
-        if (/(?:lose|deal|take|pay|\-)/.test(lower)) return 'text-red-400';
-    } else if (type === 'battleline') {
-        if (/(?:move|return|draw)/.test(lower)) return 'text-sky-400';
-        if (/(?:discard|banish|trash)/.test(lower)) return 'text-red-400';
-        if (/(?:shuffle)/.test(lower)) return 'text-fuchsia-400';
-    }
-    return 'text-slate-200';
-}
-
-export function formatCardText(text, allAbilitiesRegistry = []) {
-    if (!text) return '';
-    let formatted = text;
-
-    formatted = formatted.replace(/\*\*([\s\S]*?)\*\*/g, '<span class="font-black text-amber-400">$1</span>');
-
-    const statMap = {
-        'strength': getIconSvg('attack'), 'health': getIconSvg('health'), 'maxhealth': getIconSvg('health'),
-        'power': getIconSvg('power'), 'armor': getIconSvg('armor'), 'acts': getIconSvg('fast'),
-        'carnie': getIconSvg('tent'), 'tent': getIconSvg('tent'), 'readiness': getIconSvg('hourglass-full')
-    };
-
-    formatted = renderResourceTextTokens(formatted, { colorClass: 'text-purple-400' });
-
-    formatted = formatted.replace(/((?:(?:gain|lose|heal|deal|take|pay|recover|harvest)\s*)?[+-]?\s*\d*\s*)\[\[?(?:STAT|RESOURCE|RESOURCES):([a-zA-Z]+)\]\]?/gi, (match, prefix, p1) => {
-        const key = p1.toLowerCase();
-        const svg = statMap[key];
-        const tokenColor = (key === 'carnie' || key === 'tent') ? 'text-purple-400' : 'text-amber-300';
-        const prefixHtml = prefix ? `<span class="${getPrefixColor(prefix, 'stat')} font-bold drop-shadow-sm">${prefix}</span>` : '';
-
-        if (svg) {
-            return `<span class="whitespace-nowrap">${prefixHtml}<span class="inline-block w-[1.1em] h-[1.1em] align-middle -translate-y-[0.1em] ml-0.5 ${tokenColor} drop-shadow-md">${svg}</span></span>`;
-        }
-        return `<span class="whitespace-nowrap">${prefixHtml}<span class="font-bold ${tokenColor} uppercase">${p1}</span></span>`;
-    });
-
-    formatted = formatted.replace(/((?:(?:move|return|shuffle|draw|discard|banish|trash)\s*)?(?:to|from|in|into)?\s*)\[BATTLELINE:([a-zA-Z_]+)\]/gi, (match, prefix, p1) => {
-        const svg = getLineIconSvg(p1.toLowerCase());
-        const prefixHtml = prefix ? `<span class="${getPrefixColor(prefix, 'battleline')} font-bold drop-shadow-sm">${prefix}</span>` : '';
-
-        if (svg) {
-            return `<span class="whitespace-nowrap">${prefixHtml}<span class="inline-block w-[1.1em] h-[1.1em] align-middle -translate-y-[0.1em] ml-0.5 text-sky-300 drop-shadow-md">${svg}</span></span>`;
-        }
-        return `<span class="whitespace-nowrap">${prefixHtml}<span class="font-bold text-sky-300 uppercase">${p1.replace(/_/g, ' ')}</span></span>`;
-    });
-
-    formatted = formatted.replace(/@\[(.*?)\]/g, (match, p1) => {
-        let displayName = p1;
-        if (p1.startsWith('ability_')) {
-            const found = allAbilitiesRegistry.find(a => a.abilityId === p1);
-            if (found && found.name) displayName = found.name;
-        }
-        return `<span class="text-fuchsia-400 font-bold cursor-help border-b border-fuchsia-400/30" title="See Glossary: ${displayName}">${displayName}</span>`;
-    });
-
-    return formatted;
-}
+export { formatCardText };
 
 // --- Window Cache Init ---
 if (typeof window !== 'undefined') {
@@ -277,15 +217,12 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
 
         const isKeyword = ab.isKeyword || (ab.trigger === 'UNTRIGGERABLE' && (!ab.effects?.length || ab.passiveFlags?.length > 0));
 
-        let rawDesc = ab.displayDescription || ab.description || '';
-        if (!rawDesc) {
-            try { rawDesc = generateAbilityDescription(ab, allAbilitiesRegistry, globalCards, globalTribes); } catch (e) { console.error(e); }
-        }
+        let rawDesc = getAbilityDescription(ab, allAbilitiesRegistry, globalCards, globalTribes);
+
+        const pX = ab.paramX !== undefined && ab.paramX !== null ? ab.paramX : 'X';
 
         // Ensure the description starts with a capital letter natively (ignoring HTML tags/tokens)
-        if (rawDesc) {
-            rawDesc = rawDesc.replace(/^((?:<[^>]+>|\[[^\]]+\]|@\[[^\]]+\]|[^a-zA-Z])*)([a-zA-Z])/, (m, prefix, letter) => prefix + letter.toUpperCase());
-        }
+        rawDesc = capitalizeDescription(rawDesc);
 
         const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
 
@@ -297,19 +234,34 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
 
             data.active.push({
                 name: ab.name || 'Action', costBadge, rawDesc,
-                formattedDesc: formatCardText(rawDesc, allAbilitiesRegistry),
+                formattedDesc: formatCardText(rawDesc, allAbilitiesRegistry, pX),
                 isUsable, showHourglass, isAttack
             });
         } else {
             let desc = rawDesc || (ab.name ? `**${ab.name}**` : '');
             const isSpellPlay = card.type === 'spell' && ['PLAY', 'ON_BE_PLAYED', 'ON_PLAYED'].includes(ab.trigger);
-            let event = getTriggerWord(ab.trigger);
-            if (event && ab.triggerScope === 'GLOBAL') {
+            let event = getTriggerWord(ab.trigger, ab.effects);
+            const trigger = (ab.trigger || '').toUpperCase();
+            const isTurnEvent = /^(?:OWN_|OPP_)?TURN_(?:STARTING|STARTED|ENDING|ENDED)$/.test(trigger);
+            if (event && isTurnEvent) {
+                const turnScope = trigger.startsWith('OWN_TURN_')
+                    ? 'OWN'
+                    : trigger.startsWith('OPP_TURN_')
+                        ? 'OPP'
+                        : ab.triggerScope === 'GLOBAL'
+                            ? 'ANY'
+                            : ab.triggerScope === 'HOST'
+                                ? 'HOST'
+                                : 'OWN';
+                event = `${turnScope} ${event}`;
+            } else if (event && ab.triggerScope === 'GLOBAL') {
                 if (event.toUpperCase().startsWith('BLOCK ')) {
                     event = event.substring(0, 6) + 'ANY ' + event.substring(6);
                 } else {
                     event = `ANY ${event}`;
                 }
+            } else if (event && ab.triggerScope === 'HOST') {
+                event = `HOST ${event}`;
             }
 
             if (isSpellPlay) {
@@ -320,7 +272,7 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
 
             data.bespoke.push({
                 name: ab.name || 'Ability', costBadge, rawDesc,
-                formattedDesc: formatCardText(desc, allAbilitiesRegistry),
+                formattedDesc: formatCardText(desc, allAbilitiesRegistry, pX),
                 event, isSpellPlay
             });
         }
@@ -509,6 +461,10 @@ export class GameCard extends HTMLElement {
         const getStatClass = (netVal) => netVal > 0 ? buffCls : (netVal < 0 ? debuffCls : baseCls);
 
         const stateClasses = determineStateClasses(options, isEntityTemporary, net.hasNegative);
+        const hasCostModifier = card.activeEffects?.some(effect =>
+            ['STAT_MODIFIER', 'MODIFY_STAT', 'SET_STAT'].includes(effect.type) &&
+            effect.stat === 'cost'
+        );
 
         let dynamicBorderClass = cardState.isToken ? 'border-2 border-white/50 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : `border-2 ${styleContext.style.border}`;
         let dynamicBorderStyle = cardState.isToken ? '' : styleContext.hexBorder;
@@ -528,7 +484,8 @@ export class GameCard extends HTMLElement {
             hasNegativeEffect: net.hasNegative, hasPositiveEffect: net.hasPositive, isEntityTemporary,
             lineGlowClass: cardState.isTempLine ? '[&>svg]:!text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,1)] z-20' : '',
             strengthClass: getStatClass(net.strength), healthClass: getStatClass(net.health),
-            costClass: baseCls, powerClass: baseCls, armorClass: baseCls,
+            costClass: hasCostModifier ? `${baseCls} stat-cost-modified` : baseCls,
+            powerClass: baseCls, armorClass: baseCls,
             stateClasses, dynamicBorderClass, dynamicBorderStyle,
             fieldDimmingClass: (isFieldUnready || isFieldExhausted || isStunned || isDazed) ? 'saturate-[0.25] opacity-90' : '',
             hiddenClass: isHidden && !options.isHand ? 'opacity-60 hover:opacity-100' : '',

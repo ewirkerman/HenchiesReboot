@@ -82,6 +82,17 @@ describe('SET_STAT Action', () => {
     expect(targetEntity.cost).toBe(0);
   });
 
+  it('ignores legacy acts and maxActs stat assignments', () => {
+    targetEntity.acts = {};
+    targetEntity.maxActs = 2;
+
+    new ACTION_REGISTRY.SET_STAT({ target: targetEntity, stat: 'acts', amount: 1, duration: 'TEMPORARY' }).run(engine);
+    new ACTION_REGISTRY.SET_STAT({ target: targetEntity, stat: 'maxActs', amount: 1, duration: 'TEMPORARY' }).run(engine);
+
+    expect(targetEntity.acts).toEqual({});
+    expect(targetEntity.maxActs).toBe(2);
+  });
+
   it('moves entity to a new zone when line is set', () => {
     new ACTION_REGISTRY.SET_STAT({ target: targetEntity, stat: 'line', amount: 'front', duration: 'INSTANT' }).run(engine);
     expect(targetEntity.line).toBe('front');

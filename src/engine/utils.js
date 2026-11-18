@@ -11,9 +11,39 @@ export const GLOBAL_UNDO_POLICY = 'ALLOWED'; // Options: 'ALLOWED', 'FORCED_ON',
 
 export const TRAITS = [];
 export const LINES = ['taunt', 'bodyguard', 'avatar', 'front', 'mid', 'back', 'sheltered', 'sideline'];
+export const FIELD_ZONES = ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar', 'equator'];
+
+export function isFieldZone(zone) {
+    if (!zone) return false;
+    return FIELD_ZONES.includes(String(zone).toLowerCase());
+}
+
 export class Card { }
 export class UnitInstance { }
 export class Avatar { }
+
+function drawCandidatesAreEquivalent(candidates, state) {
+    if (candidates.length < 2) return true;
+
+    const normalize = (value, isRoot = false) => {
+        if (Array.isArray(value)) return value.map(item => normalize(item));
+        if (!value || typeof value !== 'object') return value;
+
+        return Object.fromEntries(
+            Object.keys(value)
+                .filter(key => key !== 'instanceId' && !(isRoot && key === 'readiness'))
+                .sort()
+                .map(key => [key, normalize(value[key])])
+        );
+    };
+
+    const signature = candidate => JSON.stringify({
+        entity: normalize(candidate, true),
+        abilityUses: (candidate.abilities || []).map(ability => state?.abilityUses?.[ability.instanceId] || 0)
+    });
+    const firstCandidate = signature(candidates[0]);
+    return candidates.every(candidate => signature(candidate) === firstCandidate);
+}
 
 export function isUndoable(state, ability, context = {}) {
     if (state && state.status === 'finished') return false;
@@ -31,7 +61,7 @@ export function isUndoable(state, ability, context = {}) {
         return candidateCount === 0 || candidateCount === 1;
     };
 
-    const payloadsAreUndoable = (payloads, group) => {
+    const payloadsAreUndoable = (payloads, group, drawTargetGroup = group) => {
         for (const payload of payloads || []) {
             const nestedGroup = payload.nestedGroup;
             if (['SHUFFLE', 'MILL', 'TOP_DECK'].includes(payload.type)) return false;
@@ -61,14 +91,19 @@ export function isUndoable(state, ability, context = {}) {
                     method = ability.activation.method || 'NONE';
                 }
                 if (method === 'NONE') method = payload.drawMethod || 'NONE';
-                if (method !== 'PLAYER_CHOICE') return false;
+                if (method !== 'PLAYER_CHOICE') {
+                    const candidates = context.getDrawTargetPool?.(drawTargetGroup);
+                    if (!Array.isArray(candidates) || !drawCandidatesAreEquivalent(candidates, state)) return false;
+                }
             }
 
             if (nestedGroup) {
                 if (nestedGroup.targetMethod === 'AUTO_RANDOM' && !randomGroupIsUndoable(nestedGroup, payload)) return false;
                 if (!logicTreeIsUndoable(nestedGroup.logicTree)) return false;
-                if (!payloadsAreUndoable(nestedGroup.payloads, nestedGroup)) return false;
-            } else if (Array.isArray(payload.payloads) && !payloadsAreUndoable(payload.payloads, group)) {
+                const nestedDrawTargetGroup = payload.type === 'CONDITIONAL' ? drawTargetGroup : nestedGroup;
+                if (!payloadsAreUndoable(nestedGroup.payloads, nestedGroup, nestedDrawTargetGroup)) return false;
+                if (payload.type === 'CONDITIONAL' && Array.isArray(payload.elsePayloads) && !payloadsAreUndoable(payload.elsePayloads, nestedGroup, nestedDrawTargetGroup)) return false;
+            } else if (Array.isArray(payload.payloads) && !payloadsAreUndoable(payload.payloads, group, drawTargetGroup)) {
                 return false;
             }
         }
@@ -78,7 +113,7 @@ export function isUndoable(state, ability, context = {}) {
     for (const group of ability.effects || []) {
         if (group.targetMethod === 'AUTO_RANDOM' && !randomGroupIsUndoable(group)) return false;
         if (!logicTreeIsUndoable(group.logicTree)) return false;
-        if (!payloadsAreUndoable(group.payloads, group)) return false;
+        if (!payloadsAreUndoable(group.payloads, group, group)) return false;
     }
     return logicTreeIsUndoable(ability.activation?.logicTree);
 }
@@ -170,6 +205,10 @@ export function hasEngineFlag(state, entity, flagName, consume = false) {
     return false;
 }
 
+export function getReadinessFloor(state, entity) {
+    return hasEngineFlag(state, entity, 'TIRELESS') ? 0 : -1;
+}
+
 export function getOwnerId(state, entity) {
     if (!entity) return null;
 
@@ -224,38 +263,45 @@ export function hydrateAbility(abRef, catalogAbs) {
         if (abRef.isSelectable !== undefined) {
             cloned.isSelectable = abRef.isSelectable;
         }
+        if (abRef.tribe !== undefined && abRef.tribe !== null) {
+            cloned.tribe = abRef.tribe;
+            if (cloned.cost && typeof cloned.cost === 'object') {
+                cloned.cost.tribe = abRef.tribe;
+            }
+        }
+        if (abRef.cost?.tribe !== undefined && abRef.cost?.tribe !== null) {
+            cloned.cost = {
+                ...(cloned.cost && typeof cloned.cost === 'object' ? cloned.cost : {}),
+                tribe: abRef.cost.tribe
+            };
+        }
         if (abRef.paramX !== undefined && abRef.paramX !== null) {
             cloned.paramX = abRef.paramX;
             if (cloned.effects) {
                 cloned.effects.forEach(g => {
                     if (g.targetCountIsX) {
                         g.targetCount = abRef.paramX;
-                        delete g.targetCountIsX;
+                        // Flag is now preserved for future re-hydration
                     }
                     if (g.payloads) {
                         g.payloads.forEach(p => {
                             if (p.amountIsX) {
-                                p.amount = (p.amount < 0) ? -abRef.paramX : abRef.paramX;
-                                delete p.amountIsX;
+                                p.amount = abRef.paramX;
                             }
                             if (p.grantedAbilityParamXIsX) {
                                 p.grantedAbilityParamX = abRef.paramX;
-                                delete p.grantedAbilityParamXIsX;
                             }
                             if (p.nestedGroup) {
                                 if (p.nestedGroup.targetCountIsX) {
                                     p.nestedGroup.targetCount = abRef.paramX;
-                                    delete p.nestedGroup.targetCountIsX;
                                 }
                                 if (p.nestedGroup.payloads) {
                                     p.nestedGroup.payloads.forEach(np => {
                                         if (np.amountIsX) {
-                                            np.amount = (np.amount < 0) ? -abRef.paramX : abRef.paramX;
-                                            delete np.amountIsX;
+                                            np.amount = abRef.paramX;
                                         }
                                         if (np.grantedAbilityParamXIsX) {
                                             np.grantedAbilityParamX = abRef.paramX;
-                                            delete np.grantedAbilityParamXIsX;
                                         }
                                     });
                                 }
@@ -293,11 +339,152 @@ export function instantiateAbility(abRef, catalogAbs, engineState = null) {
     return instance;
 }
 
+export function updateAbilityLevel(state, target, abilityId, newParamX) {
+    if (!target) return false;
+    let uiNeedsUpdate = false;
+
+    // 1. Update the tracker in activeEffects (if it exists)
+    if (target.activeEffects) {
+        const effectIdx = target.activeEffects.findIndex(e =>
+            e.grantedAbilityId === abilityId ||
+            (e.grantedAbility && e.grantedAbility.abilityId === abilityId)
+        );
+
+        if (effectIdx !== -1) {
+            const newEffect = { ...target.activeEffects[effectIdx] };
+            newEffect.grantedAbilityParamX = newParamX;
+            newEffect.paramX = newParamX;
+
+            const newEffectsArr = target.activeEffects.slice();
+            newEffectsArr[effectIdx] = newEffect;
+            target.activeEffects = newEffectsArr;
+            uiNeedsUpdate = true;
+        }
+    }
+
+    // 2. Update the live ability and re-map dynamic payloads
+    if (target.abilities) {
+        const liveAbIdx = target.abilities.findIndex(a =>
+            a.abilityId === abilityId ||
+            (a.name && a.name.toLowerCase().startsWith(abilityId.toLowerCase()))
+        );
+
+        if (liveAbIdx !== -1) {
+            const newAb = JSON.parse(JSON.stringify(target.abilities[liveAbIdx]));
+            newAb.paramX = newParamX;
+
+            // Format name cleanly for UI and Logging
+            if (newAb.name) {
+                newAb.name = newAb.name.replace(/\s*\(\d+\)$/, '') + ` (${newParamX})`;
+            }
+
+            // Re-hydrate any X-dependent payloads dynamically based on preserved flags
+            if (newAb.effects) {
+                newAb.effects.forEach(g => {
+                    if (g.targetCountIsX) g.targetCount = newParamX;
+                    if (g.payloads) {
+                        g.payloads.forEach(p => {
+                            if (p.amountIsX) p.amount = newParamX;
+                            if (p.grantedAbilityParamXIsX) p.grantedAbilityParamX = newParamX;
+
+                            if (p.nestedGroup) {
+                                if (p.nestedGroup.targetCountIsX) p.nestedGroup.targetCount = newParamX;
+                                if (p.nestedGroup.payloads) {
+                                    p.nestedGroup.payloads.forEach(np => {
+                                        if (np.amountIsX) np.amount = newParamX;
+                                        if (np.grantedAbilityParamXIsX) np.grantedAbilityParamX = newParamX;
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
+            const newAbsArr = target.abilities.slice();
+            newAbsArr[liveAbIdx] = newAb;
+            target.abilities = newAbsArr;
+            uiNeedsUpdate = true;
+        }
+    }
+
+    return uiNeedsUpdate;
+}
+
+export function getAbilityCooldownGroup(ability) {
+    for (const group of [ability?.cooldownGroup, ability?.origin]) {
+        if (typeof group !== 'string' || !group.trim()) continue;
+        const normalized = group.trim();
+        if (normalized.toLowerCase() === 'unique') {
+            return `$unique:${ability.abilityId || ability.instanceId || 'unknown'}`;
+        }
+        if (normalized.toLowerCase() === 'unique+') {
+            return `$unique-instance:${ability.instanceId || ability.abilityId || 'unknown'}`;
+        }
+        return normalized;
+    }
+    return 'innate';
+}
+
+export function isAttackAbility(ability) {
+    return !!ability?.effects?.some(group =>
+        group?.payloads?.some(payload => payload?.type === 'ATTACK')
+    );
+}
+
+export function normalizeEntityCooldownGroups(entity) {
+    if (!entity || typeof entity !== 'object') return;
+
+    delete entity.maxActs;
+    if (Array.isArray(entity.activeEffects)) {
+        entity.activeEffects = entity.activeEffects.filter(effect => effect?.stat !== 'acts' && effect?.stat !== 'maxActs');
+    }
+    if (entity.statSources) {
+        delete entity.statSources.acts;
+        delete entity.statSources.maxActs;
+    }
+    const existing = entity.acts;
+    const tracksCooldowns = existing !== undefined ||
+        (Array.isArray(entity.abilities) && entity.abilities.length > 0) ||
+        ['unit', 'avatar', 'equipment', 'artifact'].includes(entity.type);
+    if (!tracksCooldowns) return;
+
+    const usedGroups = {};
+    if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+        for (const [group, used] of Object.entries(existing)) {
+            if (used) Object.defineProperty(usedGroups, group, { value: true, enumerable: true, writable: true, configurable: true });
+        }
+    }
+    entity.acts = usedGroups;
+}
+
+export function hasUsedCooldownGroup(entity, group) {
+    return !!entity?.acts && Object.prototype.hasOwnProperty.call(entity.acts, group) && !!entity.acts[group];
+}
+
+export function canReuseAbilityCooldownGroup(state, ability) {
+    const cost = ability?.cost;
+    return !!(
+        cost?.readinessCost &&
+        cost.readinessCost !== 'NONE' &&
+        cost.reuseIgnoresReadiness &&
+        ability.instanceId &&
+        (state?.abilityUses?.[ability.instanceId] || 0) > 0
+    );
+}
+
+export function markCooldownGroupUsed(entity, group) {
+    normalizeEntityCooldownGroups(entity);
+    Object.defineProperty(entity.acts, group, { value: true, enumerable: true, writable: true, configurable: true });
+}
+
 export function instantiateEntity(cardData, abilityCatalog, engineState = null, ownerId = null) {
     if (!cardData) return null;
 
     if (typeof cardData === 'object' && cardData.instanceId) {
-        return JSON.parse(JSON.stringify(cardData));
+        const instance = JSON.parse(JSON.stringify(cardData));
+        normalizeEntityCooldownGroups(instance);
+        return instance;
     }
 
     const instance = JSON.parse(JSON.stringify(cardData));
@@ -313,9 +500,10 @@ export function instantiateEntity(cardData, abilityCatalog, engineState = null, 
     instance.maxHealth = instance.maxHealth || instance.health || 1;
     if (instance.health === undefined || instance.health <= 0) instance.health = instance.maxHealth;
     instance.readiness = 0;
-    instance.acts = instance.maxActs !== undefined ? instance.maxActs : 1;
+    normalizeEntityCooldownGroups(instance);
     instance.originalPower = instance.power || 0;
     instance.originalStrength = instance.strength !== undefined ? instance.strength : null;
+    instance.attackedThisTurn = false;
 
     if (instance.abilities) {
         instance.abilities = instance.abilities.map(ab =>
@@ -328,6 +516,18 @@ export function instantiateEntity(cardData, abilityCatalog, engineState = null, 
 
 export function cloneGameState(state) {
     const clone = JSON.parse(JSON.stringify(state));
+    const entities = queryState(clone, {
+        players: ['player1', 'player2'],
+        zones: ['ALL'],
+        target: () => true,
+        findAll: true
+    });
+    for (const location of entities) normalizeEntityCooldownGroups(location.array[location.index]);
+    for (const player of Object.values(clone.players || {})) {
+        if (player.avatar) normalizeEntityCooldownGroups(player.avatar);
+        if (player.unplayedAvatar) normalizeEntityCooldownGroups(player.unplayedAvatar);
+    }
+    for (const item of clone.equator || []) normalizeEntityCooldownGroups(item);
     if (state.abilityCatalog) Object.defineProperty(clone, 'abilityCatalog', { value: state.abilityCatalog, enumerable: false, configurable: true });
     if (state.catalog) Object.defineProperty(clone, 'catalog', { value: state.catalog, enumerable: false, configurable: true });
     if (state.tribeCatalog) Object.defineProperty(clone, 'tribeCatalog', { value: state.tribeCatalog, enumerable: false, configurable: true });
@@ -341,7 +541,9 @@ export function cloneGameState(state) {
 export function findEntity(state, playerId, entityId) {
     const loc = findEntityLocation(state, { instanceId: entityId, id: entityId });
     if (loc && (loc.playerId === playerId || loc.zone === 'equator')) {
-        return loc.array[loc.index];
+        const entity = loc.array[loc.index];
+        normalizeEntityCooldownGroups(entity);
+        return entity;
     }
     return null;
 }
@@ -361,6 +563,13 @@ export function isNameOrIdOnBoard(state, playerId, card) {
 
 export function getAttackCost(state, entity) {
     return { readinessCost: hasEngineFlag(state, entity, 'ATTACK_EXHAUSTS') ? 'EXHAUSTS' : 'UNREADIES' };
+}
+
+export function checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct = false) {
+    if (isHandAct || cost?.requiresNoReadiness) return true;
+    if (cost?.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (state?.abilityUses?.[abilityKey] || 0) > 0) return true;
+    const readiness = Number(entity?.readiness);
+    return (!isNaN(readiness) ? readiness : 0) >= 1;
 }
 
 function normalizeCostObject(costObj, isCardPlay, entityTribe) {
@@ -410,7 +619,13 @@ export function calculateEscalatedCostValues(costObj, escalateAmt) {
 export function evaluatePayment(state, player, entity, costObj, escalateAmt = 0, isCardPlay = false) {
     if (!player) return { success: false, reason: "Player not found" };
 
-    const entityTribe = resolveResourceKey(state, player, entity?.tribe);
+    // Prioritize the tribe stamped on the cost object itself, falling back to the entity
+    const sourceTribe = costObj?.tribe ?? entity?.tribe;
+    const entityTribe = resolveResourceKey(state, player, sourceTribe);
+
+    // console.log(`[Resource Math] Evaluating cost for ${entity?.name}. Source Tribe: ${sourceTribe || 'None'} -> Resolved: ${entityTribe}`);
+    // console.log(`[Resource Math] Available ${entityTribe}: ${player.resources[entityTribe]?.current || 0} | Available Carnie: ${player.resources['Carnie']?.current || 0}`);
+
     const normalizedCost = normalizeCostObject(costObj, isCardPlay, entityTribe);
     const { cCost, pCost, tCost } = calculateEscalatedCostValues(normalizedCost, escalateAmt);
 
@@ -438,6 +653,9 @@ export function evaluatePayment(state, player, entity, costObj, escalateAmt = 0,
             const costRemaining = tCost - finalTribeDeduction;
 
             if (costRemaining > 0) {
+                if (!isCardPlay) {
+                    return { success: false, reason: `Not enough resources (Need ${tCost})` };
+                }
                 const maxCarnieConversion = Math.floor(remainingCarnie / 3);
                 if (maxCarnieConversion < costRemaining) {
                     return { success: false, reason: `Not enough resources (Need ${tCost})` };
@@ -515,6 +733,11 @@ function resetEntityReadinessForPile(target, destZone) {
 }
 function addToDestination(engine, target, destPlayerId, destZone) {
     if (destZone === 'equator') {
+        const ownerId = target.ownerId || target.originalOwnerId || destPlayerId;
+        if (ownerId) {
+            target.ownerId ||= ownerId;
+            target.originalOwnerId ||= ownerId;
+        }
         if (!engine.state.equator) engine.state.equator = [];
         engine.state.equator.push(target);
         return;
@@ -670,4 +893,27 @@ export function findEntityLocation(engineOrState, target) {
     const state = engineOrState.state ? engineOrState.state : engineOrState;
 
     return queryState(state, { target });
+}
+
+export function createReadOnlyProxy(obj) {
+    if (typeof obj !== 'object' || obj === null) return obj;
+
+    return new Proxy(obj, {
+        get(target, prop) {
+            const val = target[prop];
+            // Recursively wrap nested objects on-the-fly as they are accessed
+            if (typeof val === 'object' && val !== null) {
+                return createReadOnlyProxy(val);
+            }
+            return typeof val === 'function' ? val.bind(target) : val;
+        },
+        set(target, prop, value) {
+            console.warn(`[Sandbox] Blocked mutation attempt on property: ${String(prop)}`);
+            return true; // Return true to fail silently without throwing a fatal error
+        },
+        deleteProperty(target, prop) {
+            console.warn(`[Sandbox] Blocked deletion attempt on property: ${String(prop)}`);
+            return true;
+        }
+    });
 }

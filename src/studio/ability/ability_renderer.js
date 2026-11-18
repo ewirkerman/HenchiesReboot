@@ -1,9 +1,11 @@
 import { CONTEXT_TYPES, ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
 import { CARD_TYPES, CARD_TYPE_LABELS } from '../../engine/card_types.js';
+import { escapeEditorHtml, getEditorDisplayName } from '../editor_names.js';
+import { getAbilityOptionValue } from '../card/ability_options.js';
 
 export const OPERATORS = { '==': 'Is (==)', '!=': 'Is Not (!=)', '>': 'Greater Than (>)', '<': 'Less Than (<)', '>=': 'X or more (>=)', '<=': 'X or less (<=)' };
 
-export function generateQuickMatrixHTML(context, targetState, index = null) {
+export function generateQuickMatrixHTML(context, targetState, index = null, showIncludeSelf = false) {
     const activeBg = context === 'activation' ? 'bg-indigo-600 border-indigo-500' : 'bg-fuchsia-600 border-fuchsia-500';
     const hoverBg = context === 'activation' ? 'hover:bg-indigo-900/50' : 'hover:bg-fuchsia-900/50';
 
@@ -40,8 +42,10 @@ export function generateQuickMatrixHTML(context, targetState, index = null) {
     const toggleBoolHandler = context === 'activation'
         ? `window.toggleQuickMatrixBoolean('activation', null, 'ignoreBattlelines')`
         : `window.toggleQuickMatrixBoolean('effect', ${index}, 'ignoreBattlelines')`;
+    const toggleIncludeSelfHandler = `window.toggleQuickMatrixBoolean('activation', null, 'includeSelf')`;
 
     const isIgnoreLines = targetState.ignoreBattlelines;
+    const isIncludeSelf = targetState.includeSelf === true;
     const boolActiveClass = isIgnoreLines ? `${activeBg} text-white shadow-md` : `bg-slate-800 border-slate-700 text-slate-400 ${hoverBg}`;
 
     return `
@@ -67,6 +71,11 @@ export function generateQuickMatrixHTML(context, targetState, index = null) {
                         </div>
                         Ignore Battlelines
                     </button>
+                    ${showIncludeSelf ? `
+                    <label class="flex items-center gap-2 mt-2 text-[10px] font-bold text-slate-300 cursor-pointer" title="Adds this ability's source as an additional target, even when it falls outside the selected zones, alignment, or entity types.">
+                        <input type="checkbox" ${isIncludeSelf ? 'checked' : ''} onchange="${toggleIncludeSelfHandler}" class="accent-indigo-500 w-3.5 h-3.5" />
+                        Include self
+                    </label>` : ''}
                 </div>
             </div>
         </div>
@@ -191,20 +200,28 @@ export function generateEffectsHTML(ctx) {
     } = ctx;
 
     // Unified payload renderer to handle BOTH root actions and nested actions (dynamic sizes)
-    function renderPayload(payload, gIdx, pIdx, isNested = false, nIdx = null, group = null) {
+    function renderPayload(payload, gIdx, pIdx, nestedPath = [], group = null) {
+        const isNested = nestedPath.length > 0;
+        const isElseNested = isNested && nestedPath[0] === 'else';
+        const nestedPathJson = `[${nestedPath.map(item =>
+            typeof item === 'string'
+                ? `'${item.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+                : String(item)
+        ).join(',')}]`;
         const manifest = ACTION_MANIFEST[payload.type] || { canInvert: true, canBeCost: true, validDurations: ['INSTANT'] };
 
         // Setup Update Generators Based on Context
-        const upd = (field, valStr) => isNested
-            ? `window.updateNestedPayload(${gIdx}, ${pIdx}, ${nIdx}, '${field}', ${valStr})`
-            : `window.updatePayload(${gIdx}, ${pIdx}, '${field}', ${valStr})`;
+        const upd = (field, valStr) =>
+            `window.updatePayloadAtPath(${gIdx}, ${pIdx}, ${nestedPathJson}, '${field}', ${valStr})`;
 
         const updAbil = (valStr) => isNested
-            ? `window.updateNestedGrantedAbility(${gIdx}, ${pIdx}, ${nIdx}, ${valStr})`
+            ? `window.updateGrantedAbilityAtPath(${gIdx}, ${pIdx}, ${nestedPathJson}, ${valStr})`
             : `window.updateGrantedAbility(${gIdx}, ${pIdx}, ${valStr})`;
+        const updAbility = (valStr) =>
+            `window.updateAbilitySelectionAtPath(${gIdx}, ${pIdx}, ${nestedPathJson}, ${valStr})`;
 
         const updCard = (valStr) => isNested
-            ? `window.updateNestedSummonCard(${gIdx}, ${pIdx}, ${nIdx}, ${valStr})`
+            ? `window.updateSummonCardAtPath(${gIdx}, ${pIdx}, ${nestedPathJson}, ${valStr})`
             : `window.updateSummonCard(${gIdx}, ${pIdx}, ${valStr})`;
 
         // Contextual Types Setup
@@ -232,14 +249,6 @@ export function generateEffectsHTML(ctx) {
             return `<optgroup label="${cat}">${validActions.map(t => `<option value="${t}" ${payload.type === t ? 'selected' : ''}>${t.replace(/_/g, ' ')}</option>`).join('')}</optgroup>`;
         }).join('');
 
-        if (isNested) {
-            const parentPayload = group.payloads[pIdx];
-            const parentManifest = ACTION_MANIFEST[parentPayload.type] || {};
-            if (parentManifest.hasLogicTree) {
-                typeOptions = typeOptions.replace(/<option value="(?:SUMMON|CONDITIONAL)"[^>]*>[^<]*<\/option>/g, '');
-            }
-        }
-
         // --- Generate Field HTML dynamically based on requirements ---
         let fieldsHtml = '';
 
@@ -263,11 +272,14 @@ export function generateEffectsHTML(ctx) {
             }
         }
 
+        if (payload.type === 'UPDATE_ABILITY_LEVEL') {
+            fieldsHtml += `<label class="flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-[9px] font-black text-cyan-400 uppercase tracking-wider"><input type="checkbox" ${payload.modify ? 'checked' : ''} onchange="${upd('modify', 'this.checked')}" class="accent-cyan-500 w-3 h-3" />Add to current X</label>`;
+        }
+
         if (manifest.requiresStat) {
             let validStats = Object.entries(ATTRIBUTE_MANIFEST).filter(([key, def]) => {
                 if (payload.type === 'SET_STAT') return def.settable;
                 if (payload.type === 'MODIFY_STAT') return def.modifiable;
-                if (payload.type === 'MODIFY_EVENT') return def.modifiable || key === 'amount';
                 return false;
             });
             let statOptions = validStats.map(([key, def]) => `<option value="${key}" ${payload.stat === key ? 'selected' : ''}>${def.label}</option>`).join('');
@@ -306,15 +318,20 @@ export function generateEffectsHTML(ctx) {
             }
         }
 
-        if (manifest.requiresGrantedAbility) {
-            const customOptions = allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
-            let displayValue = payload.grantedAbilityId || '';
+        if (manifest.requiresGrantedAbility || manifest.requiresAbility) {
+            const customOptions = allAbilities.map(a => `<option value="${escapeEditorHtml(getAbilityOptionValue(a))}" label="${escapeEditorHtml(getEditorDisplayName(a))}"></option>`).join('');
+            const abilityField = manifest.requiresAbility ? 'abilityId' : 'grantedAbilityId';
+            const selectedAbilityId = payload[abilityField] || '';
+            let displayValue = selectedAbilityId;
             const foundAb = allAbilities.find(a => a.abilityId === displayValue);
-            if (foundAb) displayValue = foundAb.name;
-            const abLabel = payload.type === 'REMOVE_ABILITY' ? 'Ability to Remove' : 'Ability to Grant';
-            const listId = isNested ? `nest-ability-list-${gIdx}-${pIdx}-${nIdx}` : `ability-list-${gIdx}-${pIdx}`;
+            if (foundAb) displayValue = getAbilityOptionValue(foundAb);
+            const abLabel = payload.type === 'REMOVE_ABILITY'
+                ? 'Ability to Remove'
+                : payload.type === 'UPDATE_ABILITY_LEVEL' ? 'Ability to Update' : 'Ability to Grant';
+            const listId = isNested ? `nest-ability-list-${gIdx}-${pIdx}-${nestedPath.join('-')}` : `ability-list-${gIdx}-${pIdx}`;
+            const updateAbilityHandler = manifest.requiresAbility ? updAbility('this.value') : updAbil('this.value');
 
-            fieldsHtml += `<div class="flex-1 min-w-[160px] pb-0.5"><label class="block text-[9px] font-bold text-cyan-400 mb-0.5 uppercase tracking-wider">${abLabel}</label><input list="${listId}" value="${displayValue}" onchange="${updAbil('this.value')}" placeholder="Search or type name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full text-[10px]" />
+            fieldsHtml += `<div class="flex-1 min-w-[160px] pb-0.5"><label class="block text-[9px] font-bold text-cyan-400 mb-0.5 uppercase tracking-wider">${abLabel}</label><input list="${listId}" value="${escapeEditorHtml(displayValue)}" onchange="${updateAbilityHandler}" placeholder="Search or select ability..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-cyan-300 font-bold w-full text-[10px]" />
             <datalist id="${listId}">${customOptions}</datalist></div>`;
 
             if (payload.type === 'GRANT_ABILITY') {
@@ -326,11 +343,11 @@ export function generateEffectsHTML(ctx) {
         }
 
         if (manifest.requiresCardId) {
-            const cardOptions = allCards.map(c => `<option value="${c.name}"></option>`).join('');
+            const cardOptions = allCards.map(c => `<option value="${escapeEditorHtml(c.name)}" label="${escapeEditorHtml(getEditorDisplayName(c))}"></option>`).join('');
             let displayValue = payload.cardId || '';
             const foundCard = allCards.find(c => c.id === displayValue);
             if (foundCard) displayValue = foundCard.name;
-            const listId = isNested ? `nest-card-list-${gIdx}-${pIdx}-${nIdx}` : `card-list-${gIdx}-${pIdx}`;
+            const listId = isNested ? `nest-card-list-${gIdx}-${pIdx}-${nestedPath.join('-')}` : `card-list-${gIdx}-${pIdx}`;
 
             fieldsHtml += `<div class="flex-1 min-w-[160px] pb-0.5"><label class="block text-[9px] font-bold text-fuchsia-400 mb-0.5 uppercase tracking-wider">Card to Summon</label><input list="${listId}" value="${displayValue}" onchange="${updCard('this.value')}" placeholder="Search or type card name..." class="bg-slate-950 border border-slate-700 p-1.5 rounded text-fuchsia-300 font-bold w-full text-[10px]" />
             <datalist id="${listId}">${cardOptions}</datalist></div>`;
@@ -374,12 +391,15 @@ export function generateEffectsHTML(ctx) {
         let fullWidthHtml = '';
         if (manifest.requiresScript) {
             fullWidthHtml += `
-            <div class="w-full mt-2 border-t border-slate-700/50 pt-2">
-                <label class="block text-[10px] font-bold text-amber-400 mb-1 flex justify-between items-end">
-                    <span>⚡ Execution Script</span>
-                    <span class="text-slate-500 font-normal">Vars: (state, target, params, engine, actionDepth) | <a href="../docs.html" target="_blank" class="text-sky-400 hover:underline">📚 API Docs</a></span>
-                </label>
-                <textarea onchange="${upd('script', 'this.value')}" rows="8" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${payload.script || ''}</textarea>
+            <div class="w-full mt-2 border-t border-slate-700/50 pt-2" data-script-editor>
+                <div class="flex justify-between items-end mb-1">
+                    <label class="text-[10px] font-bold text-amber-400">⚡ Execution Script</label>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500 font-normal text-[10px]">Vars: (state, target, params, engine, actionDepth) | <a href="../docs.html" target="_blank" class="text-sky-400 hover:underline">📚 API Docs</a></span>
+                        <button type="button" onmousedown="event.preventDefault()" onclick="window.prettifyPayloadScriptAtPath(${gIdx}, ${pIdx}, ${nestedPathJson}, this)" class="bg-slate-800 hover:bg-slate-700 text-amber-300 px-2 py-1 rounded text-[10px] font-bold">Prettify</button>
+                    </div>
+                </div>
+                <textarea onchange="${upd('script', 'this.value')}" rows="8" class="bg-slate-950 border border-slate-700 p-2 rounded text-amber-300 font-mono text-[11px] w-full focus:outline-none focus:border-amber-500">${escapeEditorHtml(payload.script || '')}</textarea>
                 <label class="flex items-center gap-2 cursor-pointer mt-2 text-[10px] text-amber-300" title="Developer assertion: this script is safe to undo and replay.">
                     <input type="checkbox" ${payload.undoSafe === true ? 'checked' : ''} onchange="${upd('undoSafe', 'this.checked')}" class="accent-amber-500 w-3 h-3" />
                     <span class="font-bold uppercase tracking-wider">Undo Safe</span>
@@ -389,16 +409,18 @@ export function generateEffectsHTML(ctx) {
             </div>`;
         }
 
-        // --- Nested Group Builder (Conditionally Rendered ONLY for top-level payloads) ---
-        if (!isNested && manifest.hasNestedGroup && payload.nestedGroup) {
+        // --- Nested Group Builder ---
+        if (manifest.hasNestedGroup && payload.nestedGroup) {
             const ng = payload.nestedGroup;
 
-            const nestedPayloadsHtml = ng.payloads.map((np, childNIdx) => renderPayload(np, gIdx, pIdx, true, childNIdx, group)).join('');
+            const nestedPayloadsHtml = ng.payloads.map((np, childNIdx) =>
+                renderPayload(np, gIdx, pIdx, [...nestedPath, childNIdx], group)
+            ).join('');
 
             const conditionalLogicHtml = manifest.hasLogicTree ? `
                 <div class="w-full mb-3 bg-slate-950/70 p-2 rounded border border-amber-700/50">
                         <label class="block text-[10px] font-black text-amber-400 tracking-wider mb-2">CONDITION MUST PASS</label>
-                        ${generateGroupHTML(`conditional_${gIdx}_${pIdx}`, ng.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
+                        ${generateGroupHTML(`conditional_${gIdx}_${pIdx}${nestedPath.length ? `_${nestedPath.join('_')}` : ''}`, ng.logicTree || { type: 'group', logicalOperator: 'AND', children: [] }, [])}
                 </div>
             ` : '';
 
@@ -409,13 +431,13 @@ export function generateEffectsHTML(ctx) {
             <div class="w-full mt-3 bg-slate-900/80 p-3 rounded-lg border border-fuchsia-700/50 shadow-inner">
                 <div class="flex justify-between items-center mb-3 border-b border-fuchsia-900/50 pb-2">
                    <label class="block text-[11px] font-black text-fuchsia-400 tracking-wider">🎯 ${manifest.hasLogicTree ? 'CONDITIONAL ACTIONS' : 'POST-SUMMON ACTIONS'}</label>
-                   <button type="button" onclick="window.addNestedPayload(${gIdx}, ${pIdx})" class="text-[10px] bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-3 py-1 rounded shadow transition">+ Add Nested Action</button>
+                   <button type="button" onclick="window.addNestedPayloadAtPath(${gIdx}, ${pIdx}, ${nestedPathJson})" class="text-[10px] bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-3 py-1 rounded shadow transition">+ Add Nested Action</button>
                 </div>
                 ${conditionalLogicHtml}
                 ${!manifest.hasLogicTree ? `<div class="flex flex-wrap gap-3 mb-3 w-full">
                     <div class="flex-1 min-w-[200px]">
                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Target Scope</label>
-                        <select onchange="window.updateNestedGroup(${gIdx},${pIdx}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white text-[10px] w-full">
+                        <select onchange="window.updateNestedGroupAtPath(${gIdx}, ${pIdx}, ${nestedPathJson}, 'targetMethod', this.value)" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-white text-[10px] w-full">
                             <option value="AUTO_ALL" ${ng.targetMethod === 'AUTO_ALL' ? 'selected' : ''}>Apply to ALL Summoned Units</option>
                             <option value="AUTO_RANDOM" ${ng.targetMethod === 'AUTO_RANDOM' ? 'selected' : ''}>Apply to RANDOM N Summoned Units</option>
                             <option value="AUTO_FIRST" ${ng.targetMethod === 'AUTO_FIRST' ? 'selected' : ''}>Apply to FIRST N Summoned Units</option>
@@ -426,11 +448,11 @@ export function generateEffectsHTML(ctx) {
                         <label class="flex justify-between items-center text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">
                             <span>Count (N)</span>
                             <label class="flex items-center gap-1 cursor-pointer text-amber-400 hover:text-amber-300 ml-1">
-                                <input type="checkbox" ${ngCountIsX} onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetCountIsX', this.checked)" class="w-2.5 h-2.5 accent-amber-500" />
+                                <input type="checkbox" ${ngCountIsX} onchange="window.updateNestedGroupAtPath(${gIdx}, ${pIdx}, ${nestedPathJson}, 'targetCountIsX', this.checked)" class="w-2.5 h-2.5 accent-amber-500" />
                                 <span>Var X</span>
                             </label>
                         </label>
-                        <input type="number" value="${ng.targetCount || 1}" ${ngInputDisabled} onchange="window.updateNestedGroup(${gIdx}, ${pIdx}, 'targetCount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]" />
+                        <input type="number" value="${ng.targetCount || 1}" ${ngInputDisabled} onchange="window.updateNestedGroupAtPath(${gIdx}, ${pIdx}, ${nestedPathJson}, 'targetCount', parseInt(this.value))" class="bg-slate-950 border border-slate-700 p-1.5 rounded text-amber-300 font-bold w-full text-[10px]" />
                     </div>
                     ` : ''}
                 </div>` : ''}
@@ -438,6 +460,20 @@ export function generateEffectsHTML(ctx) {
                     ${nestedPayloadsHtml}
                 </div>
                 ${ng.payloads.length === 0 ? `<div class="text-[10px] text-slate-500 italic mt-2 text-center p-2 border border-dashed border-slate-700 rounded">No actions defined here.</div>` : ''}
+                ${manifest.hasLogicTree ? `
+                    <div class="mt-3 pt-3 border-t border-sky-900/50">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-[11px] font-black text-sky-400 tracking-wider">ELSE ACTIONS</label>
+                            <button type="button" onclick="window.addElsePayload(${gIdx}, ${pIdx})" class="text-[10px] bg-sky-700 hover:bg-sky-600 text-white px-3 py-1 rounded shadow transition">+ Add Else Action</button>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            ${(payload.elsePayloads || []).map((elsePayload, elseIndex) =>
+                                renderPayload(elsePayload, gIdx, pIdx, ['else', elseIndex], group)
+                            ).join('')}
+                        </div>
+                        ${(payload.elsePayloads || []).length === 0 ? `<div class="text-[10px] text-slate-500 italic mt-2 text-center p-2 border border-dashed border-slate-700 rounded">No else actions defined.</div>` : ''}
+                    </div>
+                ` : ''}
             </div>
             `;
             fullWidthHtml += nestedGroupHtml;
@@ -448,7 +484,11 @@ export function generateEffectsHTML(ctx) {
             ? "flex flex-col gap-2 bg-slate-950 p-2 pl-6 rounded border border-slate-700/60 relative shadow-sm transition-all mt-1 w-full"
             : "flex flex-col gap-2 bg-slate-950 p-3 pl-8 rounded-lg border border-slate-800 relative shadow-md transition-all";
 
-        const removeFn = isNested ? `window.removeNestedPayload(${gIdx}, ${pIdx}, ${nIdx})` : `window.removePayload(${gIdx}, ${pIdx})`;
+        const removeFn = isElseNested && nestedPath.length === 2
+            ? `window.removeElsePayload(${gIdx}, ${pIdx}, ${nestedPath[1]})`
+            : isNested
+                ? `window.removeNestedPayloadAtPath(${gIdx}, ${pIdx}, ${JSON.stringify(nestedPath.slice(0, -1))}, ${nestedPath[nestedPath.length - 1]})`
+                : `window.removePayload(${gIdx}, ${pIdx})`;
 
         const dragHandles = !isNested ? `
             draggable="true"
@@ -511,7 +551,7 @@ export function generateEffectsHTML(ctx) {
         effectsHtml = `<div class="text-slate-500 italic text-xs p-3 text-center border border-dashed border-slate-700 rounded-xl">No target blocks added. This ability does nothing.</div>`;
     } else {
         effectsHtml = effectGroups.map((group, gIdx) => {
-            const payloadsHtml = group.payloads.map((payload, pIdx) => renderPayload(payload, gIdx, pIdx, false, null, group)).join('');
+            const payloadsHtml = group.payloads.map((payload, pIdx) => renderPayload(payload, gIdx, pIdx, [], group)).join('');
             group.quickTargeting = group.quickTargeting || { zones: ['FIELD'], alignment: ['ENEMY'], entityType: [CARD_TYPES.UNIT.toUpperCase(), CARD_TYPES.AVATAR.toUpperCase()], ignoreBattlelines: false };
 
             const moveUpDisabled = gIdx === 0 ? 'opacity-30 cursor-not-allowed' : '';

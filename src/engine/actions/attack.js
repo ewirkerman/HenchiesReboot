@@ -22,6 +22,13 @@ export class AttackAction extends Action {
         const attacker = this.payload.source;
         const defender = this.payload.target;
 
+        if (attacker) {
+            attacker.attackedThisTurn = true;
+            if (attacker.attachments) {
+                attacker.attachments.forEach(att => { att.attackedThisTurn = true; });
+            }
+        }
+
         const isTimid = engine.utils.hasEngineFlag(engine.state, attacker, 'BLOCK_TARGET_AVATAR');
 
         if (isTimid && defender.type === 'avatar') {
@@ -93,8 +100,7 @@ export class AttackAction extends Action {
                 this.executeStrike(engine, attacker, defender, defender, attacker, currentDefDmg);
             }
 
-            this.processKill(engine, attacker, defender, attacker, defender);
-            this.processKill(engine, attacker, defender, defender, attacker);
+            this.sweepDeferredDeaths(engine, attacker, defender);
         }
 
         const postCombatPayload = {
@@ -157,27 +163,45 @@ export class AttackAction extends Action {
         new HitAction(hitPayload).run(engine);
     }
 
-    processKill(engine, combatAttacker, combatDefender, source, target) {
+    sweepDeferredDeaths(engine, combatAttacker, combatDefender) {
         const KillAction = ACTION_REGISTRY['KILL'];
         if (!KillAction) return;
 
-        if (target._deathDeferred && !target._isDying) {
-            const sourceLKI = source.abilities ? [...source.abilities] : [];
-            const targetLKI = target.abilities ? [...target.abilities] : [];
+        let swept = false;
+        do {
+            swept = false;
+            for (const pId of ['player1', 'player2']) {
+                const p = engine.state.players[pId];
+                if (!p || !p.lines) continue;
 
-            new KillAction({
-                source: source,
-                target: target,
-                _lkiSourceAbilities: sourceLKI,
-                _lkiTargetAbilities: targetLKI,
-                isCombat: true,
-                forceKill: true,
-                eventContext: {
-                    isCombat: true,
-                    combatAttackerId: combatAttacker.instanceId,
-                    combatDefenderId: combatDefender.instanceId
+                for (const line of Object.keys(p.lines)) {
+                    const arr = p.lines[line];
+                    if (!arr) continue;
+
+                    for (let i = arr.length - 1; i >= 0; i--) {
+                        const target = arr[i];
+                        if (target && target._deathDeferred && !target._isDying) {
+                            const targetLKI = target.abilities ? [...target.abilities] : [];
+
+                            new KillAction({
+                                source: combatAttacker,
+                                target: target,
+                                _lkiSourceAbilities: [],
+                                _lkiTargetAbilities: targetLKI,
+                                isCombat: true,
+                                forceKill: true,
+                                eventContext: {
+                                    isCombat: true,
+                                    combatAttackerId: combatAttacker.instanceId,
+                                    combatDefenderId: combatDefender.instanceId
+                                }
+                            }).run(engine);
+
+                            swept = true;
+                        }
+                    }
                 }
-            }).run(engine);
-        }
+            }
+        } while (swept); // Re-run if a deathrattle caused MORE deferred deaths!
     }
 }

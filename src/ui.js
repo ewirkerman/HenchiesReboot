@@ -4,7 +4,8 @@
  */
 
 import { fetchCustomTribes } from './firebase.js';
-import { generateAbilityDescription } from './language_description.js';
+import { formatCardText } from '../components/card_text.js';
+import { formatAbilityDescription, getAbilityDescription } from './ability_descriptions.js';
 
 export const CARD_BASE_CLASSES = "w-[128px] h-[179px] sm:w-[144px] sm:h-[201px]";
 export const TRIBE_STYLES = {}; // Legacy fallback to prevent import crashes
@@ -45,7 +46,7 @@ export async function loadUI() {
   }
 }
 
-import { formatAbilityCostBadge, hasEngineFlag, formatCardText, renderCardHTML, computeAbilitiesData } from '../components/game_card.js';
+import { formatAbilityCostBadge, hasEngineFlag, renderCardHTML, computeAbilitiesData } from '../components/game_card.js';
 export { formatAbilityCostBadge, hasEngineFlag, formatCardText, renderCardHTML, computeAbilitiesData };
 
 export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = '') {
@@ -53,14 +54,28 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
 
   let glossaryMap = new Map();
   let systemMap = new Map();
-  let baseIds = new Set((baseAbilities || []).map(a => a.abilityId));
+  let baseIds = new Set((baseAbilities || []).map(a => a.abilityId || a.id).filter(Boolean));
+
+  function findAbility(reference) {
+    if (!reference) return null;
+    return allAbilitiesRegistry.find(a => (a.abilityId || a.id) === reference) || null;
+  }
+
+  function addReferencedAbility(reference) {
+    const found = findAbility(reference);
+    const id = found?.abilityId || found?.id;
+    if (!found || !id || glossaryMap.has(id) || baseIds.has(id)) return;
+    glossaryMap.set(id, found);
+    processAbility(found);
+  }
 
   if (baseAbilities) {
     baseAbilities.forEach(a => {
       // Automatically extract Evergreen Keywords into the Glossary, even if they aren't explicitly mentioned in text!
       if (a.isKeyword || a.trigger === 'UNTRIGGERABLE') {
-        if (!glossaryMap.has(a.abilityId) && a.name) {
-          glossaryMap.set(a.abilityId, a);
+        const id = a.abilityId || a.id;
+        if (id && !glossaryMap.has(id) && a.name) {
+          glossaryMap.set(id, a);
         }
       }
     });
@@ -68,20 +83,12 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
 
   function processAbility(current) {
     if (!current) return;
-    let text = (current.displayDescription || current.description || '');
-    if (!text) {
-      try { text = generateAbilityDescription(current, allAbilitiesRegistry); } catch (e) { }
-    }
+    const text = getAbilityDescription(current, allAbilitiesRegistry);
 
     const mentionRegex = /@\[(.*?)\]/g;
     let match;
     while ((match = mentionRegex.exec(text)) !== null) {
-      const matchedName = match[1];
-      const found = allAbilitiesRegistry.find(a => a.name.toLowerCase() === matchedName.toLowerCase());
-      if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
-        glossaryMap.set(found.abilityId, found);
-        processAbility(found);
-      }
+      addReferencedAbility(match[1]);
     }
 
     // Find deeply nested GRANT_ABILITY effects
@@ -90,20 +97,16 @@ export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = 
         if (group.payloads) {
           group.payloads.forEach(eff => {
             if (eff.type === 'GRANT_ABILITY') {
-              const found = allAbilitiesRegistry.find(a => a.abilityId === eff.grantedAbilityId || a.name === eff.grantedAbilityId);
-              if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
-                glossaryMap.set(found.abilityId, found);
-                processAbility(found);
-              }
+              addReferencedAbility(eff.grantedAbilityId);
+            } else if (eff.type === 'UPDATE_ABILITY_LEVEL') {
+              addReferencedAbility(eff.abilityId);
             }
             if (eff.nestedGroup && eff.nestedGroup.payloads) {
               eff.nestedGroup.payloads.forEach(neff => {
                 if (neff.type === 'GRANT_ABILITY') {
-                  const found = allAbilitiesRegistry.find(a => a.abilityId === neff.grantedAbilityId || a.name === neff.grantedAbilityId);
-                  if (found && !glossaryMap.has(found.abilityId) && !baseIds.has(found.abilityId)) {
-                    glossaryMap.set(found.abilityId, found);
-                    processAbility(found);
-                  }
+                  addReferencedAbility(neff.grantedAbilityId);
+                } else if (neff.type === 'UPDATE_ABILITY_LEVEL') {
+                  addReferencedAbility(neff.abilityId);
                 }
               });
             }
@@ -245,17 +248,14 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNes
                 ${glossaryAbilities.map(a => {
     const isSystem = a.id && a.id.startsWith('sys_');
     const displayStyle = localStorage.getItem('henchies_glossary_mode') === 'essentials' && isSystem ? 'none' : 'flex';
-    let rawDesc = a.displayDescription || a.description || '';
-    if (!rawDesc) {
-      try { rawDesc = generateAbilityDescription(a, allAbilitiesRegistry); } catch (e) { }
-    }
+    const formattedDesc = formatAbilityDescription(a, allAbilitiesRegistry);
     return `
                   <div class="glossary-item bg-slate-900/90 backdrop-blur-md p-3 md:p-4 rounded-xl border border-slate-700 shadow-xl flex-col gap-1.5 transform transition-transform hover:scale-[1.02] w-full" data-is-system="${isSystem}" style="display: ${displayStyle};">
                     <div class="flex justify-between items-center border-b border-slate-700/50 pb-1 md:pb-1.5">
                         <div class="font-black text-fuchsia-300 text-xs md:text-sm drop-shadow-md truncate pr-2">${a.name || a.abilityId || a.id}</div>
                         <span class="text-[8px] md:text-[9px] bg-slate-950 text-slate-300 px-1.5 md:px-2 py-0.5 rounded border border-slate-700 font-bold uppercase tracking-wider shrink-0">${a.trigger || 'MANUAL'}</span>
                     </div>
-                    <div class="text-slate-200 text-[11px] md:text-xs leading-snug break-words">${rawDesc || 'No details.'}</div>
+                    <div class="text-slate-200 text-[11px] md:text-xs leading-snug break-words">${formattedDesc}</div>
                   </div>
                 `}).join('')}
               </div>

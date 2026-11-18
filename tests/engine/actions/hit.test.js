@@ -93,7 +93,7 @@ describe('HIT event', () => {
         expect(emitSpy.mock.calls.filter(([eventType]) => eventType === 'MODIFY_HIT')).toHaveLength(1);
     });
 
-    it('allows MODIFY_HIT to increase incoming damage through MODIFY_EVENT amount', () => {
+    it('allows MODIFY_HIT to increase incoming damage through MODIFY_STAT amount', () => {
         attacker.abilities.push({
             abilityId: 'fire',
             trigger: 'MODIFY_HIT',
@@ -106,7 +106,7 @@ describe('HIT event', () => {
             effects: [{
                 targetMethod: 'EVENT_TARGET',
                 payloads: [{
-                    type: 'MODIFY_EVENT',
+                    type: 'MODIFY_STAT',
                     amount: 1,
                     stat: 'amount',
                     duration: 'INSTANT'

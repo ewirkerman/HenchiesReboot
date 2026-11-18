@@ -43,6 +43,10 @@ describe('targeting.js core logic', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        hasEngineFlagMock.mockImplementation((state, ent, flag) => {
+            if (ent?.flags?.includes(flag)) return true;
+            return actualUtils.hasEngineFlag(state, ent, flag);
+        });
         mockState = {
             players: {
                 player1: {
@@ -144,6 +148,30 @@ describe('targeting.js core logic', () => {
             expect(targets.some(t => t.id === 'side1')).toBe(false);
         });
 
+        it('should ignore battlelines for normal attacks when the attacker has IGNORE_BATTLELINES', () => {
+            const attacker = { id: 'a1', ownerId: 'player1', type: 'unit', strength: 2 };
+            const frontUnit = { id: 'front1', instanceId: 'front1' };
+            const backUnit = { id: 'back1', instanceId: 'back1' };
+            const hiddenBackUnit = { id: 'hidden1', instanceId: 'hidden1' };
+            const tauntUnit = { id: 'taunt1', instanceId: 'taunt1' };
+
+            mockState.players.player2.lines.front.push(frontUnit);
+            mockState.players.player2.lines.back.push(backUnit, hiddenBackUnit);
+            mockState.players.player2.lines.taunt.push(tauntUnit);
+
+            hasEngineFlagMock.mockImplementation((state, entity, flag) => {
+                if (entity.id === 'a1' && flag === 'IGNORE_BATTLELINES') return true;
+                if (entity.id === 'hidden1' && flag === 'BLOCK_TARGETING') return true;
+                return false;
+            });
+
+            const targets = getValidAttackTargets(mockState, 'player1', attacker);
+
+            expect(targets).toHaveLength(3);
+            expect(targets.map(target => target.id)).toEqual(expect.arrayContaining(['taunt1', 'front1', 'back1']));
+            expect(targets.some(target => target.id === 'hidden1')).toBe(false);
+        });
+
         it('should block attacks against avatars if the attacker is timid (BLOCK_TARGET_AVATAR)', () => {
             const timidAttacker = { id: 'a1', ownerId: 'player1', type: 'unit', strength: 1, readiness: 1 };
             const oppAvatar = { id: 'opp_avatar', instanceId: 'opp_avatar', type: 'avatar' };
@@ -241,6 +269,52 @@ describe('targeting.js core logic', () => {
         });
     });
 
+    describe('Manual self-targeting', () => {
+        it('excludes the ability source from the target pool by default', () => {
+            const source = {
+                id: 'source', instanceId: 'source', type: 'unit', ownerId: 'player1',
+                abilities: [{
+                    abilityId: 'ab_manual', trigger: 'MANUAL',
+                    activation: {
+                        method: 'PLAYER_CHOICE',
+                        quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: ['UNIT'] }
+                    }
+                }]
+            };
+            const ally = { id: 'ally', instanceId: 'ally', type: 'unit', ownerId: 'player1' };
+            mockState.players.player1.lines.mid.push(source, ally);
+
+            const targets = getValidAbilityTargets(mockState, 'player1', 'source', 'ab_manual');
+
+            expect(targets.map(target => target.id)).toEqual(['ally']);
+        });
+
+        it('adds the ability source to the target pool when Include Self is enabled', () => {
+            const source = {
+                id: 'source', instanceId: 'source', type: 'unit', ownerId: 'player1',
+                abilities: [{
+                    abilityId: 'ab_manual', trigger: 'MANUAL',
+                    activation: {
+                        method: 'PLAYER_CHOICE',
+                        quickTargeting: {
+                            zones: ['FIELD'],
+                            alignment: ['ENEMY'],
+                            entityType: ['UNIT'],
+                            includeSelf: true
+                        }
+                    }
+                }]
+            };
+            const enemy = { id: 'enemy', instanceId: 'enemy', type: 'unit', ownerId: 'player2' };
+            mockState.players.player1.lines.mid.push(source);
+            mockState.players.player2.lines.mid.push(enemy);
+
+            const targets = getValidAbilityTargets(mockState, 'player1', 'source', 'ab_manual');
+
+            expect(targets.map(target => target.id)).toEqual(['enemy', 'source']);
+        });
+    });
+
     describe('Advanced Resource Affordability', () => {
         it('should correctly separate Tribe base cost and Carnie ability cost for PLAY_OPTIONAL in hand', () => {
             const arrrmsman = {
@@ -269,6 +343,23 @@ describe('targeting.js core logic', () => {
             expect(actions.some(a => a.abilityId === 'ab_draw')).toBe(false);
         });
 
+        it('should require ability resources after paying the separate card-play cost', () => {
+            const card = {
+                id: 'tribe-cost-card', instanceId: 'tribe-cost-card', type: 'unit', ownerId: 'player1',
+                tribe: 'Pirate', cost: { tribeAmount: 1 },
+                abilities: [{
+                    abilityId: 'ab_tribe_cost', trigger: 'PLAY_OPTIONAL',
+                    cost: { tribeAmount: 1 }
+                }]
+            };
+            mockState.players.player1.hand.push(card);
+            mockState.players.player1.resources.Pirate = { current: 1, max: 1 };
+            mockState.players.player1.resources.Carnie.current = 3;
+
+            const actions = getEntityAvailableActions(mockState, 'player1', card.id);
+            expect(actions.some(action => action.abilityId === 'ab_tribe_cost')).toBe(false);
+        });
+
         it('should return ability action if player can afford Carnie cost', () => {
             const unit = {
                 id: 'u1', instanceId: 'u1', type: 'unit', readiness: 1, acts: 1, ownerId: 'player1',
@@ -292,7 +383,7 @@ describe('targeting.js core logic', () => {
             expect(actions).not.toEqual(expect.arrayContaining([expect.objectContaining({ abilityId: 'ab_1' })]));
         });
 
-        it('should allow substitution of 3 Carnie for 1 Tribe Resource', () => {
+        it('should not allow an ability to substitute Carnie for a Tribe Resource', () => {
             const unit = {
                 id: 'u1', instanceId: 'u1', type: 'unit', readiness: 1, acts: 1, ownerId: 'player1', tribe: 'Pirate',
                 abilities: [{ abilityId: 'ab_tribe', trigger: 'MANUAL', cost: { tribeAmount: 1 } }]
@@ -302,7 +393,7 @@ describe('targeting.js core logic', () => {
             mockState.players.player1.resources['Carnie'].current = 3;
 
             const actions = getEntityAvailableActions(mockState, 'player1', 'u1');
-            expect(actions.some(a => a.abilityId === 'ab_tribe')).toBe(true);
+            expect(actions.some(a => a.abilityId === 'ab_tribe')).toBe(false);
         });
 
         it('should calculate escalating costs correctly', () => {
@@ -347,7 +438,10 @@ describe('targeting.js core logic', () => {
         it('should allow abilities to ignore readiness if reuseIgnoresReadiness is true and ability was used this turn', () => {
             const unit = {
                 id: 'u1', instanceId: 'u1', type: 'unit', readiness: 0, acts: 1, ownerId: 'player1',
-                abilities: [{ abilityId: 'ab_reuse', instanceId: 'ab_inst_reuse', trigger: 'MANUAL', cost: { readinessCost: 'UNREADIES', reuseIgnoresReadiness: true } }]
+                abilities: [
+                    { abilityId: 'ab_reuse', instanceId: 'ab_inst_reuse', trigger: 'MANUAL', cost: { readinessCost: 'UNREADIES', reuseIgnoresReadiness: true } },
+                    { abilityId: 'ab_other', instanceId: 'ab_inst_other', trigger: 'MANUAL' }
+                ]
             };
             mockState.players.player1.lines.mid.push(unit);
 
@@ -355,8 +449,10 @@ describe('targeting.js core logic', () => {
             expect(actions.some(a => a.abilityId === 'ab_reuse')).toBe(false);
 
             mockState.abilityUses = { ab_inst_reuse: 1 };
+            unit.acts = { innate: true };
             actions = getEntityAvailableActions(mockState, 'player1', 'u1');
             expect(actions.some(a => a.abilityId === 'ab_reuse')).toBe(true);
+            expect(actions.some(a => a.abilityId === 'ab_other')).toBe(false);
         });
     });
 
@@ -777,6 +873,82 @@ describe('targeting.js core logic', () => {
         });
 
         describe('Readiness Floors & Stat Costs', () => {
+            it('should reject a same-type target when TRANSFORM is a cost', () => {
+                const transformSpell = {
+                    id: 'transform_cost_spell',
+                    instanceId: 'transform_cost_spell',
+                    type: 'spell',
+                    ownerId: 'player1',
+                    abilities: [{
+                        abilityId: 'ab_transform_cost',
+                        trigger: 'ON_BE_PLAYED',
+                        activation: {
+                            method: 'PLAYER_CHOICE',
+                            quickTargeting: { zones: ['FIELD'], entityType: ['UNIT'] }
+                        },
+                        effects: [{
+                            targetMethod: 'SAME_AS_ACTIVATION',
+                            payloads: [{ type: 'TRANSFORM', cardId: 'target_card', isCost: true }]
+                        }]
+                    }]
+                };
+                const alreadyTargetType = {
+                    id: 'target_card',
+                    instanceId: 'already_target_type',
+                    type: 'unit',
+                    line: 'mid',
+                    ownerId: 'player1'
+                };
+                const otherType = {
+                    id: 'other_card',
+                    instanceId: 'other_type',
+                    type: 'unit',
+                    line: 'mid',
+                    ownerId: 'player1'
+                };
+                mockState.catalog = [{ id: 'target_card', name: 'Target Unit', type: 'unit' }];
+                mockState.players.player1.hand.push(transformSpell);
+                mockState.players.player1.lines.mid.push(alreadyTargetType, otherType);
+
+                const targets = getValidAbilityTargets(mockState, 'player1', transformSpell.id, 'ab_transform_cost');
+
+                expect(targets.map(target => target.id)).toEqual([otherType.instanceId]);
+            });
+
+            it('should allow tireless units at 0 to pay readiness costs but reject ordinary units at -1', () => {
+                const readinessCostSpell = {
+                    id: 'readiness_cost_spell', instanceId: 'readiness_cost_spell', type: 'spell', ownerId: 'player1',
+                    abilities: [{
+                        abilityId: 'ab_readiness_cost', trigger: 'ON_BE_PLAYED',
+                        activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], entityType: ['UNIT'] } },
+                        effects: [{
+                            targetMethod: 'SAME_AS_ACTIVATION',
+                            payloads: [{ isCost: true, type: 'SET_STAT', stat: 'readiness', amount: -1 }]
+                        }]
+                    }]
+                };
+                mockState.players.player1.hand.push(readinessCostSpell);
+
+                const tirelessExhausted = {
+                    id: 't_tireless_exhausted', instanceId: 't_tireless_exhausted', type: 'unit', line: 'mid', ownerId: 'player1', readiness: 0,
+                    abilities: [{ abilityId: 'ab_tireless_exhausted', passiveFlags: ['TIRELESS'] }]
+                };
+                const ordinaryExhausted = {
+                    id: 't_ordinary_exhausted', instanceId: 't_ordinary_exhausted', type: 'unit', line: 'mid', ownerId: 'player1', readiness: 0
+                };
+                const ordinaryUnready = {
+                    id: 't_ordinary_unready', instanceId: 't_ordinary_unready', type: 'unit', line: 'mid', ownerId: 'player1', readiness: -1
+                };
+                mockState.players.player1.lines.mid.push(tirelessExhausted, ordinaryExhausted, ordinaryUnready);
+
+                const targets = getValidAbilityTargets(mockState, 'player1', 'readiness_cost_spell', 'ab_readiness_cost');
+
+                expect(targets.map(target => target.id)).toEqual([
+                    't_tireless_exhausted',
+                    't_ordinary_exhausted'
+                ]);
+            });
+
             it('should block abilities that would SET readiness to a cost amount where current readiness is already <= amount', () => {
                 const setStatSpell = {
                     id: 'set_spell', instanceId: 'set_spell', type: 'spell', ownerId: 'player1',
@@ -799,18 +971,115 @@ describe('targeting.js core logic', () => {
                 expect(targets).toHaveLength(1);
                 expect(targets[0].id).toBe('t_readiness_1');
             });
+
+            it.each([
+                ['health', 'MODIFY_STAT', -1],
+                ['strength', 'MODIFY_STAT', -1],
+                ['health', 'SET_STAT', 0],
+                ['strength', 'SET_STAT', 0]
+            ])('should reject targets already at 0 %s for %s costs', (stat, type, amount) => {
+                const statCostSpell = {
+                    id: `cost_${stat}_${type.toLowerCase()}`,
+                    instanceId: `cost_${stat}_${type.toLowerCase()}`,
+                    type: 'spell',
+                    ownerId: 'player1',
+                    abilities: [{
+                        abilityId: 'ab_stat_cost',
+                        trigger: 'ON_BE_PLAYED',
+                        activation: { method: 'PLAYER_CHOICE', quickTargeting: { zones: ['FIELD'], entityType: ['UNIT'] } },
+                        effects: [{
+                            targetMethod: 'SAME_AS_ACTIVATION',
+                            payloads: [{ isCost: true, type, stat, amount }]
+                        }]
+                    }]
+                };
+                mockState.players.player1.hand.push(statCostSpell);
+
+                const validTarget = {
+                    id: `t_${stat}_positive`,
+                    instanceId: `t_${stat}_positive`,
+                    type: 'unit',
+                    line: 'mid',
+                    ownerId: 'player1',
+                    [stat]: 2
+                };
+                const invalidTarget = {
+                    id: `t_${stat}_zero`,
+                    instanceId: `t_${stat}_zero`,
+                    type: 'unit',
+                    line: 'mid',
+                    ownerId: 'player1',
+                    [stat]: 0
+                };
+                mockState.players.player1.lines.mid.push(validTarget, invalidTarget);
+
+                const targets = getValidAbilityTargets(mockState, 'player1', statCostSpell.id, 'ab_stat_cost');
+
+                expect(targets.map(target => target.id)).toEqual([validTarget.id]);
+            });
         });
 
         describe('Event Blocking & Missing Valid Targets', () => {
-            it('should allow actions without available acts if the cost specifies freeAction', () => {
+            it('should allow free actions even when their cooldown group has been used', () => {
                 const freeActionUnit = {
-                    id: 'u_free', instanceId: 'u_free', type: 'unit', readiness: 1, acts: 0, ownerId: 'player1',
+                    id: 'u_free', instanceId: 'u_free', type: 'unit', readiness: 1, acts: { innate: true }, ownerId: 'player1',
                     abilities: [{ abilityId: 'ab_free', trigger: 'MANUAL', cost: { freeAction: true } }]
                 };
                 mockState.players.player1.lines.mid.push(freeActionUnit);
 
                 const actions = getEntityAvailableActions(mockState, 'player1', 'u_free');
                 expect(actions.some(a => a.abilityId === 'ab_free')).toBe(true);
+            });
+
+            it('allows one action from each independent cooldown group', () => {
+                const unit = {
+                    id: 'u_groups', instanceId: 'u_groups', type: 'unit', readiness: 1, acts: { innate: true }, ownerId: 'player1',
+                    abilities: [
+                        { abilityId: 'ab_innate', trigger: 'MANUAL' },
+                        { abilityId: 'ab_bonus', trigger: 'MANUAL', origin: 'bonus' },
+                        { abilityId: 'ab_custom', trigger: 'MANUAL', origin: 'bonus', cooldownGroup: 'ultimate' },
+                        { abilityId: 'ab_attack', trigger: 'MANUAL', origin: 'innate', effects: [{ targetMethod: 'SELF', payloads: [{ type: 'ATTACK' }] }] }
+                    ]
+                };
+                mockState.players.player1.lines.mid.push(unit);
+
+                let actions = getEntityAvailableActions(mockState, 'player1', 'u_groups');
+                expect(actions.some(action => action.abilityId === 'ab_innate')).toBe(false);
+                expect(actions.some(action => action.abilityId === 'ab_bonus')).toBe(true);
+                expect(actions.some(action => action.abilityId === 'ab_custom')).toBe(true);
+                expect(actions.some(action => action.abilityId === 'ab_attack')).toBe(true);
+
+                unit.acts.bonus = true;
+                actions = getEntityAvailableActions(mockState, 'player1', 'u_groups');
+                expect(actions.some(action => action.abilityId === 'ab_bonus')).toBe(false);
+                expect(actions.some(action => action.abilityId === 'ab_custom')).toBe(true);
+            });
+
+            it('shares Unique by abilityId and keeps Unique+ instance-specific', () => {
+                const uniqueOne = { abilityId: 'ab_shared', instanceId: 'ab_shared_1', trigger: 'MANUAL', cooldownGroup: 'Unique' };
+                const uniqueTwo = { abilityId: 'ab_shared', instanceId: 'ab_shared_2', trigger: 'MANUAL', cooldownGroup: 'Unique' };
+                const uniquePlusOne = { abilityId: 'ab_first', instanceId: 'ab_first_instance', trigger: 'MANUAL', cooldownGroup: 'Unique+' };
+                const uniquePlusTwo = { abilityId: 'ab_second', instanceId: 'ab_second_instance', trigger: 'MANUAL', cooldownGroup: 'Unique+' };
+                const unit = {
+                    id: 'u_unique',
+                    instanceId: 'u_unique',
+                    type: 'unit',
+                    readiness: 1,
+                    ownerId: 'player1',
+                    abilities: [uniqueOne, uniqueTwo, uniquePlusOne, uniquePlusTwo]
+                };
+                unit.acts = { [actualUtils.getAbilityCooldownGroup(uniqueOne)]: true };
+                mockState.players.player1.lines.mid.push(unit);
+
+                let actions = getEntityAvailableActions(mockState, 'player1', 'u_unique');
+                expect(actions.some(action => action.abilityId === 'ab_shared')).toBe(false);
+                expect(actions.some(action => action.abilityId === 'ab_first')).toBe(true);
+                expect(actions.some(action => action.abilityId === 'ab_second')).toBe(true);
+
+                unit.acts[actualUtils.getAbilityCooldownGroup(uniquePlusOne)] = true;
+                actions = getEntityAvailableActions(mockState, 'player1', 'u_unique');
+                expect(actions.some(action => action.abilityId === 'ab_first')).toBe(false);
+                expect(actions.some(action => action.abilityId === 'ab_second')).toBe(true);
             });
 
             it('should block manual ability events completely if it requires targets but no valid targets exist', () => {
