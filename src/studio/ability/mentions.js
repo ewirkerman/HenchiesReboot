@@ -2,6 +2,7 @@
 
 import { StudioState } from './state.js';
 import { updateJSONPreview } from './catalog_sync.js';
+import { escapeEditorHtml, getEditorDisplayName } from '../editor_names.js';
 
 export function handleDescriptionInput(e) {
   const val = e.target.value;
@@ -31,7 +32,7 @@ export function handleDescriptionKeydown(e) {
 
 export function showMentionDropdown(query) {
   const q = query.toLowerCase();
-  StudioState.filteredMentions = StudioState.allAbilities.filter(a => a.name.toLowerCase().includes(q));
+  StudioState.filteredMentions = StudioState.allAbilities.filter(a => getEditorDisplayName(a).toLowerCase().includes(q));
   if (StudioState.filteredMentions.length === 0) { closeMentionDropdown(); return; }
   StudioState.selectedMentionIndex = 0;
   document.getElementById('mention-dropdown').classList.remove('hidden');
@@ -43,7 +44,7 @@ export function renderMentionDropdown() {
   dropdown.innerHTML = StudioState.filteredMentions.map((a, i) => `
     <div class="p-2 cursor-pointer border-b border-slate-700 last:border-0 ${i === StudioState.selectedMentionIndex ? 'bg-amber-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-700'}" 
          onmousedown="event.preventDefault(); window.insertMentionById('${a.abilityId}')">
-        ${a.name}
+        ${escapeEditorHtml(getEditorDisplayName(a))}
     </div>
   `).join('');
 }
@@ -65,7 +66,7 @@ export function insertMention(ability) {
   const cursor = descInput.selectionStart;
   const before = val.slice(0, StudioState.mentionStart);
   const after = val.slice(cursor);
-  const insertText = "@[" + ability.name + "]"; 
+  const insertText = "@[" + ability.abilityId + "]";
   descInput.value = before + insertText + ' ' + after;
   descInput.focus();
   const newCursor = before.length + insertText.length + 1;

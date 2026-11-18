@@ -66,6 +66,42 @@ describe('GrantAbilityAction', () => {
     });
 
     describe('Ability Instantiation', () => {
+        it('should stamp the granting source tribe onto the ability and its cost', () => {
+            engine.state.abilityCatalog[0].cost = { tribeAmount: 2 };
+
+            const action = new GrantAbilityAction({
+                target,
+                grantedAbilityId: 'ab_1',
+                source: { tribe: 'Robot' }
+            });
+            action.execute(engine);
+
+            expect(target.abilities[0].tribe).toBe('Robot');
+            expect(target.abilities[0].cost).toEqual({ tribeAmount: 2, tribe: 'Robot' });
+        });
+
+        it('should log the granted ability, recipient, source ability, and triggering event entities', () => {
+            const eventSource = { name: 'Played Serpent', instanceId: 'played_serpent' };
+            const eventTarget = { name: 'Board Serpent', instanceId: 'board_serpent' };
+            new GrantAbilityAction({
+                target,
+                source: eventSource,
+                sourceAbilityId: 'concealed_ability',
+                grantedAbilityId: 'ab_1',
+                eventContext: { source: eventSource, target: eventTarget }
+            }).execute(engine);
+
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining(
+                '[ABILITY GRANT] granted=Test Ability abilityId=ab_1'
+            ));
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining(
+                'target=Test Unit#unit_1 source=Played Serpent#played_serpent sourceAbilityId=concealed_ability'
+            ));
+            expect(console.log).toHaveBeenCalledWith(expect.stringContaining(
+                'eventSource=Played Serpent#played_serpent eventTarget=Board Serpent#board_serpent'
+            ));
+        });
+
         it('should initialize target.abilities array if it does not exist', () => {
             delete target.abilities;
             

@@ -3,7 +3,15 @@ import { updateJSONPreview } from './catalog_sync.js';
 import { ACTION_MANIFEST, EFFECT_TYPES, ACTION_CATEGORIES } from '../../engine/actions/action_index.js';
 import { getValidTargetMethods, getValidEffectTypes } from '../../ability_validation.js';
 import { generateEffectsHTML } from './ability_renderer.js';
+import { formatJavaScript } from './javascript_formatter.js';
 import { CARD_TYPES } from '../../engine/card_types.js';
+import { findAbilityByOptionValue } from '../card/ability_options.js';
+
+function resolveGrantedAbilityId(value) {
+    const match = findAbilityByOptionValue(StudioState.allAbilities, value)
+        || StudioState.allAbilities.find(ability => ability.abilityId === value);
+    return match ? match.abilityId : value;
+}
 
 export function getValidActionsForZones(selectedZones) {
     if (!selectedZones || selectedZones.length === 0) return [];
@@ -141,10 +149,22 @@ export function handlePayloadDragEnd(e) {
     renderEffects();
 }
 
-export function updatePayload(groupIndex, payloadIndex, field, value) {
-    if (!StudioState.effectGroups[groupIndex] || !StudioState.effectGroups[groupIndex].payloads[payloadIndex]) return;
-    const payload = StudioState.effectGroups[groupIndex].payloads[payloadIndex];
+export function getPayloadAtPath(groupIndex, payloadIndex, nestedPath = []) {
+    let payload = StudioState.effectGroups[groupIndex]?.payloads?.[payloadIndex];
+    for (let i = 0; i < nestedPath.length; i++) {
+        const nestedIndex = nestedPath[i];
+        if (nestedIndex === 'else') {
+            payload = payload?.elsePayloads || [];
+        } else if (Array.isArray(payload)) {
+            payload = payload[nestedIndex];
+        } else {
+            payload = payload?.nestedGroup?.payloads?.[nestedIndex];
+        }
+    }
+    return payload;
+}
 
+function updatePayloadFields(payload, field, value) {
     if (field === 'stat') {
         if (value === 'line') payload.amount = 'mid';
         else if (payload.stat === 'line' && value !== 'line') payload.amount = 1;
@@ -194,6 +214,8 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
 
         if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
         if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+        if (manifest.requiresAbility) payload.abilityId = ''; else delete payload.abilityId;
+        if (value === 'UPDATE_ABILITY_LEVEL') payload.modify = false; else delete payload.modify;
         if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
         if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
         if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
@@ -209,21 +231,46 @@ export function updatePayload(groupIndex, payloadIndex, field, value) {
             payload.nestedGroup = manifest.hasLogicTree
                 ? { logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] }
                 : { targetMethod: 'AUTO_ALL', targetCount: 1, targetCountIsX: false, quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'], entityType: [CARD_TYPES.UNIT.toUpperCase()], ignoreBattlelines: false }, logicTree: { type: 'group', logicalOperator: 'AND', children: [] }, payloads: [] };
+            if (manifest.hasLogicTree) payload.elsePayloads = payload.elsePayloads || [];
         } else {
             delete payload.nestedGroup;
+            delete payload.elsePayloads;
         }
 
         if (!manifest.validDurations.includes(payload.duration)) {
             payload.duration = manifest.validDurations[0] || 'INSTANT';
         }
     }
+}
+
+export function updatePayloadAtPath(groupIndex, payloadIndex, nestedPath, field, value) {
+    const payload = getPayloadAtPath(groupIndex, payloadIndex, nestedPath);
+    if (!payload) return;
+    updatePayloadFields(payload, field, value);
+    renderEffects();
+    updateJSONPreview();
+}
+
+export function updatePayload(groupIndex, payloadIndex, field, value) {
+    updatePayloadAtPath(groupIndex, payloadIndex, [], field, value);
+}
+
+export function prettifyPayloadScript(groupIndex, payloadIndex, isNested = false, nestedIndex = null, button = null) {
+    prettifyPayloadScriptAtPath(groupIndex, payloadIndex, isNested ? [nestedIndex] : [], button);
+}
+
+export function prettifyPayloadScriptAtPath(groupIndex, payloadIndex, nestedPath, button = null) {
+    const payload = getPayloadAtPath(groupIndex, payloadIndex, nestedPath);
+    if (!payload || typeof payload.script !== 'string') return;
+
+    const textarea = button?.closest('[data-script-editor]')?.querySelector('textarea');
+    payload.script = formatJavaScript(textarea ? textarea.value : payload.script, 2);
     renderEffects();
     updateJSONPreview();
 }
 
 export function updateGrantedAbility(gIdx, pIdx, value) {
-    const match = StudioState.allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
-    StudioState.effectGroups[gIdx].payloads[pIdx].grantedAbilityId = match ? match.abilityId : value;
+    StudioState.effectGroups[gIdx].payloads[pIdx].grantedAbilityId = resolveGrantedAbilityId(value);
     renderEffects(); updateJSONPreview();
 }
 
@@ -234,108 +281,96 @@ export function updateSummonCard(gIdx, pIdx, value) {
 }
 
 export function updateNestedSummonCard(gIdx, pIdx, nIdx, value) {
-    const match = StudioState.allCards.find(c => c.name.toLowerCase() === value.toLowerCase());
-    StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx].cardId = match ? match.id : value;
-    renderEffects(); updateJSONPreview();
+    updateSummonCardAtPath(gIdx, pIdx, [nIdx], value);
 }
 
-export function addNestedPayload(gIdx, pIdx) {
-    StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads.push({ type: 'MODIFY_STAT', amount: 1, stat: 'strength', duration: 'INSTANT' });
+export function updateSummonCardAtPath(gIdx, pIdx, nestedPath, value) {
+    const payload = getPayloadAtPath(gIdx, pIdx, nestedPath);
+    if (!payload) return;
+    const match = StudioState.allCards.find(c => c.name.toLowerCase() === value.toLowerCase());
+    payload.cardId = match ? match.id : value;
     renderEffects();
     updateJSONPreview();
 }
 
-export function removeNestedPayload(gIdx, pIdx, nIdx) {
-    StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads.splice(nIdx, 1);
+export function addNestedPayloadAtPath(gIdx, pIdx, parentPath) {
+    const payload = getPayloadAtPath(gIdx, pIdx, parentPath);
+    if (!payload?.nestedGroup) return;
+    payload.nestedGroup.payloads.push({ type: 'MODIFY_STAT', amount: 1, stat: 'strength', duration: 'INSTANT' });
+    renderEffects();
+    updateJSONPreview();
+}
+
+export function removeNestedPayloadAtPath(gIdx, pIdx, parentPath, nestedIndex) {
+    const payload = getPayloadAtPath(gIdx, pIdx, parentPath);
+    if (!payload?.nestedGroup?.payloads) return;
+    payload.nestedGroup.payloads.splice(nestedIndex, 1);
+    renderEffects();
+    updateJSONPreview();
+}
+
+export function addElsePayload(gIdx, pIdx) {
+    const payload = StudioState.effectGroups[gIdx]?.payloads?.[pIdx];
+    if (!payload) return;
+    payload.elsePayloads = Array.isArray(payload.elsePayloads) ? payload.elsePayloads : [];
+    payload.elsePayloads.push({ type: 'MODIFY_STAT', amount: 1, stat: 'strength', duration: 'INSTANT' });
+    renderEffects();
+    updateJSONPreview();
+}
+
+export function removeElsePayload(gIdx, pIdx, elseIndex) {
+    const payload = StudioState.effectGroups[gIdx]?.payloads?.[pIdx];
+    if (!Array.isArray(payload?.elsePayloads)) return;
+    payload.elsePayloads.splice(elseIndex, 1);
+    renderEffects();
+    updateJSONPreview();
+}
+
+export function updateGrantedAbilityAtPath(gIdx, pIdx, nestedPath, value) {
+    const payload = getPayloadAtPath(gIdx, pIdx, nestedPath);
+    if (!payload) return;
+    payload.grantedAbilityId = resolveGrantedAbilityId(value);
+    renderEffects();
+    updateJSONPreview();
+}
+
+export function updateAbilitySelectionAtPath(gIdx, pIdx, nestedPath, value) {
+    const payload = getPayloadAtPath(gIdx, pIdx, nestedPath);
+    if (!payload) return;
+    payload.abilityId = resolveGrantedAbilityId(value);
+    renderEffects();
+    updateJSONPreview();
+}
+
+export function updateNestedGroupAtPath(gIdx, pIdx, nestedPath, field, value) {
+    const payload = getPayloadAtPath(gIdx, pIdx, nestedPath);
+    if (!payload?.nestedGroup) return;
+    payload.nestedGroup[field] = value;
+    if (field === 'targetMethod' && !['AUTO_RANDOM', 'AUTO_FIRST'].includes(value)) {
+        delete payload.nestedGroup.targetCountIsX;
+    }
     renderEffects();
     updateJSONPreview();
 }
 
 export function updateNestedPayload(gIdx, pIdx, nIdx, field, value) {
-    const payload = StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx];
+    updatePayloadAtPath(gIdx, pIdx, [nIdx], field, value);
+}
 
-    if (field === 'stat') {
-        if (value === 'line') payload.amount = 'mid';
-        else if (payload.stat === 'line' && value !== 'line') payload.amount = 1;
-    }
+export function addNestedPayload(gIdx, pIdx) {
+    addNestedPayloadAtPath(gIdx, pIdx, []);
+}
 
-    payload[field] = value;
-
-    if (field === 'targetPool' && value === 'MAX') {
-        payload.respectMax = false;
-    }
-
-    if (field === 'type') {
-        const manifest = ACTION_MANIFEST[value];
-        if (!manifest) return;
-
-        if (value === 'CUSTOM_SCRIPT') {
-            payload.undoSafe = payload.undoSafe === true;
-        } else {
-            delete payload.undoSafe;
-        }
-
-        const requiresAmount = manifest.requiresAmount || value === 'HARVEST';
-        const requiresResource = manifest.requiresResource || value === 'HARVEST';
-
-        if (requiresAmount) {
-            payload.amount = 1;
-            delete payload.amountIsX;
-        } else {
-            delete payload.amount;
-            delete payload.amountIsX;
-        }
-
-        if (requiresResource) {
-            payload.resource = value === 'HARVEST' ? 'default' : 'Carnie';
-            if (value === 'MODIFY_RESOURCE') {
-                payload.targetPool = 'CURRENT';
-                payload.respectMax = false;
-            } else {
-                delete payload.targetPool;
-                delete payload.respectMax;
-            }
-        } else {
-            delete payload.resource;
-            delete payload.targetPool;
-            delete payload.respectMax;
-        }
-
-        if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
-        if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
-        if (value !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
-        if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
-        if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
-        if (manifest.requiresZone) payload.zone = 'FIELD'; else delete payload.zone;
-        if (manifest.requiresZoneOwner) payload.zoneOwner = 'CASTER'; else delete payload.zoneOwner;
-        if (manifest.canLimitStacks) payload.maxStacks = 0; else delete payload.maxStacks;
-        if (!manifest.canOverheal) delete payload.overheal;
-        if (!manifest.canBlockDuplicates) delete payload.blockDuplicates;
-        if (!manifest.canInvert) delete payload.invertRoles;
-        if (!manifest.canBeCost) delete payload.isCost;
-
-        if (!manifest.validDurations.includes(payload.duration)) {
-            payload.duration = manifest.validDurations[0] || 'INSTANT';
-        }
-    }
-
-    renderEffects();
-    updateJSONPreview();
+export function removeNestedPayload(gIdx, pIdx, nIdx) {
+    removeNestedPayloadAtPath(gIdx, pIdx, [], nIdx);
 }
 
 export function updateNestedGrantedAbility(gIdx, pIdx, nIdx, value) {
-    const match = StudioState.allAbilities.find(a => a.name.toLowerCase() === value.toLowerCase());
-    StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.payloads[nIdx].grantedAbilityId = match ? match.abilityId : value;
-    renderEffects(); updateJSONPreview();
+    updateGrantedAbilityAtPath(gIdx, pIdx, [nIdx], value);
 }
 
 export function updateNestedGroup(gIdx, pIdx, field, value) {
-    StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup[field] = value;
-    if (field === 'targetMethod' && !['AUTO_RANDOM', 'AUTO_FIRST'].includes(value)) {
-        delete StudioState.effectGroups[gIdx].payloads[pIdx].nestedGroup.targetCountIsX;
-    }
-    renderEffects();
-    updateJSONPreview();
+    updateNestedGroupAtPath(gIdx, pIdx, [], field, value);
 }
 
 export function revalidatePayloadTypes() {
@@ -380,6 +415,8 @@ export function revalidatePayloadTypes() {
 
                     if (manifest.requiresStat) payload.stat = 'strength'; else delete payload.stat;
                     if (manifest.requiresGrantedAbility) payload.grantedAbilityId = ''; else delete payload.grantedAbilityId;
+                    if (manifest.requiresAbility) payload.abilityId = ''; else delete payload.abilityId;
+                    if (fallback === 'UPDATE_ABILITY_LEVEL') payload.modify = false; else delete payload.modify;
                     if (fallback !== 'GRANT_ABILITY') { delete payload.grantedAbilityParamX; delete payload.grantedAbilityParamXIsX; }
                     if (manifest.requiresCardId) payload.cardId = ''; else delete payload.cardId;
                     if (manifest.requiresScript) { payload.script = 'state.players[state.activePlayerId].health += params.amount;'; payload.description = ''; } else { delete payload.script; delete payload.description; }
@@ -446,12 +483,25 @@ window.handlePayloadDragOver = handlePayloadDragOver;
 window.handlePayloadDrop = handlePayloadDrop;
 window.handlePayloadDragEnd = handlePayloadDragEnd;
 window.updatePayload = updatePayload;
+window.updatePayloadAtPath = updatePayloadAtPath;
+window.prettifyPayloadScript = prettifyPayloadScript;
+window.prettifyPayloadScriptAtPath = prettifyPayloadScriptAtPath;
 window.updateGrantedAbility = updateGrantedAbility;
 window.updateSummonCard = updateSummonCard;
 window.updateNestedSummonCard = updateNestedSummonCard;
 window.addNestedPayload = addNestedPayload;
 window.removeNestedPayload = removeNestedPayload;
 window.updateNestedPayload = updateNestedPayload;
+window.addNestedPayloadAtPath = addNestedPayloadAtPath;
+window.removeNestedPayloadAtPath = removeNestedPayloadAtPath;
+window.updateNestedGroupAtPath = updateNestedGroupAtPath;
+window.updateGrantedAbilityAtPath = updateGrantedAbilityAtPath;
+window.updateAbilitySelectionAtPath = updateAbilitySelectionAtPath;
+window.updateSummonCardAtPath = updateSummonCardAtPath;
 window.updateNestedGrantedAbility = updateNestedGrantedAbility;
 window.updateNestedGroup = updateNestedGroup;
 window.revalidatePayloadTypes = revalidatePayloadTypes;
+window.addElsePayload = addElsePayload;
+window.removeElsePayload = removeElsePayload;
+window.addElsePayload = addElsePayload;
+window.removeElsePayload = removeElsePayload;

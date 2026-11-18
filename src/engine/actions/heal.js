@@ -7,10 +7,15 @@ export class HealAction extends Action {
             const max = target.maxHealth || 30;
             const currentHealth = target.health || 0;
             const nextHealth = currentHealth + amount;
-            const healed = Math.min(Math.max(0, max - currentHealth), amount);
-            const temporaryHealth = overheal ? Math.max(0, nextHealth - max) : 0;
+            const nextHealthAfterHeal = overheal
+                ? Math.max(currentHealth, nextHealth)
+                : Math.max(currentHealth, Math.min(max, nextHealth));
+            const healed = Math.max(0, Math.min(max, nextHealthAfterHeal) - Math.min(max, currentHealth));
+            const temporaryHealth = overheal
+                ? Math.max(0, nextHealthAfterHeal - Math.max(currentHealth, max))
+                : 0;
 
-            target.health = overheal ? nextHealth : Math.min(max, nextHealth);
+            target.health = nextHealthAfterHeal;
             if (temporaryHealth > 0) {
                 registerEffect(engine, target, { ...this.payload, type: 'MODIFY_STAT', duration: 'TEMPORARY' }, {
                     stat: 'health',

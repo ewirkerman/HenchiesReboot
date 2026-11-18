@@ -246,21 +246,24 @@ export function resolveEntityName(identifier, allCards) {
 
 export function resolveAbility(abilityId, allAbilities) {
     let name = abilityId;
+    let resolvedAbilityId = abilityId;
     let isManual = false;
     if (allAbilities && Array.isArray(allAbilities)) {
         const match = allAbilities.find(a => a.abilityId === abilityId || a.id === abilityId);
         if (match) {
             name = match.name;
+            resolvedAbilityId = match.abilityId || match.id;
             isManual = match.trigger === 'MANUAL';
         }
     } else if (typeof window !== 'undefined' && typeof getAbility === 'function') {
         const match = getAbility(abilityId);
         if (match) {
             name = match.name;
+            resolvedAbilityId = match.abilityId || match.id;
             isManual = match.trigger === 'MANUAL';
         }
     }
-    return { name, isManual };
+    return { name, abilityId: resolvedAbilityId, isManual };
 }
 
 export function resolveTribeName(tribeId, allTribes) {

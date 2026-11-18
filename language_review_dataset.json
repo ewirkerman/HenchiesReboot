@@ -3977,7 +3977,7 @@
           "targetMethod": "AVATAR",
           "payloads": [
             {
-              "type": "MODIFY_EVENT",
+              "type": "MODIFY_STAT",
               "duration": "INSTANT",
               "amount": 2,
               "stat": "strength"
@@ -5910,7 +5910,7 @@
           },
           "payloads": [
             {
-              "type": "MODIFY_EVENT",
+              "type": "MODIFY_STAT",
               "duration": "INSTANT",
               "amount": -3,
               "stat": "armor"

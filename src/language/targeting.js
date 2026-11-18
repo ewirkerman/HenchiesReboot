@@ -5,7 +5,7 @@
 
 import { formatArrayToString, resolveEntityName, getReadinessConditionState, getZoneLinguistics, resolveAbility, resolveTribeName, formatXValue } from './utils.js';
 
-export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes = null, allAbilities = null, allCards = null, paramX = null) {
+export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes = null, allAbilities = null, allCards = null, paramX = null, options = {}) {
     if (!qt) return isPlural ? 'targets' : 'target';
 
     let isCardZone = qt && qt.zones && qt.zones.length > 0 && qt.zones.every(z => ['HAND', 'DECK', 'DISCARD', 'BANISH', 'ORIGINAL_DECK'].includes(z));
@@ -39,11 +39,15 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             let contextSubject = "their ";
             let contextPronoun = isPlural ? "they " : "it ";
             if (!isPlural) contextSubject = "its ";
-
             if (ctx === 'HOST') { contextSubject = isPlural ? "their hosts " : "its host "; contextPronoun = contextSubject; }
             else if (ctx === 'EVENT_SOURCE') { contextSubject = "the event doer "; contextPronoun = contextSubject; }
             else if (ctx === 'EVENT_TARGET') { contextSubject = "the event receiver "; contextPronoun = contextSubject; }
-            else if (ctx === 'ABILITY_SOURCE') { contextSubject = "this "; contextPronoun = contextSubject; }
+            else if (ctx === 'ABILITY_SOURCE') {
+                contextSubject = options.naturalizeAbilitySource ? "this unit " : "this ";
+                contextPronoun = contextSubject;
+            }
+
+            if (options.conditionContexts && !options.conditionContexts.includes(ctx)) return;
 
             const opMap = { '==': '', '!=': 'not', '>': 'more than', '<': 'less than', '>=': 'at least', '<=': 'at most' };
             let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
@@ -54,6 +58,9 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 if (node.operator === '==') {
                     if (ctx === 'EVAL_TARGET') adjectives.push(displayValue);
                     else suffixes.push(`where ${contextPronoun}is ${displayValue}`);
+                } else if (node.operator === '!=') {
+                    if (ctx === 'EVAL_TARGET') adjectives.push(`non-${displayValue}`);
+                    else suffixes.push(`where ${contextPronoun}is not ${displayValue}`);
                 } else {
                     if (ctx === 'EVAL_TARGET') suffixes.push(`that ${isAre} not ${displayValue}`);
                     else suffixes.push(`where ${contextPronoun}is not ${displayValue}`);
@@ -144,17 +151,27 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
                 } else {
                     let statName = `[STAT:${checkAttr}]`;
                     if (ctx === 'EVAL_TARGET') suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
+                    else if (options.naturalizeAbilitySource && ctx === 'ABILITY_SOURCE' && node.operator === '==' && Number(node.value) === 0) suffixes.push(`where this unit has no ${statName}`);
                     else suffixes.push(`where ${contextSubject}${statName} is ${opText} ${node.value}`.trim());
                 }
             } else {
                 let statName = `[STAT:${checkAttr}]`;
                 if (ctx === 'EVAL_TARGET') suffixes.push(`with ${opText} ${node.value} ${statName}`.trim());
+                else if (options.naturalizeAbilitySource && ctx === 'ABILITY_SOURCE' && node.operator === '==' && Number(node.value) === 0) suffixes.push(`where this unit has no ${statName}`);
                 else suffixes.push(`where ${contextSubject}${statName} is ${opText} ${node.value}`.trim());
             }
         }
     };
 
     if (logicTree) parseNode(logicTree);
+
+    if (options.conditionsOnly) {
+        const conditionJoin = (logicTree && logicTree.logicalOperator === 'OR') ? ' or ' : ' and ';
+        return [...adjectives, ...suffixes.map(suffix => suffix.replace(/^where /, ''))].join(conditionJoin);
+    }
+
+    const eventCardAlignment = options.eventCard && validEventCardAlignment(qt.alignment);
+    if (eventCardAlignment) adjectives.unshift(eventCardAlignment);
 
     // Resolve combat states with precedence (attacking entails combat)
     if (attackingState) {
@@ -212,6 +229,8 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
             if (adjAlign === 'friendly') adjAlign = 'ally';
         }
 
+        if (eventCardAlignment) adjAlign = '';
+
         if (isPlayerZone && adjAlign === 'ally') {
             adjAlign = '';
         }
@@ -244,6 +263,7 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
     }
 
     let baseDesc = `${adjectivesStr} ${noun}`.trim();
+    if (qt.includeSelf === true) baseDesc += ' or this card';
 
     if (!matchesImpliedZone) {
         let isOnlyEnemy = validAlignments.length === 1 && validAlignments[0] === 'ENEMY';
@@ -281,4 +301,12 @@ export function buildTargetDesc(qt, logicTree, trigger, allHaveSameImpliedZone, 
     }
 
     return baseDesc.replace(/\s+/g, ' ').trim();
+}
+
+function validEventCardAlignment(alignments = []) {
+    const validAlignments = alignments.filter(alignment => alignment !== 'ANY' && alignment !== 'ALL');
+    if (validAlignments.length !== 1) return '';
+    if (validAlignments[0] === 'FRIENDLY') return 'allied';
+    if (validAlignments[0] === 'ENEMY') return 'enemy';
+    return '';
 }

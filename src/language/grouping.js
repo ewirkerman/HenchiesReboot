@@ -3,12 +3,12 @@
  * Sorts and chunks payloads by Similarity Key so they can be merged linguistically.
  */
 
-import { formatCombinedPayloads } from './format_payload.js';
+import { formatCombinedPayloads, getActionDurationSuffix } from './format_payload.js';
 import { joinWithAnd } from './utils.js';
 
 export function getSimilarityKey(eff) {
     if (eff.type === 'CONDITIONAL') {
-        return `CONDITIONAL_${JSON.stringify(eff.nestedGroup?.logicTree || {})}_${eff.isCost}`;
+        return `CONDITIONAL_${JSON.stringify(eff.nestedGroup?.logicTree || {})}_${JSON.stringify(eff.elsePayloads || [])}_${eff.isCost}`;
     }
     if ((eff.type === 'MODIFY_STAT' || eff.type === 'SET_STAT') && eff.stat === 'readiness') {
         return `READINESS_${eff.type}_${eff.amountIsX ? 'X' : eff.amount}_${eff.duration}_${eff.invertRoles}_${eff.isCost}`;
@@ -53,6 +53,8 @@ export function finalizeString(arr, isCost, formatCtx) {
     // Deduplicate common trailing duration/condition modifiers
     if (arr.length > 1) {
         const suffixes = [' this turn', ' this round', ' for the current action', ' this action', ' while attached'];
+        const actionSuffix = ` ${getActionDurationSuffix(formatCtx.trigger)}`;
+        if (!suffixes.includes(actionSuffix)) suffixes.push(actionSuffix);
         for (const suffix of suffixes) {
             // Check for the suffix at the end of the string, preserving any trailing format tokens
             const regexStr = `${suffix}((?: instead)?(?:\\{OMIT_TARGET\\})?(?:\\{PER_TARGET\\})?)$`;

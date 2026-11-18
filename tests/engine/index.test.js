@@ -4,6 +4,7 @@ import { createTestUnit, createTestState, spawnUnit } from '../test_utils.js';
 
 const sharedFindEntityLocationMock = jest.fn(() => ({ zone: 'mid' }));
 const grantAbilityActionPayloads = [];
+const autoTargetActionPayloads = [];
 
 jest.unstable_mockModule('../../src/engine/prandom.js', () => ({
     randomInt: jest.fn(() => 0),
@@ -27,7 +28,10 @@ jest.unstable_mockModule('../../src/engine/utils.js', () => ({
 
 jest.unstable_mockModule('../../src/engine/actions/action_index.js', () => ({
     ACTION_REGISTRY: {
-        'MOCK_ACT': class { run = jest.fn(); },
+        'MOCK_ACT': class {
+            constructor(payload) { this.payload = payload; }
+            run() { autoTargetActionPayloads.push(this.payload); }
+        },
         'DAMAGE': class { run = jest.fn(); },
         'ACT': class { run = jest.fn(); },
         'GRANT_ABILITY': class {
@@ -46,6 +50,10 @@ jest.unstable_mockModule('../../src/engine/actions/action_index.js', () => ({
             }
         },
         'DRAW_CARD': class { run = jest.fn(); },
+        'CANCEL_EVENT': class {
+            constructor(payload) { this.payload = payload; }
+            run() { this.payload.eventContext.cancelled = true; }
+        },
         'DISCARD_CARD': class { run = jest.fn(); },
         'MODIFY_STATS': class { run = jest.fn(); }
     },
@@ -93,6 +101,7 @@ describe('index.js GameEngine', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         grantAbilityActionPayloads.length = 0;
+        autoTargetActionPayloads.length = 0;
         mockState = createTestState();
     });
 
@@ -113,6 +122,39 @@ describe('index.js GameEngine', () => {
         expect(grantAbilityActionPayloads).toHaveLength(1);
         expect(grantAbilityActionPayloads[0].targetMethod).toBe('SELF');
         expect(grantAbilityActionPayloads[0].sourceAbilityOrigin).toBe('innate');
+    });
+
+    it('runs GAME_STARTING as a personal lifecycle event that cannot be interrupted', () => {
+        const engine = new GameEngine(mockState);
+        const source = createTestUnit({
+            instanceId: 'game_start_source',
+            ownerId: 'player1',
+            abilities: [
+                {
+                    abilityId: 'cancel_game_start',
+                    instanceId: 'cancel_game_start_instance',
+                    trigger: 'GAME_STARTING',
+                    triggerScope: 'PERSONAL',
+                    activation: { method: 'NONE' },
+                    effects: [{ targetMethod: 'SELF', payloads: [{ type: 'CANCEL_EVENT' }] }]
+                },
+                {
+                    abilityId: 'after_game_start',
+                    instanceId: 'after_game_start_instance',
+                    trigger: 'GAME_STARTING',
+                    triggerScope: 'PERSONAL',
+                    activation: { method: 'NONE' },
+                    effects: [{ targetMethod: 'SELF', payloads: [{ type: 'MOCK_ACT' }] }]
+                }
+            ]
+        });
+        mockState.players.player1.lines.mid.push(source);
+
+        const result = engine.emit('GAME_STARTING', { playerId: 'player1' });
+
+        expect(result.cancelled).toBe(false);
+        expect(autoTargetActionPayloads).toHaveLength(1);
+        expect(autoTargetActionPayloads[0].source).toBe(source);
     });
 
     it('should only mark AUTO_RANDOM irreversible when it has multiple eligible candidates', () => {
@@ -139,6 +181,29 @@ describe('index.js GameEngine', () => {
         expect(mockState._irreversibleActionOccurred).toBe(true);
     });
 
+    it('should resolve deck targets from top to bottom for AUTO_FIRST and AUTO_LAST', () => {
+        const engine = new GameEngine(mockState);
+        const bottomCard = { instanceId: 'bottom_card', type: 'unit', ownerId: 'player1' };
+        const topCard = { instanceId: 'top_card', type: 'unit', ownerId: 'player1' };
+        mockState.players.player1.deck = [bottomCard, topCard];
+        const source = createTestUnit({ instanceId: 'deck_source', ownerId: 'player1' });
+        const targeting = {
+            quickTargeting: { zones: ['DECK'], alignment: ['FRIENDLY'], entityType: ['UNIT'] },
+            payloads: [{ type: 'MOCK_ACT' }]
+        };
+
+        engine._resolvePayloads(
+            { abilityId: 'first_from_top', effects: [{ ...targeting, targetMethod: 'AUTO_FIRST' }] },
+            source, {}, 'player1', [[]], null
+        );
+        engine._resolvePayloads(
+            { abilityId: 'last_from_bottom', effects: [{ ...targeting, targetMethod: 'AUTO_LAST' }] },
+            source, {}, 'player1', [[]], null
+        );
+
+        expect(autoTargetActionPayloads.map(payload => payload.target)).toEqual([topCard, bottomCard]);
+    });
+
     describe('Event Bus & Interceptors', () => {
         it('matches COMBAT_ENDED abilities to ON_COMBAT_ENDED events', () => {
             const engine = new GameEngine(mockState);
@@ -155,6 +220,95 @@ describe('index.js GameEngine', () => {
 
             expect(triggersQueued).toBe(1);
             expect(engine.stack[0].ability.abilityId).toBe('erasure');
+        });
+
+        it('prevents a GLOBAL ability from listening to its source entity zone-movement event', () => {
+            const engine = new GameEngine(mockState);
+            const previousPlayManifest = ACTION_MANIFEST.PLAY;
+            const previousTrashManifest = ACTION_MANIFEST.TRASH;
+            ACTION_MANIFEST.PLAY = { passiveType: 'BE_PLAYED', endZone: ['FIELD'] };
+            ACTION_MANIFEST.TRASH = { passiveType: 'BE_TRASHED', endZone: ['DISCARD'] };
+            findEntityLocationMock.mockImplementation((eng, entity) => actualUtils.findEntityLocation(eng, entity));
+
+            const globalPlayAbility = {
+                abilityId: 'global-play',
+                trigger: 'MODIFY_BE_PLAYED',
+                triggerScope: 'GLOBAL',
+                activation: {
+                    method: 'NONE',
+                    quickTargeting: { zones: ['HAND'], alignment: ['FRIENDLY'] }
+                },
+                effects: []
+            };
+            const boardUnit = spawnUnit(mockState, 'player1', 'mid', { abilities: [globalPlayAbility] });
+            const playedUnit = createTestUnit({
+                abilities: [
+                    { ...globalPlayAbility, abilityId: 'self-global-play' },
+                    { ...globalPlayAbility, abilityId: 'self-personal-play', triggerScope: 'PERSONAL' }
+                ]
+            });
+            mockState.players.player1.hand.push(playedUnit);
+
+            try {
+                expect(engine.queueTriggers('MODIFY_BE_PLAYED', { target: playedUnit })).toBe(2);
+                expect(engine.stack.map(frame => [frame.source.instanceId, frame.ability.abilityId])).toEqual(
+                    expect.arrayContaining([
+                        [boardUnit.instanceId, 'global-play'],
+                        [playedUnit.instanceId, 'self-personal-play']
+                    ])
+                );
+                expect(engine.stack.some(frame => frame.ability.abilityId === 'self-global-play')).toBe(false);
+
+                engine.stack = [];
+                mockState.players.player1.hand.splice(mockState.players.player1.hand.indexOf(playedUnit), 1);
+                mockState.players.player1.lines.mid.push(playedUnit);
+                const onPlayGlobalAbility = {
+                    ...globalPlayAbility,
+                    abilityId: 'global-on-play',
+                    trigger: 'ON_BE_PLAYED',
+                    activation: {
+                        ...globalPlayAbility.activation,
+                        quickTargeting: { zones: ['FIELD'], alignment: ['FRIENDLY'] }
+                    }
+                };
+                const onPlayBoardUnit = spawnUnit(mockState, 'player1', 'back', { abilities: [onPlayGlobalAbility] });
+                playedUnit.abilities = [
+                    { ...onPlayGlobalAbility, abilityId: 'self-global-on-play' },
+                    { ...onPlayGlobalAbility, abilityId: 'self-personal-on-play', triggerScope: 'PERSONAL' }
+                ];
+
+                expect(engine.queueTriggers('ON_BE_PLAYED', { target: playedUnit })).toBe(2);
+                expect(engine.stack.map(frame => [frame.source.instanceId, frame.ability.abilityId])).toEqual(
+                    expect.arrayContaining([
+                        [onPlayBoardUnit.instanceId, 'global-on-play'],
+                        [playedUnit.instanceId, 'self-personal-on-play']
+                    ])
+                );
+                expect(engine.stack.some(frame => frame.ability.abilityId === 'self-global-on-play')).toBe(false);
+
+                engine.stack = [];
+                const globalTrashAbility = {
+                    ...onPlayGlobalAbility,
+                    abilityId: 'global-trash',
+                    trigger: 'WOULD_BE_TRASHED'
+                };
+                const otherHatCollector = spawnUnit(mockState, 'player1', 'front', { abilities: [globalTrashAbility] });
+                playedUnit.abilities = [{
+                    ...globalTrashAbility,
+                    abilityId: 'self-global-trash'
+                }];
+
+                expect(engine.queueTriggers('WOULD_BE_TRASHED', { target: playedUnit })).toBe(1);
+                expect(engine.stack[0].source.instanceId).toBe(otherHatCollector.instanceId);
+                expect(engine.stack.some(frame => frame.ability.abilityId === 'self-global-trash')).toBe(false);
+            } finally {
+                if (previousPlayManifest === undefined) delete ACTION_MANIFEST.PLAY;
+                else ACTION_MANIFEST.PLAY = previousPlayManifest;
+                if (previousTrashManifest === undefined) delete ACTION_MANIFEST.TRASH;
+                else ACTION_MANIFEST.TRASH = previousTrashManifest;
+                findEntityLocationMock.mockReset();
+                findEntityLocationMock.mockReturnValue({ zone: 'mid' });
+            }
         });
 
         it('should register own and opponent turn aliases against generic turn events', () => {
@@ -374,6 +528,31 @@ describe('index.js GameEngine', () => {
             expect(engine._checkAndPayCost(ability, source, 'player1', {})).toBe(false);
             expect(source.readiness).toBe(0);
         });
+
+        it('should floor a tireless unit at 0 while allowing it to pay an EXHAUSTS cost', () => {
+            const engine = new GameEngine(mockState);
+            const source = {
+                instanceId: 's_tireless',
+                ownerId: 'player1',
+                readiness: 1,
+                abilities: [{ abilityId: 'ab_tireless', passiveFlags: ['TIRELESS'] }]
+            };
+            const ability = { abilityId: 'ab_exhaust', trigger: 'MANUAL', cost: { readinessCost: 'EXHAUSTS', carnie: 0 } };
+
+            expect(engine._checkAndPayCost(ability, source, 'player1', {})).toBe(true);
+            expect(source.readiness).toBe(0);
+        });
+
+        it('should not convert Carnie into Tribe resources for ability costs', () => {
+            const engine = new GameEngine(mockState);
+            const source = { instanceId: 's4', ownerId: 'player1', tribe: 'Pirate', readiness: 1 };
+            const ability = { abilityId: 'ab_tribe_cost', trigger: 'ON_BE_PLAYED', cost: { tribeAmount: 1 } };
+            mockState.players.player1.resources.Pirate = { current: 0, max: 0 };
+            mockState.players.player1.resources.Carnie.current = 3;
+
+            expect(engine._checkAndPayCost(ability, source, 'player1', {})).toBe(false);
+            expect(mockState.players.player1.resources.Carnie.current).toBe(3);
+        });
     });
 
     describe('Ability Execution', () => {
@@ -485,6 +664,71 @@ describe('index.js GameEngine', () => {
             expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(true);
 
             spawnUnit(mockState, 'player1', 'mid', { instanceId: 'second_eligible_target', power: 7 });
+            expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(false);
+        });
+
+        it('should allow deterministic draws from a homogeneous friendly deck pool', () => {
+            const engine = new GameEngine(mockState);
+            const source = createTestUnit({ instanceId: 'draw_source', ownerId: 'player1' });
+            mockState.players.player1.deck = [
+                {
+                    id: 'card_spark',
+                    instanceId: 'spark_1',
+                    ownerId: 'player1',
+                    name: 'Spark',
+                    type: 'unit',
+                    readiness: 2,
+                    abilities: [{ abilityId: 'spark_ability', instanceId: 'spark_ability_1' }]
+                },
+                {
+                    id: 'card_spark',
+                    instanceId: 'spark_2',
+                    ownerId: 'player1',
+                    name: 'Spark',
+                    type: 'unit',
+                    readiness: 0,
+                    abilities: [{ abilityId: 'spark_ability', instanceId: 'spark_ability_2' }]
+                },
+                { id: 'other_card', instanceId: 'other', ownerId: 'player1', name: 'Other', type: 'unit' }
+            ];
+            const ability = {
+                effects: [{
+                    targetMethod: 'AUTO_FIRST',
+                    quickTargeting: { zones: ['DECK'], alignment: ['FRIENDLY'], entityType: ['UNIT'] },
+                    logicTree: {
+                        type: 'condition',
+                        attribute: 'customScript',
+                        operator: '==',
+                        value: "return target.name == 'Spark';"
+                    },
+                    payloads: [{
+                        type: 'CONDITIONAL',
+                        nestedGroup: { payloads: [{ type: 'DRAW_CARD' }] }
+                    }]
+                }]
+            };
+
+            expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(true);
+
+            mockState.abilityUses.spark_ability_2 = 1;
+            expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(false);
+            delete mockState.abilityUses.spark_ability_2;
+
+            mockState.players.player1.deck[1].abilities[0].abilityId = 'different_ability';
+            expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(false);
+        });
+
+        it('should not treat unknown or opponent deck draw pools as undo-safe', () => {
+            const engine = new GameEngine(mockState);
+            const source = createTestUnit({ instanceId: 'unsafe_draw_source', ownerId: 'player1' });
+            const ability = {
+                effects: [{
+                    targetMethod: 'AUTO_FIRST',
+                    quickTargeting: { zones: ['DECK'], alignment: ['ENEMY'], entityType: ['UNIT'] },
+                    payloads: [{ type: 'DRAW_CARD' }]
+                }]
+            };
+
             expect(engine.isAbilityUndoable(ability, source, 'player1')).toBe(false);
         });
 

@@ -53,6 +53,15 @@ export class GrantAbilityAction extends Action {
         let fullAb = instantiateAbility(abRef, engine.state.abilityCatalog || [], engine.state);
         fullAb.origin = this.payload.targetMethod === 'SELF' ? 'innate' : 'bonus';
 
+        // Architecturally flag granted abilities with the tribe of the source card
+        const sourceTribe = this.payload.source?.tribe;
+        if (sourceTribe !== undefined && sourceTribe !== null) {
+            fullAb.tribe = sourceTribe;
+            if (fullAb.cost && typeof fullAb.cost === 'object') {
+                fullAb.cost.tribe = sourceTribe;
+            }
+        }
+
         if (this.payload.blockDuplicates) {
             const hasAb = this.payload.target.abilities?.some(a => (a.abilityId || a) === fullAb.abilityId || (a.name && a.name === fullAb.name));
             // Check active effects: accommodate both ID references and embedded object structures
@@ -69,7 +78,52 @@ export class GrantAbilityAction extends Action {
 
         if (!this.payload.target.abilities) this.payload.target.abilities = [];
 
-        this.payload.target.abilities.push(fullAb);
-        registerEffect(engine, this.payload.target, this.payload);
+        // Force array reallocation for frontend UI reactivity
+        this.payload.target.abilities = [...this.payload.target.abilities, fullAb];
+
+        const describeEntity = entity => entity
+            ? `${entity.name || 'Unknown'}#${entity.instanceId || entity.id || 'no-id'}`
+            : 'none';
+        const eventContext = this.payload.eventContext;
+        const sourceAbilityId = this.payload.sourceAbilityId || eventContext?.abilityId || 'unknown';
+        engine.utils.log(
+            engine.state,
+            `[ABILITY GRANT] granted=${fullAb.name || fullAb.abilityId} abilityId=${fullAb.abilityId} abilityInstanceId=${fullAb.instanceId || 'none'} target=${describeEntity(this.payload.target)} source=${describeEntity(this.payload.source)} sourceAbilityId=${sourceAbilityId} eventSource=${describeEntity(eventContext?.source)} eventTarget=${describeEntity(eventContext?.target)}`
+        );
+
+        // Register effect without leaking parameter or definition state; link directly via instanceId
+        const {
+            grantedAbility: _unusedGrantedAbility,
+            ...cleanEffectPayload
+        } = this.payload;
+
+        cleanEffectPayload.grantedAbilityId = fullAb.abilityId;
+        cleanEffectPayload.grantedAbilityInstanceId = fullAb.instanceId;
+
+        // FIX: Ensure paramX is tracked in the active effect for cleanup and stacking scripts
+        if (fullAb.paramX !== undefined && fullAb.paramX !== null) {
+            cleanEffectPayload.grantedAbilityParamX = fullAb.paramX;
+        }
+
+        registerEffect(engine, this.payload.target, cleanEffectPayload);
+
+        // FIX: registerEffect strictly filters payload keys. We must manually inject paramX
+        // and tribe into the generated effect object, and CLONE it so it is visible to frontend UI frameworks!
+        if ((fullAb.paramX !== undefined && fullAb.paramX !== null) || fullAb.tribe) {
+            if (this.payload.target.activeEffects) {
+                const effectsCopy = [...this.payload.target.activeEffects];
+                const lastIdx = effectsCopy.length - 1;
+                if (effectsCopy[lastIdx] && effectsCopy[lastIdx].grantedAbilityId === fullAb.abilityId) {
+                    effectsCopy[lastIdx] = {
+                        ...effectsCopy[lastIdx],
+                        grantedAbilityParamX: fullAb.paramX,
+                        paramX: fullAb.paramX,
+                        grantedAbilityTribe: fullAb.tribe,
+                        tribe: fullAb.tribe
+                    };
+                    this.payload.target.activeEffects = effectsCopy;
+                }
+            }
+        }
     }
 }

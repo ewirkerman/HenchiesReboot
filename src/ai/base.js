@@ -71,7 +71,7 @@ export class BaseAIEngine {
                 if (act.type === 'PLAY') return;
 
                 const isFree = isCostFree(act.cost);
-                const actionKey = `${entity.instanceId || entity.id}_${act.abilityId}`;
+                const actionKey = `${entity.instanceId || entity.id}_${act.abilityInstanceId || act.abilityId}`;
 
                 if (isFree && this.usedFreeActions.has(actionKey)) return;
 
@@ -80,9 +80,11 @@ export class BaseAIEngine {
                     validTargets = getValidAttackTargets(state, this.playerId, entity).map(t => ({ id: t.id, line: t.line }));
                     if (validTargets.length === 0) return;
                 } else {
-                    const ab = entity.abilities?.find(a => a.abilityId === act.abilityId);
+                    const ab = entity.abilities?.find(a =>
+                        a.abilityId === act.abilityId && (!act.abilityInstanceId || a.instanceId === act.abilityInstanceId)
+                    );
                     if (ab?.activation?.method === 'PLAYER_CHOICE') {
-                        validTargets = getValidAbilityTargets(state, this.playerId, entity.instanceId || entity.id, act.abilityId).map(t => ({ id: t.id, line: t.line }));
+                        validTargets = getValidAbilityTargets(state, this.playerId, entity.instanceId || entity.id, act.abilityId, act.abilityInstanceId).map(t => ({ id: t.id, line: t.line }));
                         if (validTargets.length === 0) return;
                     }
                 }
@@ -93,6 +95,7 @@ export class BaseAIEngine {
                     entityId: entity.instanceId || entity.id,
                     entityName: entity.name,
                     abilityId: act.abilityId,
+                    abilityInstanceId: act.abilityInstanceId,
                     targets: validTargets,
                     isFree: isFree,
                     actionKey: actionKey
@@ -178,7 +181,7 @@ export class BaseAIEngine {
             return { executed: res.success, type: 'PLAY_CARD', detail: action.cardName, result: res };
         }
         else if (action.type === 'ENTITY_ACTION') {
-            const res = executeEntityAction(state, this.playerId, action.entityId, action.actionType, action.abilityId, targetId, targetLine);
+            const res = executeEntityAction(state, this.playerId, action.entityId, action.actionType, action.abilityId, targetId, targetLine, action.abilityInstanceId);
             if (res.success && action.isFree) this.usedFreeActions.add(action.actionKey);
             return { executed: res.success, type: action.actionType, detail: action.entityName, result: res };
         }

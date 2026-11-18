@@ -105,6 +105,72 @@ describe('SummonAction', () => {
             expect(engine.state.history_log.length).toBe(3);
         });
 
+        it('should emit fielded events for each summoned instance', () => {
+            const emit = jest.spyOn(engine, 'emit');
+            const eventContext = { abilityId: 'ability_1' };
+            const source = { instanceId: 'source_1' };
+
+            const action = new SummonAction({ cardId: 'card_1', amount: 2, source, eventContext });
+            action.execute(engine);
+
+            const summoned = engine.state.players.player1.lines.back;
+            expect(emit).toHaveBeenCalledWith('ON_FIELD', { source, target: summoned[0], eventContext });
+            expect(emit).toHaveBeenCalledWith('ON_BE_FIELDED', { source, target: summoned[0], eventContext });
+            expect(emit).toHaveBeenCalledWith('ON_FIELD', { source, target: summoned[1], eventContext });
+            expect(emit).toHaveBeenCalledWith('ON_BE_FIELDED', { source, target: summoned[1], eventContext });
+        });
+
+        it('should use the syntactic object as summoner and each spawned unit as the summoned event target', () => {
+            baseCard.abilities = [{
+                abilityId: 'summoned-trigger',
+                instanceId: 'summoned-trigger-instance',
+                name: 'Summoned Trigger',
+                trigger: 'ON_BE_SUMMONED',
+                effects: []
+            }];
+            const abilityHolder = { instanceId: 'ability_holder', name: 'Ability Holder' };
+            const summoner = {
+                instanceId: 'syntactic_object',
+                name: 'Summoner',
+                ownerId: 'player1',
+                abilities: [{
+                    abilityId: 'own-summon-trigger',
+                    instanceId: 'own-summon-trigger-instance',
+                    name: 'Own Summon Trigger',
+                    trigger: 'ON_BE_SUMMONED',
+                    triggerScope: 'PERSONAL',
+                    effects: []
+                }]
+            };
+            const emit = jest.spyOn(engine, 'emit');
+
+            new SummonAction({
+                cardId: 'card_1',
+                amount: 2,
+                source: abilityHolder,
+                target: summoner
+            }).run(engine);
+
+            const summoned = engine.state.players.player1.lines.back;
+            expect(summoned).toHaveLength(2);
+            for (const instance of summoned) {
+                expect(emit).toHaveBeenCalledWith('ON_SUMMON', expect.objectContaining({
+                    source: summoner,
+                    target: instance
+                }));
+                expect(emit).toHaveBeenCalledWith('ON_BE_SUMMONED', expect.objectContaining({
+                    source: summoner,
+                    target: instance
+                }));
+                expect(engine.state.history_log.some(entry =>
+                    entry.text.includes(`entityId=${instance.instanceId} abilityId=summoned-trigger event=ON_BE_SUMMONED`)
+                )).toBe(true);
+            }
+            expect(engine.state.history_log.some(entry =>
+                entry.text.includes('entityId=syntactic_object abilityId=own-summon-trigger')
+            )).toBe(false);
+        });
+
         it('should route "field" or "board" to defaultLine', () => {
             const action = new SummonAction({ cardId: 'card_1', zone: 'FIELD' });
             action.execute(engine);

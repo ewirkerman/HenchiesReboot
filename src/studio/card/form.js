@@ -120,6 +120,8 @@ export function resetForm() {
     if (titleEl) titleEl.innerText = '⚡ Design New Card';
 
     document.getElementById('card-name').value = '';
+    const nameSuffixEl = document.getElementById('card-name-suffix');
+    if (nameSuffixEl) nameSuffixEl.value = '';
 
     const tribeEl = document.getElementById('card-tribe');
     if (tribeEl && CardState.customTribes.length > 0) tribeEl.value = CardState.customTribes[0].id;
@@ -187,12 +189,17 @@ export function buildCardState(forceId = null) {
     const existingCard = CardState.allCards.find(c => c.id === searchId);
     const hideDeckbuilderCheckbox = document.getElementById('card-hide-from-deckbuilder');
     const seriesDropdown = document.getElementById('card-series');
+    const selectedTribe = document.getElementById('card-tribe').value;
+    const selectedTribeDefinition = CardState.customTribes.find(t => t.id === selectedTribe);
 
     const state = {
         id: searchId || ('card_' + Date.now()),
         updatedAt: existingCard ? existingCard.updatedAt : Date.now(),
         name: document.getElementById('card-name').value || 'Unnamed Card',
-        tribe: document.getElementById('card-tribe').value,
+        editorNameSuffix: document.getElementById('card-name-suffix')?.value.trim() || '',
+        tribe: selectedTribeDefinition && !selectedTribeDefinition.isDefault
+            ? selectedTribeDefinition.name
+            : selectedTribe,
         type: cardType,
         series: seriesDropdown ? seriesDropdown.value : 'Base Set',
         genus: isAllowed('genus') ? (document.getElementById('card-genus').value || '') : '',

@@ -11,6 +11,7 @@ import { ModifyResourceAction } from './modify_resource.js';
 import { SetStatAction } from './set_stat.js';
 import { GrantAbilityAction } from './grant_ability.js';
 import { RemoveAbilityAction } from './remove_ability.js';
+import { UpdateAbilityLevelAction } from './update_ability_level.js';
 import { DrawCardAction } from './draw_card.js';
 import { TopDeckAction } from './top_deck.js';
 import { PlayAction } from './play.js';
@@ -39,7 +40,6 @@ import { BlockTargetingAction } from './block_targeting.js';
 import { CancelEventAction } from './cancel_event.js';
 import { CleanseAction } from './cleanse.js';
 import { ChangeDestinationAction } from './change_destination.js';
-import { ModifyEventAction } from './modify_event.js';
 import { TransformAction } from './transform.js';
 import { CustomScriptAction } from './custom_script.js';
 
@@ -52,6 +52,7 @@ ACTION_REGISTRY['MODIFY_RESOURCE'] = ModifyResourceAction;
 ACTION_REGISTRY['SET_STAT'] = SetStatAction;
 ACTION_REGISTRY['GRANT_ABILITY'] = GrantAbilityAction;
 ACTION_REGISTRY['REMOVE_ABILITY'] = RemoveAbilityAction;
+ACTION_REGISTRY['UPDATE_ABILITY_LEVEL'] = UpdateAbilityLevelAction;
 ACTION_REGISTRY['DRAW_CARD'] = DrawCardAction;
 ACTION_REGISTRY['TOP_DECK'] = TopDeckAction;
 ACTION_REGISTRY['PLAY'] = PlayAction;
@@ -81,7 +82,6 @@ ACTION_REGISTRY['BLOCK_TARGETING'] = BlockTargetingAction;
 ACTION_REGISTRY['CANCEL_EVENT'] = CancelEventAction;
 ACTION_REGISTRY['CLEANSE'] = CleanseAction;
 ACTION_REGISTRY['CHANGE_DESTINATION'] = ChangeDestinationAction;
-ACTION_REGISTRY['MODIFY_EVENT'] = ModifyEventAction;
 ACTION_REGISTRY['TRANSFORM'] = TransformAction;
 ACTION_REGISTRY['CUSTOM_SCRIPT'] = CustomScriptAction;
 
@@ -90,7 +90,7 @@ export const ACTION_CATEGORIES = {
     'Zone Movement': ['DRAW_CARD', 'PLAY', 'SUMMON', 'DISCARD', 'DISCARD_CARD', 'SHUFFLE', 'RETURN', 'RECOVER', 'REVIVE', 'TRASH', 'BANISH', 'CHANGE_DESTINATION'],
     'Field Presence': ['FIELD', 'UNFIELD'],
     'Attachments & Control': ['ATTACH', 'UNATTACH', 'REBEL', 'DONATE'],
-    'Meta & Utility': ['TOP_DECK', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'MODIFY_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM', 'CONDITIONAL']
+    'Meta & Utility': ['TOP_DECK', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'BLOCK_TARGETING', 'CANCEL_EVENT', 'CLEANSE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'UPDATE_ABILITY_LEVEL', 'CUSTOM_SCRIPT', 'HARVEST', 'TRANSFORM', 'CONDITIONAL']
 };
 
 export const EVENT_CATEGORIES = {
@@ -128,9 +128,9 @@ export function getEventTriggers() {
 export {
     ACTION_MANIFEST, EVENT_MANIFEST, ACTION_REGISTRY, Action, findEntityLocation, moveEntity, registerEffect, revertEffect, sweepTurnEffects,
     HitAction, DealDamageAction, HealAction, KillAction, ModifyStatAction, ModifyResourceAction, SetStatAction,
-    GrantAbilityAction, RemoveAbilityAction, DrawCardAction, TopDeckAction, PlayAction, AttackAction, HarvestAction,
+    GrantAbilityAction, RemoveAbilityAction, UpdateAbilityLevelAction, DrawCardAction, TopDeckAction, PlayAction, AttackAction, HarvestAction,
     DiscardAction, ShuffleAction, ReturnAction, RecoverAction, TrashAction, BanishAction, FieldAction,
     ReviveAction, AttachAction, UnattachAction, UnfieldAction, RebelAction, DonateAction, SummonAction, BlockActAction,
     BlockAttackAction, BlockRetaliateAction, BlockTargetingAction, CancelEventAction, CleanseAction,
-    ChangeDestinationAction, ModifyEventAction, TransformAction, CustomScriptAction, ConditionalAction
+    ChangeDestinationAction, TransformAction, CustomScriptAction, ConditionalAction
 };

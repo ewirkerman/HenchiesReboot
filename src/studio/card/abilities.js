@@ -2,6 +2,7 @@ import { CardState } from './state.js';
 import { updatePreview } from './preview.js';
 import { buildCardState } from './form.js';
 import { saveCardToCatalog } from '../../firebase.js';
+import { escapeEditorHtml, getEditorDisplayName } from '../editor_names.js';
 import { showToast, getIconSvg } from '../../ui.js';
 
 export function renderAssignedAbilities() {
@@ -47,7 +48,7 @@ export function renderAssignedAbilities() {
                  class="flex justify-between items-center bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-900 py-1.5 px-2 rounded text-xs cursor-move transition-all group overflow-hidden">
                 <div class="pointer-events-none flex items-center gap-1.5 flex-1 min-w-0 pr-2">
                     <span class="text-indigo-500/50 text-[10px] shrink-0">☰</span>
-                    <span class="font-bold text-indigo-300 truncate">${ab.name}</span>
+                    <span class="font-bold text-indigo-300 truncate">${escapeEditorHtml(getEditorDisplayName(ab))}</span>
                     ${xInputHtml}
                     ${selectableHtml}
                 </div>
@@ -85,8 +86,8 @@ export function renderReferencedAbilities() {
         const mentionRegex = /@\[(.*?)\]/g;
         let match;
         while ((match = mentionRegex.exec(text)) !== null) {
-            const matchedName = match[1];
-            const found = CardState.allAbilitiesRegistry.find(a => a.name.toLowerCase() === matchedName.toLowerCase());
+            const matchedAbilityId = match[1];
+            const found = CardState.allAbilitiesRegistry.find(a => a.abilityId === matchedAbilityId);
             if (found && !CardState.currentAbilities.some(ca => ca.id === found.abilityId)) {
                 dependentAbilityIds.add(found.abilityId);
                 queue.push(found.abilityId);
@@ -97,7 +98,12 @@ export function renderReferencedAbilities() {
             ab.effects.forEach(g => {
                 if (g.payloads) {
                     g.payloads.forEach(p => {
-                        if (p.type === 'GRANT_ABILITY' || p.type === 'REMOVE_ABILITY') {
+                        if (p.type === 'UPDATE_ABILITY_LEVEL') {
+                            if (p.abilityId && !CardState.currentAbilities.some(ca => ca.id === p.abilityId)) {
+                                dependentAbilityIds.add(p.abilityId);
+                                queue.push(p.abilityId);
+                            }
+                        } else if (p.type === 'GRANT_ABILITY' || p.type === 'REMOVE_ABILITY') {
                             if (p.grantedAbilityId && !CardState.currentAbilities.some(ca => ca.id === p.grantedAbilityId)) {
                                 dependentAbilityIds.add(p.grantedAbilityId);
                                 queue.push(p.grantedAbilityId);
@@ -105,7 +111,12 @@ export function renderReferencedAbilities() {
                         }
                         if (p.nestedGroup && p.nestedGroup.payloads) {
                             p.nestedGroup.payloads.forEach(np => {
-                                if (np.type === 'GRANT_ABILITY' || np.type === 'REMOVE_ABILITY') {
+                                if (np.type === 'UPDATE_ABILITY_LEVEL') {
+                                    if (np.abilityId && !CardState.currentAbilities.some(ca => ca.id === np.abilityId)) {
+                                        dependentAbilityIds.add(np.abilityId);
+                                        queue.push(np.abilityId);
+                                    }
+                                } else if (np.type === 'GRANT_ABILITY' || np.type === 'REMOVE_ABILITY') {
                                     if (np.grantedAbilityId && !CardState.currentAbilities.some(ca => ca.id === np.grantedAbilityId)) {
                                         dependentAbilityIds.add(np.grantedAbilityId);
                                         queue.push(np.grantedAbilityId);
@@ -134,7 +145,7 @@ export function renderReferencedAbilities() {
         return `
             <div class="flex justify-between items-center bg-slate-900/60 border border-slate-700/50 py-1.5 px-2 rounded text-xs transition-colors group overflow-hidden">
                 <div class="pointer-events-none flex items-center gap-1.5 flex-1 min-w-0 pr-2">
-                    <span class="font-bold text-sky-300 truncate">${ab.name}</span>
+                    <span class="font-bold text-sky-300 truncate">${escapeEditorHtml(getEditorDisplayName(ab))}</span>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <button onclick="window.copyAbilityJSON('${ab.abilityId}')" title="Copy JSON" class="text-slate-400 hover:text-amber-400 transition p-1 rounded bg-slate-900 border border-slate-700 text-[10px] flex items-center justify-center">📋</button>

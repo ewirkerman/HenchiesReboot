@@ -26,6 +26,7 @@ export function populateBaseTriggers() {
         { val: 'ON_BE_PLAYED', label: 'When Played (Mandatory)' },
         { val: 'PLAY_OPTIONAL', label: 'When Played (Optional)' },
         { val: 'UNTRIGGERABLE', label: 'Passive / Untriggerable' },
+        { val: 'GAME_STARTING', label: 'Game Starting' },
         { val: 'TURN_STARTING', label: 'Turn Starting' },
         { val: 'TURN_STARTED', label: 'Turn Started' },
         { val: 'TURN_ENDING', label: 'Turn Ending' },
@@ -61,7 +62,7 @@ export function parseTriggerToComposite(triggerString) {
         return { base: 'COMBAT_ENDED', phase: 'ON', role: 'ACTIVE' };
     }
 
-    const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED', 'ON_ACT'];
+    const basics = ['MANUAL', 'ON_BE_PLAYED', 'PLAY_OPTIONAL', 'UNTRIGGERABLE', 'GAME_STARTING', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED', 'ON_ACT'];
     if (basics.includes(triggerString)) return { base: triggerString, phase: 'ON', role: 'ACTIVE' };
 
     for (const effect in ACTION_MANIFEST) {
@@ -99,6 +100,7 @@ export function renderAdditionalTriggers() {
         { val: 'ON_BE_PLAYED', label: 'When Played (Mandatory)' },
         { val: 'PLAY_OPTIONAL', label: 'When Played (Optional)' },
         { val: 'UNTRIGGERABLE', label: 'Passive / Untriggerable' },
+        { val: 'GAME_STARTING', label: 'Game Starting' },
         { val: 'TURN_STARTING', label: 'Turn Starting' },
         { val: 'TURN_STARTED', label: 'Turn Started' },
         { val: 'TURN_ENDING', label: 'Turn Ending' },
@@ -334,7 +336,7 @@ export function updateTargetingUI() {
             if (section3Header) section3Header.innerText = "3. Player Activation Targets (Input)";
             if (matrixContainer) {
                 matrixContainer.classList.remove('hidden');
-                matrixContainer.innerHTML = generateQuickMatrixHTML('activation', StudioState.activationQuickTargeting);
+                matrixContainer.innerHTML = generateQuickMatrixHTML('activation', StudioState.activationQuickTargeting, null, true);
             }
             if (advancedToggleContainer) advancedToggleContainer.classList.remove('hidden');
 

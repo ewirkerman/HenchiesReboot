@@ -31,11 +31,45 @@ const {
     moveEntity,
     isUndoable,
     acquireTargets,
-    resolveTargetById
+    resolveTargetById,
+    checkReadinessAffordability,
+    getReadinessFloor,
+    updateAbilityLevel
 } = ALL_ENGINE_UTILS;
 
-function cloneConditionContext(context) {
-    return structuredClone(context);
+function createReadOnlyProxy(obj) {
+    if (typeof obj !== 'object' || obj === null) return obj;
+
+    return new Proxy(obj, {
+        get(target, prop) {
+            const val = target[prop];
+            // Recursively wrap nested objects on-the-fly as they are accessed
+            if (typeof val === 'object' && val !== null) {
+                return createReadOnlyProxy(val);
+            }
+            return typeof val === 'function' ? val.bind(target) : val;
+        },
+        set(target, prop, value) {
+            console.warn(`[Sandbox] Blocked mutation attempt on property: ${String(prop)}`);
+            return true;
+        },
+        deleteProperty(target, prop) {
+            console.warn(`[Sandbox] Blocked deletion attempt on property: ${String(prop)}`);
+            return true;
+        }
+    });
+}
+
+function isZoneMovementEvent(eventType) {
+    const eventName = String(eventType).replace(/^(WOULD|MODIFY|ON)_/, '');
+    return Object.entries(ACTION_MANIFEST).some(([action, manifest]) =>
+        manifest.endZone && (action === eventName || manifest.passiveType === eventName)
+    );
+}
+
+function describeEntity(entity) {
+    if (!entity) return 'none';
+    return `${entity.name || 'Unknown'}#${entity.instanceId || entity.id || 'no-id'}`;
 }
 
 export class GameEngine {
@@ -69,6 +103,31 @@ export class GameEngine {
     }
 
     emit(eventType, payload) {
+        // Reset turn-scoped attack states on turn boundaries
+        if (eventType === 'TURN_STARTING' || eventType === 'TURN_STARTED') {
+            for (const pId of ['player1', 'player2']) {
+                const player = this.state.players?.[pId];
+                if (player?.lines) {
+                    for (const line of LINES) {
+                        player.lines[line]?.forEach(u => {
+                            u.attackedThisTurn = false;
+                            if (u.attachments) {
+                                u.attachments.forEach(att => { att.attackedThisTurn = false; });
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        // Track attack occurrence on the source entity and its attachments
+        if ((eventType === 'ATTACK' || eventType === 'ON_ATTACK') && payload?.source) {
+            payload.source.attackedThisTurn = true;
+            if (payload.source.attachments) {
+                payload.source.attachments.forEach(att => { att.attackedThisTurn = true; });
+            }
+        }
+
         let isPassiveLog = false;
         let matchedPassiveType = null;
         for (const manifest of [...Object.values(ACTION_MANIFEST), ...Object.values(EVENT_MANIFEST)]) {
@@ -80,10 +139,11 @@ export class GameEngine {
         }
 
         if (isPassiveLog) {
-            log(this.state, `[EVENT BUS] 🛡️ Routing object-side passive event: ${eventType} [Type: ${matchedPassiveType}] (Target: ${payload?.target?.name || 'None'})`);
+            log(this.state, `[EVENT BUS] 🛡️ Routing passive event=${eventType} type=${matchedPassiveType} source=${describeEntity(payload?.source)} target=${describeEntity(payload?.target)}`);
         }
 
-        if (!eventType.startsWith('WOULD_') && !eventType.startsWith('MODIFY_') && !eventType.startsWith('ON_')) {
+        const isUninterruptibleLifecycleEvent = eventType === 'GAME_STARTING';
+        if (!isUninterruptibleLifecycleEvent && !eventType.startsWith('WOULD_') && !eventType.startsWith('MODIFY_') && !eventType.startsWith('ON_')) {
             const wouldEvent = `WOULD_${eventType}`;
             const addedTriggers = this.queueTriggers(wouldEvent, payload);
 
@@ -123,7 +183,7 @@ export class GameEngine {
             rootEventCancelled = this.processStack(addedTriggers, eventType);
         }
 
-        const isCancelled = rootEventCancelled || !!(payload && payload.cancelled);
+        const isCancelled = !isUninterruptibleLifecycleEvent && (rootEventCancelled || !!(payload && payload.cancelled));
         if (isCancelled && payload) payload.cancelled = true;
         if (isCancelled) log(this.state, `[EVENT BUS] 🛑 Event ${eventType} was CANCELLED.`);
 
@@ -236,8 +296,17 @@ export class GameEngine {
             let rejectReason = '';
             const scope = ability.triggerScope || 'PERSONAL';
 
+            if (
+                scope === 'GLOBAL' &&
+                isZoneMovementEvent(eventType) &&
+                payload?.target?.instanceId === ent.instanceId
+            ) {
+                if (shouldLog) this._logNearMiss(ability, ent, 'Global listener cannot trigger from its own zone-movement event');
+                continue;
+            }
+
             let isPassive = false;
-            let isPhaseEvent = eventType.includes('TURN_');
+            let isPhaseEvent = eventType.includes('TURN_') || eventType === 'GAME_STARTING';
             let foundPassiveType = null;
 
             for (const manifest of [
@@ -307,7 +376,7 @@ export class GameEngine {
                 } else if (scope === 'HOST') {
                     if (!isPhaseEvent) {
                         const loc = findEntityLocation(this, ent);
-                        if (!loc || loc.zone === 'attachment' || !loc.host || !eventEntity || eventEntity.instanceId !== loc.host.instanceId) {
+                        if (!loc || loc.zone !== 'attachment' || !loc.host || !eventEntity || eventEntity.instanceId !== loc.host.instanceId) {
                             isValid = false;
                             rejectReason = `Host scope mismatch (Host: ${loc?.host?.name}, Event Entity: ${eventEntity?.name})`;
                         }
@@ -356,7 +425,7 @@ export class GameEngine {
 
             const eId = ent.instanceId || ent.id || 'none';
             const sideLabel = isPassive ? `[Passive/Target Side: ${foundPassiveType}]` : `[Active/Source Side]`;
-            log(this.state, `    ↳ 🎯 Triggered '${ability.name}' on '${ent.name} (${eId})' for ${eventType} ${sideLabel}`);
+            log(this.state, `    ↳ 🎯 Triggered '${ability.name}' abilityId=${ability.abilityId || 'unknown'} abilityInstanceId=${ability.instanceId || 'none'} on=${describeEntity(ent)} scope=${scope} event=${eventType} eventSource=${describeEntity(payload?.source)} eventTarget=${describeEntity(payload?.target)} eventEntity=${describeEntity(eventEntity)} ${sideLabel}`);
 
             triggers.push({ owner: ownerId || this.state.activePlayerId, source: ent, ability, payload: triggerPayload });
         }
@@ -365,12 +434,13 @@ export class GameEngine {
     processStack(count, originatingEvent = null) {
         this.processingDepth = (this.processingDepth || 0) + 1;
         let rootEventCancelled = false;
+        const isUninterruptibleLifecycleEvent = originatingEvent === 'GAME_STARTING';
 
         while (count > 0 && this.stack.length > 0) {
             const frame = this.stack.pop();
             count--;
 
-            if (frame.payload && (frame.payload.cancelled || frame.payload.eventContext?.cancelled)) {
+            if (!isUninterruptibleLifecycleEvent && frame.payload && (frame.payload.cancelled || frame.payload.eventContext?.cancelled)) {
                 log(this.state, `[Engine] Skipping trigger '${frame.ability.name}' because event cancelled.`);
                 rootEventCancelled = true;
                 continue;
@@ -390,7 +460,7 @@ export class GameEngine {
             this.executeAbility(frame.ability, frame.source, livePayload, frame.owner, originatingEvent);
             this.activeChainAbilities.delete(frame.ability.instanceId);
 
-            if (livePayload && (livePayload.cancelled || livePayload.eventContext?.cancelled)) {
+            if (!isUninterruptibleLifecycleEvent && livePayload && (livePayload.cancelled || livePayload.eventContext?.cancelled)) {
                 rootEventCancelled = true;
             }
         }
@@ -406,6 +476,12 @@ export class GameEngine {
 
     executeAbility(ability, source, eventPayload, ownerId, originatingEvent = null) {
         if (ability === 'native_attack' || ability?.abilityId === 'native_attack') {
+            if (source) {
+                source.attackedThisTurn = true;
+                if (source.attachments) {
+                    source.attachments.forEach(att => { att.attackedThisTurn = true; });
+                }
+            }
             ability = {
                 abilityId: 'native_attack',
                 instanceId: 'native_attack_inst',
@@ -416,11 +492,13 @@ export class GameEngine {
             };
         }
 
-        const sId = source?.instanceId || source?.id || 'none';
-        log(this.state, `  ▶ [ABILITY] '${ability.name}' from source '${source?.name} (${sId})'`);
+        log(this.state, `  ▶ [ABILITY] '${ability.name}' abilityId=${ability.abilityId || 'unknown'} abilityInstanceId=${ability.instanceId || 'none'} from=${describeEntity(source)} trigger=${ability.trigger || 'unknown'} eventSource=${describeEntity(eventPayload?.source)} eventTarget=${describeEntity(eventPayload?.target)}`);
         try {
             if (ability.abilityId !== 'native_attack') {
-                this.state.history_log.push({ text: `✨ ${source.name || 'Entity'} activated '${ability.name}'`, depth: Math.max(0, (this.state._actionDepth || 0) + (this.processingDepth || 0) - 1) });
+                this.state.history_log.push({
+                    text: `✨ ${source.name || 'Entity'} activated '${ability.name}' [entityId=${source.instanceId || source.id || 'none'} abilityId=${ability.abilityId || 'unknown'} event=${originatingEvent || ability.trigger || 'unknown'}]`,
+                    depth: Math.max(0, (this.state._actionDepth || 0) + (this.processingDepth || 0) - 1)
+                });
             }
 
             if (!ability.effects || !Array.isArray(ability.effects)) {
@@ -476,14 +554,7 @@ export class GameEngine {
         const loc = findEntityLocation(this, source);
         const isHandAct = ability.passiveFlags?.includes('ACTIVATE_FROM_HAND') && loc && ['hand', 'discard', 'deck'].includes(loc.zone);
 
-        let requiresReadiness = true;
-        if (isHandAct) {
-            requiresReadiness = false;
-        } else if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && previousUses > 0) {
-            requiresReadiness = false;
-        }
-
-        if (ability.trigger === 'MANUAL' && requiresReadiness && currentReadiness < 1) {
+        if (ability.trigger === 'MANUAL' && !checkReadinessAffordability(this.state, source, cost, abilityKey, isHandAct)) {
             if (shouldLog) this._logNearMiss(ability, source, `Insufficient readiness (${currentReadiness})`);
             return false;
         }
@@ -506,11 +577,12 @@ export class GameEngine {
             source.lifetimeAbilityUses[ability.abilityId] = (source.lifetimeAbilityUses[ability.abilityId] || 0) + 1;
         }
 
-        if (requiresReadiness && !cost.freeAction && !isHandAct) {
+        const isReuseReadinessExempt = cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && previousUses > 0;
+        if (!cost.freeAction && !isHandAct && !isReuseReadinessExempt) {
             if (cost.readinessCost === 'EXHAUSTS') source.readiness -= 2;
             else if (cost.readinessCost === 'UNREADIES') source.readiness -= 1;
 
-            if (source.readiness < -1) source.readiness = -1;
+            source.readiness = Math.max(getReadinessFloor(this.state, source), source.readiness);
         }
 
         payCost(this.state, p, source, cost, escalateAmount, false);
@@ -520,6 +592,18 @@ export class GameEngine {
 
     isAbilityUndoable(ability, source, ownerId = null, eventPayload = null) {
         const callingPlayerId = ownerId || getOwnerId(this.state, source) || this.state.activePlayerId;
+        const getDrawTargetPool = group => {
+            const zones = group.quickTargeting?.zones || ['FIELD'];
+            const alignments = group.quickTargeting?.alignment || [];
+            if (zones.length !== 1 || String(zones[0]).toUpperCase() !== 'DECK' ||
+                alignments.length !== 1 || String(alignments[0]).toUpperCase() !== 'FRIENDLY' ||
+                !['AUTO_FIRST', 'AUTO_LAST'].includes(group.targetMethod)) return null;
+
+            const candidates = this.findEntitiesInScope(group.quickTargeting, callingPlayerId, false);
+            return candidates.filter(candidate =>
+                this.evaluateLogicTree(group.logicTree, candidate, source, eventPayload, null, ability.paramX)
+            );
+        };
         const getRandomTargetCount = (group, parentPayload = null) => {
             if (parentPayload?.type === 'SUMMON') {
                 const cardName = (parentPayload.cardId || '').toLowerCase();
@@ -560,7 +644,7 @@ export class GameEngine {
             }
         };
 
-        return isUndoable(this.state, ability, { getRandomTargetCount });
+        return isUndoable(this.state, ability, { getDrawTargetPool, getRandomTargetCount });
     }
 
     _resolvePayloads(ability, source, eventPayload, ownerId, lockedTargets, originatingEvent) {
@@ -593,6 +677,13 @@ export class GameEngine {
             }
 
             for (const payload of group.payloads) {
+                if (payload.type === 'ATTACK' && source) {
+                    source.attackedThisTurn = true;
+                    if (source.attachments) {
+                        source.attachments.forEach(att => { att.attackedThisTurn = true; });
+                    }
+                }
+
                 const ActionClass = ACTION_REGISTRY[payload.type];
                 if (ActionClass) {
                     for (const target of targets) {
@@ -666,7 +757,9 @@ export class GameEngine {
                 }
             }
             ['hand', 'deck', 'discard', 'banish'].forEach(z => {
-                if (zones.includes(z.toUpperCase())) pool.push(...p[z]);
+                if (zones.includes(z.toUpperCase())) {
+                    pool.push(...(z === 'deck' ? [...p[z]].reverse() : p[z]));
+                }
             });
         });
 
@@ -678,6 +771,8 @@ export class GameEngine {
             else if (ent.type === 'artifact') entType = 'ARTIFACT';
             else if (ent.type === 'spell') entType = 'SPELL';
             else if (ent.type === 'boon') entType = 'BOON';
+            else if (ent.type === 'buff') entType = 'BUFF';
+            else if (ent.type === 'debuff') entType = 'DEBUFF';
             return types.includes(entType);
         });
     }
@@ -715,7 +810,7 @@ export class GameEngine {
             if (context === 'EVENT') {
                 if (checkAttr === 'eventAbility') {
                     const searchVal = String(node.value).toLowerCase();
-                    let abId = eventPayload?.grantedAbilityId || eventPayload?.sourceAbilityId || eventPayload?.abilityId;
+                    let abId = eventPayload?.grantedAbilityId || eventPayload?.sourceAbilityId || eventPayload?.abilityId || eventPayload?.eventContext?.abilityId;
 
                     let foundMatch = false;
                     if (abId) {
@@ -857,28 +952,17 @@ export class GameEngine {
                         manualTarget = eventPayload.target;
                     }
 
-                    const sandbox = cloneConditionContext({
-                        state: this.state,
-                        target: targetEnt,
-                        source,
-                        manualTarget,
-                        eventPayload,
-                        lkiAbilities,
-                        abilityCatalog: this.state.abilityCatalog || [],
-                        catalog: this.state.catalog || [],
-                        tribeCatalog: this.state.tribeCatalog || []
-                    });
+                    // Create read-only proxies on the fly to protect data without structuredClone penalty
+                    const safeState = createReadOnlyProxy(this.state);
+                    const safeTarget = createReadOnlyProxy(targetEnt);
+                    const safeSource = createReadOnlyProxy(source);
+                    const safeManualTarget = createReadOnlyProxy(manualTarget);
+                    const safeEventPayload = createReadOnlyProxy(eventPayload);
 
-                    for (const catalogName of ['abilityCatalog', 'catalog', 'tribeCatalog']) {
-                        Object.defineProperty(sandbox.state, catalogName, {
-                            value: sandbox[catalogName],
-                            configurable: true
-                        });
-                    }
-
-                    const sandboxEngine = new GameEngine(sandbox.state);
                     const fn = new Function('target', 'source', 'manualTarget', 'state', 'eventPayload', 'engine', 'paramX', '"use strict";\n' + cleanScript);
-                    const result = fn(sandbox.target, sandbox.source, sandbox.manualTarget, sandbox.state, sandbox.eventPayload, sandboxEngine, resolvedParamX);
+
+                    const result = fn(safeTarget, safeSource, safeManualTarget, safeState, safeEventPayload, this, resolvedParamX);
+
                     return node.operator === '==' ? !!result : !result;
                 } catch (e) {
                     console.error(`[Engine] Custom script condition error:`, e);
@@ -891,6 +975,9 @@ export class GameEngine {
                 } else {
                     entVal = 'false';
                 }
+            }
+            else if (checkAttr === 'hasAttackedThisTurn') {
+                entVal = (targetEnt && targetEnt.attackedThisTurn) ? 'true' : 'false';
             }
 
             if (typeof entVal === 'string') {

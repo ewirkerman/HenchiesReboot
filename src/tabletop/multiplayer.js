@@ -383,7 +383,7 @@ export function reconstructStateFromLog(data) {
                 } else if (action.type === 'PLAY_CARD') {
                     playCard(liveState, action.playerId, action.cardId, action.targetLine, action.chosenAbilityId, action.abilityTargetId);
                 } else if (action.type === 'ENTITY_ACTION') {
-                    executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine);
+                    executeEntityAction(liveState, action.playerId, action.entityId, action.actionType, action.abilityId, action.targetId, action.targetLine, action.abilityInstanceId);
                 } else if (action.type === 'END_TURN') {
                     endTurn(liveState);
                     const engine = new GameEngine(liveState);

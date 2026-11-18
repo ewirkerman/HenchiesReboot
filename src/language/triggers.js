@@ -6,21 +6,36 @@
 import { buildTargetDesc } from './targeting.js';
 import { getReadinessConditionState, getZoneLinguistics, resolveAbility, resolveTribeName, formatXValue } from './utils.js';
 
-export function getTriggerWord(t) {
+function allPayloadsWhileAttached(effectGroups) {
+    const payloads = [];
+    const collect = (payload) => {
+        if (payload?.type === 'CONDITIONAL' && payload.nestedGroup?.payloads?.length) {
+            payload.nestedGroup.payloads.forEach(collect);
+        } else {
+            payloads.push(payload);
+        }
+    };
+
+    (effectGroups || []).forEach(group => (group?.payloads || []).forEach(collect));
+    return payloads.length > 0 && payloads.every(payload => payload?.duration === 'WHILE_ATTACHED');
+}
+
+export function getTriggerWord(t, effectGroups = []) {
     if (!t || t === 'MANUAL') return '';
     if (t === 'UNTRIGGERABLE') return 'Passive';
-    if (t === 'ON_BE_ATTACHED') return 'While Attached';
+    if (t === 'ON_BE_ATTACHED') return allPayloadsWhileAttached(effectGroups) ? 'While Attached' : 'Attached';
+    if (t === 'GAME_STARTING') return 'Game Start';
     if (t.includes('STARTED')) return 'Started';
     if (t.includes('COMBAT_ENDED')) return 'Combat End';
     if (t.includes('ENDED')) return 'Ended';
     if (t.includes('STARTING')) return 'Starting';
     if (t.includes('ENDING')) return 'Ending';
-    if (t.includes('PLAY')) return 'Play';
 
     let isPassive = t.includes('_BE_') || t.includes('ATTACKED') || t.includes('DAMAGED') || t.includes('HEALED') || t.includes('KILLED') || t.includes('DRAWN') || t.includes('DISCARDED') || t.includes('SUMMONED');
 
     let base = '';
-    if (t.includes('COMBAT') || t.includes('ATTACK')) base = isPassive ? 'Attacked' : 'Attack';
+    if (t.includes('PLAY')) base = 'Play';
+    else if (t.includes('COMBAT') || t.includes('ATTACK')) base = isPassive ? 'Attacked' : 'Attack';
     else if (t.includes('DAMAGE')) base = isPassive ? 'Damaged' : 'Damage';
     else if (t.includes('HEAL')) base = isPassive ? 'Healed' : 'Heal';
     else if (t.includes('KILL')) base = isPassive ? 'Killed' : 'Kill';
@@ -38,7 +53,7 @@ export function getTriggerWord(t) {
         base = parts[parts.length - 1];
     }
 
-    if (t.startsWith('MODIFY_')) return `Before ${base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()}`;
+    if (t.startsWith('MODIFY_')) return `Pre-${base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()}`;
     if (t.startsWith('WOULD_')) return `Block ${base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()}`;
     return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
 }
@@ -89,7 +104,7 @@ export function generateLogicTreeText(logicTree, trigger, allTribes, allAbilitie
                 contextPronoun = `the ${noun}`;
             }
             else if (ctx === 'EVENT_TARGET') {
-                let noun = "receiver";
+                let noun = "target";
                 if (trigger && (trigger.includes('ATTACK') || trigger.includes('COMBAT'))) noun = trigger.includes('BE_ATTACKED') ? "attacker" : "defender";
                 else if (trigger && trigger.includes('DAMAGE')) noun = trigger.includes('BE_DAMAGED') ? "damage source" : "damaged character";
                 else if (trigger && trigger.includes('HEAL')) noun = trigger.includes('BE_HEALED') ? "healer" : "healed character";
@@ -103,7 +118,37 @@ export function generateLogicTreeText(logicTree, trigger, allTribes, allAbilitie
             const opMap = { '==': 'is', '!=': 'is not', '>': '>', '<': '<', '>=': '>=', '<=': '<=' };
             let opText = opMap[node.operator] !== undefined ? opMap[node.operator] : node.operator;
 
-            if (['isCombat', 'isAttacking'].includes(checkAttr)) {
+            if (ctx === 'EVENT' && checkAttr === 'amount') {
+                let amountNoun = 'the event amount';
+                if (trigger && (trigger.includes('DAMAGE') || trigger.includes('HIT') || trigger.includes('ATTACK'))) amountNoun = 'that damage';
+                else if (trigger && trigger.includes('HEAL')) amountNoun = 'that healing';
+                else if (trigger && trigger.includes('DRAW')) amountNoun = 'the number of cards drawn';
+                else if (trigger && trigger.includes('DISCARD')) amountNoun = 'the number of cards discarded';
+
+                const amountOpMap = {
+                    '==': 'is exactly',
+                    '!=': 'is not',
+                    '>': 'is more than',
+                    '<': 'is less than',
+                    '>=': 'is at least',
+                    '<=': 'is at most'
+                };
+                conditionPhrases.push(`${amountNoun} ${amountOpMap[node.operator] || node.operator} ${node.value}`);
+            } else if (ctx === 'EVENT' && checkAttr === 'isCombat') {
+                let isCombat = String(node.value).toLowerCase() === 'true';
+                if (node.operator === '!=') isCombat = !isCombat;
+                const eventNoun = trigger && (trigger.includes('DAMAGE') || trigger.includes('HIT') || trigger.includes('ATTACK'))
+                    ? 'that damage'
+                    : 'the event';
+                conditionPhrases.push(isCombat ? `${eventNoun} is combat damage` : `${eventNoun} is not combat damage`);
+            } else if (ctx === 'EVENT' && checkAttr === 'eventAbility') {
+                const { name, abilityId } = resolveAbility(node.value, allAbilities);
+                const tag = `@[${abilityId || name}]`;
+                const matchesAbility = node.operator === '==';
+                conditionPhrases.push(matchesAbility
+                    ? `the event was caused by ${tag}`
+                    : `the event was not caused by ${tag}`);
+            } else if (['isCombat', 'isAttacking', 'hasAttackedThisTurn'].includes(checkAttr)) {
                 let isTrue = String(node.value).toLowerCase() === 'true';
                 if (node.operator === '!=') isTrue = !isTrue;
 
@@ -112,6 +157,8 @@ export function generateLogicTreeText(logicTree, trigger, allTribes, allAbilitie
 
                 if (checkAttr === 'isCombat') {
                     conditionPhrases.push(isTrue ? (isSelf ? 'in combat' : `${subj} is in combat`) : (isSelf ? 'not in combat' : `${subj} is not in combat`));
+                } else if (checkAttr === 'hasAttackedThisTurn') {
+                    conditionPhrases.push(isTrue ? `${subj} has attacked this turn` : `${subj} has not attacked this turn`);
                 } else {
                     conditionPhrases.push(isTrue ? (isSelf ? 'attacking' : `${subj} is attacking`) : (isSelf ? 'not attacking' : `${subj} is not attacking`));
                 }
@@ -140,7 +187,7 @@ export function generateLogicTreeText(logicTree, trigger, allTribes, allAbilitie
                         let subj = ctx === 'EVAL_TARGET' ? "{POSS}" : contextSubject;
                         conditionPhrases.push(`${subj} ${statName} ${opText} ${node.value}`);
                     }
-                } else if (['health', 'strength', 'maxHealth', 'armor', 'power', 'cost', 'acts', 'maxActs'].includes(checkAttr)) {
+                } else if (['health', 'strength', 'maxHealth', 'armor', 'power', 'cost'].includes(checkAttr)) {
                     let statName = `[STAT:${checkAttr}]`;
                     let subj = ctx === 'EVAL_TARGET' ? "{POSS}" : contextSubject;
                     conditionPhrases.push(`${subj} ${statName} ${opText} ${node.value}`);

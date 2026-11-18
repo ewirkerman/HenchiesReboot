@@ -26,7 +26,9 @@ export function generateAbilityDescription(ability, allAbilities = null, allCard
     if (flags.includes('BLOCK_RETALIATE')) parts.push("Can't retaliate.");
     if (flags.includes('BLOCK_TARGETING')) parts.push("Stealth.");
     if (flags.includes('IGNORE_BLOCK_TARGETING')) parts.push("Pierce.");
+    if (flags.includes('IGNORE_BATTLELINES')) parts.push("Ignores battlelines.");
     if (flags.includes('BLOCK_TARGET_AVATAR')) parts.push("Timid.");
+    if (flags.includes('TIRELESS')) parts.push("Tireless.");
 
     // 2. TRIGGER & CONDITIONS
     const { triggerText, globalTargetNoun, conditionsText } = parseTriggers(ability, allTribes);

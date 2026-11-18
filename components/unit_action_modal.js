@@ -1,6 +1,11 @@
 import { formatAbilityCostBadge } from '../src/ui.js'; // Adjusted based on expected project structure
 import { ClientState } from '../src/tabletop/client_state.js'; // Adjusted based on expected project structure
-import { getActionButtonTheme } from './action_button_theme.js';
+
+const ACTION_BUTTON_VARIANT_CLASSES = {
+    PLAY: 'action-button-play',
+    ATTACK: 'action-button-attack',
+    ABILITY: 'action-button-ability'
+};
 
 export class UnitActionModal extends HTMLElement {
     connectedCallback() {
@@ -48,8 +53,8 @@ export class UnitActionModal extends HTMLElement {
                 desc = ab ? (ab.displayDescription || ab.description) : 'Activate this ability.';
             }
 
-            const theme = getActionButtonTheme(act.type);
-            const baseClass = theme.baseClass;
+            const buttonVariantClass = ACTION_BUTTON_VARIANT_CLASSES[act.type] || ACTION_BUTTON_VARIANT_CLASSES.ABILITY;
+            const bonusClass = act.type === 'ABILITY' && act.origin === 'bonus' ? ' action-button-bonus' : '';
 
             let undoWarn = !act.undoable ? `<span class="text-red-400 drop-shadow-md ml-1" title="Cannot be undone">⚠️</span>` : "";
             let costHtml = formatAbilityCostBadge(act.cost, 'Generic');
@@ -57,8 +62,8 @@ export class UnitActionModal extends HTMLElement {
             btnsHtml += `
                 <div class="relative group">
                     <button id="action-btn-${i}" onclick="document.querySelector('unit-action-modal').selectAction(${i})" 
-                            class="w-full flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border-2 transition-all hover:scale-[1.02] ${baseClass}">
-                        <span class="font-black drop-shadow-md">${act.name}</span>
+                            class="action-button w-full flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border-2 transition-all hover:scale-[1.02] ${buttonVariantClass}${bonusClass}">
+                        <span class="action-button__name font-black drop-shadow-md">${act.name}</span>
                         ${costHtml}
                         ${undoWarn}
                     </button>
@@ -81,9 +86,9 @@ export class UnitActionModal extends HTMLElement {
         if (act.type === 'PLAY') {
             window.executeNormalPlay(this.entityId, null, null, act.undoable);
         } else if (this.isHand) {
-            window.activateHandCardAbility(this.entityId, act.abilityId);
+            window.activateHandCardAbility(this.entityId, act.abilityId, act.abilityInstanceId);
         } else {
-            window.activateAbility(this.entityId, act.abilityId, act.undoable);
+            window.activateAbility(this.entityId, act.abilityId, act.undoable, act.abilityInstanceId);
         }
     }
 

@@ -1,17 +1,39 @@
 import { Action, ACTION_REGISTRY, registerEffect } from './core.js';
-import { findEntityLocation } from '../utils.js';
+import { findEntityLocation, normalizeEntityCooldownGroups } from '../utils.js';
 import { moveEntity } from '../utils.js';
 
+export function isTransformNoOp(target, cardId, catalog) {
+    if (!target || !cardId) return false;
+    if (target.id === cardId) return true;
+
+    const newCardTemplate = catalog?.find(c =>
+        c.id === cardId || (c.name && c.name.toLowerCase() === cardId.toLowerCase())
+    );
+    if (!newCardTemplate) return false;
+
+    if (target.id && newCardTemplate.id) return target.id === newCardTemplate.id;
+    return !!target.name && target.name.toLowerCase() === newCardTemplate.name?.toLowerCase();
+}
+
 export class TransformAction extends Action {
+    run(engine) {
+        if (isTransformNoOp(this.payload.target, this.payload.cardId, engine.state.catalog)) return false;
+        return super.run(engine);
+    }
+
     execute(engine) {
         const target = this.payload.target;
         const cardId = this.payload.cardId;
         if (!target || !cardId || !engine.state.catalog) return;
 
-        const newCardTemplate = engine.state.catalog.find(c => c.id === cardId || (c.name && c.name.toLowerCase() === cardId.toLowerCase()));
+        const newCardTemplate = engine.state.catalog.find(c =>
+            c.id === cardId || (c.name && c.name.toLowerCase() === cardId.toLowerCase())
+        );
         if (!newCardTemplate) return;
+        if (isTransformNoOp(target, cardId, engine.state.catalog)) return;
 
         const originalCardId = target.id;
+        normalizeEntityCooldownGroups(target);
 
         // 1. Identify which attachments to keep (the source of the transformation)
         const keptAttachments = [];
@@ -20,7 +42,7 @@ export class TransformAction extends Action {
         if (target.attachments && target.attachments.length > 0) {
             const atts = [...target.attachments];
             const UnattachClass = ACTION_REGISTRY['UNATTACH'];
-            
+
             for (const att of atts) {
                 if (sourceId && att.instanceId === sourceId) {
                     // Preserve the entity that is actively causing the transformation!
@@ -41,7 +63,7 @@ export class TransformAction extends Action {
             acts: target.acts,
             isToken: target.isToken
         };
-        
+
         // Only re-apply the attachments array if we actually kept something
         if (keptAttachments.length > 0) {
             preserved.attachments = keptAttachments;
@@ -61,36 +83,41 @@ export class TransformAction extends Action {
                 return match ? JSON.parse(JSON.stringify(match)) : ab;
             });
         }
-        
+
         Object.assign(target, newInstance);
         Object.assign(target, preserved);
+        delete target.maxActs;
 
         target.health = target.maxHealth || 1;
         target.originalPower = target.power || 0;
         target.originalStrength = target.strength !== undefined ? target.strength : null;
 
         let destZone = loc ? loc.zone : null;
-        
-        if (loc && loc.playerId && ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar'].includes(loc.zone)) {
+        const activeZones = ['front', 'mid', 'back', 'sheltered', 'sideline', 'taunt', 'bodyguard', 'avatar', 'equator'];
+
+        // 2. Safely re-route unattached entities to their proper zones
+        if (loc && activeZones.includes(loc.zone)) {
             if (target.type === 'unit') {
                 target.defaultLine = target.defaultLine || 'mid';
-                target.line = target.defaultLine;
-                destZone = target.defaultLine;
+                // If it was in the equator, move it to defaultLine. Otherwise keep it in its current line.
+                destZone = loc.zone === 'equator' ? target.defaultLine : loc.zone;
+                target.line = destZone;
             } else if (target.type === 'equipment' || target.type === 'artifact') {
                 destZone = 'equator';
             } else if (target.type === 'boon') {
                 destZone = 'avatar';
             }
-            
+
             if (loc.zone !== destZone) {
-                moveEntity(engine, target, loc.playerId, destZone);
+                const movePlayerId = loc.playerId || target.ownerId || engine.state.activePlayerId;
+                moveEntity(engine, target, movePlayerId, destZone);
             }
         } else if (target.type === 'unit') {
             target.defaultLine = target.defaultLine || 'mid';
             target.line = target.defaultLine;
         }
 
-        engine.state.history_log.push({ text: `✨ A unit transformed into ${target.name}!`, depth: this.getLogDepth(engine) });
+        engine.state.history_log.push({ text: `✨ An entity transformed into ${target.name}!`, depth: this.getLogDepth(engine) });
 
         if (this.payload.duration && !['INSTANT', 'PERMANENT', 'INDEFINITE'].includes(this.payload.duration)) {
             registerEffect(engine, target, this.payload, { originalCardId });

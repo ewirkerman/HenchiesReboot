@@ -7,9 +7,13 @@ export class ConditionalAction extends Action {
         const eventContext = this.payload.eventContext;
         const logicTree = this.payload.logicTree || this.payload.nestedGroup?.logicTree;
 
-        if (typeof engine.evaluateLogicTree === 'function' && !engine.evaluateLogicTree(logicTree, target, source, eventContext)) return;
+        const conditionPassed = typeof engine.evaluateLogicTree === 'function'
+            ? engine.evaluateLogicTree(logicTree, target, source, eventContext)
+            : false;
 
-        const nestedPayloads = this.payload.nestedGroup?.payloads || this.payload.payloads || [];
+        const nestedPayloads = conditionPassed
+            ? (this.payload.nestedGroup?.payloads || this.payload.payloads || [])
+            : (this.payload.elsePayloads || []);
         for (const nestedPayload of nestedPayloads) {
             const ActionClass = ACTION_REGISTRY[nestedPayload.type];
             if (!ActionClass) continue;
@@ -18,7 +22,9 @@ export class ConditionalAction extends Action {
                 ...nestedPayload,
                 source: nestedPayload.invertRoles ? target : source,
                 target: nestedPayload.invertRoles ? source : target,
-                eventContext
+                eventContext: eventContext,
+                sourceAbilityId: this.payload.sourceAbilityId,
+                paramX: this.payload.paramX
             };
             new ActionClass(actionPayload).run(engine);
         }

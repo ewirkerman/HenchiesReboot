@@ -9,11 +9,13 @@ import { CARD_CATALOG } from '../engine/index.js';
 import { hydrateAbility } from '../engine/utils.js';
 import { generateAbilityDescription } from '../language_description.js';
 import { extractGlossary, renderJSONPreview, loadUI, showToast, openInspectionModal } from '../ui.js';
+import { formatAbilityDescription } from '../ability_descriptions.js';
 import { launchSandboxMatch } from '../testing.js';
 import { processBulkImport } from './importer.js';
 import { listenForForegroundNotifications } from '../profile.js';
 
 import { CardState } from './card/state.js';
+import { findAbilityByOptionValue, getAbilityOptionValue } from './card/ability_options.js';
 import { StudioState } from './ability/state.js';
 
 window.CardState = CardState;
@@ -26,11 +28,12 @@ import { updatePreview as updateCardPreview, initImagePanning } from './card/pre
 import { loadCard } from './card/catalog_sync.js';
 
 // Ability logic
-import { resetForm as resetAbilityForm, updateJSONPreview as updateAbilityJSONPreview, renderCatalogList as renderAbilityCatalogList, renderAssociatedCards, getCurrentAbilityState, loadAbility } from './ability/catalog_sync.js';
+import { resetForm as resetAbilityForm, updateJSONPreview as updateAbilityJSONPreview, renderCatalogList as renderAbilityCatalogList, renderAssociatedCards, getCurrentAbilityState, getAbilityTestTarget, loadAbility } from './ability/catalog_sync.js';
 import { renderEffects, revalidatePayloadTypes, handleAddEffectGroup } from './ability/payloads.js';
 import { renderLogicTrees } from './ability/logic_tree.js';
 import { updateTargetingUI, updateTriggerComposite, populateBaseTriggers, renderAdditionalTriggers } from './ability/triggers.js';
 import { validateAbilityLogic } from '../ability_validation.js';
+import { escapeEditorHtml, getEditorDisplayName } from './editor_names.js';
 import { handleDescriptionInput, handleDescriptionKeydown, closeMentionDropdown } from './ability/mentions.js';
 import { ATTRIBUTE_MANIFEST } from '../engine/attributes.js';
 import { CARD_TYPES } from '../engine/card_types.js';
@@ -83,14 +86,13 @@ window.CreatorController = {
 
         const abilityDatalist = document.getElementById('ability-options');
         if (abilityDatalist) {
-            abilityDatalist.innerHTML = CardState.allAbilities.map(ab => `<option value="${(ab.name || '').replace(/"/g, '&quot;')}"></option>`).join('');
+            abilityDatalist.innerHTML = CardState.allAbilities.map(ab => `<option value="${escapeEditorHtml(getAbilityOptionValue(ab))}" label="${escapeEditorHtml(getEditorDisplayName(ab))}"></option>`).join('');
         }
 
         const addAbilityInput = document.getElementById('add-ability-input');
         if (addAbilityInput) {
             addAbilityInput.addEventListener('change', (e) => {
-                const val = e.target.value.toLowerCase().trim();
-                const match = CardState.allAbilities.find(a => (a.name || '').toLowerCase().trim() === val);
+                const match = findAbilityByOptionValue(CardState.allAbilities, e.target.value);
                 
                 if (match) {
                     const abId = match.abilityId;
@@ -168,7 +170,7 @@ window.CreatorController = {
         const assignInput = document.getElementById('assign-card-input');
         const assignDatalist = document.getElementById('assign-card-options');
         if (assignInput && assignDatalist) {
-            assignDatalist.innerHTML = CardState.allCards.map(c => `<option value="${(c.name || '').replace(/"/g, '&quot;')}"></option>`).join('');
+            assignDatalist.innerHTML = CardState.allCards.map(c => `<option value="${escapeEditorHtml(c.name || '')}" label="${escapeEditorHtml(getEditorDisplayName(c))}"></option>`).join('');
             assignInput.addEventListener('change', async (e) => {
                 const val = e.target.value.toLowerCase();
                 const match = CardState.allCards.find(c => c.name.toLowerCase() === val);
@@ -349,7 +351,7 @@ window.CreatorController = {
                     <div class="flex items-center gap-2 overflow-hidden pointer-events-none">
                         <span class="w-6 h-6 rounded bg-amber-500 text-black font-extrabold flex items-center justify-center text-[10px] shrink-0 shadow border border-amber-700">${item.cost || 0}</span>
                         <div class="flex flex-col truncate">
-                            <span class="font-bold text-amber-300 truncate">${item.name || 'Unnamed Card'}</span>
+                            <span class="font-bold text-amber-300 truncate">${escapeEditorHtml(getEditorDisplayName({ ...item, name: item.name || 'Unnamed Card' }))}</span>
                             <span class="text-[9px] text-slate-400 capitalize truncate">${tribeName} • ${item.type || 'Unit'}</span>
                         </div>
                     </div>
@@ -364,7 +366,7 @@ window.CreatorController = {
                     <div class="flex items-center gap-2 overflow-hidden pointer-events-none w-full">
                         <span class="w-6 h-6 rounded bg-slate-800 text-amber-400 font-extrabold flex items-center justify-center text-[12px] shrink-0 shadow border border-slate-700">⚡</span>
                         <div class="flex flex-col truncate w-full">
-                            <span class="font-bold text-amber-300 truncate">${item.name || 'Unnamed Ability'}</span>
+                            <span class="font-bold text-amber-300 truncate">${escapeEditorHtml(getEditorDisplayName({ ...item, name: item.name || 'Unnamed Ability' }))}</span>
                             <span class="text-[9px] text-slate-400 capitalize truncate">${(item.trigger || 'MANUAL').replace(/_/g, ' ')} • ${item.effects ? item.effects.length : 0} Targets</span>
                         </div>
                     </div>
@@ -587,7 +589,7 @@ window.CreatorController = {
                 glossaryEntries.map(a => `
                     <div class="bg-slate-900/90 p-3 rounded-lg border border-slate-700 w-full shrink-0">
                         <div class="font-black text-fuchsia-300 text-[11px]">${a.name || a.abilityId || a.id}</div>
-                        <div class="text-slate-300 text-[10px] mt-1">${a.displayDescription || a.description || ''}</div>
+                        <div class="text-slate-300 text-[10px] mt-1">${formatAbilityDescription(a, StudioState.allAbilitiesRegistry)}</div>
                     </div>
                 `).join('') + `</div>`;
         }
@@ -631,7 +633,7 @@ window.CreatorController = {
             document.getElementById('workspace-title').innerText = "⚡ Editing Card";
             topbar.showButtons(true);
 
-            if (!isAutoSave) showToast(`Card ${cardObj.name} saved!`, 'success');
+            if (!isAutoSave) showToast(`Card ${getEditorDisplayName(cardObj)} saved!`, 'success');
             
         } else if (CreatorState.activeMode === 'ability') {
             const abObj = getCurrentAbilityState(CreatorState.activeId);
@@ -650,9 +652,9 @@ window.CreatorController = {
             topbar.showButtons(true);
             
             const abilityDatalist = document.getElementById('ability-options');
-            if (abilityDatalist) abilityDatalist.innerHTML = StudioState.allAbilities.map(a => `<option value="${a.name}"></option>`).join('');
+            if (abilityDatalist) abilityDatalist.innerHTML = StudioState.allAbilities.map(a => `<option value="${escapeEditorHtml(getAbilityOptionValue(a))}" label="${escapeEditorHtml(getEditorDisplayName(a))}"></option>`).join('');
 
-            if (!isAutoSave) showToast(`Ability ${abObj.name} saved!`, 'success');
+            if (!isAutoSave) showToast(`Ability ${getEditorDisplayName(abObj)} saved!`, 'success');
 
             // Handle Jump Return Injection
             if (!isAutoSave && CreatorState.returnContext) {
@@ -796,7 +798,8 @@ window.CreatorController = {
                 await launchSandboxMatch(cardObj, 'card');
             } else if (CreatorState.activeMode === 'ability') {
                 const abObj = getCurrentAbilityState();
-                await launchSandboxMatch(abObj, 'ability');
+                const { item, type } = getAbilityTestTarget(abObj);
+                await launchSandboxMatch(item, type);
             }
         } catch (e) {
             console.error("Test match launch failed:", e);
@@ -888,7 +891,7 @@ window.CreatorController = {
         
         const abilityDatalist = document.getElementById('ability-options');
         if (abilityDatalist) {
-            abilityDatalist.innerHTML = CardState.allAbilities.map(ab => `<option value="${ab.name}"></option>`).join('');
+            abilityDatalist.innerHTML = CardState.allAbilities.map(ab => `<option value="${escapeEditorHtml(getAbilityOptionValue(ab))}" label="${escapeEditorHtml(getEditorDisplayName(ab))}"></option>`).join('');
         }
         
         this.renderUnifiedCatalog();

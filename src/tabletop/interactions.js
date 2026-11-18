@@ -45,12 +45,14 @@ function checkDefaultPlaySafety(card) {
     return false;
 }
 
-export async function dispatchAbility(entityId, abilityId, targetId, targetLine, preflightUndoable = null) {
+export async function dispatchAbility(entityId, abilityId, targetId, targetLine, preflightUndoable = null, abilityInstanceId = null) {
     ClientState.gameState.actionIndex = (ClientState.gameState.actionIndex || 0) + 1;
     ClientState.gameState.lastRealActionIndex = ClientState.gameState.actionIndex;
 
     const entity = findClientEntity(entityId);
-    const ability = entity?.abilities?.find(a => a.abilityId === abilityId);
+    const ability = entity?.abilities?.find(a =>
+        a.abilityId === abilityId && (!abilityInstanceId || a.instanceId === abilityInstanceId)
+    );
     const isAttack = abilityId === 'native_attack' || ability?.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
     const actionType = isAttack ? 'ATTACK' : 'ABILITY';
     const staticallyUndoable = ability
@@ -58,10 +60,10 @@ export async function dispatchAbility(entityId, abilityId, targetId, targetLine,
         : true;
 
     ClientState.gameState._irreversibleActionOccurred = false;
-    const result = executeEntityAction(ClientState.gameState, ClientState.localPlayerRole, entityId, actionType, abilityId, targetId, targetLine);
+    const result = executeEntityAction(ClientState.gameState, ClientState.localPlayerRole, entityId, actionType, abilityId, targetId, targetLine, abilityInstanceId);
     const isUnsafe = !staticallyUndoable || ClientState.gameState._irreversibleActionOccurred;
 
-    const payload = { type: 'ENTITY_ACTION', actionIndex: ClientState.gameState.actionIndex, playerId: ClientState.localPlayerRole, entityId, actionType, abilityId, targetId, targetLine, isUnsafe };
+    const payload = { type: 'ENTITY_ACTION', actionIndex: ClientState.gameState.actionIndex, playerId: ClientState.localPlayerRole, entityId, actionType, abilityId, abilityInstanceId, targetId, targetLine, isUnsafe };
 
     if (result && result.success) {
         showToast('Ability Activated!', 'success');
@@ -253,17 +255,30 @@ function cancelTargeting(cardId) {
     clearPendingAbility();
 }
 
+function isValidTargetElement(target) {
+    const targetId = target?.closest?.('[data-instance-id]')?.getAttribute('data-instance-id');
+    return !!targetId && ClientState.validTargets?.some(t => t.id === targetId);
+}
+
+function handleClickWhileTargeting(e) {
+    if (!ClientState.pendingAbility || isValidTargetElement(e.target)) return;
+
+    Promise.resolve().then(() => {
+        if (ClientState.pendingAbility) cancelTargeting(null);
+    });
+}
+
 function processPendingTarget(targetId) {
     if (ClientState.validTargets.some(t => t.id === targetId)) {
         if (ClientState.pendingAbility.isHandCard) {
             if (ClientState.pendingAbility.isHandActivate) {
-                dispatchAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, 'hand', ClientState.pendingAbility.preflightUndoable);
+                dispatchAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, 'hand', ClientState.pendingAbility.preflightUndoable, ClientState.pendingAbility.abilityInstanceId);
             } else {
                 window.executeNormalPlay(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, ClientState.pendingAbility.preflightUndoable);
             }
         } else {
             const targetLine = resolveTargetLine(targetId);
-            dispatchAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, targetLine, ClientState.pendingAbility.preflightUndoable);
+            dispatchAbility(ClientState.pendingAbility.entityId, ClientState.pendingAbility.abilityId, targetId, targetLine, ClientState.pendingAbility.preflightUndoable, ClientState.pendingAbility.abilityInstanceId);
         }
         clearPendingAbility();
     } else {
@@ -315,7 +330,7 @@ window.handleEntityClick = async (prefix, line, entityId) => {
         if (ClientState.gameState.turnPhase === 'ACTION_PHASE') {
             const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId);
             if (actions.length === 1) {
-                window.activateAbility(entityId, actions[0].abilityId);
+                window.activateAbility(entityId, actions[0].abilityId, null, actions[0].abilityInstanceId);
             } else if (actions.length > 1) {
                 const entity = findClientEntity(entityId);
                 window.openActionModal(entityId, entity?.name || "Unknown", actions, false);
@@ -386,14 +401,16 @@ export const closeUnitActionModal = () => {
 };
 window.closeUnitActionModal = closeUnitActionModal;
 
-window.activateHandCardAbility = async (cardId, abilityId) => {
+window.activateHandCardAbility = async (cardId, abilityId, abilityInstanceId = null) => {
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     const card = findClientEntity(cardId);
     if (!card) return;
 
     const actions = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, cardId);
     const targetAbilityId = abilityId || 'native_play';
-    const action = actions.find(a => a.abilityId === targetAbilityId);
+    const action = actions.find(a =>
+        a.abilityId === targetAbilityId && (!abilityInstanceId || a.abilityInstanceId === abilityInstanceId)
+    );
 
     if (!action) {
         console.warn(`[UI] Action '${targetAbilityId}' not found on ${card.name}.`);
@@ -401,7 +418,10 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
         return;
     }
 
-    const ability = card.abilities?.find(a => a.abilityId === action.abilityId);
+    abilityInstanceId = action.abilityInstanceId || abilityInstanceId;
+    const ability = card.abilities?.find(a =>
+        a.abilityId === action.abilityId && (!action.abilityInstanceId || a.instanceId === action.abilityInstanceId)
+    );
 
     if (action.requiresTarget) {
         closeUnitActionModal();
@@ -410,6 +430,7 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
         ClientState.pendingAbility = {
             entityId: cardId,
             abilityId: action.abilityId,
+            abilityInstanceId,
             isHandCard: true,
             isHandActivate: !action.isPlayAbility,
             preflightUndoable: action.undoable
@@ -426,18 +447,20 @@ window.activateHandCardAbility = async (cardId, abilityId) => {
     if (action.isPlayAbility) {
         await window.executeNormalPlay(cardId, action.abilityId === 'native_play' ? null : action.abilityId, null, action.undoable);
     } else {
-        dispatchAbility(cardId, action.abilityId, null, null, action.undoable);
+        dispatchAbility(cardId, action.abilityId, null, null, action.undoable, abilityInstanceId);
     }
 };
 
-window.activateAbility = async (entityId, abilityId, selectedPreflightUndoable = null) => {
+window.activateAbility = async (entityId, abilityId, selectedPreflightUndoable = null, abilityInstanceId = null) => {
     if (typeof event !== 'undefined' && event) event.stopPropagation();
     if (!ClientState.isMyTurn()) return;
 
     const entity = findClientEntity(entityId);
     if (!entity) return;
     const action = getEntityAvailableActions(ClientState.gameState, ClientState.localPlayerRole, entityId)
-        .find(candidate => candidate.abilityId === abilityId);
+        .find(candidate => candidate.abilityId === abilityId &&
+            (!abilityInstanceId || candidate.abilityInstanceId === abilityInstanceId));
+    abilityInstanceId = abilityInstanceId || action?.abilityInstanceId || null;
     const preflightUndoable = selectedPreflightUndoable ?? action?.undoable ?? true;
 
     if (abilityId === 'native_attack') {
@@ -449,11 +472,13 @@ window.activateAbility = async (entityId, abilityId, selectedPreflightUndoable =
         return;
     }
 
-    const ability = entity.abilities?.find(a => a.abilityId === abilityId);
+    const ability = entity.abilities?.find(a =>
+        a.abilityId === abilityId && (!abilityInstanceId || a.instanceId === abilityInstanceId)
+    );
     if (ability?.activation?.method === 'PLAYER_CHOICE') {
         closeUnitActionModal();
-        ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, entityId, abilityId);
-        ClientState.pendingAbility = { entityId, abilityId, preflightUndoable };
+        ClientState.validTargets = getValidAbilityTargets(ClientState.gameState, ClientState.localPlayerRole, entityId, abilityId, abilityInstanceId);
+        ClientState.pendingAbility = { entityId, abilityId, abilityInstanceId, preflightUndoable };
         showToast(`Select a target for ${ability.name}`, 'info');
         updateUI();
         maybeOpenZoneModal();
@@ -461,7 +486,7 @@ window.activateAbility = async (entityId, abilityId, selectedPreflightUndoable =
     }
 
     closeUnitActionModal();
-    dispatchAbility(entityId, abilityId, null, null, preflightUndoable);
+    dispatchAbility(entityId, abilityId, null, null, preflightUndoable, abilityInstanceId);
 };
 
 let gestureState = {
@@ -1059,6 +1084,8 @@ function handleContextMenu(e) {
         window.HoverManager.unfocusHandCard();
     }
 
+    if (ClientState.pendingAbility && !isValidTargetElement(e.target)) cancelTargeting(null);
+
     window._forceHoverCardId = null;
     hideDragTether();
     clearTargetHighlights(gestureState?.targets);
@@ -1067,6 +1094,7 @@ function handleContextMenu(e) {
     if (typeof updateUI === 'function') updateUI();
 }
 
+window.addEventListener('click', handleClickWhileTargeting, { capture: true });
 window.addEventListener('pointerdown', handlePointerDown, { passive: false });
 window.addEventListener('pointermove', handlePointerMove, { passive: false });
 window.addEventListener('pointerup', handlePointerUp, { passive: true });

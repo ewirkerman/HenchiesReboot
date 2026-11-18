@@ -3,8 +3,9 @@
  * Logic for determining valid targets and available actions.
  */
 
-import { hasEngineFlag, resolveResourceKey, isUndoable, findEntity, canAffordCost, getAttackCost, isEntityOnBoard, isAutoCast, getAvatar, findEntityLocation, queryState } from './utils.js';
+import { hasEngineFlag, getReadinessFloor, resolveResourceKey, isUndoable, findEntity, canAffordCost, evaluatePayment, getAttackCost, isEntityOnBoard, isAutoCast, getAvatar, findEntityLocation, queryState, checkReadinessAffordability, getAbilityCooldownGroup, hasUsedCooldownGroup, isAttackAbility, canReuseAbilityCooldownGroup } from './utils.js';
 import { GameEngine } from './index.js';
+import { isTransformNoOp } from './actions/transform.js';
 
 function getStat(entity, statKey) {
     const val = Number(entity[statKey]);
@@ -123,17 +124,18 @@ function getBattlelineTargets(logicalLines) {
     return validTargets;
 }
 
-function resolvePerspectiveTargets(state, defenderId, attacker, usePerception) {
+function resolvePerspectiveTargets(state, defenderId, attacker, usePerception, enforceBattlelines = true) {
     const isValid = (u) => checkAttackTargetValidity(state, attacker, u, usePerception);
-    return getFieldTargets(state, defenderId, isValid, true);
+    return getFieldTargets(state, defenderId, isValid, enforceBattlelines);
 }
 
 export function getValidAttackTargets(state, attackerOwnerId, attackerEntity = null) {
     const defenderId = attackerOwnerId === 'player1' ? 'player2' : 'player1';
-    const normalTargets = resolvePerspectiveTargets(state, defenderId, attackerEntity, false);
+    const enforceBattlelines = !hasEngineFlag(state, attackerEntity, 'IGNORE_BATTLELINES');
+    const normalTargets = resolvePerspectiveTargets(state, defenderId, attackerEntity, false, enforceBattlelines);
 
     if (hasPerception(state, attackerEntity)) {
-        const perceptionTargets = resolvePerspectiveTargets(state, defenderId, attackerEntity, true);
+        const perceptionTargets = resolvePerspectiveTargets(state, defenderId, attackerEntity, true, enforceBattlelines);
         return deduplicateTargets([...normalTargets, ...perceptionTargets]);
     }
 
@@ -179,16 +181,18 @@ function checkSpecificLogicValidity(engine, state, ability, targetObj, sourceEnt
         if (!engine.evaluateLogicTree(ability.activation.logicTree, targetEntity, sourceEntity, null)) return false;
     }
 
-    if (!checkStatCostValidity(targetEntity, ability, 'SAME_AS_ACTIVATION')) return false;
+    if (!checkCostTargetValidity(state, targetEntity, ability, 'SAME_AS_ACTIVATION')) return false;
 
     return true;
 }
 
-export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
+export function getValidAbilityTargets(state, playerId, entityId, abilityId, abilityInstanceId = null) {
     const entity = findEntity(state, playerId, entityId);
     if (!entity) return [];
 
-    const ability = entity.abilities?.find(a => a.abilityId === abilityId);
+    const ability = entity.abilities?.find(a =>
+        a.abilityId === abilityId && (!abilityInstanceId || a.instanceId === abilityInstanceId)
+    );
     if (!ability || ability.activation?.method !== 'PLAYER_CHOICE') return [];
 
     const qt = extractQuickTargeting(ability);
@@ -213,6 +217,7 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
     if (locs) {
         locs.forEach(loc => {
             const ent = loc.array[loc.index];
+            if ((ent.instanceId || ent.id) === (entity.instanceId || entity.id)) return;
 
             // Skip boons unless explicitly requested in the entityType filter
             if (ent.type === 'boon' && (!qt.entityType || !qt.entityType.includes('BOON'))) return;
@@ -225,6 +230,17 @@ export function getValidAbilityTargets(state, playerId, entityId, abilityId) {
                 targets.push({ id: ent.instanceId || ent.id, line: loc.zone, playerId: targetOwnerId });
             }
         });
+    }
+
+    if (qt.includeSelf === true) {
+        const selfLoc = findEntityLocation(state, entity);
+        if (selfLoc) {
+            targets.push({
+                id: entity.instanceId || entity.id,
+                line: selfLoc.zone,
+                playerId: selfLoc.playerId || playerId
+            });
+        }
     }
 
     if (qtZones.includes('FIELD') && !qt.ignoreBattlelines && !isPlay) {
@@ -308,35 +324,43 @@ function isEntityInHand(state, playerId, entity) {
     });
 }
 
-function checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct) {
-    if (isHandAct) return true;
-    if (cost.readinessCost && cost.readinessCost !== 'NONE' && cost.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0) return true;
-    return getStat(entity, 'readiness') >= 1;
-}
-
-function checkActionAffordability(entity, costObj, isHandAct, abilityKey, state) {
-    if (costObj.freeAction || isHandAct || (costObj.reuseIgnoresReadiness && (state.abilityUses?.[abilityKey] || 0) > 0)) return true;
-    return getStat(entity, 'acts') >= 1;
+function checkActionAffordability(entity, ability, state) {
+    if (ability.cost?.freeAction || ability.trigger !== 'MANUAL' || isAttackAbility(ability)) return true;
+    if (canReuseAbilityCooldownGroup(state, ability)) return true;
+    return !hasUsedCooldownGroup(entity, getAbilityCooldownGroup(ability));
 }
 
 function checkAbilityAffordability(state, playerId, entity, ability, abilityKey) {
-    let cost = ability.cost || {};
+    const limit = ability.triggerLimit || 'UNLIMITED';
+    const previousUses = state.abilityUses?.[abilityKey] || 0;
+    if (limit === 'ONCE_PER_ROUND' && previousUses >= 1) return false;
+    if (limit === 'TWICE_PER_ROUND' && previousUses >= 2) return false;
+
+    const cost = ability.cost || {};
     const player = state.players[playerId];
 
     const isHandAct = isEntityInHand(state, playerId, entity);
     const isPlayAct = isPlayTrigger(ability.trigger);
 
+    let abilityPlayer = player;
+    let abilityEntity = entity;
     if (isHandAct && isPlayAct) {
-        const baseCostObj = typeof entity.cost === 'object' && entity.cost !== null
-            ? entity.cost
-            : { tribeAmount: (typeof entity.cost === 'number' ? entity.cost : 0) };
+        const playPayment = evaluatePayment(state, player, entity, entity.cost, 0, true);
+        if (!playPayment.success) return false;
 
-        cost = {
-            ...cost,
-            carnie: (cost.carnie || cost.tent || 0) + (baseCostObj.carnie || baseCostObj.tent || 0),
-            power: (cost.power || 0) + (baseCostObj.power || 0),
-            tribeAmount: (cost.tribeAmount || 0) + (baseCostObj.tribeAmount || 0)
+        abilityPlayer = {
+            ...player,
+            resources: Object.fromEntries(
+                Object.entries(player.resources || {}).map(([key, resource]) => [key, { ...resource }])
+            )
         };
+        if (playPayment.carnieDeduct > 0 && abilityPlayer.resources.Carnie) {
+            abilityPlayer.resources.Carnie.current -= playPayment.carnieDeduct;
+        }
+        if (playPayment.tribeDeduct > 0 && abilityPlayer.resources[playPayment.entityTribe]) {
+            abilityPlayer.resources[playPayment.entityTribe].current -= playPayment.tribeDeduct;
+        }
+        abilityEntity = { ...entity, power: (entity.power || 0) - playPayment.pCost };
     }
 
     if (!checkReadinessAffordability(state, entity, cost, abilityKey, isHandAct)) return false;
@@ -344,26 +368,36 @@ function checkAbilityAffordability(state, playerId, entity, ability, abilityKey)
     const lifetimeUses = entity.lifetimeAbilityUses?.[ability.abilityId] || 0;
     const escalateAmt = cost.escalates ? lifetimeUses * cost.escalates : 0;
 
-    if (!canAffordCost(state, player, entity, cost, escalateAmt, isHandAct && isPlayAct).success) return false;
-    if (!checkActionAffordability(entity, cost, isHandAct, abilityKey, state)) return false;
+    if (!canAffordCost(state, abilityPlayer, abilityEntity, cost, escalateAmt, false).success) return false;
+    if (!checkActionAffordability(entity, ability, state)) return false;
 
     return true;
 }
 
-function checkStatCostValidity(entity, ability, targetMethod) {
+function checkCostTargetValidity(state, entity, ability, targetMethod) {
     if (!ability.effects) return true;
     for (const group of ability.effects) {
         if (group.targetMethod === targetMethod && group.payloads) {
             for (const p of group.payloads) {
+                if (p.isCost && p.type === 'TRANSFORM' && isTransformNoOp(entity, p.cardId, state.catalog)) {
+                    return false;
+                }
+
+                const isHealthOrStrengthCost =
+                    p.isCost &&
+                    ['health', 'strength'].includes(p.stat) &&
+                    (p.type === 'SET_STAT' || (p.type === 'MODIFY_STAT' && p.amount < 0));
+                if (isHealthOrStrengthCost && getStat(entity, p.stat) <= 0) {
+                    return false;
+                }
+
                 if (p.isCost && p.type === 'MODIFY_STAT' && p.amount < 0 && p.stat === 'readiness') {
-                    if (getStat(entity, p.stat) + p.amount < -1) {
-                        console.log("MOD: p.amount " + p.amount + " entity: " + getStat(entity, p.stat));
-                        return false;
-                    }
+                    if (!hasEngineFlag(state, entity, 'TIRELESS') &&
+                        getStat(entity, p.stat) + p.amount < getReadinessFloor(state, entity, true)) return false;
                 } else if (p.isCost && p.type === 'SET_STAT' && p.stat === 'readiness') {
-                    if (getStat(entity, p.stat) <= p.amount) {
-                        console.log("SET: p.amount " + p.amount + " entity: " + getStat(entity, p.stat));
-                        return false;
+                    if (!hasEngineFlag(state, entity, 'TIRELESS')) {
+                        const finalAmount = Math.max(getReadinessFloor(state, entity, true), p.amount);
+                        if (getStat(entity, p.stat) <= finalAmount) return false;
                     }
                 }
             }
@@ -477,7 +511,7 @@ function buildAbilityAction(state, playerId, entity, ability) {
     const requiresTarget = ability.activation?.method === 'PLAYER_CHOICE';
     let validTargets = [];
     if (requiresTarget) {
-        validTargets = getValidAbilityTargets(state, playerId, entity.instanceId, ability.abilityId);
+        validTargets = getValidAbilityTargets(state, playerId, entity.instanceId, ability.abilityId, ability.instanceId);
         if (validTargets.length === 0) return null;
     } else if (ability.activation?.logicTree) {
         // Evaluate logicTree for abilities that do NOT require target selection (e.g., NONE)
@@ -496,6 +530,8 @@ function buildAbilityAction(state, playerId, entity, ability) {
         type: 'ABILITY',
         name: ability.name,
         abilityId: ability.abilityId,
+        abilityInstanceId: ability.instanceId,
+        origin: ability.origin,
         undoable: typeof engine.isAbilityUndoable === 'function'
             ? engine.isAbilityUndoable(ability, entity, playerId)
             : isUndoable(state, ability),

@@ -31,6 +31,16 @@ describe('HealAction Overheal', () => {
         expect(target.activeEffects).toBeUndefined();
     });
 
+    it('does not reduce health when the target is already above max health', () => {
+        const engine = createEngine();
+        const target = { name: 'Unit', health: 4, maxHealth: 1 };
+
+        new HealAction({ type: 'HEAL', target, amount: 2 }).execute(engine);
+
+        expect(target.health).toBe(4);
+        expect(target.activeEffects).toBeUndefined();
+    });
+
     it('registers only excess health as temporary and reverts it', () => {
         const engine = createEngine();
         const target = { name: 'Unit', health: 8, maxHealth: 10 };
@@ -44,5 +54,20 @@ describe('HealAction Overheal', () => {
         revertEffect(engine, target, target.activeEffects[0]);
 
         expect(target.health).toBe(10);
+    });
+
+    it('tracks only newly added overheal when the target already exceeds max health', () => {
+        const engine = createEngine();
+        const target = { name: 'Unit', health: 4, maxHealth: 1 };
+
+        new HealAction({ type: 'HEAL', target, amount: 2, overheal: true }).execute(engine);
+
+        expect(target.health).toBe(6);
+        expect(target.activeEffects).toHaveLength(1);
+        expect(target.activeEffects[0]).toMatchObject({ stat: 'health', delta: 2 });
+
+        revertEffect(engine, target, target.activeEffects[0]);
+
+        expect(target.health).toBe(4);
     });
 });

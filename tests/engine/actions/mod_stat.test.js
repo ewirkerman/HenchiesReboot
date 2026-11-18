@@ -73,9 +73,49 @@ describe('MODIFY_STAT Action', () => {
     expect(targetEntity.cost).toBe(0); //[cite: 2]
   });
 
+  it.each(['strength', 'health', 'power', 'cost'])(
+    'clamps %s at zero before applying later increases',
+    (stat) => {
+      targetEntity[stat] = 0;
+
+      new ACTION_REGISTRY.MODIFY_STAT({ target: targetEntity, stat, amount: -3, duration: 'INSTANT' }).run(engine);
+      expect(targetEntity[stat]).toBe(0);
+
+      new ACTION_REGISTRY.MODIFY_STAT({ target: targetEntity, stat, amount: 2, duration: 'INSTANT' }).run(engine);
+      expect(targetEntity[stat]).toBe(2);
+    }
+  );
+
   it('prevents readiness from dropping below -1', () => {
     new ACTION_REGISTRY.MODIFY_STAT({ target: targetEntity, stat: 'readiness', amount: -3, duration: 'INSTANT' }).run(engine);
     expect(targetEntity.readiness).toBe(-1); //[cite: 2]
+  });
+
+  it('keeps tireless readiness at 0 for readiness costs and effects', () => {
+    targetEntity.abilities = [{ abilityId: 'ab_tireless', passiveFlags: ['TIRELESS'] }];
+
+    new ACTION_REGISTRY.MODIFY_STAT({ target: targetEntity, stat: 'readiness', amount: -1, isCost: true, duration: 'INSTANT' }).run(engine);
+    expect(targetEntity.readiness).toBe(0);
+
+    new ACTION_REGISTRY.SET_STAT({ target: targetEntity, stat: 'readiness', amount: -1, isCost: true, duration: 'INSTANT' }).run(engine);
+    expect(targetEntity.readiness).toBe(0);
+
+    new ACTION_REGISTRY.MODIFY_STAT({ target: targetEntity, stat: 'readiness', amount: -1, duration: 'INSTANT' }).run(engine);
+    expect(targetEntity.readiness).toBe(0);
+
+    new ACTION_REGISTRY.SET_STAT({ target: targetEntity, stat: 'readiness', amount: -1, duration: 'INSTANT' }).run(engine);
+    expect(targetEntity.readiness).toBe(0);
+  });
+
+  it('ignores legacy acts and maxActs stat modifications', () => {
+    targetEntity.acts = {};
+    targetEntity.maxActs = 2;
+
+    new ACTION_REGISTRY.MODIFY_STAT({ target: targetEntity, stat: 'acts', amount: 1, duration: 'TEMPORARY' }).run(engine);
+    new ACTION_REGISTRY.MODIFY_STAT({ target: targetEntity, stat: 'maxActs', amount: 1, duration: 'TEMPORARY' }).run(engine);
+
+    expect(targetEntity.acts).toEqual({});
+    expect(targetEntity.maxActs).toBe(2);
   });
 
   it('consumes temp health from DealDamage and correctly restores underlying health on Cleanse', () => {

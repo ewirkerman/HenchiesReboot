@@ -10,7 +10,7 @@ class CardHoverManager {
         this.lastHiddenTime = 0; 
         
         // Timing Configuration (Hover Intent)
-        this.SHOW_DELAY = 400;       // Initial hover requirement
+        this.SHOW_DELAY = 1500;     // Initial hover requirement
         this.FAST_FOLLOW_DELAY = 50; // Delay when moving between cards quickly
         this.HIDE_DELAY = 100;       // Grace period for mouse slipping
 

@@ -12,7 +12,7 @@ export const StudioState = {
     currentEditingId: null,
     
     // UI Targeting State
-    activationQuickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false },
+    activationQuickTargeting: { zones: ['FIELD'], alignment: ['ENEMY'], entityType: ['UNIT', 'AVATAR'], ignoreBattlelines: false, includeSelf: false },
     showAdvancedActivation: false,
     activationRoot: { type: 'group', logicalOperator: 'AND', children: [] },
     effectGroups: [],

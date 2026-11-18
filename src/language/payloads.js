@@ -11,9 +11,101 @@ import anExclusions from './an_exclusions.js';
 import { getConditionText } from './format_payload.js';
 import { lowercaseSentence, getIndefiniteArticle } from './utils.js';
 
+function getGlobalTriggerTargeting(quickTargeting, trigger) {
+    if (!quickTargeting) return quickTargeting;
+
+    const event = trigger.replace(/^(WOULD|MODIFY|ON)_/, '');
+    const hasImpliedZoneMovement = Object.entries(ACTION_MANIFEST).some(([action, manifest]) =>
+        manifest.endZone && (action === event || manifest.passiveType === event)
+    );
+
+    return hasImpliedZoneMovement ? { ...quickTargeting, zones: [] } : quickTargeting;
+}
+
+function getEventSourceNounStr(trigger) {
+    if (!trigger) return "triggering card";
+    if (trigger.includes('ATTACK') || trigger.includes('COMBAT')) return trigger.includes('BE_ATTACKED') ? "defender" : "attacker";
+    if (trigger.includes('DAMAGE')) return trigger.includes('BE_DAMAGED') ? "damaged character" : "damage source";
+    if (trigger.includes('HEAL')) return trigger.includes('BE_HEALED') ? "healed character" : "healer";
+    if (trigger.includes('KILL')) return trigger.includes('BE_KILLED') ? "killed unit" : "killer";
+    if (trigger.includes('PLAY')) return "played card";
+    if (trigger.includes('SUMMON')) return "summoned unit";
+    return "triggering card";
+}
+
+function getLogicTreeForContext(node, context) {
+    if (!node) return null;
+    if (node.type !== 'group') {
+        return node.type === 'condition' && (node.context || 'EVAL_TARGET') === context ? node : null;
+    }
+
+    const children = (node.children || []).map(child => getLogicTreeForContext(child, context)).filter(Boolean);
+    return children.length > 0 ? { ...node, children } : null;
+}
+
+function getLogicTreeContexts(node, contexts = new Set()) {
+    if (!node) return contexts;
+    if (node.type === 'group') {
+        (node.children || []).forEach(child => getLogicTreeContexts(child, contexts));
+    } else if (node.type === 'condition') {
+        contexts.add(node.context || 'EVAL_TARGET');
+    }
+    return contexts;
+}
+
+function hasDisjunction(node) {
+    if (!node || node.type !== 'group') return false;
+    return node.logicalOperator === 'OR' || (node.children || []).some(hasDisjunction);
+}
+
+function buildGlobalEventDesc(quickTargeting, logicTree, trigger, allHaveSameImpliedZone, impliedZone, isPlural, allTribes, allAbilities, allCards, paramX) {
+    const entityTypes = (quickTargeting?.entityType || []).filter(type => type !== 'ANY' && type !== 'ALL');
+    const isUntypedPlayedCard = trigger.includes('PLAY') && entityTypes.length === 0;
+    const eventTargeting = isUntypedPlayedCard
+        ? { ...quickTargeting, zones: [], entityType: ['CARD'] }
+        : quickTargeting;
+
+    return buildTargetDesc(
+        eventTargeting,
+        logicTree,
+        trigger,
+        allHaveSameImpliedZone,
+        impliedZone,
+        isPlural,
+        allTribes,
+        allAbilities,
+        allCards,
+        paramX,
+        { eventCard: isUntypedPlayedCard }
+    );
+}
+
+function buildContextualGlobalFilter(ability, quickTargeting, trigger, allHaveSameImpliedZone, impliedZone, allTribes, allAbilities, allCards, paramX) {
+    const logicTree = ability.activation?.logicTree;
+    const contexts = getLogicTreeContexts(logicTree);
+    if (hasDisjunction(logicTree) || contexts.size !== 2 || !contexts.has('EVAL_TARGET') || !contexts.has('ABILITY_SOURCE')) return null;
+
+    const eventTree = getLogicTreeForContext(logicTree, 'EVAL_TARGET');
+    const sourceTree = getLogicTreeForContext(logicTree, 'ABILITY_SOURCE');
+    const eventDesc = buildGlobalEventDesc(quickTargeting, eventTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards, paramX);
+    const genericDescriptions = ['card', 'character', 'entity', 'unit', 'character or card'];
+    if (!eventDesc || genericDescriptions.includes(eventDesc.toLowerCase())) return null;
+
+    const sourceCondition = buildTargetDesc({}, sourceTree, trigger, false, null, false, allTribes, allAbilities, allCards, paramX, {
+        conditionContexts: ['ABILITY_SOURCE'],
+        conditionsOnly: true,
+        naturalizeAbilitySource: true
+    });
+    if (!sourceCondition) return null;
+
+    const article = getIndefiniteArticle(eventDesc);
+    return `the ${getEventSourceNounStr(trigger)} is ${article} ${eventDesc} and ${sourceCondition}`;
+}
+
 export function processTargetGroups(ability, ctx) {
     const { allAbilities, allCards, allTribes, globalTargetNoun, tracker, trigger } = ctx;
     const paramX = ctx.paramX !== undefined ? ctx.paramX : ability?.paramX;
+    const globalTriggerTargeting = getGlobalTriggerTargeting(ability.activation?.quickTargeting, trigger);
 
     // Pre-register conditions in tracker so they dynamically resolve to pronouns in the effects
     if (ability.activation?.logicTree) {
@@ -31,13 +123,7 @@ export function processTargetGroups(ability, ctx) {
                     else if (trigger.includes('KILL')) noun = trigger.includes('BE_KILLED') ? "killer" : "killed unit";
                     tracker.mention(noun.replace(/ /g, '_'), `the ${noun}`, false);
                 } else if (ctxType === 'EVENT_SOURCE') {
-                    let noun = "doer";
-                    if (trigger.includes('ATTACK') || trigger.includes('COMBAT')) noun = trigger.includes('BE_ATTACKED') ? "defender" : "attacker";
-                    else if (trigger.includes('DAMAGE')) noun = trigger.includes('BE_DAMAGED') ? "damaged character" : "damage source";
-                    else if (trigger.includes('HEAL')) noun = trigger.includes('BE_HEALED') ? "healed character" : "healer";
-                    else if (trigger.includes('KILL')) noun = trigger.includes('BE_KILLED') ? "killed unit" : "killer";
-                    else if (trigger.includes('PLAY')) noun = "played card";
-                    else if (trigger.includes('SUMMON')) noun = "summoned unit";
+                    let noun = getEventSourceNounStr(trigger);
                     tracker.mention(noun.replace(/ /g, '_'), `the ${noun}`, false);
                 } else if (ctxType === 'HOST') {
                     tracker.mention('host', 'host', false);
@@ -68,7 +154,7 @@ export function processTargetGroups(ability, ctx) {
         if (['REVIVE', 'RECOVER'].includes(primaryType)) impliedZone = 'DISCARD';
         else if (['DRAW_CARD', 'MILL', 'TOP_DECK'].includes(primaryType)) impliedZone = 'DECK';
         else if (['DISCARD', 'DISCARD_CARD'].includes(primaryType)) impliedZone = 'HAND';
-        else if (['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK', 'TRASH', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'RETURN', 'SET_STAT', 'MODIFY_STAT', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'BANISH', 'TRANSFORM', 'CLEANSE', 'REBEL', 'DONATE'].includes(primaryType)) impliedZone = 'FIELD';
+        else if (['DEAL_DAMAGE', 'HEAL', 'KILL', 'ATTACH', 'UNATTACH', 'ATTACK', 'TRASH', 'BLOCK_ACT', 'BLOCK_ATTACK', 'BLOCK_RETALIATE', 'RETURN', 'SET_STAT', 'MODIFY_STAT', 'MODIFY_RESOURCE', 'GRANT_ABILITY', 'REMOVE_ABILITY', 'BANISH', 'TRANSFORM', 'CLEANSE', 'REBEL', 'DONATE'].includes(primaryType)) impliedZone = 'FIELD';
 
         let allHaveSameImpliedZone = impliedZone !== null;
 
@@ -77,6 +163,34 @@ export function processTargetGroups(ability, ctx) {
         let singularDesc = '';
 
         let isPlural = false;
+
+        let globalFilterCondition = null;
+
+        // Keep event-card and ability-source conditions grammatically distinct when possible.
+        if (ability.triggerScope === 'GLOBAL') {
+            globalFilterCondition = buildContextualGlobalFilter(
+                ability,
+                globalTriggerTargeting,
+                trigger,
+                allHaveSameImpliedZone,
+                impliedZone,
+                allTribes,
+                allAbilities,
+                allCards,
+                paramX
+            );
+
+            if (!globalFilterCondition) {
+                let actDesc = buildGlobalEventDesc(globalTriggerTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards, paramX);
+                let isGeneric = ['card', 'character', 'entity', 'unit', 'character or card'].includes(actDesc.toLowerCase());
+
+                if (!isGeneric) {
+                    let article = getIndefiniteArticle(actDesc);
+                    let subj = ['SELF', 'EVENT_TARGET', 'SAME_AS_ACTIVATION'].includes(group.targetMethod) ? 'it' : `the ${getEventSourceNounStr(trigger)}`;
+                    globalFilterCondition = `${subj} is ${article} ${actDesc}`;
+                }
+            }
+        }
 
         if (group.targetMethod === 'SELF') {
             targetStr = 'this';
@@ -90,8 +204,12 @@ export function processTargetGroups(ability, ctx) {
             targetStr = 'the enemy avatar';
             possessiveStr = "the enemy avatar's";
             isPlural = false;
+        } else if (group.targetMethod === 'HOST') {
+            targetStr = 'host';
+            possessiveStr = "host's";
+            isPlural = false;
         } else if (group.targetMethod === 'EVENT_SOURCE') {
-            if (trigger === 'MANUAL' || ['TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) {
+            if (trigger === 'MANUAL' || ['GAME_STARTING', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) {
                 targetStr = 'this';
                 possessiveStr = "its";
             } else if (ability.triggerScope === 'GLOBAL') {
@@ -101,14 +219,18 @@ export function processTargetGroups(ability, ctx) {
                     let article = getIndefiniteArticle(baseDesc);
                     targetStr = 'it';
                     possessiveStr = 'its';
-                    group._globalFilterCondition = `it is ${article} ${baseDesc}`;
+
+                    let groupCond = `it is ${article} ${baseDesc}`;
+                    globalFilterCondition = globalFilterCondition ? `${globalFilterCondition} and ${groupCond}` : groupCond;
                 } else {
-                    targetStr = 'the triggering card';
-                    possessiveStr = "the triggering card's";
+                    let noun = getEventSourceNounStr(trigger);
+                    targetStr = `the ${noun}`;
+                    possessiveStr = `the ${noun}'s`;
                 }
             } else {
-                targetStr = 'the triggering card';
-                possessiveStr = "the triggering card's";
+                let noun = getEventSourceNounStr(trigger);
+                targetStr = `the ${noun}`;
+                possessiveStr = `the ${noun}'s`;
             }
             isPlural = false;
 
@@ -135,7 +257,9 @@ export function processTargetGroups(ability, ctx) {
                         let article = getIndefiniteArticle(baseDesc);
                         targetStr = 'it';
                         possessiveStr = 'its';
-                        group._globalFilterCondition = `it is ${article} ${baseDesc}`;
+
+                        let groupCond = `it is ${article} ${baseDesc}`;
+                        globalFilterCondition = globalFilterCondition ? `${globalFilterCondition} and ${groupCond}` : groupCond;
                         isPlural = false;
                     } else if (globalTargetNoun) {
                         targetStr = `that ${globalTargetNoun}`;
@@ -156,21 +280,19 @@ export function processTargetGroups(ability, ctx) {
                 else if (trigger.includes('DISCARD')) { targetStr = 'the discarded card'; possessiveStr = 'its'; }
                 else if (trigger.includes('HARVEST')) { targetStr = 'the harvested card'; possessiveStr = 'its'; }
                 else if (trigger === 'ON_BE_ATTACHED') { targetStr = 'host'; possessiveStr = 'its'; }
-                else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) { targetStr = 'this'; possessiveStr = 'its'; }
+                else if (['MANUAL', 'UNTRIGGERABLE', 'GAME_STARTING', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) { targetStr = 'this'; possessiveStr = 'its'; }
                 else { targetStr = `the targeted card`; possessiveStr = `its`; }
             }
 
         } else if (group.targetMethod === 'SAME_AS_ACTIVATION') {
             const actMethod = ability.activation?.method || 'NONE';
             if (ability.triggerScope === 'GLOBAL') {
-                let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards, paramX);
+                let actDesc = buildTargetDesc(globalTriggerTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards, paramX);
                 let isGeneric = ['card', 'character', 'entity', 'unit', 'character or card'].includes(actDesc.toLowerCase());
 
                 if (!isGeneric) {
-                    let article = getIndefiniteArticle(actDesc);
                     targetStr = 'it';
                     possessiveStr = 'its';
-                    group._globalFilterCondition = `it is ${article} ${actDesc}`;
                     isPlural = false;
                 } else if (globalTargetNoun) {
                     targetStr = `that ${globalTargetNoun}`;
@@ -188,7 +310,7 @@ export function processTargetGroups(ability, ctx) {
 
                 targetStr = `${article} ${actDesc}`;
                 possessiveStr = `${targetStr}'s`;
-            } else if (['MANUAL', 'UNTRIGGERABLE', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) {
+            } else if (['MANUAL', 'UNTRIGGERABLE', 'GAME_STARTING', 'TURN_STARTING', 'TURN_STARTED', 'TURN_ENDING', 'TURN_ENDED', 'OWN_TURN_STARTING', 'OWN_TURN_STARTED', 'OWN_TURN_ENDING', 'OWN_TURN_ENDED', 'OPP_TURN_STARTING', 'OPP_TURN_STARTED', 'OPP_TURN_ENDING', 'OPP_TURN_ENDED'].includes(trigger)) {
                 targetStr = 'this';
                 possessiveStr = "its";
             } else {
@@ -245,7 +367,7 @@ export function processTargetGroups(ability, ctx) {
         else if (targetStr === 'the killer') groupId = 'killer';
         else if (targetStr === 'the killed unit') groupId = 'killed_unit';
         else if (targetStr === 'the healer') groupId = 'healer';
-        else if (targetStr === 'host') groupId = 'host';
+        else if (group.targetMethod === 'HOST') groupId = 'host';
 
         const formatCtx = {
             group, trigger, allTribes, allAbilities, allCards,
@@ -284,9 +406,9 @@ export function processTargetGroups(ability, ctx) {
         cStr = applyTopDeckLanguage(cStr, activePayloads, true);
         eStr = applyTopDeckLanguage(eStr, activePayloads, false);
 
-        if (group._globalFilterCondition) {
-            if (cStr) cStr = `if ${group._globalFilterCondition}, ${lowercaseSentence(cStr)}`;
-            if (eStr) eStr = `if ${group._globalFilterCondition}, ${lowercaseSentence(eStr)}`;
+        if (globalFilterCondition) {
+            if (cStr) cStr = `if ${globalFilterCondition}, ${lowercaseSentence(cStr)}`;
+            if (eStr) eStr = `if ${globalFilterCondition}, ${lowercaseSentence(eStr)}`;
         }
 
         if (cStr) allCostSentences.push(cStr);

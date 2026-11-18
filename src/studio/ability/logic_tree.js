@@ -3,7 +3,7 @@
 
 import { StudioState } from './state.js';
 import { updateJSONPreview } from './catalog_sync.js';
-import { renderEffects } from './payloads.js';
+import { getPayloadAtPath, renderEffects } from './payloads.js';
 import { updateTargetingUI } from './triggers.js';
 import { generateGroupHTML } from './ability_renderer.js';
 import { ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
@@ -11,8 +11,9 @@ import { ATTRIBUTE_MANIFEST } from '../../engine/attributes.js';
 export function getRoot(treeType) {
     if (treeType === 'activation') return StudioState.activationRoot;
     if (treeType.startsWith('conditional_')) {
-        const [, gIdx, pIdx] = treeType.split('_').map(Number);
-        return StudioState.effectGroups[gIdx]?.payloads[pIdx]?.nestedGroup?.logicTree;
+        const [, gIdxText, pIdxText, ...nestedParts] = treeType.split('_');
+        const nestedPath = nestedParts.map(part => part === 'else' ? 'else' : Number(part));
+        return getPayloadAtPath(Number(gIdxText), Number(pIdxText), nestedPath)?.nestedGroup?.logicTree;
     }
     if (treeType.startsWith('effect_')) {
         const idx = parseInt(treeType.split('_')[1], 10);
