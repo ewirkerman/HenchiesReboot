@@ -5,7 +5,11 @@ export function renderStandardAbilities(abilitiesData) {
   let html = '';
 
   if (abilitiesData.evergreen.length > 0) {
-    const namesHtml = abilitiesData.evergreen.map(a => a.name + (a.costBadge ? ' ' + a.costBadge : '')).join(', ');
+    const namesHtml = abilitiesData.evergreen.map(a => {
+      const hourglassIcon = (!a.isUsable && a.showHourglass) ? `<span class="ability-icon ability-icon-cooldown">${getIconSvg('hourglass-full')}</span>` : '';
+      const textColorClass = a.isUsable === false ? 'ability-evergreen-unusable' : '';
+      return `<span class="${textColorClass}">${hourglassIcon}${a.name}${a.costBadge ? ' ' + a.costBadge : ''}</span>`;
+    }).join(', ');
     const tooltips = abilitiesData.evergreen.map(a => `${a.name}: ${a.rawDesc}`).join('\n\n');
     html += `<div class="ability-evergreen" title="${tooltips.replace(/"/g, '&quot;')}">${namesHtml}</div>`;
   }
@@ -15,19 +19,19 @@ export function renderStandardAbilities(abilitiesData) {
   });
 
   abilitiesData.active.forEach(ab => {
-    const iconContent = ab.isAttack ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5">${getIconSvg('attack')}</span>` : '';
-    const hourglassIcon = (!ab.isUsable && ab.showHourglass) ? `<span class="inline-block w-2.5 h-2.5 align-middle mr-0.5 text-green-400 drop-shadow-[0_0_5px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+    const iconContent = ab.isAttack ? `<span class="ability-icon">${getIconSvg('attack')}</span>` : '';
+    const hourglassIcon = (!ab.isUsable && ab.showHourglass) ? `<span class="ability-icon ability-icon-cooldown">${getIconSvg('hourglass-full')}</span>` : '';
 
     const textColorClass = ab.isUsable ? 'ability-text-usable' : 'ability-text-unusable';
     const safeTooltip = ab.rawDesc.replace(/"/g, '&quot;');
 
     html += `
           <div class="ability-active-wrap ${textColorClass}" title="${safeTooltip}">
-            <div class="flex items-center gap-0.5 truncate pr-1">
+            <div class="flex items-baseline gap-0.5 truncate pr-1">
                 ${hourglassIcon}${iconContent}
                 <span class="truncate">${ab.name}</span>
             </div>
-            <div class="shrink-0 flex items-center">
+            <div class="shrink-0 flex items-baseline">
                 ${ab.costBadge}
             </div>
           </div>

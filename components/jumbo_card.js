@@ -30,7 +30,11 @@ export function renderJumboAbilities(abilitiesData) {
   let html = '<div class="flex flex-col gap-1 mt-1">';
 
   if (abilitiesData.evergreen.length > 0) {
-    const namesHtml = abilitiesData.evergreen.map(a => a.name + (a.costBadge ? ' ' + a.costBadge : '')).join(', ');
+    const namesHtml = abilitiesData.evergreen.map(a => {
+      const hourglassIcon = (!a.isUsable && a.showHourglass) ? `<span class="ability-icon ability-icon-cooldown">${getIconSvg('hourglass-full')}</span>` : '';
+      const textColorClass = a.isUsable === false ? 'ability-evergreen-unusable' : '';
+      return `<span class="${textColorClass}">${hourglassIcon}${a.name}${a.costBadge ? ' ' + a.costBadge : ''}</span>`;
+    }).join(', ');
     html += `<div class="jmb-ability-evergreen">${namesHtml}</div>`;
   }
 
@@ -39,8 +43,8 @@ export function renderJumboAbilities(abilitiesData) {
   });
 
   abilitiesData.active.forEach(ab => {
-    const iconContent = ab.isAttack ? `<span class="inline-block w-4 h-4 align-middle mr-1">${getIconSvg('attack')}</span>` : '';
-    const hourglassIcon = (!ab.isUsable && ab.showHourglass) ? `<span class="inline-block w-4 h-4 align-middle mr-1 text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.8)]">${getIconSvg('hourglass-full')}</span>` : '';
+    const iconContent = ab.isAttack ? `<span class="ability-icon">${getIconSvg('attack')}</span>` : '';
+    const hourglassIcon = (!ab.isUsable && ab.showHourglass) ? `<span class="ability-icon ability-icon-cooldown">${getIconSvg('hourglass-full')}</span>` : '';
 
     const nameColorClass = ab.isUsable ? 'ability-name-usable' : 'ability-name-unusable';
     const textColorClass = ab.isUsable ? 'ability-text-usable' : 'ability-text-unusable';
@@ -49,7 +53,7 @@ export function renderJumboAbilities(abilitiesData) {
 
     html += `
         <div class="jmb-ability-active-wrap">
-            <div class="flex items-center gap-2">${nameContent}${ab.costBadge}</div>
+            <div class="flex items-baseline gap-2">${nameContent}${ab.costBadge}</div>
             <div class="${textColorClass} text-center leading-snug px-1">${ab.formattedDesc}</div>
         </div>`;
   });

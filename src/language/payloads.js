@@ -303,6 +303,10 @@ export function processTargetGroups(ability, ctx) {
                     possessiveStr = 'its';
                     isPlural = false;
                 }
+            } else if (ability.triggerScope === 'HOST') {
+                targetStr = 'host';
+                possessiveStr = "host's";
+                isPlural = false;
             } else if (actMethod === 'PLAYER_CHOICE') {
                 let actDesc = buildTargetDesc(ability.activation?.quickTargeting, ability.activation?.logicTree, trigger, allHaveSameImpliedZone, impliedZone, false, allTribes, allAbilities, allCards, paramX);
 

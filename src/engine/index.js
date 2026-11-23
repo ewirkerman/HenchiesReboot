@@ -806,6 +806,14 @@ export class GameEngine {
             const context = node.context || 'EVAL_TARGET';
             let targetEnt = entity;
             let checkAttr = node.attribute;
+            const getNumericConditionValue = () => {
+                if (node.valueIsX === true) {
+                    if (resolvedParamX === null || resolvedParamX === undefined) return null;
+                    const value = Number(resolvedParamX);
+                    return Number.isFinite(value) ? value : null;
+                }
+                return Number(node.value);
+            };
 
             if (context === 'EVENT') {
                 if (checkAttr === 'eventAbility') {
@@ -832,7 +840,8 @@ export class GameEngine {
                 if (checkAttr === 'amount') {
                     let eventAmount = eventPayload?.amount;
                     if (eventAmount === undefined) eventAmount = eventPayload?.eventContext?.amount || 0;
-                    const val = Number(node.value);
+                    const val = getNumericConditionValue();
+                    if (val === null) return false;
                     if (node.operator === '==') return eventAmount === val;
                     if (node.operator === '!=') return eventAmount !== val;
                     if (node.operator === '>=') return eventAmount >= val;
@@ -984,7 +993,8 @@ export class GameEngine {
                 const cmp = entVal.toLowerCase() === String(node.value).toLowerCase();
                 return node.operator === '==' ? cmp : !cmp;
             } else {
-                const val = Number(node.value);
+                const val = getNumericConditionValue();
+                if (val === null) return false;
                 if (node.operator === '==') return entVal === val;
                 if (node.operator === '!=') return entVal !== val;
                 if (node.operator === '>=') return entVal >= val;

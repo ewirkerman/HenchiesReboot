@@ -82,13 +82,15 @@ async function fetchSandboxData() {
     const customTribes = await fetchCustomTribes();
     const rawCustomCards = await fetchCustomCards();
 
+    const allCardsTemp = [...CARD_CATALOG, ...rawCustomCards];
+
     // Hydrate catalog with display descriptions for the UI
     const hydratedCards = rawCustomCards.map(c => {
         if (c.abilities) {
             c.abilities = c.abilities.map(ab => {
                 const hyd = hydrateAbility(ab, abilities);
                 if (hyd) {
-                    try { hyd.displayDescription = generateAbilityDescription(hyd, abilities, rawCustomCards, customTribes); } catch (e) { }
+                    try { hyd.displayDescription = generateAbilityDescription(hyd, customTribes, abilities, allCardsTemp); } catch (e) { }
                 }
                 return hyd;
             }).filter(Boolean);
@@ -97,6 +99,11 @@ async function fetchSandboxData() {
     });
 
     const cards = [...CARD_CATALOG, ...hydratedCards];
+
+    // Globally cache live cards/abilities so engine actions (like SUMMON) can look them up!
+    window.__GAME_CARD_CACHE = cards;
+    window.__GAME_ABILITY_CACHE = abilities;
+
     return { abilities, cards, customTribes };
 }
 
@@ -125,32 +132,13 @@ function getCatalogItem(catalog, nameOrId, fallback, isAbility = false) {
  * Auto-heals a card if its database links are broken (e.g. string IDs) to ensure tests run smoothly.
  */
 function autoHealCard(card, targetLiveAbility) {
-    if (!targetLiveAbility || !card.abilities) return;
-    const liveAbId = targetLiveAbility.abilityId || targetLiveAbility.id;
-    const liveAbName = String(targetLiveAbility.name || '').trim().toLowerCase();
-
-    let healed = false;
-    card.abilities = card.abilities.map(a => {
-        const aId = a.abilityId || a.id || a;
-        const aName = String(a.name || '').trim().toLowerCase();
-        if (aId === liveAbId || aName === liveAbName) {
-            healed = true;
-            return JSON.parse(JSON.stringify(targetLiveAbility));
-        }
-        return a;
-    });
-
-    if (!healed) {
-        console.warn(`[SANDBOX] 🩹 Auto-healing broken ability link on '${card.name}'. Injecting live ability.`);
-        card.abilities = card.abilities.filter(a => typeof a === 'object');
-        card.abilities.push(JSON.parse(JSON.stringify(targetLiveAbility)));
-    }
+    // ... existing code ... //
 }
 
 // ============================================================================
 // HELPER: STATE INITIALIZATION
 // ============================================================================
-function createInitialState(username, tribes, mode = 'sandbox') {
+function createInitialState(username, tribes, cards, abilities, mode = 'sandbox') {
     const p1Res = { 'Carnie': { current: 10, max: 10 } };
     tribes.forEach(t => {
         if (t.name !== 'Carnie' && t.name !== 'Generic') {
@@ -162,6 +150,8 @@ function createInitialState(username, tribes, mode = 'sandbox') {
         status: 'active',
         rules: { allowUndo: GLOBAL_UNDO_POLICY !== 'FORCED_OFF' },
         tribeCatalog: tribes,
+        cardCatalog: cards,
+        abilityCatalog: abilities,
         rngSeed: Math.floor(Math.random() * 4294967296),
         activePlayerId: 'player1',
         turnNumber: 1,
@@ -215,7 +205,26 @@ async function configurePlayers(state, itemData, type, sandboxData) {
             const userDecks = await fetchUserDecks(usernameForFetch);
             if (userDecks && userDecks[lastDeckName] && userDecks[lastDeckName].deckData) {
                 const rawRefs = userDecks[lastDeckName].deckData;
-                loadedDeck = rawRefs.map(ref => cards.find(c => c.id === (ref.id || ref))).filter(Boolean);
+                loadedDeck = rawRefs.map(ref => {
+                    const id = typeof ref === 'object' ? (ref.id || ref.cardId) : ref;
+                    let found = cards.find(c => c.id === id);
+                    if (!found) {
+                        console.warn(`[SANDBOX] ⚠️ Deck card '${id}' missing from catalog! Creating stub.`);
+                        found = {
+                            id: id,
+                            name: `Missing Card (${id.substring(0, 8)}...)`,
+                            tribe: 'Generic',
+                            type: 'spell',
+                            genus: 'Attunement', // Inject genus so the draw logic works
+                            cost: 0,
+                            abilities: [],
+                            description: 'Stub generated because this card was not found in the loaded catalog.'
+                        };
+                        // Add to global cache so engine actions can find it later
+                        cards.push(found);
+                    }
+                    return JSON.parse(JSON.stringify(found));
+                }).filter(Boolean);
             }
         }
     } catch (e) {
@@ -271,21 +280,6 @@ async function configurePlayers(state, itemData, type, sandboxData) {
         for (let i = 0; i < 4; i++) {
             state.players.player1.hand.push(instantiateEntity(rawTargetCard, abilities, state, 'player1'));
         }
-    }
-
-    // Inject edge-case debugging cards into P1 hand
-    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
-    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
-    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
-
-    const riseAndServeCard = getCatalogItem(cards, 'Rise and Serve', FALLBACK_DUMMY);
-    state.players.player1.hand.push(instantiateEntity(riseAndServeCard, abilities, state, 'player1'));
-
-    const liveTauntAbility = getCatalogItem(abilities, 'Taunting Call', FALLBACK_TAUNT_ABILITY, true);
-    const tauntingCallCard = getCatalogItem(cards, 'Taunting Call', FALLBACK_TAUNT_CARD);
-    autoHealCard(tauntingCallCard, liveTauntAbility);
-    for (let i = 0; i < 3; i++) {
-        state.players.player1.hand.push(instantiateEntity(tauntingCallCard, abilities, state, 'player1'));
     }
 
     if (rawDeckAvatar) {
@@ -423,6 +417,33 @@ function applyRelentlessModifier(state, abilitiesCatalog, mode = 'sandbox') {
 }
 
 // ============================================================================
+// HELPER: DEBUG INJECTIONS (Deferred)
+// ============================================================================
+function injectDebugCards(state, sandboxData) {
+    const { cards, abilities } = sandboxData;
+    const butcherCard = getCatalogItem(cards, 'Butcher', FALLBACK_DUMMY);
+
+    // Inject Jumbo for testing
+    const jumboCard = getCatalogItem(cards, 'Jumbo the Elephant', FALLBACK_DUMMY);
+    state.players.player1.hand.push(instantiateEntity(jumboCard, abilities, state, 'player1'));
+
+    // Inject edge-case debugging cards into P1 hand
+    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
+    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
+    state.players.player1.hand.push(instantiateEntity(butcherCard, abilities, state, 'player1'));
+
+    const riseAndServeCard = getCatalogItem(cards, 'Rise and Serve', FALLBACK_DUMMY);
+    state.players.player1.hand.push(instantiateEntity(riseAndServeCard, abilities, state, 'player1'));
+
+    const liveTauntAbility = getCatalogItem(abilities, 'Taunting Call', FALLBACK_TAUNT_ABILITY, true);
+    const tauntingCallCard = getCatalogItem(cards, 'Taunting Call', FALLBACK_TAUNT_CARD);
+    autoHealCard(tauntingCallCard, liveTauntAbility);
+    for (let i = 0; i < 3; i++) {
+        state.players.player1.hand.push(instantiateEntity(tauntingCallCard, abilities, state, 'player1'));
+    }
+}
+
+// ============================================================================
 // MAIN ENTRYPOINT
 // ============================================================================
 export async function launchSandboxMatch(itemData, type = 'card', mode = 'sandbox') {
@@ -434,7 +455,7 @@ export async function launchSandboxMatch(itemData, type = 'card', mode = 'sandbo
         const sandboxData = await fetchSandboxData();
 
         const username = localStorage.getItem('henchies_last_username') || 'Tester';
-        const state = createInitialState(username, sandboxData.customTribes, mode);
+        const state = createInitialState(username, sandboxData.customTribes, sandboxData.cards, sandboxData.abilities, mode);
 
         console.log("[SANDBOX] Configuring players...");
         await configurePlayers(state, itemData, type, sandboxData);
@@ -447,6 +468,39 @@ export async function launchSandboxMatch(itemData, type = 'card', mode = 'sandbo
         state.gameId = roomId;
 
         const engine = new GameEngine(state);
+
+        console.log("[SANDBOX] Triggering GAME_STARTING abilities...");
+        let gameStartAbilitiesFired = 0;
+        ['player1', 'player2'].forEach(pid => {
+            const p = state.players[pid];
+            const allEntities = [
+                ...p.deck, ...p.hand, ...p.discard, ...p.banish,
+                ...Object.values(p.lines).flat()
+            ];
+            allEntities.forEach(entity => {
+                if (entity && entity.abilities) {
+                    entity.abilities.forEach(ab => {
+                        if (ab.trigger === 'GAME_STARTING') {
+                            console.log(`[SANDBOX] ⚡ Firing GAME_STARTING ability '${ab.name}' on ${entity.name} (${entity.instanceId || entity.id})`);
+                            engine.executeAbility(ab, entity, {
+                                eventContext: { type: 'GAME_STARTING' },
+                                target: entity,
+                                actingPlayerId: entity.ownerId || pid
+                            });
+                            gameStartAbilitiesFired++;
+                        }
+                    });
+                }
+            });
+        });
+
+        if (gameStartAbilitiesFired > 0) {
+            state.history_log.push(`⚡ Triggered ${gameStartAbilitiesFired} Game Start abilities.`);
+        }
+
+        console.log("[SANDBOX] Injecting debugging hand cards...");
+        injectDebugCards(state, sandboxData);
+
         startTurn(state, engine);
         state.turn_start_state = JSON.stringify(state);
 

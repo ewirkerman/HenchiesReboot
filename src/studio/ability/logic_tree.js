@@ -82,11 +82,13 @@ export function updateNodeField(treeType, pathString, field, value) {
           const typeDef = ATTRIBUTE_MANIFEST[newAttr];
           node.value = typeDef.type === 'select' ? typeDef.options[0] : (typeDef.type === 'text' ? '' : 1);
           node.operator = '==';
+          node.valueIsX = false;
       }
   } else if (field === 'attribute') {
       const typeDef = ATTRIBUTE_MANIFEST[value];
       node.value = typeDef.type === 'select' ? typeDef.options[0] : (typeDef.type === 'text' ? '' : 1);
       node.operator = '==';
+      node.valueIsX = false;
   }
   
   if (treeType === 'activation') renderLogicTrees(); else renderEffects();
