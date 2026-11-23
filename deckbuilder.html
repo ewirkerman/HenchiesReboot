@@ -186,6 +186,10 @@
     let allDecks = [];
     let currentEditingId = null;
     let customTribesList = [];
+    let customCardIds = new Set();
+    let abilityRefreshVersion = 0;
+    let initialCatalogReady = false;
+    let pendingAbilitySync = false;
 
     window.inspectCard = (cardJson) => {
       openInspectionModal(JSON.parse(decodeURIComponent(cardJson)), allAbilitiesRegistry);
@@ -217,6 +221,58 @@
 
     init();
 
+    window.addEventListener('catalog_delta_sync', (event) => {
+      if (event.detail?.type !== 'abilities') return;
+      if (!initialCatalogReady) {
+        pendingAbilitySync = true;
+        return;
+      }
+      refreshAbilityData();
+    });
+
+    async function refreshAbilityData() {
+      const version = ++abilityRefreshVersion;
+
+      try {
+        const rawAbilities = await fetchCustomAbilities();
+        if (version !== abilityRefreshVersion) return;
+
+        allAbilitiesRegistry = rawAbilities.map(ability => ({
+          ...ability,
+          displayDescription: generateAbilityDescription(ability, rawAbilities, fullCatalog, customTribesList)
+        }));
+
+        window.StudioState = window.StudioState || {};
+        window.StudioState.allAbilitiesRegistry = allAbilitiesRegistry;
+
+        const cardsToUpdate = new Set([
+          ...fullCatalog.filter(card => customCardIds.has(card.id)),
+          ...currentDeck.filter(card => customCardIds.has(card.id)),
+          ...(currentAvatar && customCardIds.has(currentAvatar.id) ? [currentAvatar] : [])
+        ]);
+
+        cardsToUpdate.forEach(card => {
+          card.abilities = (card.abilities || []).map(abilityRef => {
+            const hydrated = hydrateAbility(abilityRef, rawAbilities);
+            if (!hydrated) return abilityRef;
+            hydrated.displayDescription = generateAbilityDescription(
+              hydrated,
+              rawAbilities,
+              fullCatalog,
+              customTribesList
+            );
+            return hydrated;
+          });
+        });
+
+        renderCatalog();
+        updateDeckUI();
+      } catch (error) {
+        console.error('Failed to refresh deckbuilder ability data:', error);
+        showToast('Failed to refresh ability updates. Please refresh the deckbuilder.', 'error');
+      }
+    }
+
     async function init() {
       await loadUI();
       
@@ -238,6 +294,7 @@
         tribeSelect.innerHTML = '<option value="ALL">All Tribes</option>' + visibleTribes.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
 
         const customCards = await fetchCustomCards();
+        customCardIds = new Set(customCards.map(card => card.id));
         const tempCards = [...CARD_CATALOG, ...customCards];
 
         const rawAbs = await fetchCustomAbilities();
@@ -264,6 +321,12 @@
                return c;
            });
            fullCatalog = [...CARD_CATALOG, ...hydratedCustomCards];
+        }
+
+        initialCatalogReady = true;
+        if (pendingAbilitySync) {
+          pendingAbilitySync = false;
+          refreshAbilityData();
         }
       } catch (e) {
         console.error("Failed to load custom cards:", e);

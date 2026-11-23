@@ -20,7 +20,10 @@ function allPayloadsWhileAttached(effectGroups) {
     return payloads.length > 0 && payloads.every(payload => payload?.duration === 'WHILE_ATTACHED');
 }
 
-export function getTriggerWord(t, effectGroups = []) {
+export function getTriggerWord(t, effectGroups = [], additionalTriggers = []) {
+    if (additionalTriggers.length) {
+        return [t, ...additionalTriggers].map(x => getTriggerWord(x, [], [])).join(' OR ')
+    }
     if (!t || t === 'MANUAL') return '';
     if (t === 'UNTRIGGERABLE') return 'Passive';
     if (t === 'ON_BE_ATTACHED') return allPayloadsWhileAttached(effectGroups) ? 'While Attached' : 'Attached';
@@ -55,7 +58,8 @@ export function getTriggerWord(t, effectGroups = []) {
 
     if (t.startsWith('MODIFY_')) return `Pre-${base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()}`;
     if (t.startsWith('WOULD_')) return `Block ${base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()}`;
-    return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
+    const result = base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
+    return result;
 }
 
 export function generateLogicTreeText(logicTree, trigger, allTribes, allAbilities = null, paramX = null) {

@@ -104,7 +104,7 @@ export function formatAbilityCostBadge(cost, cardTribe) {
         tribeStyle: getLiveTribeStyle(cost.tribeType || cardTribe || 'Generic'),
         iconSizeClass: ''
     });
-    return `<span class="inline-flex items-center gap-0.5 opacity-90">${badgeHtml}</span>`;
+    return `<span class="ability-cost-badge">${badgeHtml}</span>`;
 }
 
 export { formatCardText };
@@ -172,23 +172,31 @@ function checkAbilityUsable(card, ab, options, isAttack) {
     let isUsable = true;
     let showHourglass = false;
 
-    const uses = (options.abilityUses || {})[`${card.instanceId}_${ab.abilityId}`] || 0;
+    const abilityUsesMap = options.abilityUses || {};
+    const uses = (ab.instanceId && abilityUsesMap[ab.instanceId] !== undefined)
+        ? abilityUsesMap[ab.instanceId]
+        : (abilityUsesMap[`${card.instanceId}_${ab.abilityId}`] || 0);
+
     if (ab.triggerLimit === 'ONCE_PER_ROUND' && uses >= 1) { isUsable = false; showHourglass = true; }
     if (ab.triggerLimit === 'TWICE_PER_ROUND' && uses >= 2) { isUsable = false; showHourglass = true; }
 
-    const blockStatus = getActionBlockStatus(card, isAttack ? 'BLOCK_ATTACK' : 'BLOCK_ACT');
-    if (blockStatus) {
-        isUsable = false;
-        if (blockStatus === 'temporary') showHourglass = true;
-    }
-
-    if (isUsable) {
-        const cost = ab.cost || {};
-        if (!cost.freeAction && !isAttack && (!card.acts || card.acts < 1)) {
+    if (ab.trigger === 'MANUAL') {
+        const blockStatus = getActionBlockStatus(card, isAttack ? 'BLOCK_ATTACK' : 'BLOCK_ACT');
+        if (blockStatus) {
             isUsable = false;
-            showHourglass = true;
+            if (blockStatus === 'temporary') showHourglass = true;
+        }
+
+        if (isUsable) {
+            const cost = ab.cost || {};
+            const cdGroup = ab.cooldownGroup || 'innate';
+            if (!cost.freeAction && !isAttack && card.acts && card.acts[cdGroup] === true) {
+                isUsable = false;
+                showHourglass = true;
+            }
         }
     }
+
     return { isUsable, showHourglass };
 }
 
@@ -225,13 +233,14 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
         rawDesc = capitalizeDescription(rawDesc);
 
         const costBadge = formatAbilityCostBadge(ab.cost, card.tribe);
+        const isAttack = ab.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
+
+        // Check usability for all abilities now, so evergreen styles can use it
+        const { isUsable, showHourglass } = checkAbilityUsable(card, ab, options, isAttack);
 
         if (isKeyword) {
-            data.evergreen.push({ name: ab.name || 'System Keyword', costBadge, rawDesc: rawDesc || 'System Keyword' });
+            data.evergreen.push({ name: ab.name || 'System Keyword', costBadge, rawDesc: rawDesc || 'System Keyword', isUsable, showHourglass, isAttack });
         } else if (ab.trigger === 'MANUAL') {
-            const isAttack = ab.effects?.some(g => g.payloads?.some(p => p.type === 'ATTACK'));
-            const { isUsable, showHourglass } = checkAbilityUsable(card, ab, options, isAttack);
-
             data.active.push({
                 name: ab.name || 'Action', costBadge, rawDesc,
                 formattedDesc: formatCardText(rawDesc, allAbilitiesRegistry, pX),
@@ -240,7 +249,7 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
         } else {
             let desc = rawDesc || (ab.name ? `**${ab.name}**` : '');
             const isSpellPlay = card.type === 'spell' && ['PLAY', 'ON_BE_PLAYED', 'ON_PLAYED'].includes(ab.trigger);
-            let event = getTriggerWord(ab.trigger, ab.effects);
+            let event = getTriggerWord(ab.trigger, ab.effects, ab.additionalTriggers);
             const trigger = (ab.trigger || '').toUpperCase();
             const isTurnEvent = /^(?:OWN_|OPP_)?TURN_(?:STARTING|STARTED|ENDING|ENDED)$/.test(trigger);
             if (event && isTurnEvent) {
@@ -273,7 +282,7 @@ export function computeAbilitiesData(card, options, allAbilitiesRegistry = []) {
             data.bespoke.push({
                 name: ab.name || 'Ability', costBadge, rawDesc,
                 formattedDesc: formatCardText(desc, allAbilitiesRegistry, pX),
-                event, isSpellPlay
+                event, isSpellPlay, isUsable, showHourglass, isAttack
             });
         }
     });

@@ -8,6 +8,7 @@ export class PlayAction extends Action {
         instance.maxHealth = instance.maxHealth || instance.health || 1;
         if (instance.health === undefined || instance.health <= 0) instance.health = instance.maxHealth;
         instance.readiness = ['artifact', 'boon'].includes(instance.type) ? 1 : 0;
+        instance.armor = 0;
         normalizeEntityCooldownGroups(instance);
 
         // Spells go to the equator temporarily so they exist in a valid zone before being Trashed

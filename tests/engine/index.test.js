@@ -613,6 +613,45 @@ describe('index.js GameEngine', () => {
             expect(engine.evaluateLogicTree(nodeLT, entity)).toBe(false);
         });
 
+        it('should use paramX for numeric entity and event conditions', () => {
+            const target = { type: 'unit', cost: 2 };
+            const source = { instanceId: 'x_condition_source' };
+            const costCondition = {
+                type: 'condition',
+                context: 'EVENT_TARGET',
+                attribute: 'cost',
+                operator: '<=',
+                value: 99,
+                valueIsX: true
+            };
+            const amountCondition = {
+                type: 'condition',
+                context: 'EVENT',
+                attribute: 'amount',
+                operator: '>=',
+                value: 99,
+                valueIsX: true
+            };
+
+            expect(engine.evaluateLogicTree(costCondition, target, source, { target }, null, 2)).toBe(true);
+            expect(engine.evaluateLogicTree(costCondition, target, source, { target }, null, 1)).toBe(false);
+            expect(engine.evaluateLogicTree(amountCondition, target, source, { amount: 2 }, null, 2)).toBe(true);
+            expect(engine.evaluateLogicTree(amountCondition, target, source, { amount: 2 }, null, 3)).toBe(false);
+        });
+
+        it('should not treat an unresolved paramX as zero in numeric conditions', () => {
+            const condition = {
+                type: 'condition',
+                attribute: 'cost',
+                operator: '>=',
+                value: 0,
+                valueIsX: true
+            };
+
+            expect(engine.evaluateLogicTree(condition, { type: 'unit', cost: 1 }, {}, {})).toBe(false);
+            expect(engine.evaluateLogicTree({ ...condition, operator: '!=' }, { type: 'unit', cost: 1 }, {}, {})).toBe(false);
+        });
+
         it('should correctly evaluate AND/OR logical groups', () => {
             const entity = { tribe: 'Pirate', power: 3 };
 

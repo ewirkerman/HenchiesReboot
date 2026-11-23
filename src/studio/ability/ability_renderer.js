@@ -132,7 +132,13 @@ export function generateConditionHTML(treeType, cond, path, parentBorderClass) {
             valueInputHTML = `<input type="text" value="${cond.value || ''}" placeholder="Value..." onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
         }
     } else {
-        valueInputHTML = `<input type="number" value="${cond.value}" onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px]" />`;
+        const xChecked = cond.valueIsX === true;
+        valueInputHTML = `
+            <input type="number" value="${cond.value ?? ''}" ${xChecked ? 'disabled' : ''} onchange="window.updateNodeField('${treeType}', '${pathStr}', 'value', this.value)" class="bg-slate-900 border border-slate-700 p-1 rounded text-white flex-1 min-w-[80px] ${xChecked ? 'opacity-50' : ''}" />
+            <label class="flex items-center gap-1 cursor-pointer whitespace-nowrap text-[9px] font-bold text-amber-400">
+                <input type="checkbox" ${xChecked ? 'checked' : ''} onchange="window.updateNodeField('${treeType}', '${pathStr}', 'valueIsX', this.checked)" class="accent-amber-500 w-3 h-3" />
+                Var X
+            </label>`;
     }
 
     return `

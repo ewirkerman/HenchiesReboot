@@ -272,7 +272,6 @@ export class Action {
         if (target.maxHealth !== undefined && target.maxHealth !== null) target.health = target.maxHealth;
         if (target.originalPower !== undefined && target.originalPower !== null) target.power = target.originalPower;
         if (target.originalStrength !== undefined && target.originalStrength !== null) target.strength = target.originalStrength;
-        target.armor = 0;
     }
 
     sweepActionEffects(engine) {
