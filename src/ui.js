@@ -6,6 +6,7 @@
 import { fetchCustomTribes } from './firebase.js';
 import { formatCardText } from '../components/card_text.js';
 import { formatAbilityDescription, getAbilityDescription } from './ability_descriptions.js';
+import { getTriggerWord } from './language/triggers.js';
 
 export const CARD_BASE_CLASSES = "w-[128px] h-[179px] sm:w-[144px] sm:h-[201px]";
 export const TRIBE_STYLES = {}; // Legacy fallback to prevent import crashes
@@ -48,6 +49,145 @@ export async function loadUI() {
 
 import { formatAbilityCostBadge, hasEngineFlag, renderCardHTML, computeAbilitiesData } from '../components/game_card.js';
 export { formatAbilityCostBadge, hasEngineFlag, formatCardText, renderCardHTML, computeAbilitiesData };
+
+/**
+ * Retrieves a shared catalog list (e.g. cards or tribes) from global state,
+ * matching the lookup order used by game_card.js.
+ */
+function getGlobalList(...properties) {
+  if (typeof window === 'undefined') return [];
+  const states = [window.ClientState, window.StudioState, window.CardState];
+  for (const state of states) {
+    if (!state) continue;
+    for (const prop of properties) {
+      if (state[prop] && state[prop].length > 0) return state[prop];
+    }
+  }
+  return [];
+}
+
+/**
+ * Extracts non-recursive card references driven by @[...] tokens in the card's
+ * own ability descriptions and card description, resolved against the global card catalog.
+ */
+export function extractReferencedCards(cardOrUnit, allAbilitiesRegistry = []) {
+  if (!cardOrUnit) return [];
+
+  let globalCards = getGlobalList('allCards', 'cards');
+  const globalTribes = getGlobalList('customTribesList', 'customTribes');
+
+  if (globalCards.length === 0 && typeof window !== 'undefined' && window.__GAME_CARD_CACHE) {
+    globalCards = Array.from(window.__GAME_CARD_CACHE.values());
+  }
+  if (globalCards.length === 0) return [];
+
+  const texts = [];
+  if (cardOrUnit.abilities && cardOrUnit.abilities.length > 0) {
+    cardOrUnit.abilities.forEach(a => {
+      const regMatch = allAbilitiesRegistry.find(reg => (reg.abilityId || reg.id) === (a.abilityId || a.id)) || {};
+      const ab = { ...regMatch, ...a };
+      const desc = getAbilityDescription(ab, allAbilitiesRegistry, globalCards, globalTribes);
+      if (desc) texts.push(desc);
+    });
+  }
+  if (cardOrUnit.description) {
+    texts.push(cardOrUnit.description);
+  }
+
+  const selfId = cardOrUnit.id || cardOrUnit.cardId || null;
+  const selfName = (cardOrUnit.name || '').toLowerCase();
+  const referencedMap = new Map();
+  const mentionRegex = /@\[(.*?)\]/g;
+
+  texts.forEach(text => {
+    let match;
+    mentionRegex.lastIndex = 0;
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const ref = match[1].trim();
+      if (!ref) continue;
+
+      const refLower = ref.toLowerCase();
+      const foundCard = globalCards.find(c =>
+        c.id === ref ||
+        c.cardId === ref ||
+        (c.name && c.name.toLowerCase() === refLower)
+      );
+
+      if (!foundCard) continue;
+
+      const foundId = foundCard.id || foundCard.cardId || foundCard.name;
+      const foundName = (foundCard.name || '').toLowerCase();
+      if ((selfId && foundId === selfId) || (selfName && foundName === selfName)) continue;
+
+      if (!referencedMap.has(foundId)) {
+        referencedMap.set(foundId, foundCard);
+      }
+    }
+  });
+
+  return Array.from(referencedMap.values());
+}
+
+/**
+ * Groups referenced cards into rows of at most 2 cards, filling lower rows first
+ * (e.g., 1 -> [1], 2 -> [2], 3 -> [1, 2], 4 -> [2, 2], 5 -> [1, 2, 2]).
+ */
+function buildReferencedCardRows(cards) {
+  const rows = [];
+  let i = 0;
+
+  if (cards.length % 2 === 1) {
+    rows.push([{ card: cards[0], idx: 0 }]);
+    i = 1;
+  }
+
+  while (i < cards.length) {
+    rows.push([
+      { card: cards[i], idx: i },
+      { card: cards[i + 1], idx: i + 1 }
+    ]);
+    i += 2;
+  }
+
+  return rows;
+}
+
+/**
+ * Generates the human-readable trigger string for a glossary ability
+ * using the same getTriggerWord and scope prefixing logic as game_card.js.
+ */
+function formatGlossaryTrigger(ab) {
+  if (!ab || !ab.trigger || ab.trigger === 'MANUAL' || ab.trigger === 'UNTRIGGERABLE') return '';
+
+  let event = getTriggerWord(ab.trigger, ab.effects, ab.additionalTriggers);
+  if (!event) return '';
+
+  const trigger = (ab.trigger || '').toUpperCase();
+  const isTurnEvent = /^(?:OWN_|OPP_)?TURN_(?:STARTING|STARTED|ENDING|ENDED)$/.test(trigger);
+
+  if (isTurnEvent) {
+    const turnScope = trigger.startsWith('OWN_TURN_')
+      ? 'OWN'
+      : trigger.startsWith('OPP_TURN_')
+        ? 'OPP'
+        : ab.triggerScope === 'GLOBAL'
+          ? 'ANY'
+          : ab.triggerScope === 'HOST'
+            ? 'HOST'
+            : 'OWN';
+    event = `${turnScope} ${event}`;
+  } else if (ab.triggerScope === 'GLOBAL') {
+    if (event.toUpperCase().startsWith('BLOCK ')) {
+      event = event.substring(0, 6) + 'ANY ' + event.substring(6);
+    } else {
+      event = `ANY ${event}`;
+    }
+  } else if (ab.triggerScope === 'HOST') {
+    event = `HOST ${event}`;
+  }
+
+  return event;
+}
 
 export function extractGlossary(baseAbilities, allAbilitiesRegistry, cardText = '') {
   if (!allAbilitiesRegistry || allAbilitiesRegistry.length === 0) return [];
@@ -141,7 +281,7 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNes
   const lastRef = lastInHistory ? (lastInHistory.card.instanceId || lastInHistory.card.id || lastInHistory.card.name) : null;
 
   if (currentRef !== lastRef) {
-    window._inspectHistory.push({ card: cardOrUnit, registry: allAbilitiesRegistry });
+    window._inspectHistory.push({ card: cardOrUnit, registry: allAbilitiesRegistry, abilityUses, isHand });
   }
 
   let modal = document.getElementById('inspection-modal');
@@ -154,7 +294,7 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNes
       if (window._inspectHistory && window._inspectHistory.length > 1) {
         window._inspectHistory.pop();
         const prev = window._inspectHistory[window._inspectHistory.length - 1];
-        openInspectionModal(prev.card, prev.registry, true, abilityUses, isHand);
+        openInspectionModal(prev.card, prev.registry, true, prev.abilityUses || {}, prev.isHand || false);
       } else {
         modal.classList.add('hidden');
         window._inspectHistory = [];
@@ -201,10 +341,41 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNes
     openInspectionModal(card, currentRegistry, true);
   };
 
+  window._inspectReferencedCard = (index) => {
+    const refCard = window._currentReferencedCards?.[index];
+    if (!refCard) return;
+    const currentRegistry = window._inspectHistory.length > 0 ? window._inspectHistory[window._inspectHistory.length - 1].registry : [];
+    openInspectionModal(refCard, currentRegistry, true);
+  };
+
   // Prevent body horizontal/vertical scrolling entirely while modal is open
   document.body.style.overflow = 'hidden';
 
-  // Extract Glossary
+  // Extract Referenced Cards & Glossary
+  const referencedCards = extractReferencedCards(cardOrUnit, allAbilitiesRegistry);
+  window._currentReferencedCards = referencedCards;
+  const referencedRows = buildReferencedCardRows(referencedCards);
+
+  const referencedCardsHtml = referencedCards.length > 0 ? `
+        <!-- LEFT COLUMN: Referenced Cards (Standard Size, Max 2 Columns, Lower Rows First) -->
+        <div class="w-full md:w-[350px] md:h-full flex flex-col justify-center shrink-0 pointer-events-auto z-0 px-2 sm:px-0" onclick="if(event.target === this) window._handleModalBack()">
+          <div class="w-full max-h-full overflow-y-auto minimal-scrollbar py-2 flex flex-col items-center gap-3 my-auto" onclick="if(event.target === this) window._handleModalBack()">
+            ${referencedRows.map(row => `
+              <div class="flex items-center justify-center gap-3 w-full" onclick="if(event.target === this) window._handleModalBack()">
+                ${row.map(({ card, idx }) => `
+                  <div class="shrink-0 pointer-events-auto">
+                    ${renderCardHTML(card, { onInspect: `window._inspectReferencedCard(${idx})` })}
+                  </div>
+                `).join('')}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+  ` : `
+        <!-- LEFT SPACER (Forces card to perfect center on desktop) -->
+        <div class="hidden md:block md:w-[350px] shrink-0 pointer-events-none" onclick="if(event.target === this) window._handleModalBack()"></div>
+  `;
+
   const glossaryAbilities = extractGlossary(cardOrUnit.abilities || [], allAbilitiesRegistry, cardOrUnit.description);
 
   const cardHtml = renderCardHTML(cardOrUnit, { size: 'jumbo', abilityUses: abilityUses, isHand: isHand });
@@ -219,8 +390,7 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNes
       <!-- Main Layout Container: Top-aligned on mobile, Centered on desktop, No overflow -->
       <div class="w-full h-full max-w-[1400px] text-slate-100 flex flex-col md:flex-row items-center md:justify-center justify-start pt-12 sm:pt-4 pb-4 gap-4 md:gap-8 pointer-events-none mx-auto overflow-hidden" onclick="if(event.target === this) window._handleModalBack()">
         
-        <!-- LEFT SPACER (Forces card to perfect center on desktop) -->
-        <div class="hidden md:block md:w-[350px] shrink-0 pointer-events-none" onclick="if(event.target === this) window._handleModalBack()"></div>
+        ${referencedCardsHtml}
 
         <!-- CENTER: The Giant 5x7 Card Layout (Pinned to top on mobile) -->
         <div class="flex items-center justify-center pointer-events-auto shrink-0 z-10 relative mt-2 md:mt-0 max-w-[100vw]">
@@ -249,13 +419,13 @@ export function openInspectionModal(cardOrUnit, allAbilitiesRegistry = [], isNes
     const isSystem = a.id && a.id.startsWith('sys_');
     const displayStyle = localStorage.getItem('henchies_glossary_mode') === 'essentials' && isSystem ? 'none' : 'flex';
     const formattedDesc = formatAbilityDescription(a, allAbilitiesRegistry);
+    const triggerText = formatGlossaryTrigger(a);
     return `
                   <div class="glossary-item bg-slate-900/90 backdrop-blur-md p-3 md:p-4 rounded-xl border border-slate-700 shadow-xl flex-col gap-1.5 transform transition-transform hover:scale-[1.02] w-full" data-is-system="${isSystem}" style="display: ${displayStyle};">
-                    <div class="flex justify-between items-center border-b border-slate-700/50 pb-1 md:pb-1.5">
-                        <div class="font-black text-fuchsia-300 text-xs md:text-sm drop-shadow-md truncate pr-2">${a.name || a.abilityId || a.id}</div>
-                        <span class="text-[8px] md:text-[9px] bg-slate-950 text-slate-300 px-1.5 md:px-2 py-0.5 rounded border border-slate-700 font-bold uppercase tracking-wider shrink-0">${a.trigger || 'MANUAL'}</span>
+                    <div class="flex items-center border-b border-slate-700/50 pb-1 md:pb-1.5">
+                        <div class="font-black text-fuchsia-300 text-xs md:text-sm drop-shadow-md truncate">${a.name || a.abilityId || a.id}</div>
                     </div>
-                    <div class="text-slate-200 text-[11px] md:text-xs leading-snug break-words">${formattedDesc}</div>
+                    <div class="text-slate-200 text-[11px] md:text-xs leading-snug break-words">${triggerText ? `<span class="font-black uppercase text-amber-300 mr-1">${triggerText}:</span>` : ''}${formattedDesc}</div>
                   </div>
                 `}).join('')}
               </div>

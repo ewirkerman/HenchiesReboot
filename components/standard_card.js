@@ -42,9 +42,9 @@ export function renderStandardAbilities(abilitiesData) {
 }
 
 export function renderStandard(ctx) {
-  const handHoverClass = (ctx.isHand && (!ctx.isTargetingMode || ctx.isTargetable) && !ctx.isCasting && !ctx.isSelected) ? 'hover:-translate-y-6 hover:!z-[100]' : '';
-  const handCastingClass = (ctx.isHand && (ctx.isCasting || ctx.isSelected)) ? '-translate-y-6 !z-[110]' : '';
-  const forceHoverClass = ctx.isForceHover ? '-translate-y-6 !z-[100]' : '';
+  const handHoverClass = (ctx.isHand && (!ctx.isTargetingMode || ctx.isTargetable) && !ctx.isCasting && !ctx.isSelected) ? 'card-hand-hoverable' : '';
+  const handCastingClass = (ctx.isHand && (ctx.isCasting || ctx.isSelected)) ? 'card-hand-casting' : '';
+  const forceHoverClass = ctx.isForceHover ? 'card-hand-elevated' : '';
 
   return `
     <div 
@@ -63,7 +63,7 @@ export function renderStandard(ctx) {
         ` : ''}
         ${ctx.cardArtUrl ? `<img src="${ctx.cardArtUrl}" class="w-full h-full object-contain relative z-10" style="${ctx.artStyle}" draggable="false" />` : `
           <div class="relative z-10 w-full h-full flex items-center justify-center drop-shadow-md text-3xl sm:text-4xl font-bold">
-            ${ctx.card.type === 'unit' ? '⚔️' : ctx.card.type === 'avatar' ? '👑' : ctx.card.type === 'equipment' ? '🛡️' : ctx.card.type === 'artifact' ? '🏺' : '📜'}
+            ${ctx.fallbackArtEmoji}
           </div>
         `}
         <div class="bottom-1.5 card-name-wrapper">
@@ -115,7 +115,7 @@ export function renderStandard(ctx) {
           </div>
         ` : ''}
         ${ctx.isUnit ? `
-          <div class="w-5 h-5 sm:w-6 sm:h-6 mt-1 ml-1 stat-box drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${ctx.isTempLine ? 'text-green-300 drop-shadow-[0_0_6px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${ctx.isTempLine ? 'Temporary Line: ' : 'Line: '}${ctx.activeLine.charAt(0).toUpperCase() + ctx.activeLine.slice(1)}">
+          <div class="line-icon-box ${ctx.lineGlowClass}" title="${ctx.isTempLine ? 'Temporary Line: ' : 'Line: '}${ctx.activeLine.charAt(0).toUpperCase() + ctx.activeLine.slice(1)}">
             ${getLineIconSvg(ctx.activeLine)}
           </div>
         ` : ''}

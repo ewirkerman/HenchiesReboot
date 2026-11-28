@@ -1,9 +1,11 @@
 import { ClientState } from './client_state.js';
 import { updateUI } from './renderer.js';
-import { createGameRoom, subscribeToGameRoom, pushActionToLog, findOpenQueueRoom, sendDirectInvite, updateInviteStatus } from '../firebase.js';
+import { createGameRoom, subscribeToGameRoom, pushActionToLog, findOpenQueueRoom, sendDirectInvite, updateInviteStatus, markCompletedGameViewed } from '../firebase.js';
 import { initGame, joinGame, cloneGameState, executeSacrificeDecision, playCard, executeEntityAction, endTurn, instantiateEntity, GameEngine, startTurn } from '../engine/index.js';
 import { showToast } from '../ui.js';
 import { checkTurnStateForNotification } from '../profile.js';
+
+const markedViewedGames = new Set();
 
 export async function validateAndGetDeck() {
     const username = document.getElementById('setup-username').value.trim();
@@ -425,6 +427,28 @@ export function reconstructStateFromLog(data) {
 
         const localUsername = document.getElementById('setup-username')?.value.trim() || localStorage.getItem('henchies_last_username');
         checkTurnStateForNotification(ClientState.gameState, localUsername);
+
+        // Persist completion + mark as viewed for this participant so the lobby hides it afterward
+        if (liveState.status === 'finished' && ClientState.roomCode && localUsername && !ClientState.roomCode.startsWith('TEST_')) {
+            const isParticipant =
+                liveState.players?.player1?.name === localUsername ||
+                liveState.players?.player2?.name === localUsername;
+
+            if (isParticipant) {
+                const alreadyMarkedFinished = data.status === 'finished' && (!liveState.winner || data.winner === liveState.winner);
+                const alreadyViewedByMe = Array.isArray(data.viewedCompletedBy) && data.viewedCompletedBy.includes(localUsername);
+                const dedupeKey = `${ClientState.roomCode}::${localUsername}`;
+
+                if ((!alreadyMarkedFinished || !alreadyViewedByMe) && !markedViewedGames.has(dedupeKey)) {
+                    markedViewedGames.add(dedupeKey);
+                    markCompletedGameViewed(ClientState.roomCode, localUsername, {
+                        winner: liveState.winner || null
+                    }).then((ok) => {
+                        if (!ok) markedViewedGames.delete(dedupeKey);
+                    });
+                }
+            }
+        }
 
     } catch (err) {
         console.error("Error reconstructing game state from log:", err);

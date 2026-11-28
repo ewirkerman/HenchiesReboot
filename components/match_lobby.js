@@ -2,7 +2,7 @@ export class MatchLobby extends HTMLElement {
     connectedCallback() {
         const isTestMode = window.location.hash.startsWith('#test_');
         this.style.display = isTestMode ? 'none' : 'contents';
-        
+
         this.innerHTML = `
         <div id="match-setup-screen" class="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col justify-center my-auto ${isTestMode ? 'hidden' : ''}">
             <div class="glass-panel rounded-3xl p-6 shadow-2xl border border-slate-800 flex flex-col gap-5">
@@ -49,9 +49,12 @@ export class MatchLobby extends HTMLElement {
                 
                 <!-- Combined Active Matches & Invites -->
                 <div class="bg-slate-900/30 p-3 sm:p-4 rounded-xl border border-slate-700/50 flex flex-col gap-2 h-full">
-                     <h3 class="text-amber-400 font-black uppercase tracking-wider border-b border-slate-700/50 pb-1 text-xs flex justify-between items-center">
+                     <h3 class="text-amber-400 font-black uppercase tracking-wider border-b border-slate-700/50 pb-1 text-xs flex justify-between items-center gap-2">
                         <span>Active Games & Invites</span>
-                        <span id="combined-count" class="bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded text-[9px] font-bold">0</span>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button id="clear-inactive-btn" type="button" class="hidden bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" title="Dismiss all completed games">Clear Inactive</button>
+                            <span id="combined-count" class="bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded text-[9px] font-bold">0</span>
+                        </div>
                      </h3>
                      <div id="combined-matches-list" class="flex flex-col gap-1.5 min-h-[150px] max-h-[350px] overflow-y-auto minimal-scrollbar pr-1">
                          <span class="text-xs text-slate-500 italic px-1">No active games or invites.</span>

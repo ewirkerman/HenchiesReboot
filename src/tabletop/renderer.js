@@ -283,8 +283,8 @@ function renderEquator(equatorItems) {
         let attachmentsHtml = renderAttachmentsRecursive(item.attachments, 'equator', 'equator', false);
 
         return `
-        <div class="flex flex-row items-start relative group drop-shadow-md shrink-0">
-            <div class="relative z-[30]">${hostHtml}</div>
+        <div class="unit-stack group">
+            <div class="unit-stack-host">${hostHtml}</div>
             ${attachmentsHtml}
         </div>
       `;
@@ -369,11 +369,10 @@ function renderPlayerBattlelines(player, prefix) {
         const lineEl = document.getElementById(`${prefix}-line-${line}`);
         if (!lineEl) continue;
 
-        lineEl.classList.add('relative');
         lineEl.classList.remove('justify-center', 'content-center', 'items-center');
-        lineEl.classList.add('justify-evenly', 'content-start', 'items-start', 'flex-wrap', 'gap-2');
+        lineEl.classList.add('battleline-zone');
 
-        const bgIcon = `<div class="absolute top-1 left-2 w-8 h-8 sm:w-12 sm:h-12 text-slate-500/50 pointer-events-none z-0 drop-shadow-md">${getLineIconSvg(line)}</div>`;
+        const bgIcon = `<div class="battleline-bg-icon">${getLineIconSvg(line)}</div>`;
         const units = player.lines[line] || [];
         const isLocalPlayer = prefix === 'player';
 
@@ -400,7 +399,7 @@ function renderPlayerBattlelines(player, prefix) {
 
             let attachmentsHtml = renderAttachmentsRecursive(u.attachments, prefix, line, isLocalPlayer);
 
-            return `<div class="flex flex-row items-start relative group drop-shadow-md shrink-0"><div class="relative z-[30]">${hostHtml}</div>${attachmentsHtml}</div>`;
+            return `<div class="unit-stack group"><div class="unit-stack-host">${hostHtml}</div>${attachmentsHtml}</div>`;
         }).join('');
 
         lineEl.innerHTML = bgIcon + cardsHtml;
