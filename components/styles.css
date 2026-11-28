@@ -1,615 +1,935 @@
-.stat-box {
-display: flex;
-align-items: center;
-justify-content: center;
-line-height: 1;
+/* ==========================================================================
+   CARD & GAME UI STYLESHEET
+   Table of Contents:
+   1. Design Tokens (:root)
+   2. Global Utilities (Scrollbars, Glows, Raw User SVGs)
+   3. Card Shell, Structural Layers & Hand Elevation
+   4. Stat Boxes, Corner Badges, Readiness & Card Line Icons
+   5. Status, Readiness Overlays & Field Rendering States
+   6. Ability Typography, Icons, Resource Tokens & Usability States
+   7. Card Size Variants (Standard Overrides, Micro, Nano)
+   8. Tabletop Board, Battlelines & Unit Stacks
+   9. Game HUD Action Buttons
+   ========================================================================== */
+
+/* ==========================================================================
+   1. DESIGN TOKENS
+   ========================================================================== */
+
+:root {
+  /* Typography */
+  --font-card-condensed: 'Franklin Gothic Condensed', sans-serif;
+
+  /* Stat & Ability Colors */
+  --color-stat-buff: #4ade80;          /* green-400 */
+  --color-stat-debuff: #f87171;        /* red-400 */
+  --color-evergreen: #fcd34d;          /* amber-300 */
+  --color-accent-gold: #eab308;        /* yellow-500 */
+  --color-cooldown: #4ade80;           /* green-400 */
+  --color-temp-line: #86efac;          /* green-300 */
+  --color-name-usable: #ffffff;
+  --color-name-unusable: #94a3b8;      /* slate-400 */
+  --color-text-usable: #e2e8f0;        /* slate-200 */
+  --color-text-unusable: #64748b;      /* slate-500 */
+  --color-evergreen-unusable: #9ca3af; /* gray-400 */
+
+  /* Surfaces & Borders */
+  --surface-glass-dark: rgba(0, 0, 0, 0.4);
+  --border-glass-subtle: 1px solid rgba(255, 255, 255, 0.1);
+
+  /* Reusable Shadows */
+  --shadow-stat-outline:
+    -1px -1px 0 #000,
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000,
+     0px  2px 3px rgba(0, 0, 0, 0.9);
+  --shadow-corner-badge:
+    0 4px 6px -1px rgba(0, 0, 0, 0.3),
+    0 2px 4px -1px rgba(0, 0, 0, 0.18);
+  --shadow-evergreen-drop: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.07));
 }
 
-.stat-box > span {
-white-space: nowrap;
-position: relative;
-z-index: 10;
-}
+/* ==========================================================================
+   2. GLOBAL UTILITIES (Scrollbars, Glows, User SVGs)
+   ========================================================================== */
 
-.corner-badge.stat-text-base {
-color: white;
-text-shadow:
--1px -1px 0 #000,
-1px -1px 0 #000,
--1px  1px 0 #000,
-1px  1px 0 #000,
-0px  2px 3px rgba(0,0,0,0.9);
-}
-
-.corner-badge.stat-text-buff {
-color: #4ade80; /* bright green */
-text-shadow:
--1px -1px 0 #000,
-1px -1px 0 #000,
--1px  1px 0 #000,
-1px  1px 0 #000,
-0px  2px 3px rgba(0,0,0,0.9);
-}
-
-.corner-badge.stat-text-debuff {
-color: #f87171; /* bright red */
-text-shadow:
--1px -1px 0 #000,
-1px -1px 0 #000,
--1px  1px 0 #000,
-1px  1px 0 #000,
-0px  2px 3px rgba(0,0,0,0.9);
-}
-
-.glow-cyan { box-shadow: 0 0 20px rgba(34, 211, 238, 0.8); }
-.glow-cyan-sm { box-shadow: 0 0 10px rgba(34, 211, 238, 0.8); }
-.glow-fuchsia { box-shadow: 0 0 25px rgba(217, 70, 239, 0.8); }
-.glow-yellow { box-shadow: 0 0 15px rgba(250, 204, 21, 0.6); }
-.glow-blue { box-shadow: 0 0 15px rgba(96, 165, 250, 0.6); }
-.glow-red { box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
-.glow-green { box-shadow: 0 0 15px rgba(74, 222, 128, 0.8); }
-
-.overlay-svg-container > svg { width: 100%; height: 100%; }
-.overlay-glow-red { filter: drop-shadow(0 0 12px rgba(239,68,68,1)); }
-.overlay-glow-red-sm { filter: drop-shadow(0 0 6px rgba(239,68,68,1)); }
-.overlay-glow-green { filter: drop-shadow(0 0 12px rgba(74,222,128,1)); }
-.overlay-glow-green-sm { filter: drop-shadow(0 0 6px rgba(74,222,128,1)); }
-
+/* Minimal Scrollbar */
 .minimal-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
 .minimal-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .minimal-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
 .minimal-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
 
-.card-wrapper-std {
-position: relative;
-flex-shrink: 0;
-/* CRITICAL FIX: Rigid bounding box to prevent text-based stretching */
-width: 140px;
-aspect-ratio: 5 / 7;
-border-radius: 0.75rem;
-cursor: pointer;
-transition: all 0.2s;
-display: flex;
-flex-direction: column;
-user-select: none;
-overflow: hidden;
-container-type: inline-size;
-container-name: cardBase;
-}
+/* Card State Glows (Targeting, Selection, Action Availability, Temp Effects) */
+.glow-cyan    { box-shadow: 0 0 20px rgba(34, 211, 238, 0.8); }
+.glow-cyan-sm { box-shadow: 0 0 10px rgba(34, 211, 238, 0.8); }
+.glow-fuchsia { box-shadow: 0 0 25px rgba(217, 70, 239, 0.8); }
+.glow-yellow  { box-shadow: 0 0 15px rgba(250, 204, 21, 0.6); }
+.glow-blue    { box-shadow: 0 0 15px rgba(96, 165, 250, 0.6); }
+.glow-red     { box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
+.glow-green   { box-shadow: 0 0 15px rgba(74, 222, 128, 0.8); }
 
-@media (min-width: 640px) {
-.card-wrapper-std { width: 150px; }
-}
-
-.card-wrapper-jumbo {
-position: relative;
-flex-shrink: 0;
-border-radius: 1rem;
-overflow: hidden;
-box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-display: flex;
-flex-direction: column;
-transition: transform 0.3s;
-aspect-ratio: 5 / 7;
-width: 280px;
-}
-
-@media (min-width: 640px) { .card-wrapper-jumbo { width: 360px; } }
-@media (min-width: 768px) { .card-wrapper-jumbo { width: 420px; } }
-
-.card-art-section {
-position: relative;
-width: 100%;
-overflow: hidden;
-}
-
-.card-text-section {
-position: relative;
-width: 100%;
-display: flex;
-flex-direction: column;
-}
-
-.card-name-wrapper {
-position: absolute;
-left: 0;
-right: 0;
-display: flex;
-justify-content: center;
-width: 100%;
-z-index: 20;
-pointer-events: none;
-}
-
-.name-badge {
-background-color: rgba(0, 0, 0, 0.4); /* Slightly darker to ensure readability over art*/
-backdrop-filter: blur(4px);
-color: white;
-font-weight: 900;
-border-radius: 0.5rem; /* Better shape for 2 lines than a pill */
-text-align: center;
-box-shadow: 0 2px 4px rgba(0,0,0,0.8);
-text-transform: uppercase;
-letter-spacing: 0.025em;
-border: 1px solid rgba(255, 255, 255, 0.1);
-max-width: 100%;
-padding: 2px 6px;
-
-/* 2-Line Truncation & Balancing */
-white-space: normal;
-display: -webkit-box;
--webkit-line-clamp: 2;
--webkit-box-orient: vertical;
-overflow: hidden;
-text-wrap: balance;
-line-height: 1.1;
-}
-
-.corner-badge {
-border-width: 0;
-}
-
-.readiness-badge {
-font-weight: 900;
-text-transform: uppercase;
-letter-spacing: 0.05em;
-z-index: 20;
-border-color: black;
-border-style: solid;
-box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-/* Principled scaling and centering for raw user SVGs */
+/* Principled Scaling & Centering for Raw User-Uploaded SVGs */
 .raw-user-svg-container {
-width: 100%;
-height: 100%;
-display: flex;
-align-items: center;
-justify-content: center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .raw-user-svg-container svg {
-max-width: 100%;
-max-height: 100%;
-width: auto;
-height: auto;
-display: block;
-overflow: visible;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+  overflow: visible;
 }
 
-/* Force inline ability & resource icons to scale cleanly and sit flush with the text baseline */
+/* ==========================================================================
+   3. CARD SHELL, STRUCTURAL LAYERS & HAND ELEVATION
+   ========================================================================== */
+
+/* Shared Card Wrapper Foundation */
+.card-wrapper-std,
+.card-wrapper-jumbo {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  aspect-ratio: 5 / 7;
+}
+
+.card-wrapper-std {
+  /* Rigid bounding box prevents text-based stretching */
+  width: 140px;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+  container-type: inline-size;
+  container-name: cardBase;
+}
+
+.card-wrapper-jumbo {
+  width: 280px;
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  transition: transform 0.3s;
+}
+
+@media (min-width: 640px) {
+  .card-wrapper-std   { width: 150px; }
+  .card-wrapper-jumbo { width: 360px; }
+}
+
+@media (min-width: 768px) {
+  .card-wrapper-jumbo { width: 420px; }
+}
+
+/* Standard Hand Card Elevation States */
+.card-hand-hoverable:hover {
+  transform: translateY(-1.5rem);
+  z-index: 100 !important;
+}
+
+.card-hand-elevated {
+  transform: translateY(-1.5rem);
+  z-index: 100 !important;
+}
+
+.card-hand-casting {
+  transform: translateY(-1.5rem);
+  z-index: 110 !important;
+}
+
+/* Art & Text Sections */
+.card-art-section,
+.card-text-section {
+  position: relative;
+  width: 100%;
+}
+
+.card-art-section  { overflow: hidden; }
+.card-text-section { display: flex; flex-direction: column; }
+
+/* Background Tribe Art & Darkening Veil */
+.bg-art-image,
+.bg-art-mute {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bg-art-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.5;
+}
+
+.bg-art-mute {
+  background-color: rgba(0, 0, 0, 0.6);
+  mix-blend-mode: multiply;
+}
+
+/* Card Name Plate */
+.card-name-wrapper {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.name-badge {
+  background-color: var(--surface-glass-dark);
+  backdrop-filter: blur(4px);
+  color: white;
+  font-weight: 900;
+  border-radius: 0.5rem;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  border: var(--border-glass-subtle);
+  max-width: 100%;
+  padding: 2px 6px;
+
+  /* 2-line truncation & balancing */
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-wrap: balance;
+  line-height: 1.1;
+}
+
+.micro-hover-name {
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  color: white;
+  font-weight: 900;
+  font-size: 6px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ==========================================================================
+   4. STAT BOXES, CORNER BADGES, READINESS & CARD LINE ICONS
+   ========================================================================== */
+
+.stat-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.stat-box > span {
+  white-space: nowrap;
+  position: relative;
+  z-index: 10;
+}
+
+/* Base reset so individual corner classes control their own edge borders */
+.corner-badge {
+  border-width: 0;
+}
+
+/* Stat Value Outlines & Buff/Debuff Tints */
+.corner-badge.stat-text-base,
+.corner-badge.stat-text-buff,
+.corner-badge.stat-text-debuff {
+  text-shadow: var(--shadow-stat-outline);
+}
+
+.corner-badge.stat-text-base   { color: white; }
+.corner-badge.stat-text-buff   { color: var(--color-stat-buff); }
+.corner-badge.stat-text-debuff { color: var(--color-stat-debuff); }
+
+/* Shared Corner Badge Chrome */
+.corner-cost,
+.corner-power,
+.corner-strength,
+.corner-armor,
+.corner-health {
+  font-weight: 900;
+  pointer-events: auto;
+  border-color: black;
+  border-style: solid;
+  color: white;
+  box-shadow: var(--shadow-corner-badge);
+  z-index: 10;
+}
+
+.corner-cost {
+  background-color: #f59e0b; /* amber-500 */
+  border-bottom-right-radius: 0.5rem;
+  border-width: 0 2px 2px 0;
+}
+
+.corner-cost.stat-cost-modified {
+  background-color: #6b7280; /* gray-500 */
+}
+
+.corner-power {
+  background-color: #9333ea; /* purple-600 */
+  border-bottom-right-radius: 0.5rem;
+  border-width: 0 2px 2px 0;
+}
+
+.corner-strength {
+  background-color: #eab308; /* yellow-500 */
+  border-top-right-radius: 0.5rem;
+  border-width: 2px 2px 0 0;
+}
+
+.corner-armor {
+  background-color: #0891b2; /* cyan-600 */
+  border-radius: 0.5rem 0.5rem 0 0;
+  border-width: 2px 2px 0 2px;
+}
+
+.corner-health {
+  background-color: #dc2626; /* red-600 */
+  border-top-left-radius: 0.5rem;
+  border-width: 2px 0 0 2px;
+}
+
+.readiness-badge {
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  z-index: 20;
+  border-color: black;
+  border-style: solid;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Card-Level Battleline Indicator Icon (Shared across all card sizes) */
+.line-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  pointer-events: auto;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+.line-icon-box > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.line-icon-box--temp {
+  color: var(--color-temp-line);
+  filter: drop-shadow(0 0 6px rgba(134, 239, 172, 0.9));
+  z-index: 20;
+}
+
+.line-icon-box--temp > svg {
+  color: var(--color-temp-line);
+}
+
+.card-wrapper-std .line-icon-box {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.25rem;
+  margin-left: 0.25rem;
+}
+
+@media (min-width: 640px) {
+  .card-wrapper-std .line-icon-box {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+}
+
+.card-wrapper-jumbo .line-icon-box {
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-top: 0.25rem;
+  margin-left: 0.375rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+.card-wrapper-jumbo .line-icon-box--temp {
+  filter: drop-shadow(0 0 8px rgba(134, 239, 172, 0.9));
+}
+
+/* ==========================================================================
+   5. STATUS, READINESS OVERLAYS & FIELD RENDERING STATES
+   ========================================================================== */
+
+/* Field Dimming (Unready, Exhausted, Stunned, Dazed) & Hidden/Stealth Entities */
+.card-field-dimmed {
+  filter: saturate(0.25);
+  opacity: 0.9;
+}
+
+.card-hidden-entity {
+  opacity: 0.6;
+}
+
+.card-hidden-entity:hover {
+  opacity: 1;
+}
+
+/* Overlay Backdrop Container */
+.card-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  border-radius: 0.375rem;
+}
+
+/* Centered Overlay Icon Wrapper */
+.overlay-svg-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 1));
+}
+
+.overlay-svg-container > svg {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+/* Lighter Drop Shadow on Small Cards */
+.card-size-micro .overlay-svg-container,
+.card-size-nano .overlay-svg-container {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 1));
+}
+
+/* Overlay Backdrop Tints by State */
+.card-overlay--stunned,
+.card-overlay--dazed {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.card-overlay--unready,
+.card-overlay--exhausted {
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+.card-overlay--overready {
+  background-color: rgba(52, 211, 153, 0.2);
+}
+
+/* Overlay Icon Color, Scale & Opacity (Standard & Jumbo) */
+.card-overlay--stunned .overlay-svg-container,
+.card-overlay--dazed .overlay-svg-container {
+  color: #ffffff;
+  opacity: 0.8;
+}
+
+.card-overlay--dazed .overlay-svg-container {
+  transform: scale(0.75);
+}
+
+.card-overlay--unready .overlay-svg-container,
+.card-overlay--exhausted .overlay-svg-container {
+  color: #cbd5e1; /* slate-300 */
+  opacity: 0.85;
+}
+
+.card-overlay--overready .overlay-svg-container {
+  color: #34d399; /* emerald-400 */
+  opacity: 0.9;
+}
+
+/* Overlay Icon Opacity Overrides (Micro & Nano) */
+.card-size-micro .card-overlay--stunned .overlay-svg-container,
+.card-size-nano .card-overlay--stunned .overlay-svg-container,
+.card-size-micro .card-overlay--dazed .overlay-svg-container,
+.card-size-nano .card-overlay--dazed .overlay-svg-container {
+  opacity: 0.5;
+}
+
+.card-size-micro .card-overlay--unready .overlay-svg-container,
+.card-size-nano .card-overlay--unready .overlay-svg-container,
+.card-size-micro .card-overlay--exhausted .overlay-svg-container,
+.card-size-nano .card-overlay--exhausted .overlay-svg-container {
+  opacity: 0.55;
+}
+
+.card-size-micro .card-overlay--overready .overlay-svg-container,
+.card-size-nano .card-overlay--overready .overlay-svg-container {
+  opacity: 0.8;
+}
+
+/* Overready Glow Modifiers */
+.overlay-svg-container.overlay-glow-red      { filter: drop-shadow(0 0 12px rgba(239, 68, 68, 1)); }
+.overlay-svg-container.overlay-glow-red-sm   { filter: drop-shadow(0 0 6px rgba(239, 68, 68, 1)); }
+.overlay-svg-container.overlay-glow-green    { filter: drop-shadow(0 0 12px rgba(74, 222, 128, 1)); }
+.overlay-svg-container.overlay-glow-green-sm { filter: drop-shadow(0 0 6px rgba(74, 222, 128, 1)); }
+
+/* Overlay Icon Sizing per Card Variant */
+.card-wrapper-std .overlay-svg-container   { width: 5rem;   height: 5rem; }
+.card-size-micro .overlay-svg-container    { width: 2.5rem; height: 2.5rem; }
+.card-size-nano .overlay-svg-container     { width: 1.5rem; height: 1.5rem; }
+.card-wrapper-jumbo .overlay-svg-container { width: 6rem;   height: 6rem; }
+
+@media (min-width: 640px) {
+  .card-wrapper-jumbo .overlay-svg-container { width: 8rem; height: 8rem; }
+}
+
+/* ==========================================================================
+   6. ABILITY TYPOGRAPHY, ICONS, RESOURCE TOKENS & USABILITY STATES
+   ========================================================================== */
+
+/* Normalize Inline Ability & Resource SVGs to Text Baseline */
 .ability-evergreen svg,
 .ability-bespoke svg,
 .ability-active-wrap svg,
 .jmb-ability-evergreen svg,
 .jmb-ability-bespoke svg,
 .jmb-ability-active-wrap svg {
-width: 100%;
-height: 100%;
-display: block;
-vertical-align: baseline;
+  width: 100%;
+  height: 100%;
+  display: block;
+  vertical-align: baseline;
 }
 
+/* Inline Resource Tokens (Zero-Specificity White Default, Overrideable by Utility/Context) */
+:where(.resource-token-icon, .resource-token-text) {
+  color: #ffffff;
+}
+
+.resource-token-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  transform: translateY(-0.1em);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+}
+
+.resource-token-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.resource-token-icon--tribe {
+  overflow: hidden;
+}
+
+.resource-token-text {
+  display: inline-block;
+  white-space: nowrap;
+  font-weight: 700;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+}
+
+/* Inherit muted color when inside disabled/unusable ability contexts */
+.ability-text-unusable .resource-token-icon,
+.ability-text-unusable .resource-token-text,
+.ability-name-unusable .resource-token-icon,
+.ability-name-unusable .resource-token-text,
+.ability-evergreen-unusable .resource-token-icon,
+.ability-evergreen-unusable .resource-token-text {
+  color: inherit;
+}
+
+/* Inline Semantic Icons (Attack, Cooldown Hourglass) */
 .ability-icon {
-display: inline-block;
-width: 1em;
-height: 1em;
-vertical-align: baseline;
-margin-right: 0.2em;
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: baseline;
+  margin-right: 0.2em;
 }
 
 .ability-icon > svg {
-display: block;
-width: 100%;
-height: 100%;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .ability-icon-cooldown {
-color: #4ade80; /* green-400 */
-filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.8));
+  color: var(--color-cooldown);
+  filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.8));
 }
 
+/* Inline Resource & Readiness Cost Badges */
 .ability-cost-badge {
-display: inline-flex;
-align-items: baseline;
-vertical-align: baseline;
-gap: 0.125rem;
-opacity: 0.9;
+  display: inline-flex;
+  align-items: baseline;
+  vertical-align: baseline;
+  gap: 0.125rem;
+  opacity: 0.9;
 }
 
 .ability-cost-badge > span {
-vertical-align: baseline !important;
-transform: translateY(0) !important;
+  vertical-align: baseline !important;
+  transform: translateY(0) !important;
 }
 
 .ability-cost-badge > span:has(svg),
 .ability-cost-badge > svg {
-width: 1em !important;
-height: 1em !important;
+  width: 1em !important;
+  height: 1em !important;
 }
 
 .ability-cost-badge > span > svg,
 .ability-cost-badge > svg {
-display: block;
-width: 100%;
-height: 100%;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Standard Card Ability Blocks */
+.ability-evergreen,
+.ability-bespoke,
+.ability-active-wrap {
+  font-family: var(--font-card-condensed);
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .ability-evergreen {
-font-family: 'Franklin Gothic Condensed', sans-serif;
-font-size: 11px;
-line-height: 1.25;
-font-weight: 900;
-color: #fcd34d; /* amber-300 */
-text-align: center;
-cursor: help;
-filter: drop-shadow(0 4px 3px rgba(0,0,0,0.07));
+  font-weight: 900;
+  color: var(--color-evergreen);
+  text-align: center;
+  cursor: help;
+  filter: var(--shadow-evergreen-drop);
 }
 
 .ability-bespoke {
-font-family: 'Franklin Gothic Condensed', sans-serif;
-font-size: 11px;
-line-height: 1.25;
-color: #e2e8f0; /* slate-200 */
-font-weight: 700;
-text-align: center;
-width: 100%;
-text-wrap: balance;
+  color: var(--color-text-usable);
+  font-weight: 700;
+  text-align: center;
+  width: 100%;
+  text-wrap: balance;
 }
 
 .ability-active-wrap {
-font-family: 'Franklin Gothic Condensed', sans-serif;
-font-size: 11px;
-line-height: 1.25;
-font-weight: 700;
-width: 100%;
-cursor: help;
-background-color: rgba(0, 0, 0, 0.2);
-border-radius: 0.25rem;
-padding: 0.125rem 0.25rem;
-border: 1px solid rgba(255, 255, 255, 0.05);
-display: flex;
-justify-content: center;
-align-items: baseline;
-
-text-wrap: balance;
+  font-weight: 700;
+  width: 100%;
+  cursor: help;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  text-wrap: balance;
 }
 
+/* Jumbo Card Ability Blocks */
 .jmb-ability-evergreen {
-font-size: 0.95rem;
-font-weight: 900;
-color: #fcd34d;
-text-align: center;
-line-height: 1.25;
-margin-bottom: 0.5rem;
-filter: drop-shadow(0 4px 3px rgba(0,0,0,0.07));
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: var(--color-evergreen);
+  text-align: center;
+  line-height: 1.25;
+  margin-bottom: 0.5rem;
+  filter: var(--shadow-evergreen-drop);
+}
+
+.jmb-ability-bespoke,
+.jmb-ability-active-wrap {
+  background-color: var(--surface-glass-dark);
+  backdrop-filter: blur(4px);
+  border-radius: 0.5rem;
+  border: var(--border-glass-subtle);
+  font-size: 0.9rem;
+  text-wrap: balance;
 }
 
 .jmb-ability-bespoke {
-background-color: rgba(0, 0, 0, 0.4);
-backdrop-filter: blur(4px);
-padding: 0.5rem;
-border-radius: 0.5rem;
-border: 1px solid rgba(255, 255, 255, 0.1);
-box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-color: #e2e8f0;
-text-align: center;
-line-height: 1.375;
-font-size: 0.9rem;
-
-text-wrap: balance;
+  padding: 0.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  color: var(--color-text-usable);
+  text-align: center;
+  line-height: 1.375;
 }
 
+.jmb-ability-active-wrap {
+  padding: 0.625rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  align-items: center;
+}
+
+/* Auto-Capitalize First Letter of Ability Descriptions */
 .glossary-item > div:last-child::first-letter,
 .ability-text-usable::first-letter,
 .ability-bespoke::first-letter,
 .jmb-ability-bespoke::first-letter {
-text-transform: uppercase;
+  text-transform: uppercase;
 }
 
-.jmb-ability-active-wrap {
-background-color: rgba(0, 0, 0, 0.4);
-backdrop-filter: blur(4px);
-padding: 0.625rem;
-border-radius: 0.5rem;
-border: 1px solid rgba(255, 255, 255, 0.1);
-box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-display: flex;
-flex-direction: column;
-gap: 0.125rem;
-align-items: center;
-font-size: 0.9rem;
-text-wrap: balance;
-}
-
-.ability-name-usable { color: white; }
-.ability-name-unusable { color: #94a3b8; } /* slate-400*/
-.ability-text-usable { color: #e2e8f0;
-text-wrap: balance;} /* slate-200*/
-.ability-text-unusable { color: #64748b; } /* slate-500 */
-.ability-evergreen-unusable { color: #9ca3af; } /* gray-400 */
-
-/* =========================================
-CARD ARCHITECTURE: CENTRALIZED THEME
-========================================= */
-
-/* 1. Core Background Art Layers */
-.bg-art-image {
-position: absolute;
-inset: 0;
-width: 100%;
-height: 100%;
-object-fit: cover;
-object-position: center;
-z-index: 0;
-opacity: 0.5;
-pointer-events: none;
-}
-
-.bg-art-mute {
-position: absolute;
-inset: 0;
-background-color: rgba(0, 0, 0, 0.6);
-mix-blend-mode: multiply;
-z-index: 0;
-pointer-events: none;
-}
-
-/* 2. Stat Corners (Colors, Borders, Shadows) */
-.corner-cost, .corner-power, .corner-strength, .corner-armor, .corner-health {
-font-weight: 900;
-pointer-events: auto;
-border-color: black;
-border-style: solid;
-color: white;
-box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.18);
-z-index: 10;
-}
-
-.corner-cost {
-background-color: #f59e0b; /* amber-500 */
-border-bottom-right-radius: 0.5rem;
-border-width: 0 2px 2px 0;
-}
-
-.corner-cost.stat-cost-modified {
-background-color: #6b7280;
-}
-
-.corner-power {
-background-color: #9333ea; /* purple-600 */
-border-bottom-right-radius: 0.5rem;
-border-width: 0 2px 2px 0;
-}
-
-.corner-strength {
-background-color: #eab308; /* yellow-500 */
-border-top-right-radius: 0.5rem;
-border-width: 2px 2px 0 0;
-}
-
-.corner-armor {
-background-color: #0891b2; /* cyan-600 */
-border-radius: 0.5rem 0.5rem 0 0;
-border-width: 2px 2px 0 2px;
-}
-
-.corner-health {
-background-color: #dc2626; /* red-600 */
-border-top-left-radius: 0.5rem;
-border-width: 2px 0 0 2px;
-}
-
-.micro-hover-name {
-background-color: rgba(0, 0, 0, 0.8);
-backdrop-filter: blur(4px);
-color: white;
-font-weight: 900;
-font-size: 6px;
-padding: 2px 4px;
-border-radius: 2px;
-max-width: 90%;
-overflow: hidden;
-text-overflow: ellipsis;
-white-space: nowrap;
-box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-/* 3. Micro Card Size*/
-.card-size-micro {
-width: 80px;
-height: 80px;
-border-radius: 0.375rem; /* matches rounded-md */
-font-size: 14px;
-}
-
-/* Centralized Dimensions for Nano Corners */
-.card-size-micro .corner-cost { width: 16px; height: 18px; }
-.card-size-micro .corner-power { width: 16px; height: 18px; margin-top: -2px; }
-.card-size-micro .corner-strength { width: 16px; height: 18px;  }
-.card-size-micro .corner-armor { height: 18px; padding-left: 4px; padding-right: 4px; }
-.card-size-micro .corner-health { width: 16px; height: 18px; }
-
-/* Nano Spacers & Icons */
-.card-size-micro .corner-spacer { width: 16px; height: 18px; flex-shrink: 0; }
-.card-size-micro .line-icon-box { width: 20px; height: 20px; margin-top: 4px; margin-left: 4px; pointer-events: auto; }
-.card-size-micro .corner-armor svg { width: 8px; height: 8px; margin-right: 2px; }
-
-/* 4. Nano Card Size & Typography Dimensions*/
-.card-size-nano {
-width: 60px;
-height: 40px;
-border-radius: 0.5rem; /* rounded-lg */
-font-size: 10px;
-}
-
-/* Centralized Dimensions for Micro Corners */
-.card-size-nano .corner-cost { width: 12px; height: 14px;  }
-.card-size-nano .corner-power { width: 12px; height: 14px;  margin-top: -1px; }
-.card-size-nano .corner-strength { width: 12px; height: 14px;  }
-.card-size-nano .corner-armor { height: 14px; padding-left: 2px; padding-right: 2px;  }
-.card-size-nano .corner-health { width: 12px; height: 14px;  }
-
-/* Micro Specific Elements */
-.card-size-nano .line-icon-box { width: 12px; height: 12px; margin-top: 2px; margin-left: 2px; pointer-events: auto; }
-
-/* Base size for the standard card */
-.card-wrapper-std .overlay-svg-container {
-width: 5rem;
-height: 5rem;
-}
-
-/* Micro and Nano card sizes */
-.card-size-micro .overlay-svg-container,
-.card-size-nano .overlay-svg-container {
-width: 5rem;
-height: 5rem;
-}
-
-/* Jumbo card size with responsive breakpoint */
-.card-wrapper-jumbo .overlay-svg-container {
-width: 6rem;
-height: 6rem;
-}
-
-@media (min-width: 640px) {
-.card-wrapper-jumbo .overlay-svg-container {
-width: 8rem;
-height: 8rem;
-}
-}
-
+/* Inline Semantic Text Tokens */
 .action-verb {
-color: #eab308;
-font-weight: 700
+  color: var(--color-accent-gold);
+  font-weight: 700;
 }
 
 .event-trigger {
-font-weight: 900;
-color: #eab308;
-margin-right: 0.125rem;
-text-transform: uppercase
+  font-weight: 900;
+  color: var(--color-accent-gold);
+  margin-right: 0.125rem;
+  text-transform: uppercase;
 }
 
-/* =========================================
-STANDARD CARD SPACE OPTIMIZATION OVERRIDES
-========================================= */
+/* Ability Usability & Cooldown States */
+.ability-name-usable        { color: var(--color-name-usable); }
+.ability-name-unusable      { color: var(--color-name-unusable); }
+.ability-text-usable        { color: var(--color-text-usable); text-wrap: balance; }
+.ability-text-unusable      { color: var(--color-text-unusable); }
+.ability-evergreen-unusable { color: var(--color-evergreen-unusable); }
 
-/* 1. Rebalance Aspect Ratio: 55% Art / 45% Text */
+/* ==========================================================================
+   7. CARD SIZE VARIANTS (Standard Overrides, Micro, Nano)
+   ========================================================================== */
+
+/* --- 7A. Standard Card Space Optimization Overrides --- */
+
+/* Rebalance Aspect Ratio: 55% Art / 45% Text */
 .card-wrapper-std .card-art-section {
-height: 55% !important;
+  height: 55% !important;
 }
 
 .card-wrapper-std .card-text-section {
-height: 45% !important;
-padding: 4px 2px 2px 2px !important; /* Reclaimed padding! */
-container-type: size;
-container-name: cardText;
+  height: 45% !important;
+  padding: 4px 2px 2px 2px !important;
+  container-type: size;
+  container-name: cardText;
 }
 
-/* 2. Auto-Scaling Text based on Container Height */
+/* Auto-Scaling Text based on Text Container Height */
 .card-wrapper-std .ability-bespoke,
 .card-wrapper-std .ability-active-wrap,
 .card-wrapper-std .ability-evergreen {
-font-size: clamp(7.5px, 14cqh, 12.5px) !important;
-line-height: 1.05 !important;
-letter-spacing: -0.01em !important;
+  font-size: clamp(7.5px, 14cqh, 12.5px) !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.01em !important;
 }
 
 .card-wrapper-std .ability-active-wrap {
-padding-top: 0 !important;
-padding-bottom: 0 !important;
-margin-bottom: 2px;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-bottom: 2px;
 }
 
-/* 3. Move Stats UP to the bottom of the Art section*/
+/* Float Bottom Stats Row Up Into the Art Section */
 .card-wrapper-std .card-text-section > .absolute.bottom-0 {
-top: 0 !important;
-bottom: auto !important;
-transform: translateY(-100%) !important; /* Pushes the flex box exactly into the art block */
-align-items: flex-end !important;
-z-index: 30 !important;
+  top: 0 !important;
+  bottom: auto !important;
+  transform: translateY(-100%) !important;
+  align-items: flex-end !important;
+  z-index: 30 !important;
 }
 
-/* 4. Complete the Stat Box Borders so they look whole floating in the art */
 .card-wrapper-std .corner-strength {
-border-radius: 0.5rem 0.5rem 0 0 !important;
-border-width: 2px 2px 2px 0 !important;
+  border-radius: 0.5rem 0.5rem 0 0 !important;
+  border-width: 2px 2px 2px 0 !important;
 }
 
 .card-wrapper-std .corner-health {
-border-radius: 0.5rem 0.5rem 0 0 !important;
-border-width: 2px 0 2px 2px !important;
+  border-radius: 0.5rem 0.5rem 0 0 !important;
+  border-width: 2px 0 2px 2px !important;
 }
 
 .card-wrapper-std .corner-armor {
-border-width: 2px !important;
-margin-bottom: -1px !important; /* snug against text border */
+  border-width: 2px !important;
+  margin-bottom: -1px !important; /* Snug against text border */
 }
 
-/* 5. Center Name Badge between Stats*/
+/* Center Name Badge Between Bottom Stats */
 .card-wrapper-std .card-name-wrapper {
-bottom: 3px !important; /* Aligns neatly with the stats row*/
-padding: 0 22px !important; /* Expanded! Safe zone prevents long names sliding under badges */
+  bottom: 3px !important;
+  padding: 0 22px !important; /* Safe zone prevents overlap with stat badges */
 }
 
 .card-wrapper-std .name-badge {
-font-size: clamp(7px, 6.5cqi, 9.5px) !important; /* Shrink to fit logic based on card width*/
-letter-spacing: -0.02em !important; /* Tighter text tracking*/
-line-height: 1.05 !important;
-word-break: break-word; /* Wrap aggressively if necessary */
+  font-size: clamp(7px, 6.5cqi, 9.5px) !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.05 !important;
+  word-break: break-word;
 }
 
-/* 6. Dynamic Name Shift: Prevent Name from overlapping Armor if present*/
+/* Shift Name Above Stats Row When Armor Badge is Present */
 .card-wrapper-std:has(.corner-armor) .card-name-wrapper {
-bottom: 26px !important;
-padding: 0 8px !important; /* Expand full width when above stats! */
+  bottom: 26px !important;
+  padding: 0 8px !important;
 }
+
+/* --- 7B. Micro Card Size (80x80) --- */
+
+.card-size-micro {
+  width: 80px;
+  height: 80px;
+  border-radius: 0.375rem;
+  font-size: 14px;
+}
+
+.card-size-micro .corner-cost,
+.card-size-micro .corner-power,
+.card-size-micro .corner-strength,
+.card-size-micro .corner-health,
+.card-size-micro .corner-spacer {
+  width: 16px;
+  height: 18px;
+}
+
+.card-size-micro .corner-power     { margin-top: -2px; }
+.card-size-micro .corner-spacer    { flex-shrink: 0; }
+.card-size-micro .corner-armor     { height: 18px; padding-left: 4px; padding-right: 4px; }
+.card-size-micro .corner-armor svg { width: 8px; height: 8px; margin-right: 2px; }
+.card-size-micro .line-icon-box    { width: 20px; height: 20px; margin-top: 4px; margin-left: 4px; }
+
+/* --- 7C. Nano Card Size (60x40) --- */
+
+.card-size-nano {
+  width: 60px;
+  height: 40px;
+  border-radius: 0.5rem;
+  font-size: 10px;
+}
+
+.card-size-nano .corner-cost,
+.card-size-nano .corner-power,
+.card-size-nano .corner-strength,
+.card-size-nano .corner-health {
+  width: 12px;
+  height: 14px;
+}
+
+.card-size-nano .corner-power  { margin-top: -1px; }
+.card-size-nano .corner-armor  { height: 14px; padding-left: 2px; padding-right: 2px; }
+.card-size-nano .line-icon-box { width: 12px; height: 12px; margin-top: 2px; margin-left: 2px; }
+
+/* ==========================================================================
+   8. TABLETOP BOARD, BATTLELINES & UNIT STACKS
+   ========================================================================== */
+
+/* Active Battleline Container Layout */
+.battleline-zone {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
+  align-items: flex-start;
+  align-content: flex-start;
+  gap: 0.5rem;
+}
+
+/* Watermark Icon Anchored to Each Battleline Zone */
+.battleline-bg-icon {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.5rem;
+  width: 2rem;
+  height: 2rem;
+  color: rgba(100, 116, 139, 0.5); /* slate-500/50 */
+  pointer-events: none;
+  z-index: 0;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.07)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.06));
+}
+
+.battleline-bg-icon > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (min-width: 640px) {
+  .battleline-bg-icon {
+    width: 3rem;
+    height: 3rem;
+  }
+}
+
+/* Host Entity + Attached Items Stack */
+.unit-stack {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  flex-shrink: 0;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.07)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.06));
+}
+
+.unit-stack-host {
+  position: relative;
+  z-index: 30;
+}
+
+/* ==========================================================================
+   9. GAME HUD ACTION BUTTONS
+   ========================================================================== */
 
 .action-button-play {
-background-color: rgba(6, 78, 59, 0.8);
-border-color: #047857;
-color: #ecfdf5;
-box-shadow: 0 0 18px rgba(16, 185, 129, 0.18);
+  background-color: rgba(6, 78, 59, 0.8);
+  border-color: #047857;
+  color: #ecfdf5;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.18);
 }
 
 .action-button-play:hover {
-background-color: #065f46;
-border-color: #34d399;
+  background-color: #065f46;
+  border-color: #34d399;
 }
 
 .action-button-ability {
-background-color: rgba(46, 16, 101, 0.8);
-border-color: #6d28d9;
-color: #f5f3ff;
-box-shadow: 0 0 18px rgba(168, 85, 247, 0.18);
+  background-color: rgba(46, 16, 101, 0.8);
+  border-color: #6d28d9;
+  color: #f5f3ff;
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.18);
 }
 
 .action-button-ability:hover {
-background-color: #4c1d95;
-border-color: #a78bfa;
+  background-color: #4c1d95;
+  border-color: #a78bfa;
 }
 
 .action-button-bonus {
-background-color: rgba(46, 16, 101, 0.8);
-border-color: rgba(255, 255, 255, 0.7);
-color: #f5f3ff;
+  background-color: rgba(46, 16, 101, 0.8);
+  border-color: rgba(255, 255, 255, 0.7);
+  color: #f5f3ff;
 }
 
 .action-button-bonus:hover {
-background-color: #4c1d95;
-border-color: #fff;
+  background-color: #4c1d95;
+  border-color: #fff;
 }
 
 .action-button-attack {
-background-color: rgba(69, 10, 10, 0.8);
-border-color: #7f1d1d;
-color: #fef2f2;
-box-shadow: 0 0 18px rgba(239, 68, 68, 0.18);
+  background-color: rgba(69, 10, 10, 0.8);
+  border-color: #7f1d1d;
+  color: #fef2f2;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.18);
 }
 
 .action-button-attack:hover {
-background-color: #7f1d1d;
-border-color: #f87171;
+  background-color: #7f1d1d;
+  border-color: #f87171;
 }

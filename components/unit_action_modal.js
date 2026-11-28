@@ -1,5 +1,6 @@
 import { formatAbilityCostBadge } from '../src/ui.js'; // Adjusted based on expected project structure
 import { ClientState } from '../src/tabletop/client_state.js'; // Adjusted based on expected project structure
+import { formatAbilityDescription } from '../src/ability_descriptions.js';
 
 const ACTION_BUTTON_VARIANT_CLASSES = {
     PLAY: 'action-button-play',
@@ -26,6 +27,30 @@ export class UnitActionModal extends HTMLElement {
         `;
     }
 
+    /**
+     * Resolves an action's tooltip description using the shared formatAbilityDescription helper.
+     */
+    _formatActionDescription(act, cachedEntity, allAbilitiesRegistry, globalCards, globalTribes) {
+        if (act.type === 'PLAY') return 'Play this card normally.';
+        if (act.type === 'ATTACK') return 'Attack a valid target on the board.';
+
+        const regMatch = allAbilitiesRegistry.find(a => a.abilityId === act.abilityId) || null;
+        const entityAbility = cachedEntity?.abilities?.find(a =>
+            (act.abilityInstanceId && a.instanceId === act.abilityInstanceId) ||
+            a.abilityId === act.abilityId
+        ) || null;
+
+        if (!regMatch && !entityAbility) return 'Activate this ability.';
+
+        const ab = {
+            ...(regMatch || {}),
+            ...(entityAbility || {}),
+            ...(act.paramX !== undefined && act.paramX !== null ? { paramX: act.paramX } : {})
+        };
+
+        return formatAbilityDescription(ab, allAbilitiesRegistry, globalCards, globalTribes);
+    }
+
     open(entityId, entityName, actions, isHand = false) {
         this.entityId = entityId;
         this.actions = [...actions];
@@ -41,17 +66,31 @@ export class UnitActionModal extends HTMLElement {
 
         this.querySelector('#modal-unit-name').innerText = entityName;
         const container = this.querySelector('#modal-abilities-container');
+
+        const allAbilitiesRegistry = ClientState.allAbilitiesRegistry || [];
+        const cachedEntity = (typeof window !== 'undefined' && window.__GAME_CARD_CACHE?.get(entityId)) || null;
+
+        let globalCards = ClientState.allCards?.length
+            ? ClientState.allCards
+            : (ClientState.cards?.length ? ClientState.cards : []);
+        if (globalCards.length === 0 && typeof window !== 'undefined' && window.__GAME_CARD_CACHE) {
+            globalCards = Array.from(window.__GAME_CARD_CACHE.values());
+        }
+
+        const globalTribes = ClientState.customTribesList?.length
+            ? ClientState.customTribesList
+            : (ClientState.customTribes?.length ? ClientState.customTribes : []);
+
         let btnsHtml = '';
 
         this.actions.forEach((act, i) => {
-            let desc = '';
-            
-            if (act.type === 'PLAY') desc = 'Play this card normally.';
-            else if (act.type === 'ATTACK') desc = 'Attack a valid target on the board.';
-            else {
-                const ab = ClientState.allAbilitiesRegistry?.find(a => a.abilityId === act.abilityId);
-                desc = ab ? (ab.displayDescription || ab.description) : 'Activate this ability.';
-            }
+            const descHtml = this._formatActionDescription(
+                act,
+                cachedEntity,
+                allAbilitiesRegistry,
+                globalCards,
+                globalTribes
+            );
 
             const buttonVariantClass = ACTION_BUTTON_VARIANT_CLASSES[act.type] || ACTION_BUTTON_VARIANT_CLASSES.ABILITY;
             const bonusClass = act.type === 'ABILITY' && act.origin === 'bonus' ? ' action-button-bonus' : '';
@@ -70,7 +109,7 @@ export class UnitActionModal extends HTMLElement {
                     
                     <div class="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-56 bg-slate-950/95 backdrop-blur-sm border border-slate-700 p-3 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-0 group-hover:delay-500 pointer-events-none z-50">
                         <h4 class="text-amber-400 font-bold text-[11px] uppercase tracking-wider mb-1.5">${act.name}</h4>
-                        <p class="text-slate-300 text-[11px] leading-relaxed whitespace-normal break-words">${desc.replace(/"/g, '&quot;')}</p>
+                        <p class="text-slate-300 text-[11px] leading-relaxed whitespace-normal break-words">${descHtml}</p>
                     </div>
                 </div>
             `;
@@ -82,7 +121,7 @@ export class UnitActionModal extends HTMLElement {
 
     selectAction(index) {
         const act = this.actions[index];
-        
+
         if (act.type === 'PLAY') {
             window.executeNormalPlay(this.entityId, null, null, act.undoable);
         } else if (this.isHand) {

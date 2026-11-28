@@ -1,6 +1,6 @@
 import { CARD_CATALOG, GLOBAL_UNDO_POLICY } from '../engine/index.js';
 import { showToast, loadUI } from '../ui.js';
-import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom, subscribeToUserInvites, subscribeToActiveMatches, pushActionToLog, db, messaging } from '../firebase.js';
+import { fetchCustomAbilities, fetchCustomCards, fetchUserDecks, fetchCustomTribes, subscribeToGameRoom, subscribeToUserInvites, subscribeToActiveMatches, pushActionToLog, markCompletedGameViewed, db, messaging } from '../firebase.js';
 import { generateAbilityDescription } from '../language_description.js';
 import { loadPlayProfile, enableTurnNotifications, listenForForegroundNotifications } from '../profile.js';
 
@@ -15,7 +15,7 @@ window.ClientState = ClientState;
 window.handleSacrificeConfirm = handleSacrificeConfirm;
 window.handleSacrificeDecision = handleSacrificeDecision;
 
-import './modals.js'; 
+import './modals.js';
 import '../../components/main_nav.js';
 // Removed synchronous match_lobby.js import for lazy loading
 import '../../components/action_log.js';
@@ -24,19 +24,19 @@ import '../../components/unit_action_modal.js';
 import '../../components/zone_viewer_modal.js';
 
 // Global Fallback Error Handlers
-window.onerror = function(msg, url, lineNo, columnNo, error) {
-  console.error("[GLOBAL ERROR]", msg, url, lineNo, columnNo, error);
-  showToast("Fatal UI Error: " + msg, "error");
-  const btn = document.getElementById('launch-match-btn');
-  if (btn) { btn.innerHTML = '🚀 Launch Battleboard Tabletop'; btn.disabled = false; }
-  return false;
+window.onerror = function (msg, url, lineNo, columnNo, error) {
+    console.error("[GLOBAL ERROR]", msg, url, lineNo, columnNo, error);
+    showToast("Fatal UI Error: " + msg, "error");
+    const btn = document.getElementById('launch-match-btn');
+    if (btn) { btn.innerHTML = '🚀 Launch Battleboard Tabletop'; btn.disabled = false; }
+    return false;
 };
 
-window.addEventListener("unhandledrejection", function(event) {
-  console.error("[GLOBAL PROMISE REJECTION]", event.reason);
-  showToast("Async Error: " + (event.reason?.message || "Unknown rejection"), "error");
-  const btn = document.getElementById('launch-match-btn');
-  if (btn) { btn.innerHTML = '🚀 Launch Battleboard Tabletop'; btn.disabled = false; }
+window.addEventListener("unhandledrejection", function (event) {
+    console.error("[GLOBAL PROMISE REJECTION]", event.reason);
+    showToast("Async Error: " + (event.reason?.message || "Unknown rejection"), "error");
+    const btn = document.getElementById('launch-match-btn');
+    if (btn) { btn.innerHTML = '🚀 Launch Battleboard Tabletop'; btn.disabled = false; }
 });
 
 window.addEventListener('hashchange', () => {
@@ -63,12 +63,12 @@ async function initializeApp() {
             fetchCustomTribes(),
             loadUI()
         ]);
-        
+
         ClientState.allCardsRegistry = [...CARD_CATALOG, ...cards];
         ClientState.customTribesList = tribes;
         ClientState.allAbilitiesRegistry = abs.map(ab => {
             let desc = '';
-            try { desc = generateAbilityDescription(ab, abs, ClientState.allCardsRegistry, tribes); } catch(e) {}
+            try { desc = generateAbilityDescription(ab, abs, ClientState.allCardsRegistry, tribes); } catch (e) { }
             return { ...ab, displayDescription: desc };
         });
         console.log("[INIT] Registries and UI Styles loaded.");
@@ -83,11 +83,11 @@ async function initializeApp() {
             ClientState.roomCode = urlRoom;
             ClientState.localPlayerRole = 'player1';
             document.getElementById('header-room-badge').innerText = `Sandbox: ${ClientState.roomCode}`;
-            
+
             const anchor = document.getElementById('lobby-anchor');
             if (anchor) anchor.style.display = 'none';
             document.getElementById('match-tabletop-screen').classList.remove('hidden');
-            
+
             console.log("[INIT] Subscribing to local Game Room...");
             subscribeToGameRoom(ClientState.roomCode, (data) => {
                 if (data && data.turn_start_state) {
@@ -98,15 +98,15 @@ async function initializeApp() {
         } else if (urlRoom && savedName) {
             // Direct Room URL Routing (BYPASS LOBBY ENTIRELY)
             console.log(`[INIT] Direct room link detected. Connecting to ${urlRoom}...`);
-            
+
             const anchor = document.getElementById('lobby-anchor');
             if (anchor) anchor.innerHTML = '<div class="text-amber-400 font-bold text-center mt-20 text-xl animate-pulse">Entering Match...</div>';
-            
+
             connectToMatch(urlRoom, savedName);
         } else {
             // MOUNT LOBBY
             await mountLobby();
-            
+
             if (savedName) {
                 const nameInput = document.getElementById('setup-username');
                 if (nameInput) nameInput.value = savedName;
@@ -124,7 +124,7 @@ async function initializeApp() {
             }
 
             await updateLobbyData();
-            
+
             // Auto-trigger AI match if routed from the Deckbuilder
             if (window.location.search.includes('auto_ai=true')) {
                 const btn = document.getElementById('ai-match-btn');
@@ -133,17 +133,17 @@ async function initializeApp() {
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
         }
-        
+
         console.log(`[NOTIF-DEBUG] App initialized. Firebase messaging instance available: ${!!messaging}`);
-        
+
         // Listen for foreground push notifications on the client
         // Note: Removed the `messaging` parameter to match the updated profile.js signature
         listenForForegroundNotifications((title, body) => {
             console.log(`[NOTIF-DEBUG] Foreground callback executed! Title: ${title}`);
             showToast(`${title}: ${body}`, "info");
         });
-        
-    } catch(err) {
+
+    } catch (err) {
         console.error("[INIT] Initialization failed:", err);
         showToast("Failed to initialize game registries.", "error");
     }
@@ -166,60 +166,100 @@ async function mountLobby() {
     document.getElementById('queue-match-btn')?.addEventListener('click', (e) => handleQueueMatch(e.target));
     document.getElementById('ai-match-btn')?.addEventListener('click', (e) => handleAIMatch(e.target));
     document.getElementById('send-challenge-btn')?.addEventListener('click', (e) => handleSendChallenge(e.target));
+    document.getElementById('clear-inactive-btn')?.addEventListener('click', (e) => handleClearInactiveMatches(e.currentTarget));
 }
 
 async function updateDeckDropdown() {
-  const usernameInput = document.getElementById('setup-username');
-  if (!usernameInput) return; // Abort safely if lobby isn't mounted
-  
-  const username = usernameInput.value.trim();
-  const select = document.getElementById('setup-deck-select');
-  
-  if (!username) {
-      select.innerHTML = '<option value="">-- Enter Username to Load Decks --</option>';
-      select.disabled = true;
-      return;
-  }
-  
-  select.innerHTML = '<option value="">-- Loading Decks from Cloud... --</option>';
-  select.disabled = true;
-  
-  ClientState.loadedUserDecks = await fetchUserDecks(username);
-  const deckNames = Object.keys(ClientState.loadedUserDecks);
-  
-  if (deckNames.length === 0) {
-    select.innerHTML = '<option value="">No valid decks found for this username</option>';
-    select.disabled = true;
-  } else {
-    select.innerHTML = '';
-    deckNames.forEach(name => {
-      select.innerHTML += `<option value="${name}">${name}</option>`;
-    });
-    select.disabled = false;
-    
-    const savedDeck = localStorage.getItem('henchies_last_deck');
-    if (savedDeck && deckNames.includes(savedDeck)) {
-        select.value = savedDeck;
+    const usernameInput = document.getElementById('setup-username');
+    if (!usernameInput) return; // Abort safely if lobby isn't mounted
+
+    const username = usernameInput.value.trim();
+    const select = document.getElementById('setup-deck-select');
+
+    if (!username) {
+        select.innerHTML = '<option value="">-- Enter Username to Load Decks --</option>';
+        select.disabled = true;
+        return;
     }
-  }
+
+    select.innerHTML = '<option value="">-- Loading Decks from Cloud... --</option>';
+    select.disabled = true;
+
+    ClientState.loadedUserDecks = await fetchUserDecks(username);
+    const deckNames = Object.keys(ClientState.loadedUserDecks);
+
+    if (deckNames.length === 0) {
+        select.innerHTML = '<option value="">No valid decks found for this username</option>';
+        select.disabled = true;
+    } else {
+        select.innerHTML = '';
+        deckNames.forEach(name => {
+            select.innerHTML += `<option value="${name}">${name}</option>`;
+        });
+        select.disabled = false;
+
+        const savedDeck = localStorage.getItem('henchies_last_deck');
+        if (savedDeck && deckNames.includes(savedDeck)) {
+            select.value = savedDeck;
+        }
+    }
 }
 
 let invitesUnsub = null;
 let matchesUnsub = null;
 let latestInvites = [];
 let latestMatches = [];
+let latestCompletedMatches = [];
+
+/**
+ * Marks all currently displayed completed matches as viewed for the active user,
+ * dismissing them from the Active Games & Invites list.
+ */
+async function handleClearInactiveMatches(btn) {
+    const username = document.getElementById('setup-username')?.value.trim();
+    if (!username || latestCompletedMatches.length === 0) return;
+
+    const toClear = [...latestCompletedMatches];
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Clearing...';
+    }
+
+    try {
+        const results = await Promise.all(
+            toClear.map(m => markCompletedGameViewed(m.gameId, username, { winner: m.realWinner || null }))
+        );
+        const clearedCount = results.filter(Boolean).length;
+        if (clearedCount > 0) {
+            showToast(`Cleared ${clearedCount} completed ${clearedCount === 1 ? 'game' : 'games'}.`, 'success');
+        } else {
+            showToast('Failed to clear completed games.', 'error');
+        }
+    } catch (err) {
+        console.error('[LOBBY] Failed to clear inactive matches:', err);
+        showToast('Error clearing completed games.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Clear Inactive';
+        }
+    }
+}
 
 function renderCombinedLobbyList(username) {
     const listEl = document.getElementById('combined-matches-list');
     const countEl = document.getElementById('combined-count');
+    const clearBtn = document.getElementById('clear-inactive-btn');
     if (!listEl) return;
 
-    // 1. Process matches to extract local turn states
+    // 1. Process matches to extract local turn states and completion status
     const enrichedMatches = latestMatches.map(m => {
         let realActivePlayerId = m.activePlayerId;
         let realTurnNumber = m.turnNumber || 1;
         let realTurnPhase = m.turnPhase || 'Setup';
         let activePlayerName = m.players ? m.players[realActivePlayerId + "Name"] : null;
+        let realStatus = m.status || 'active';
+        let realWinner = m.winner || null;
 
         if (m.turn_start_state) {
             try {
@@ -228,20 +268,29 @@ function renderCombinedLobbyList(username) {
                 realTurnNumber = stateObj.turnNumber || realTurnNumber;
                 realTurnPhase = stateObj.turnPhase || realTurnPhase;
                 activePlayerName = stateObj.players?.[realActivePlayerId]?.name || activePlayerName;
+                if (stateObj.status === 'finished') realStatus = 'finished';
+                if (stateObj.winner) realWinner = stateObj.winner;
             } catch (e) {
                 console.warn("Failed to parse match state", e);
             }
         }
-        
-        const isMyTurn = activePlayerName === username;
-        return { ...m, isMyTurn, realTurnNumber, realTurnPhase };
-    });
-    
-    // 2. Separate into My Turn vs Waiting, sorted individually
-    const myTurnMatches = enrichedMatches.filter(m => m.isMyTurn).sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
-    const waitingMatches = enrichedMatches.filter(m => !m.isMyTurn).sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
 
-    const totalItems = myTurnMatches.length + latestInvites.length + waitingMatches.length;
+        const isCompleted = realStatus === 'finished';
+        const isMyTurn = !isCompleted && activePlayerName === username;
+        return { ...m, isCompleted, realWinner, isMyTurn, realTurnNumber, realTurnPhase };
+    });
+
+    // 2. Separate into Completed (Unviewed), My Turn, and Waiting, sorted individually
+    const completedMatches = enrichedMatches.filter(m => m.isCompleted).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const myTurnMatches = enrichedMatches.filter(m => !m.isCompleted && m.isMyTurn).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const waitingMatches = enrichedMatches.filter(m => !m.isCompleted && !m.isMyTurn).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+    latestCompletedMatches = completedMatches;
+    if (clearBtn) {
+        clearBtn.classList.toggle('hidden', completedMatches.length === 0);
+    }
+
+    const totalItems = completedMatches.length + myTurnMatches.length + latestInvites.length + waitingMatches.length;
     if (countEl) countEl.innerText = totalItems;
 
     if (totalItems === 0) {
@@ -250,6 +299,41 @@ function renderCombinedLobbyList(username) {
     }
 
     let html = '';
+
+    // Group 0: Completed Matches (Unviewed)
+    completedMatches.forEach(m => {
+        const oppName = m.participants.find(p => p !== username) || 'Opponent';
+        const winnerName = m.realWinner && m.players ? m.players[m.realWinner + 'Name'] : null;
+        const isVictory = winnerName === username;
+        const isDefeat = winnerName && winnerName !== username;
+
+        const borderClass = isVictory
+            ? 'border-emerald-500/80 bg-emerald-950/30 hover:bg-emerald-950/50'
+            : isDefeat
+                ? 'border-rose-500/70 bg-rose-950/30 hover:bg-rose-950/50'
+                : 'border-purple-500/70 bg-purple-950/30 hover:bg-purple-950/50';
+        const statusLabel = isVictory ? '🏆 VICTORY' : isDefeat ? '💀 DEFEAT' : '🏁 MATCH ENDED';
+        const statusColor = isVictory ? 'text-emerald-400' : isDefeat ? 'text-rose-400' : 'text-purple-300';
+
+        html += `
+            <div class="flex justify-between items-center p-1.5 sm:p-2 rounded-md border ${borderClass} shadow-sm transition group mb-1.5 cursor-pointer" onclick="window.handleResumeMatch('${m.gameId}')">
+                <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+                    <span class="text-[10px] sm:text-[11px] font-black text-slate-100 uppercase tracking-wider leading-none truncate">vs ${oppName}</span>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="text-[9px] font-bold ${statusColor} flex items-center gap-1 leading-none">
+                            ${statusLabel}
+                        </span>
+                        <span class="text-[9px] text-slate-400 font-semibold truncate hidden sm:inline">• View to dismiss</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1 shrink-0 ml-2">
+                    <button class="bg-slate-700 hover:bg-slate-600 text-white px-2.5 sm:px-3 py-1 rounded text-[9px] font-black shadow-md transition-all active:scale-95">
+                        VIEW RESULT
+                    </button>
+                </div>
+            </div>
+        `;
+    });
 
     // Group 1: Your Turn (Matches)
     myTurnMatches.forEach(m => {
@@ -339,20 +423,20 @@ window.acceptAndJoinInvite = async (inviteId, gameId) => {
 async function updateLobbyData() {
     const usernameInput = document.getElementById('setup-username');
     if (!usernameInput) return; // Abort safely if lobby isn't mounted
-    
+
     await updateDeckDropdown();
-    
+
     const username = usernameInput.value.trim();
     if (invitesUnsub) { invitesUnsub(); invitesUnsub = null; }
     if (matchesUnsub) { matchesUnsub(); matchesUnsub = null; }
 
     if (!username || window.location.hash.startsWith('#test_')) return;
-    
+
     // Wire up push notification profile
     console.log(`[NOTIF-DEBUG] Lobby updated for user: ${username}. Fetching profile...`);
     ClientState.profile = await loadPlayProfile(db, username);
     const notifBtn = document.getElementById('enable-notifications-btn');
-    
+
     if (notifBtn) {
         const updateBtnState = () => {
             console.log(`[NOTIF-DEBUG] UI Button State Update. Browser Permission: ${Notification.permission}`);
@@ -405,7 +489,7 @@ async function updateLobbyData() {
                 showToast("Please allow notifications in your browser's URL bar settings.", "error");
                 return;
             }
-            
+
             const success = await enableTurnNotifications(messaging, db, username);
             if (success) {
                 console.log("[NOTIF-DEBUG] enableTurnNotifications returned success.");

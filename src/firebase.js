@@ -5,8 +5,8 @@
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { 
-  getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, collection, getDocs, addDoc, deleteDoc, query, where
+import {
+    getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, collection, getDocs, addDoc, deleteDoc, query, where
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
@@ -15,17 +15,17 @@ import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/fireb
 
 // Default Firebase Configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyACHtGdXLq9TNZZchfrx46pUQcGb6ndtAI",
-  authDomain: "henchies-reboot.firebaseapp.com",
-  projectId: "henchies-reboot",
-  storageBucket: "henchies-reboot.firebasestorage.app",
-  messagingSenderId: "641284877771",
-  appId: "1:641284877771:web:0497d79a089e6ca2831a4e"
+    apiKey: "AIzaSyACHtGdXLq9TNZZchfrx46pUQcGb6ndtAI",
+    authDomain: "henchies-reboot.firebaseapp.com",
+    projectId: "henchies-reboot",
+    storageBucket: "henchies-reboot.firebasestorage.app",
+    messagingSenderId: "641284877771",
+    appId: "1:641284877771:web:0497d79a089e6ca2831a4e"
 };
 
 let app, db, storage, auth, messaging;
 let isFirebaseOnline = false;
-let authReady = false; 
+let authReady = false;
 
 // Aggressive RAM Cache to prevent Firestore read spikes
 const memoryCache = {
@@ -45,68 +45,68 @@ const resolveAuth = () => {
 };
 
 try {
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  storage = getStorage(app);
-  auth = getAuth(app);
-  console.log("[DIAGNOSTIC] Firebase initializeApp called successfully.");
-  
-  try {
-      messaging = getMessaging(app);
-  } catch(e) {
-      console.warn("Firebase Messaging not supported in this environment.", e);
-  }
-  
-  // Sign in anonymously immediately so we have a valid request.auth for Firestore rules
-  console.log("[DIAGNOSTIC] Attempting signInAnonymously...");
-  signInAnonymously(auth)
-    .then((cred) => {
-        console.log("[DIAGNOSTIC] 🤫 Signed in anonymously. UID:", cred.user.uid);
-    })
-    .catch((error) => {
-        console.error("[DIAGNOSTIC] Auth Error:", error.code, error.message);
-        isFirebaseOnline = false;
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    storage = getStorage(app);
+    auth = getAuth(app);
+    console.log("[DIAGNOSTIC] Firebase initializeApp called successfully.");
+
+    try {
+        messaging = getMessaging(app);
+    } catch (e) {
+        console.warn("Firebase Messaging not supported in this environment.", e);
+    }
+
+    // Sign in anonymously immediately so we have a valid request.auth for Firestore rules
+    console.log("[DIAGNOSTIC] Attempting signInAnonymously...");
+    signInAnonymously(auth)
+        .then((cred) => {
+            console.log("[DIAGNOSTIC] 🤫 Signed in anonymously. UID:", cred.user.uid);
+        })
+        .catch((error) => {
+            console.error("[DIAGNOSTIC] Auth Error:", error.code, error.message);
+            isFirebaseOnline = false;
+            resolveAuth();
+        });
+
+    // Listen for auth state to confirm we are ready to write
+    onAuthStateChanged(auth, (user) => {
+        console.log("[DIAGNOSTIC] onAuthStateChanged fired. User:", user ? user.uid : "null");
+        if (user) {
+            authReady = true;
+            isFirebaseOnline = true;
+            console.log("🔥 Firebase initialized and User Authenticated. UID:", user.uid);
+        } else {
+            authReady = false;
+        }
         resolveAuth();
     });
 
-  // Listen for auth state to confirm we are ready to write
-  onAuthStateChanged(auth, (user) => {
-    console.log("[DIAGNOSTIC] onAuthStateChanged fired. User:", user ? user.uid : "null");
-    if (user) {
-        authReady = true;
-        isFirebaseOnline = true;
-        console.log("🔥 Firebase initialized and User Authenticated. UID:", user.uid);
-    } else {
-        authReady = false;
-    }
-    resolveAuth();
-  });
-
 } catch (e) {
-  console.warn("⚠️ Firebase credentials offline/unconfigured. Falling back to LocalStorage sync.", e);
-  isFirebaseOnline = false;
-  resolveAuth();
+    console.warn("⚠️ Firebase credentials offline/unconfigured. Falling back to LocalStorage sync.", e);
+    isFirebaseOnline = false;
+    resolveAuth();
 }
 
 const isReadyForDB = () => {
-  console.log("[DIAGNOSTIC] isReadyForDB check started. authResolved:", authResolved);
-  return new Promise((resolve) => {
-    if (authResolved) {
-      console.log("[DIAGNOSTIC] isReadyForDB returning immediate result:", (isFirebaseOnline && authReady));
-      resolve(isFirebaseOnline && authReady);
-    } else {
-      console.log("[DIAGNOSTIC] isReadyForDB waiting for auth resolution...");
-      authWaiters.push(resolve);
-      // Safety timeout: if auth takes more than 3 seconds, assume offline and unlock the app
-      setTimeout(() => {
-          if (!authResolved) {
-              console.warn("[FIREBASE] Auth initialization timed out after 3 seconds. Forcing offline mode.");
-              isFirebaseOnline = false;
-              resolveAuth();
-          }
-      }, 3000);
-    }
-  });
+    console.log("[DIAGNOSTIC] isReadyForDB check started. authResolved:", authResolved);
+    return new Promise((resolve) => {
+        if (authResolved) {
+            console.log("[DIAGNOSTIC] isReadyForDB returning immediate result:", (isFirebaseOnline && authReady));
+            resolve(isFirebaseOnline && authReady);
+        } else {
+            console.log("[DIAGNOSTIC] isReadyForDB waiting for auth resolution...");
+            authWaiters.push(resolve);
+            // Safety timeout: if auth takes more than 3 seconds, assume offline and unlock the app
+            setTimeout(() => {
+                if (!authResolved) {
+                    console.warn("[FIREBASE] Auth initialization timed out after 3 seconds. Forcing offline mode.");
+                    isFirebaseOnline = false;
+                    resolveAuth();
+                }
+            }, 3000);
+        }
+    });
 };
 
 // ---------------------------------------------------------------------------
@@ -114,54 +114,55 @@ const isReadyForDB = () => {
 // ---------------------------------------------------------------------------
 
 export async function createGameRoom(gameId, state) {
-  const payload = {
-    gameId: state.gameId,
-    status: state.status,
-    isOpen: true,
-    participants: [state.players.player1.name],
-    turnNumber: state.turnNumber,
-    activePlayerId: state.activePlayerId,
-    turnPhase: state.turnPhase,
-    players: {
-      player1Name: state.players.player1.name,
-      player2Name: state.players.player2.name
-    },
-    turn_start_state: state.turn_start_state || JSON.stringify(state),
-    action_log: state.action_log || [],
-    history_log: state.history_log || [],
-    updatedAt: Date.now()
-  };
+    const payload = {
+        gameId: state.gameId,
+        status: state.status,
+        isOpen: true,
+        participants: [state.players.player1.name],
+        viewedCompletedBy: [],
+        turnNumber: state.turnNumber,
+        activePlayerId: state.activePlayerId,
+        turnPhase: state.turnPhase,
+        players: {
+            player1Name: state.players.player1.name,
+            player2Name: state.players.player2.name
+        },
+        turn_start_state: state.turn_start_state || JSON.stringify(state),
+        action_log: state.action_log || [],
+        history_log: state.history_log || [],
+        updatedAt: Date.now()
+    };
 
-  // Bypass Firebase completely for Sandbox test rooms
-  if (gameId.startsWith('TEST_')) {
-      try {
-          // Clean up old test data to prevent QuotaExceededError
-          const keysToRemove = [];
-          for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (key && key.startsWith('henchies_game_TEST_')) {
-                  keysToRemove.push(key);
-              }
-          }
-          keysToRemove.forEach(k => localStorage.removeItem(k));
+    // Bypass Firebase completely for Sandbox test rooms
+    if (gameId.startsWith('TEST_')) {
+        try {
+            // Clean up old test data to prevent QuotaExceededError
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('henchies_game_TEST_')) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
 
-          localStorage.setItem(`henchies_game_${gameId}`, JSON.stringify(payload));
-          window.dispatchEvent(new CustomEvent('henchies_local_game_update', { detail: payload }));
-      } catch (e) {
-          console.error("Failed to save sandbox match to LocalStorage. It may be full or blocked.", e);
-          throw e;
-      }
-      return;
-  }
-
-  if (await isReadyForDB()) {
-    try {
-      await setDoc(doc(db, "games", gameId), payload);
-      console.log("Game room created in Firestore");
-    } catch (e) {
-      console.error("Firestore createGameRoom failed:", e);
+            localStorage.setItem(`henchies_game_${gameId}`, JSON.stringify(payload));
+            window.dispatchEvent(new CustomEvent('henchies_local_game_update', { detail: payload }));
+        } catch (e) {
+            console.error("Failed to save sandbox match to LocalStorage. It may be full or blocked.", e);
+            throw e;
+        }
+        return;
     }
-  }
+
+    if (await isReadyForDB()) {
+        try {
+            await setDoc(doc(db, "games", gameId), payload);
+            console.log("Game room created in Firestore");
+        } catch (e) {
+            console.error("Firestore createGameRoom failed:", e);
+        }
+    }
 }
 
 export async function pushActionToLog(gameId, actionPayload, updatedTurnStartState, currentHistoryLog) {
@@ -170,7 +171,7 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
         const existing = localStorage.getItem(`henchies_game_${gameId}`);
         if (existing) {
             const data = JSON.parse(existing);
-            
+
             // Fix: Reset the log array at the start of a new turn to prevent infinite scaling
             if (actionPayload.type === 'END_TURN' || actionPayload.type === 'PLAYER_JOINED') {
                 data.action_log = [actionPayload];
@@ -178,7 +179,7 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
                 if (!data.action_log) data.action_log = [];
                 data.action_log.push(actionPayload);
             }
-            
+
             if (currentHistoryLog) data.history_log = currentHistoryLog;
             if (updatedTurnStartState) data.turn_start_state = updatedTurnStartState;
             if (actionPayload.type === 'PLAYER_JOINED') {
@@ -188,6 +189,12 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
             }
             if (actionPayload.type === 'FORFEIT') {
                 data.status = 'finished';
+                if (actionPayload.playerName) {
+                    if (!Array.isArray(data.viewedCompletedBy)) data.viewedCompletedBy = [];
+                    if (!data.viewedCompletedBy.includes(actionPayload.playerName)) {
+                        data.viewedCompletedBy.push(actionPayload.playerName);
+                    }
+                }
             }
             data.updatedAt = Date.now();
             localStorage.setItem(`henchies_game_${gameId}`, JSON.stringify(data));
@@ -198,11 +205,11 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
 
     const isOnline = await isReadyForDB();
     console.log(`[DIAGNOSTIC] pushActionToLog isOnline check result:`, isOnline);
-    
+
     if (!isOnline) {
         console.error("FATAL DESYNC: Firebase disconnected or Auth dropped. Cannot save move.");
-        window.dispatchEvent(new CustomEvent('henchies_toast', { 
-            detail: { msg: "FATAL: Lost connection to server. Match desynced. Please refresh page.", type: "error" } 
+        window.dispatchEvent(new CustomEvent('henchies_toast', {
+            detail: { msg: "FATAL: Lost connection to server. Match desynced. Please refresh page.", type: "error" }
         }));
         return;
     }
@@ -211,7 +218,7 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
         const updateData = {
             updatedAt: Date.now()
         };
-        
+
         // Fix: Reset the log array at the start of a new turn in Firebase
         if (actionPayload.type === 'END_TURN' || actionPayload.type === 'PLAYER_JOINED') {
             updateData.action_log = [actionPayload];
@@ -227,22 +234,47 @@ export async function pushActionToLog(gameId, actionPayload, updatedTurnStartSta
         }
         if (actionPayload.type === 'FORFEIT') {
             updateData.status = 'finished';
+            // The player who forfeited already knows the match ended; keep it visible for their opponent
+            if (actionPayload.playerName) {
+                updateData.viewedCompletedBy = arrayUnion(actionPayload.playerName);
+            }
         }
-        
+
         console.log(`[DIAGNOSTIC] Executing Firestore setDoc for game ${gameId}...`, updateData);
-        
+
         // Wrap setDoc in a timeout. Firebase SDK promises never reject if offline; they hang indefinitely.
         const writePromise = setDoc(doc(db, "games", gameId), updateData, { merge: true });
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DIAGNOSTIC TIMEOUT: Firestore write hung for 5 seconds. Websocket is likely blocked or offline.")), 5000));
-        
+
         await Promise.race([writePromise, timeoutPromise]);
-        
+
         console.log(`[DIAGNOSTIC] Successfully wrote action to Firestore!`);
     } catch (e) {
         console.error("[DIAGNOSTIC] pushActionToLog failed or timed out:", e);
-        window.dispatchEvent(new CustomEvent('henchies_toast', { 
-            detail: { msg: "NETWORK ERROR: " + (e.message || "Failed to save move.") + " Please refresh.", type: "error" } 
+        window.dispatchEvent(new CustomEvent('henchies_toast', {
+            detail: { msg: "NETWORK ERROR: " + (e.message || "Failed to save move.") + " Please refresh.", type: "error" }
         }));
+    }
+}
+
+export async function markCompletedGameViewed(gameId, username, completionMeta = {}) {
+    if (!gameId || !username || gameId.startsWith('TEST_')) return false;
+
+    if (!(await isReadyForDB())) return false;
+
+    try {
+        const updateData = {
+            status: 'finished',
+            viewedCompletedBy: arrayUnion(username)
+        };
+        if (completionMeta.winner) {
+            updateData.winner = completionMeta.winner;
+        }
+        await setDoc(doc(db, "games", gameId), updateData, { merge: true });
+        return true;
+    } catch (e) {
+        console.error("[FIREBASE] Failed to mark completed game as viewed:", e);
+        return false;
     }
 }
 
@@ -250,7 +282,7 @@ export async function subscribeToGameRoom(gameId, callback) {
     if (gameId.startsWith('TEST_')) {
         const initial = localStorage.getItem(`henchies_game_${gameId}`);
         if (initial) callback(JSON.parse(initial));
-        
+
         window.addEventListener('henchies_local_game_update', (e) => {
             if (e.detail && e.detail.gameId === gameId) {
                 callback(e.detail);
@@ -282,7 +314,7 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
     return new Promise(async (resolve) => {
         const localData = JSON.parse(localStorage.getItem(cacheKey) || '[]');
         memoryCache[type] = localData.filter(i => !i.isDeleted);
-        
+
         let maxUpdated = 0;
         memoryCache[type].forEach(item => {
             if (item.updatedAt && item.updatedAt > maxUpdated) maxUpdated = item.updatedAt;
@@ -291,11 +323,11 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
         if (await isReadyForDB()) {
             if (syncListeners[type]) {
                 resolve(memoryCache[type]);
-                return; 
+                return;
             }
 
             // Delta Query: Only fetch documents modified after our newest local document
-            let q = maxUpdated > 0 
+            let q = maxUpdated > 0
                 ? query(collection(db, collectionName), where("updatedAt", ">", maxUpdated))
                 : collection(db, collectionName);
 
@@ -303,7 +335,7 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
 
             syncListeners[type] = onSnapshot(q, (snapshot) => {
                 let changed = false;
-                
+
                 if (!snapshot.empty) {
                     snapshot.docChanges().forEach(change => {
                         const data = change.doc.data();
@@ -324,7 +356,7 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
                         window.dispatchEvent(new CustomEvent('catalog_delta_sync', { detail: { type } }));
                     }
                 }
-                
+
                 if (isFirstSnapshot) {
                     isFirstSnapshot = false;
                     resolve(memoryCache[type]); // Resolve ONLY after cloud delta is merged!
@@ -347,40 +379,40 @@ function syncCollection(collectionName, cacheKey, type, idKey) {
 // ---------------------------------------------------------------------------
 
 export async function saveCardToCatalog(cardData) {
-  const dbPayload = JSON.parse(JSON.stringify(cardData));
-  if (dbPayload.abilities) {
-      dbPayload.abilities = dbPayload.abilities.map(ab => {
-          return {
-              abilityId: ab.abilityId || ab.id || ab,
-              paramX: ab.paramX !== undefined ? ab.paramX : null,
-              isSelectable: !!ab.isSelectable // Included in Firestore mapping so it persists
-          };
-      });
-  }
-  dbPayload.updatedAt = Date.now(); // Force fresh timestamp for delta sync
-  if (await isReadyForDB()) {
-    try {
-      await setDoc(doc(db, "cards", dbPayload.id), dbPayload);
-      console.log("Card saved to Firestore");
-    } catch (e) {
-      console.warn("Firestore card save failed, saving to LocalStorage", e);
+    const dbPayload = JSON.parse(JSON.stringify(cardData));
+    if (dbPayload.abilities) {
+        dbPayload.abilities = dbPayload.abilities.map(ab => {
+            return {
+                abilityId: ab.abilityId || ab.id || ab,
+                paramX: ab.paramX !== undefined ? ab.paramX : null,
+                isSelectable: !!ab.isSelectable // Included in Firestore mapping so it persists
+            };
+        });
     }
-  }
+    dbPayload.updatedAt = Date.now(); // Force fresh timestamp for delta sync
+    if (await isReadyForDB()) {
+        try {
+            await setDoc(doc(db, "cards", dbPayload.id), dbPayload);
+            console.log("Card saved to Firestore");
+        } catch (e) {
+            console.warn("Firestore card save failed, saving to LocalStorage", e);
+        }
+    }
 
-  // Update RAM cache
-  if (memoryCache.cards) {
-      const idx = memoryCache.cards.findIndex(c => c.id === dbPayload.id);
-      if (idx !== -1) memoryCache.cards[idx] = dbPayload;
-      else memoryCache.cards.push(dbPayload);
-  }
+    // Update RAM cache
+    if (memoryCache.cards) {
+        const idx = memoryCache.cards.findIndex(c => c.id === dbPayload.id);
+        if (idx !== -1) memoryCache.cards[idx] = dbPayload;
+        else memoryCache.cards.push(dbPayload);
+    }
 
-  // Update LocalStorage fallback
-  const existing = JSON.parse(localStorage.getItem('henchies_custom_cards') || '[]');
-  const idx = existing.findIndex(c => c.id === dbPayload.id);
-  if (idx !== -1) existing[idx] = dbPayload;
-  else existing.push(dbPayload);
-  localStorage.setItem('henchies_custom_cards', JSON.stringify(existing));
-  return true;
+    // Update LocalStorage fallback
+    const existing = JSON.parse(localStorage.getItem('henchies_custom_cards') || '[]');
+    const idx = existing.findIndex(c => c.id === dbPayload.id);
+    if (idx !== -1) existing[idx] = dbPayload;
+    else existing.push(dbPayload);
+    localStorage.setItem('henchies_custom_cards', JSON.stringify(existing));
+    return true;
 }
 
 export function fetchCustomCards() {
@@ -388,50 +420,50 @@ export function fetchCustomCards() {
 }
 
 export async function deleteCardFromCatalog(cardId) {
-  if (await isReadyForDB()) {
-    try {
-      await updateDoc(doc(db, "cards", cardId), { isDeleted: true, updatedAt: Date.now() });
-      console.log(`Card ${cardId} soft-deleted from Firestore`);
-    } catch (e) {
-      console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
+    if (await isReadyForDB()) {
+        try {
+            await updateDoc(doc(db, "cards", cardId), { isDeleted: true, updatedAt: Date.now() });
+            console.log(`Card ${cardId} soft-deleted from Firestore`);
+        } catch (e) {
+            console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
+        }
     }
-  }
 
-  if (memoryCache.cards) {
-      memoryCache.cards = memoryCache.cards.filter(c => c.id !== cardId);
-  }
+    if (memoryCache.cards) {
+        memoryCache.cards = memoryCache.cards.filter(c => c.id !== cardId);
+    }
 
-  const existing = JSON.parse(localStorage.getItem('henchies_custom_cards') || '[]');
-  const filtered = existing.filter(c => c.id !== cardId);
-  localStorage.setItem('henchies_custom_cards', JSON.stringify(filtered));
+    const existing = JSON.parse(localStorage.getItem('henchies_custom_cards') || '[]');
+    const filtered = existing.filter(c => c.id !== cardId);
+    localStorage.setItem('henchies_custom_cards', JSON.stringify(filtered));
 }
 
 
 export async function saveAbilityToCatalog(abilityData) {
-  const dbPayload = JSON.parse(JSON.stringify(abilityData));
-  delete dbPayload.displayDescription;
-  dbPayload.updatedAt = Date.now(); // Force fresh timestamp for delta sync
-  if (await isReadyForDB()) {
-    try {
-      await setDoc(doc(db, "abilities", dbPayload.abilityId), dbPayload);
-      console.log("Ability saved to Firestore");
-    } catch (e) {
-      console.warn("Firestore ability save failed, saving to LocalStorage", e);
+    const dbPayload = JSON.parse(JSON.stringify(abilityData));
+    delete dbPayload.displayDescription;
+    dbPayload.updatedAt = Date.now(); // Force fresh timestamp for delta sync
+    if (await isReadyForDB()) {
+        try {
+            await setDoc(doc(db, "abilities", dbPayload.abilityId), dbPayload);
+            console.log("Ability saved to Firestore");
+        } catch (e) {
+            console.warn("Firestore ability save failed, saving to LocalStorage", e);
+        }
     }
-  }
 
-  if (memoryCache.abilities) {
-      const idx = memoryCache.abilities.findIndex(a => a.abilityId === dbPayload.abilityId);
-      if (idx !== -1) memoryCache.abilities[idx] = dbPayload;
-      else memoryCache.abilities.push(dbPayload);
-  }
+    if (memoryCache.abilities) {
+        const idx = memoryCache.abilities.findIndex(a => a.abilityId === dbPayload.abilityId);
+        if (idx !== -1) memoryCache.abilities[idx] = dbPayload;
+        else memoryCache.abilities.push(dbPayload);
+    }
 
-  const existing = JSON.parse(localStorage.getItem('henchies_custom_abilities') || '[]');
-  const idx = existing.findIndex(a => a.abilityId === dbPayload.abilityId);
-  if (idx !== -1) existing[idx] = dbPayload;
-  else existing.push(dbPayload);
-  localStorage.setItem('henchies_custom_abilities', JSON.stringify(existing));
-  return true;
+    const existing = JSON.parse(localStorage.getItem('henchies_custom_abilities') || '[]');
+    const idx = existing.findIndex(a => a.abilityId === dbPayload.abilityId);
+    if (idx !== -1) existing[idx] = dbPayload;
+    else existing.push(dbPayload);
+    localStorage.setItem('henchies_custom_abilities', JSON.stringify(existing));
+    return true;
 }
 
 export function fetchCustomAbilities() {
@@ -439,47 +471,47 @@ export function fetchCustomAbilities() {
 }
 
 export async function deleteAbilityFromCatalog(abilityId) {
-  if (await isReadyForDB()) {
-    try {
-      await updateDoc(doc(db, "abilities", abilityId), { isDeleted: true, updatedAt: Date.now() });
-      console.log(`Ability ${abilityId} soft-deleted from Firestore`);
-    } catch (e) {
-      console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
+    if (await isReadyForDB()) {
+        try {
+            await updateDoc(doc(db, "abilities", abilityId), { isDeleted: true, updatedAt: Date.now() });
+            console.log(`Ability ${abilityId} soft-deleted from Firestore`);
+        } catch (e) {
+            console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
+        }
     }
-  }
 
-  if (memoryCache.abilities) {
-      memoryCache.abilities = memoryCache.abilities.filter(a => a.abilityId !== abilityId);
-  }
+    if (memoryCache.abilities) {
+        memoryCache.abilities = memoryCache.abilities.filter(a => a.abilityId !== abilityId);
+    }
 
-  const existing = JSON.parse(localStorage.getItem('henchies_custom_abilities') || '[]');
-  const filtered = existing.filter(a => a.abilityId !== abilityId);
-  localStorage.setItem('henchies_custom_abilities', JSON.stringify(filtered));
+    const existing = JSON.parse(localStorage.getItem('henchies_custom_abilities') || '[]');
+    const filtered = existing.filter(a => a.abilityId !== abilityId);
+    localStorage.setItem('henchies_custom_abilities', JSON.stringify(filtered));
 }
 
 export async function saveTribeToCatalog(tribeData) {
-  tribeData.updatedAt = Date.now(); // Force fresh timestamp for delta sync
-  if (await isReadyForDB()) {
-    try {
-      await setDoc(doc(db, "tribes", tribeData.id), tribeData);
-      console.log("Tribe saved to Firestore");
-    } catch (e) {
-      console.warn("Firestore tribe save failed, saving to LocalStorage", e);
+    tribeData.updatedAt = Date.now(); // Force fresh timestamp for delta sync
+    if (await isReadyForDB()) {
+        try {
+            await setDoc(doc(db, "tribes", tribeData.id), tribeData);
+            console.log("Tribe saved to Firestore");
+        } catch (e) {
+            console.warn("Firestore tribe save failed, saving to LocalStorage", e);
+        }
     }
-  }
 
-  if (memoryCache.tribes) {
-      const idx = memoryCache.tribes.findIndex(t => t.id === tribeData.id);
-      if (idx !== -1) memoryCache.tribes[idx] = tribeData;
-      else memoryCache.tribes.push(tribeData);
-  }
+    if (memoryCache.tribes) {
+        const idx = memoryCache.tribes.findIndex(t => t.id === tribeData.id);
+        if (idx !== -1) memoryCache.tribes[idx] = tribeData;
+        else memoryCache.tribes.push(tribeData);
+    }
 
-  const existing = JSON.parse(localStorage.getItem('henchies_custom_tribes') || '[]');
-  const idx = existing.findIndex(t => t.id === tribeData.id);
-  if (idx !== -1) existing[idx] = tribeData;
-  else existing.push(tribeData);
-  localStorage.setItem('henchies_custom_tribes', JSON.stringify(existing));
-  return true;
+    const existing = JSON.parse(localStorage.getItem('henchies_custom_tribes') || '[]');
+    const idx = existing.findIndex(t => t.id === tribeData.id);
+    if (idx !== -1) existing[idx] = tribeData;
+    else existing.push(tribeData);
+    localStorage.setItem('henchies_custom_tribes', JSON.stringify(existing));
+    return true;
 }
 
 export function fetchCustomTribes() {
@@ -487,36 +519,36 @@ export function fetchCustomTribes() {
 }
 
 export async function deleteTribeFromCatalog(tribeId) {
-  if (await isReadyForDB()) {
-    try {
-      await updateDoc(doc(db, "tribes", tribeId), { isDeleted: true, updatedAt: Date.now() });
-      console.log(`Tribe ${tribeId} soft-deleted from Firestore`);
-    } catch (e) {
-      console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
+    if (await isReadyForDB()) {
+        try {
+            await updateDoc(doc(db, "tribes", tribeId), { isDeleted: true, updatedAt: Date.now() });
+            console.log(`Tribe ${tribeId} soft-deleted from Firestore`);
+        } catch (e) {
+            console.warn("Firestore soft-delete failed, falling back to LocalStorage", e);
+        }
     }
-  }
 
-  if (memoryCache.tribes) {
-      memoryCache.tribes = memoryCache.tribes.filter(t => t.id !== tribeId);
-  }
+    if (memoryCache.tribes) {
+        memoryCache.tribes = memoryCache.tribes.filter(t => t.id !== tribeId);
+    }
 
-  const existing = JSON.parse(localStorage.getItem('henchies_custom_tribes') || '[]');
-  const filtered = existing.filter(t => t.id !== tribeId);
-  localStorage.setItem('henchies_custom_tribes', JSON.stringify(filtered));
+    const existing = JSON.parse(localStorage.getItem('henchies_custom_tribes') || '[]');
+    const filtered = existing.filter(t => t.id !== tribeId);
+    localStorage.setItem('henchies_custom_tribes', JSON.stringify(filtered));
 }
 
 
 export async function uploadCardArt(file) {
-  if ((await isReadyForDB()) && file) {
-    try {
-      const storageRef = ref(storage, `card_art/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      return await getDownloadURL(snapshot.ref);
-    } catch (e) {
-      console.warn("Firebase Storage upload failed", e);
+    if ((await isReadyForDB()) && file) {
+        try {
+            const storageRef = ref(storage, `card_art/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            return await getDownloadURL(snapshot.ref);
+        } catch (e) {
+            console.warn("Firebase Storage upload failed", e);
+        }
     }
-  }
-  return null;
+    return null;
 }
 
 // =====================================
@@ -531,7 +563,7 @@ export async function fetchUserDecks(username, forceRefresh = false) {
             console.log(`[FIREBASE] ☁️ Fetching DECKS for ${username} from Cloud...`);
             const q = query(collection(db, "custom_decks"), where("username", "==", username));
             const qSnapshot = await getDocs(q);
-            
+
             const userDecks = {};
             qSnapshot.forEach((docSnap) => {
                 const data = docSnap.data();
@@ -545,7 +577,7 @@ export async function fetchUserDecks(username, forceRefresh = false) {
             return localData || {};
         }
     }
-    
+
     console.log(`[FIREBASE] 💾 Loading DECKS for ${username} from LocalStorage cache (offline fallback).`);
     memoryCache.decks[username] = localData || {};
     return memoryCache.decks[username];
@@ -561,11 +593,11 @@ export async function saveDeckToCatalog(username, deckName, deckData) {
             updatedAt: Date.now()
         };
         await setDoc(doc(db, "custom_decks", deckId), payload);
-        
+
         if (!memoryCache.decks[username]) memoryCache.decks[username] = {};
         memoryCache.decks[username][deckName] = payload;
         localStorage.setItem(`henchies_decks_${username}`, JSON.stringify(memoryCache.decks[username]));
-        
+
         return true;
     } catch (e) {
         console.error("Error saving deck:", e);
@@ -577,12 +609,12 @@ export async function deleteDeckFromCatalog(username, deckName) {
     try {
         const deckId = `${username}_${deckName}`.replace(/[^a-zA-Z0-9_]/g, '_');
         await deleteDoc(doc(db, "custom_decks", deckId));
-        
+
         if (memoryCache.decks[username]) {
             delete memoryCache.decks[username][deckName];
             localStorage.setItem(`henchies_decks_${username}`, JSON.stringify(memoryCache.decks[username]));
         }
-        
+
         return true;
     } catch (e) {
         console.error("Error deleting deck:", e);
@@ -623,7 +655,7 @@ export async function sendDirectInvite(fromName, toName, gameId) {
                 createdAt: Date.now()
             });
             return true;
-        } catch(e) {
+        } catch (e) {
             console.error("Error sending invite:", e);
         }
     }
@@ -634,7 +666,7 @@ export async function updateInviteStatus(inviteId, status) {
     if (await isReadyForDB()) {
         try {
             await updateDoc(doc(db, "invites", inviteId), { status });
-        } catch(e) {
+        } catch (e) {
             console.error("Error updating invite:", e);
         }
     }
@@ -649,19 +681,27 @@ export async function subscribeToUserInvites(username, callback) {
             callback(invites);
         }, (err) => console.error("Invites subscription error:", err));
     }
-    return () => {};
+    return () => { };
 }
 
 export async function subscribeToActiveMatches(username, callback) {
     if (await isReadyForDB()) {
-        const q = query(collection(db, "games"), where("participants", "array-contains", username), where("status", "==", "active"));
+        const q = query(collection(db, "games"), where("participants", "array-contains", username));
         return onSnapshot(q, (snapshot) => {
             const matches = [];
-            snapshot.forEach(docSnap => matches.push(docSnap.data()));
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                const viewedBy = Array.isArray(data.viewedCompletedBy) ? data.viewedCompletedBy : [];
+                // Keep active matches AND completed matches that this user hasn't viewed yet
+                if (data.status === 'finished' && viewedBy.includes(username)) {
+                    return;
+                }
+                matches.push(data);
+            });
             callback(matches);
         }, (err) => console.error("Active matches subscription error:", err));
     }
-    return () => {};
+    return () => { };
 }
 
 // =====================================
@@ -675,10 +715,10 @@ export async function fetchUserProfile(username) {
         const profileRef = doc(db, 'profiles', username);
         const snap = await getDoc(profileRef);
         if (snap.exists()) {
-            updateDoc(profileRef, { lastActive: Date.now() }).catch(() => {});
+            updateDoc(profileRef, { lastActive: Date.now() }).catch(() => { });
             return snap.data();
         }
-    } catch(e) {
+    } catch (e) {
         console.warn("⚠️ [FIREBASE] Profile read failed.", e);
         throw e;
     }
@@ -690,7 +730,7 @@ export async function createUserProfile(username, defaultData) {
     try {
         await setDoc(doc(db, 'profiles', username), defaultData);
         return true;
-    } catch(e) {
+    } catch (e) {
         console.error("[FIREBASE] Failed to create profile document", e);
         return false;
     }
@@ -705,7 +745,7 @@ export async function addFCMTokenToProfile(username, token) {
             lastActive: Date.now()
         });
         return true;
-    } catch(e) {
+    } catch (e) {
         console.error("[FIREBASE] [NOTIF-DEBUG] Failed to add FCM token to profile", e);
         return false;
     }
@@ -715,9 +755,9 @@ export async function requestFCMToken(vapidKey, serviceWorkerRegistration) {
     console.log(`[NOTIF-DEBUG] requestFCMToken invoked. Messaging instance available: ${!!messaging}`);
     if (!messaging) return null;
     try {
-        const token = await getToken(messaging, { 
-            vapidKey: vapidKey, 
-            serviceWorkerRegistration: serviceWorkerRegistration 
+        const token = await getToken(messaging, {
+            vapidKey: vapidKey,
+            serviceWorkerRegistration: serviceWorkerRegistration
         });
         console.log(`[NOTIF-DEBUG] getToken returned:`, token ? (token.substring(0, 15) + "...") : "null/empty");
         return token;

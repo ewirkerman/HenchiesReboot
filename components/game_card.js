@@ -35,6 +35,49 @@ export const hasEngineFlag = (card, flag) => {
 
 const isValidStat = (val) => val !== undefined && val !== null && val !== '' && val !== 'null' && !isNaN(Number(val));
 
+const CARD_TYPE_FALLBACK_EMOJI = {
+    unit: '⚔️',
+    avatar: '👑',
+    equipment: '🛡️',
+    artifact: '🏺',
+    buff: '👼',
+    debuff: '👹',
+    boon: '⛲',
+    spell: '🪄'
+};
+
+const CARD_GENUS_FALLBACK_EMOJI = {
+    "Air": "💨",
+    "Animal": "🐾",
+    "Atomic": "⚛️",
+    "Attunement": "✨",
+    "Bender": "🌀",
+    "Biological": "🧬",
+    "Bionic": "🦾",
+    "Cannon": "💣",
+    "Clown": "🤡",
+    "Cursed": "🧿",
+    "Earth": "🪨",
+    "Fire": "🔥",
+    "Generic": "⚪",
+    "Gnome": "🧙",
+    "Land-bound": "⛰️",
+    "Marsh-bound": "🐸",
+    "Psionic": "🧠",
+    "Ship": "⛵",
+    "Skeleton": "💀",
+    "Sky-bound": "☁️",
+    "Tree": "🌳",
+    "Vampire": "🧛",
+    "Villager": "🧑‍🌾",
+    "Water": "💧",
+    "Wolf": "🐺",
+    "Xenode": "👾",
+    "Zombie": "🧟"
+}
+
+export const getFallbackArtEmoji = (cardType, cardGenus) => ((CARD_TYPE_FALLBACK_EMOJI[cardType] || '📜') + (CARD_GENUS_FALLBACK_EMOJI[cardGenus] || ''));
+
 // --- Game Logic Formatting ---
 function getLiveTribeStyle(tribeName) {
     const globalTribes = getGlobalList('customTribesList', 'customTribes');
@@ -100,7 +143,6 @@ export function formatAbilityCostBadge(cost, cardTribe) {
     if (!badgeText) return '';
 
     const badgeHtml = renderStatAndResourceTokens(badgeText, {
-        colorClass: 'text-purple-400',
         tribeStyle: getLiveTribeStyle(cost.tribeType || cardTribe || 'Generic'),
         iconSizeClass: ''
     });
@@ -429,7 +471,8 @@ export class GameCard extends HTMLElement {
             hexBorder: style.hexBorder ? `border-color: ${style.hexBorder};` : '',
             bgArtUrl: resolveAssetUrl(style.bgImageUrl),
             bgArtStyle: `object-position: center; transform: translate(${style.bgImageX ?? 0}px, ${style.bgImageY ?? 0}px) scale(${(style.bgImageScale ?? 100) / 100});`,
-            cardArtUrl: resolveAssetUrl(card.artUrl)
+            cardArtUrl: resolveAssetUrl(card.artUrl),
+            fallbackArtEmoji: getFallbackArtEmoji(card.type, card.genus)
         };
     }
 
@@ -491,38 +534,47 @@ export class GameCard extends HTMLElement {
         return {
             isStunned, isDazed, isFieldUnready, isFieldExhausted, isFieldOverReady,
             hasNegativeEffect: net.hasNegative, hasPositiveEffect: net.hasPositive, isEntityTemporary,
-            lineGlowClass: cardState.isTempLine ? '[&>svg]:!text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,1)] z-20' : '',
+            lineGlowClass: cardState.isTempLine ? 'line-icon-box--temp' : '',
             strengthClass: getStatClass(net.strength), healthClass: getStatClass(net.health),
             costClass: hasCostModifier ? `${baseCls} stat-cost-modified` : baseCls,
             powerClass: baseCls, armorClass: baseCls,
             stateClasses, dynamicBorderClass, dynamicBorderStyle,
-            fieldDimmingClass: (isFieldUnready || isFieldExhausted || isStunned || isDazed) ? 'saturate-[0.25] opacity-90' : '',
-            hiddenClass: isHidden && !options.isHand ? 'opacity-60 hover:opacity-100' : '',
+            fieldDimmingClass: (isFieldUnready || isFieldExhausted || isStunned || isDazed) ? 'card-field-dimmed' : '',
+            hiddenClass: isHidden && !options.isHand ? 'card-hidden-entity' : '',
             separatorClass: cardState.isToken ? 'border-white/40' : 'border-black'
         };
     }
 
     _buildOverlayHTML(visuals, options) {
         let overlayContent = '';
-        let bgClass = 'bg-black/30', glowClass = '', iconColor = 'text-white';
+        let stateClass = '';
+        let glowClass = '';
 
-        if (visuals.isStunned) overlayContent = SVG_STUNNED;
-        else if (visuals.isDazed) overlayContent = SVG_DAZED;
-        else if (visuals.isFieldExhausted) { overlayContent = getIconSvg('exhausted') || getIconSvg('hourglass-full'); bgClass = 'bg-black/50'; iconColor = 'text-slate-300'; }
-        else if (visuals.isFieldUnready) { overlayContent = getIconSvg('unready') || getIconSvg('hourglass-empty'); bgClass = 'bg-black/50'; iconColor = 'text-slate-300'; }
-        else if (visuals.isFieldOverReady) {
+        if (visuals.isStunned) {
+            overlayContent = SVG_STUNNED;
+            stateClass = 'card-overlay--stunned';
+        } else if (visuals.isDazed) {
+            overlayContent = SVG_DAZED;
+            stateClass = 'card-overlay--dazed';
+        } else if (visuals.isFieldExhausted) {
+            overlayContent = getIconSvg('exhausted') || getIconSvg('hourglass-full');
+            stateClass = 'card-overlay--exhausted';
+        } else if (visuals.isFieldUnready) {
+            overlayContent = getIconSvg('unready') || getIconSvg('hourglass-empty');
+            stateClass = 'card-overlay--unready';
+        } else if (visuals.isFieldOverReady) {
             overlayContent = getIconSvg('overready') || getIconSvg('hourglass-full');
-            bgClass = 'bg-emerald-400/20'; iconColor = 'text-emerald-400';
-            glowClass = (options.isMicro || options.isNano) ? `overlay-glow-${visuals.hasNegativeEffect ? 'red' : 'green'}-sm` : `overlay-glow-${visuals.hasNegativeEffect ? 'red' : 'green'}`;
+            stateClass = 'card-overlay--overready';
+            const isSm = options.isMicro || options.isNano;
+            glowClass = isSm
+                ? `overlay-glow-${visuals.hasNegativeEffect ? 'red' : 'green'}-sm`
+                : `overlay-glow-${visuals.hasNegativeEffect ? 'red' : 'green'}`;
         }
 
         if (!overlayContent) return '';
 
-        const isSm = options.isMicro || options.isNano;
-        const opacityCls = isSm ? (visuals.isStunned || visuals.isDazed ? 'opacity-50' : 'opacity-80') : (visuals.isStunned || visuals.isDazed ? 'opacity-80' : 'opacity-90');
-
-        return `<div class="absolute inset-0 z-[40] flex items-center justify-center pointer-events-none ${bgClass} rounded-md">
-            <div class="${visuals.isDazed ? 'scale-75' : ''} ${opacityCls} ${isSm ? 'drop-shadow-[0_2px_6px_rgba(0,0,0,1)]' : 'drop-shadow-[0_4px_12px_rgba(0,0,0,1)]'} overlay-svg-container ${glowClass} ${iconColor} [&>svg]:w-full [&>svg]:h-full [&>svg]:m-0 flex items-center justify-center">
+        return `<div class="card-overlay ${stateClass}">
+            <div class="overlay-svg-container ${glowClass}">
             ${overlayContent}
             </div>
         </div>`;

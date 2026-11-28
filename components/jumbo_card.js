@@ -17,7 +17,6 @@ const LAYOUT = {
 const JUMBO_CORNER_SIZES = {
   cost: `${LAYOUT.mainBox} ${LAYOUT.mainText}`,
   power: `${LAYOUT.subBox} ${LAYOUT.subText} -mt-0.5`,
-  line: `${LAYOUT.iconBox} ${LAYOUT.marginTopLeft}`,
   fast: `${LAYOUT.iconBox} ${LAYOUT.marginTopLeft} text-xs border-[1.5px]`,
   strength: `${LAYOUT.mainBox} ${LAYOUT.mainText}`,
   armor: `h-7 px-1.5 stat-box text-xs`, // Center element uses distinct layout
@@ -63,7 +62,7 @@ export function renderJumboAbilities(abilitiesData) {
 }
 
 export function renderJumbo(ctx) {
-  const { card, style, hexBg, hexBorder, hexLightBg, isToken, separatorClass, bgArtUrl, bgArtStyle, cardArtUrl, artStyle, isUnit, isAvatar, isTempLine, activeLine, hasReadiness, readiness, hasStrength, hasArmor, showHealth, displayHealth, abilitiesData, hiddenClass, isHand } = ctx;
+  const { card, style, hexBg, hexBorder, hexLightBg, isToken, separatorClass, bgArtUrl, bgArtStyle, cardArtUrl, fallbackArtEmoji, artStyle, isUnit, isAvatar, isTempLine, activeLine, hasReadiness, readiness, hasStrength, hasArmor, showHealth, displayHealth, abilitiesData, hiddenClass, isHand } = ctx;
 
   let inspectBorderClass = isToken ? 'border-white/50 shadow-[0_0_24px_rgba(255,255,255,0.25)]' : style.border;
   let inspectBorderStyle = isToken ? '' : hexBorder;
@@ -83,7 +82,7 @@ export function renderJumbo(ctx) {
           ` : ''}
           ${cardArtUrl ? `<img src="${cardArtUrl}" alt="${card.name}" class="w-full h-full object-contain relative z-10" style="${artStyle}" draggable="false" />` : `
             <div class="relative z-10 w-full h-full flex items-center justify-center drop-shadow-md text-6xl font-bold">
-              ${card.type === 'unit' ? '⚔️' : card.type === 'avatar' ? '👑' : card.type === 'equipment' ? '🛡️' : card.type === 'artifact' ? '🏺' : '📜'}
+              ${fallbackArtEmoji}
             </div>
           `}
           
@@ -106,7 +105,7 @@ export function renderJumbo(ctx) {
               </div>
             ` : ''}
             ${isUnit ? `
-              <div class="${JUMBO_CORNER_SIZES.line} drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isTempLine ? 'text-green-300 drop-shadow-[0_0_8px_rgba(134,239,172,0.9)]' : 'text-white'} pointer-events-auto" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
+              <div class="line-icon-box ${ctx.lineGlowClass}" title="${isTempLine ? 'Temporary Line: ' : 'Line: '}${activeLine.charAt(0).toUpperCase() + activeLine.slice(1)}">
                 ${getLineIconSvg(activeLine)}
               </div>
             ` : ''}
